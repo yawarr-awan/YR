@@ -1,0 +1,1005 @@
+<!DOCTYPE html>
+<html lang="en-GB" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Yawar's Wellness Tracker</title>
+<link rel="icon" type="image/png" href="data:image/png;base64,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">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0f766e">
+<style>
+:root{
+  --bg:#f4f6fb; --panel:#ffffff; --panel-2:#f0f3f9; --ink:#1c2434; --muted:#5b6678;
+  --line:#e2e7f0; --brand:#0f766e; --brand-2:#14b8a6; --accent:#7c3aed;
+  --good:#16a34a; --warn:#d97706; --bad:#dc2626; --gold:#b45309;
+  --pray:#6d28d9; --med:#0369a1; --water:#0891b2; --food:#c2410c; --move:#15803d;
+  --shadow:0 1px 2px rgba(16,24,40,.06),0 6px 20px rgba(16,24,40,.06);
+  --radius:16px;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0f1420; --panel:#171e2e; --panel-2:#1e2739; --ink:#eef2f8; --muted:#9aa7bd;
+    --line:#2a3550; --brand:#2dd4bf; --brand-2:#5eead4; --accent:#a78bfa;
+    --good:#4ade80; --warn:#fbbf24; --bad:#f87171; --gold:#fbbf24;
+    --pray:#c4b5fd; --med:#7dd3fc; --water:#67e8f9; --food:#fdba74; --move:#86efac;
+    --shadow:0 1px 2px rgba(0,0,0,.3),0 8px 26px rgba(0,0,0,.35);
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0f1420; --panel:#171e2e; --panel-2:#1e2739; --ink:#eef2f8; --muted:#9aa7bd;
+  --line:#2a3550; --brand:#2dd4bf; --brand-2:#5eead4; --accent:#a78bfa;
+  --good:#4ade80; --warn:#fbbf24; --bad:#f87171; --gold:#fbbf24;
+  --pray:#c4b5fd; --med:#7dd3fc; --water:#67e8f9; --food:#fdba74; --move:#86efac;
+  --shadow:0 1px 2px rgba(0,0,0,.3),0 8px 26px rgba(0,0,0,.35);
+  color-scheme:dark;
+}
+:root[data-theme="light"]{ color-scheme:light; }
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:var(--bg); color:var(--ink);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  line-height:1.5; -webkit-font-smoothing:antialiased;
+}
+a{color:var(--brand)}
+.wrap{max-width:1024px; margin:0 auto; padding:0 16px 96px}
+header.top{
+  position:sticky; top:0; z-index:20; background:var(--panel);
+  border-bottom:1px solid var(--line); box-shadow:var(--shadow);
+}
+.top-inner{max-width:1024px; margin:0 auto; padding:12px 16px; display:flex; align-items:center; gap:14px; flex-wrap:wrap}
+.brand-badge{
+  width:42px;height:42px;border-radius:12px;flex:0 0 auto;
+  background:linear-gradient(135deg,var(--brand),var(--accent));
+  display:flex;align-items:center;justify-content:center;color:#fff;font-size:22px;
+}
+.brand-title{font-weight:800; font-size:1.05rem; letter-spacing:.2px}
+.brand-sub{font-size:.78rem; color:var(--muted)}
+.ring{
+  --p:0; width:48px;height:48px;border-radius:50%;flex:0 0 auto; margin-inline-start:auto;
+  background:conic-gradient(var(--brand) calc(var(--p)*1%), var(--panel-2) 0);
+  display:flex;align-items:center;justify-content:center; position:relative;
+}
+.ring::after{content:"";position:absolute;inset:5px;border-radius:50%;background:var(--panel)}
+.ring span{position:relative;z-index:1;font-size:.72rem;font-weight:800}
+.theme-toggle{border:1px solid var(--line);background:var(--panel-2);color:var(--ink);width:40px;height:40px;border-radius:12px;font-size:1.15rem;cursor:pointer;flex:0 0 auto}
+nav.tabs{display:flex;gap:6px;overflow-x:auto;padding:8px 0 2px}
+nav.tabs button{
+  border:1px solid var(--line); background:var(--panel-2); color:var(--muted);
+  padding:8px 14px;border-radius:999px;font-weight:600;font-size:.86rem;cursor:pointer;white-space:nowrap;
+}
+nav.tabs button.active{background:var(--brand);border-color:var(--brand);color:#fff}
+.datebar{display:flex;align-items:center;gap:10px;margin:14px 0 6px}
+.datebar button{
+  border:1px solid var(--line);background:var(--panel);color:var(--ink);
+  width:38px;height:38px;border-radius:10px;font-size:1.1rem;cursor:pointer;font-weight:700
+}
+.datebar .dlabel{font-weight:700}
+.datebar input[type=date]{border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:10px;padding:8px}
+.today-btn{margin-inline-start:auto;background:var(--brand)!important;color:#fff!important;border-color:var(--brand)!important;width:auto!important;padding:0 14px}
+.view{display:none}
+.view.active{display:block}
+.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}
+@media(max-width:720px){.grid{grid-template-columns:1fr}}
+.card{
+  background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+  padding:16px;box-shadow:var(--shadow)
+}
+.card h3{margin:0 0 10px;font-size:.95rem;display:flex;align-items:center;gap:8px}
+.card h3 .dot{width:9px;height:9px;border-radius:50%}
+.chk{display:flex;align-items:center;gap:12px;padding:10px 8px;border-radius:12px;cursor:pointer;border:1px solid transparent}
+.chk:hover{background:var(--panel-2)}
+.chk input{width:20px;height:20px;accent-color:var(--brand);flex:0 0 auto;cursor:pointer}
+.chk .lbl{font-weight:600}
+.chk .sub{font-size:.76rem;color:var(--muted)}
+.chk.done .lbl{text-decoration:line-through;color:var(--muted)}
+.meal-row{display:flex;align-items:flex-start;gap:12px;padding:10px 8px;border-radius:12px;border:1px solid transparent}
+.meal-row:hover{background:var(--panel-2)}
+.meal-row input{width:20px;height:20px;accent-color:var(--move);margin-top:2px;cursor:pointer}
+.meal-meta{font-size:.76rem;color:var(--muted)}
+.linklike{
+  background:none;border:none;padding:0;margin:0;color:var(--brand);font:inherit;font-weight:700;
+  cursor:pointer;text-align:start;text-decoration:underline;text-underline-offset:2px
+}
+.linklike:hover{color:var(--accent)}
+.tag{display:inline-block;font-size:.7rem;font-weight:700;padding:2px 8px;border-radius:999px;background:var(--panel-2);color:var(--muted);border:1px solid var(--line)}
+.water-wrap{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.water-btn{width:44px;height:44px;border-radius:12px;border:1px solid var(--line);background:var(--panel-2);color:var(--ink);font-size:1.3rem;font-weight:800;cursor:pointer}
+.water-count{font-size:1.6rem;font-weight:800}
+.glasses{display:flex;gap:4px;flex-wrap:wrap}
+.glass{width:16px;height:22px;border:2px solid var(--water);border-top:none;border-radius:0 0 6px 6px;opacity:.3}
+.glass.full{background:var(--water);opacity:1}
+.field{margin:10px 0}
+.field label{display:block;font-size:.8rem;color:var(--muted);font-weight:600;margin-bottom:4px}
+.field input[type=number],.field textarea,.field input[type=text]{
+  width:100%;border:1px solid var(--line);background:var(--panel-2);color:var(--ink);
+  border-radius:10px;padding:10px;font:inherit
+}
+.field textarea{min-height:70px;resize:vertical}
+.slider-val{font-weight:800;float:right}
+input[type=range]{width:100%;accent-color:var(--accent)}
+.pill-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
+.stat{display:flex;flex-direction:column;gap:2px;background:var(--panel-2);border:1px solid var(--line);border-radius:12px;padding:12px}
+.stat b{font-size:1.5rem}
+.stat span{font-size:.75rem;color:var(--muted)}
+.stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+@media(max-width:720px){.stats-grid{grid-template-columns:repeat(2,1fr)}}
+table{width:100%;border-collapse:collapse;font-size:.84rem}
+th,td{padding:8px 6px;border-bottom:1px solid var(--line);text-align:start}
+th{color:var(--muted);font-size:.74rem;text-transform:uppercase;letter-spacing:.4px}
+.plan-day{margin-bottom:12px}
+.plan-day h4{margin:0 0 6px;font-size:.9rem;color:var(--brand)}
+.recipe-card,.ex-card{border:1px solid var(--line);border-radius:14px;padding:14px;background:var(--panel-2);margin-bottom:10px}
+.recipe-card h4,.ex-card h4{margin:0 0 4px;font-size:.95rem}
+canvas{width:100%;height:auto;background:var(--panel-2);border-radius:12px;border:1px solid var(--line)}
+.btn{border:1px solid var(--line);background:var(--panel-2);color:var(--ink);border-radius:10px;padding:10px 14px;font-weight:700;cursor:pointer;font:inherit}
+.btn.primary{background:var(--brand);color:#fff;border-color:var(--brand)}
+.btn.danger{background:transparent;color:var(--bad);border-color:var(--bad)}
+.note{font-size:.82rem;color:var(--muted);background:var(--panel-2);border-inline-start:4px solid var(--brand);border-radius:8px;padding:10px 12px;margin:10px 0}
+.warnbox{font-size:.85rem;background:var(--panel-2);border-inline-start:4px solid var(--warn);border-radius:8px;padding:12px 14px;margin:12px 0}
+.guide h3{color:var(--brand);margin-top:22px}
+.guide ul{padding-inline-start:20px}
+.guide li{margin:5px 0}
+.overlay{position:fixed;inset:0;background:rgba(8,12,20,.55);display:none;align-items:flex-start;justify-content:center;z-index:50;padding:24px 12px;overflow:auto}
+.overlay.open{display:flex}
+.modal{background:var(--panel);max-width:640px;width:100%;border-radius:18px;box-shadow:var(--shadow);padding:22px;position:relative}
+.modal-close{position:absolute;top:14px;inset-inline-end:14px;border:none;background:var(--panel-2);width:34px;height:34px;border-radius:50%;font-size:1.1rem;cursor:pointer;color:var(--ink)}
+.modal h2{margin:0 6px 6px 0;font-size:1.25rem;padding-inline-end:32px}
+.modal .meta{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 14px}
+.modal ol,.modal ul{padding-inline-start:20px}
+.modal li{margin:5px 0}
+.section-title{font-size:1.1rem;font-weight:800;margin:6px 0 10px}
+.muted{color:var(--muted)}
+.center{text-align:center}
+footer.foot{text-align:center;color:var(--muted);font-size:.78rem;margin-top:26px}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:.76rem;color:var(--muted);margin-top:8px}
+.legend i{width:10px;height:10px;border-radius:3px;display:inline-block;margin-inline-end:5px;vertical-align:middle}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="top-inner">
+    <img class="brand-badge" src="data:image/png;base64,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" alt="Wellness Tracker logo" width="42" height="42" style="object-fit:cover">
+    <div>
+      <div class="brand-title">Yawar's Wellness Tracker</div>
+      <div class="brand-sub">Diet · Movement · Medicine · Prayers · Progress</div>
+    </div>
+    <div class="ring" id="dayRing"><span id="dayRingTxt">0%</span></div>
+    <button id="themeToggle" class="theme-toggle" aria-label="Switch light or dark theme" title="Switch theme">🌙</button>
+  </div>
+  <div class="top-inner" style="padding-top:0">
+    <nav class="tabs" id="tabs">
+      <button data-nav="today" class="active">📋 Today</button>
+      <button data-nav="plan">🍽️ Meal Plan</button>
+      <button data-nav="recipes">👨‍🍳 Recipes</button>
+      <button data-nav="exercises">🧘 Exercises</button>
+      <button data-nav="progress">📈 Progress</button>
+      <button data-nav="guide">📖 Guide</button>
+    </nav>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <!-- ===================== TODAY ===================== -->
+  <section id="view-today" class="view active">
+    <div class="datebar">
+      <button id="prevDay" title="Previous day">‹</button>
+      <div class="dlabel" id="dateLabel">Today</div>
+      <input type="date" id="datePick">
+      <button class="today-btn" id="jumpToday">Today</button>
+    </div>
+
+    <div class="grid">
+
+      <div class="card">
+        <h3><span class="dot" style="background:var(--med)"></span> Medicines</h3>
+        <div id="medsBox"></div>
+        <div class="note">Take your medicines at these three times each day and tick them off. This is a reminder tracker, not medical advice — follow your doctor's instructions.</div>
+      </div>
+
+      <div class="card">
+        <h3><span class="dot" style="background:var(--pray)"></span> Prayers (Salah)</h3>
+        <div id="prayBox"></div>
+      </div>
+
+      <div class="card">
+        <h3><span class="dot" style="background:var(--brand)"></span> Daily Supplements & Drinks</h3>
+        <div id="extrasBox"></div>
+        <div class="note">Collagen &amp; whey are best in the morning; creatine any time with water; keep the milk tea low-sugar. These add ≈ 370 kcal and ≈ 45 g protein a day.</div>
+      </div>
+
+      <div class="card" style="grid-column:1/-1">
+        <h3><span class="dot" style="background:var(--food)"></span> Today's Meals <span class="muted" id="mealKcal" style="font-weight:600;font-size:.78rem"></span></h3>
+        <div id="mealsBox"></div>
+        <div class="note">Tap any meal name to open its full recipe — ingredients, steps, calories and why it's good for you.</div>
+      </div>
+
+      <div class="card">
+        <h3><span class="dot" style="background:var(--water)"></span> Water</h3>
+        <div class="water-wrap">
+          <button class="water-btn" id="waterMinus">−</button>
+          <div><span class="water-count" id="waterCount">0</span><span class="muted"> / 8 glasses</span></div>
+          <button class="water-btn" id="waterPlus">+</button>
+        </div>
+        <div class="glasses" id="glasses" style="margin-top:10px"></div>
+        <div class="muted" style="font-size:.76rem;margin-top:6px">Target ≈ 2.5–3 litres a day. Water curbs hunger and helps your joints.</div>
+      </div>
+
+      <div class="card">
+        <h3><span class="dot" style="background:var(--move)"></span> Today's Movement</h3>
+        <div id="moveBox"></div>
+        <div class="field"><label for="stepsIn">Steps / minutes of light activity (optional)</label>
+          <input type="number" id="stepsIn" min="0" placeholder="e.g. 4000 steps"></div>
+      </div>
+
+      <div class="card">
+        <h3>⚖️ Weight & Sleep</h3>
+        <div class="field"><label for="weightIn">Today's weight (kg)</label>
+          <input type="number" id="weightIn" step="0.1" min="0" placeholder="e.g. 107.5"></div>
+        <div class="field"><label for="sleepIn">Sleep last night (hours)</label>
+          <input type="number" id="sleepIn" step="0.5" min="0" max="24" placeholder="e.g. 7"></div>
+        <div class="muted" style="font-size:.76rem">Weigh yourself once a week, same morning, after the toilet, before eating — daily numbers bounce around and can mislead.</div>
+      </div>
+
+      <div class="card">
+        <h3>🦵 Joint Pain & Energy</h3>
+        <div class="field"><label for="painIn">Joint pain / stiffness today <span class="slider-val" id="painVal">–</span></label>
+          <input type="range" id="painIn" min="0" max="10" step="1" value="0">
+          <div class="muted" style="font-size:.72rem;display:flex;justify-content:space-between"><span>0 none</span><span>10 severe</span></div></div>
+        <div class="field"><label for="energyIn">Energy level today <span class="slider-val" id="energyVal">–</span></label>
+          <input type="range" id="energyIn" min="0" max="10" step="1" value="5">
+          <div class="muted" style="font-size:.72rem;display:flex;justify-content:space-between"><span>0 exhausted</span><span>10 great</span></div></div>
+      </div>
+
+      <div class="card" style="grid-column:1/-1">
+        <h3>📝 Notes for the day</h3>
+        <div class="field"><textarea id="notesIn" placeholder="How did today go? Cravings, wins, how your joints felt, anything to remember…"></textarea></div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ===================== MEAL PLAN ===================== -->
+  <section id="view-plan" class="view">
+    <div class="section-title">Your 7-Day Meal Plan</div>
+    <div class="note">A tasty halal rotation — a mix of desi, Mediterranean and simple Western meals, now with <b>no snacks</b> and leaner portions (starchy sides removed). Each day is about <b>950–1,000 kcal</b> from three meals + <b>~370 kcal</b> from your milk, chai, whey and collagen ≈ <b>1,300–1,400 kcal total</b>, kept high in protein to protect muscle. Tap any meal to see its recipe.</div>
+    <div id="planBox"></div>
+  </section>
+
+  <!-- ===================== RECIPES ===================== -->
+  <section id="view-recipes" class="view">
+    <div class="section-title">Recipe Library</div>
+    <div class="note">Every recipe is quick (mostly 10–20 min), halal, and built for fat loss + healthy joints. Tap a card for the full method.</div>
+    <div id="recipesBox"></div>
+  </section>
+
+  <!-- ===================== EXERCISES ===================== -->
+  <section id="view-exercises" class="view">
+    <div class="section-title">Gentle, Joint-Friendly Movement</div>
+    <div class="warnbox"><b>Because your joints are hurting right now, start light.</b> For the first 1–2 weeks do just the <b>Morning Joint Mobility</b> and a <b>short gentle walk</b>. Add the strength and isometric work as you feel able. Move only within a comfortable, <b>pain-free</b> range, and stop if you feel sharp or increasing pain. If a joint is hot or swollen, rest it. Please check with your GP or a physiotherapist before starting, especially with your arthritis.</div>
+    <div id="exercisesBox"></div>
+    <div class="card" style="margin-top:14px">
+      <h3>📅 Suggested weekly rhythm (each ≤ 15 min)</h3>
+      <table>
+        <thead><tr><th>Day</th><th>Session</th></tr></thead>
+        <tbody id="exWeekBox"></tbody>
+      </table>
+      <div class="note" style="margin-top:12px">Losing weight is itself powerful for arthritis: research suggests every <b>1 kg</b> you lose takes roughly <b>4 kg</b> of pressure off each knee with every step. So even without hard exercise, the diet alone will ease your joints.</div>
+    </div>
+  </section>
+
+  <!-- ===================== PROGRESS ===================== -->
+  <section id="view-progress" class="view">
+    <div class="section-title">Your Progress</div>
+    <div class="stats-grid" id="statsGrid"></div>
+
+    <div class="card" style="margin-top:14px">
+      <h3>⚖️ Weight trend</h3>
+      <canvas id="weightChart" width="900" height="320"></canvas>
+      <div class="muted center" id="chartNote" style="font-size:.78rem;margin-top:8px"></div>
+    </div>
+
+    <div class="card" style="margin-top:14px">
+      <h3>🎯 Your targets</h3>
+      <div class="grid">
+        <div class="field"><label for="startWeightIn">Starting weight (kg)</label><input type="number" id="startWeightIn" step="0.1"></div>
+        <div class="field"><label for="targetWeightIn">Goal weight (kg)</label><input type="number" id="targetWeightIn" step="0.1"></div>
+      </div>
+      <div class="muted" style="font-size:.78rem">A safe, sustainable pace is about 0.5–1 kg a week. Aiming for ~88 kg keeps you healthy and reachable; you can lower the goal later.</div>
+    </div>
+
+    <div class="card" style="margin-top:14px">
+      <h3>🕌 Prayer summary</h3>
+      <div id="praySummary"></div>
+    </div>
+
+    <div class="card" style="margin-top:14px">
+      <h3>🗓️ Recent history</h3>
+      <div style="overflow-x:auto"><table>
+        <thead><tr><th>Date</th><th>Weight</th><th>Meds</th><th>Prayers</th><th>Meals</th><th>Water</th><th>Move</th><th>Done</th></tr></thead>
+        <tbody id="historyBox"></tbody>
+      </table></div>
+    </div>
+
+    <div class="card" style="margin-top:14px">
+      <h3>💾 Your data</h3>
+      <p class="muted" style="font-size:.85rem;margin-top:0">Everything you log lives <b>only on this device</b>, inside this file's storage. It stays there — even if you close the page — until you clear it. Nothing is sent anywhere. Back it up now and then with Export.</p>
+      <div class="pill-row">
+        <button class="btn primary" id="exportBtn">⬇️ Export backup</button>
+        <button class="btn" id="importBtn">⬆️ Import backup</button>
+        <input type="file" id="importFile" accept="application/json" style="display:none">
+        <button class="btn danger" id="clearBtn">🗑️ Clear all data</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== GUIDE ===================== -->
+  <section id="view-guide" class="view guide">
+    <div class="section-title">Your Plan — the full picture</div>
+
+    <div class="warnbox"><b>A quick, honest word on the goal.</b> Even at this aggressive ~1,300–1,400 kcal, losing the full 20 kg in 2 months isn't physically possible safely — that pace needs a bigger daily deficit than your body actually burns. What this plan <b>can</b> realistically deliver is about <b>1–1.3 kg a week ≈ 10–14 kg in these two months</b> (often near the top of that early on from water weight), with the full 20 kg landing around months 3–4. That is genuinely excellent, sustainable progress. Because this deficit is aggressive and you have arthritis and take medication, please have your GP or a dietitian keep an eye on it.</div>
+
+    <h3>1. Your daily targets</h3>
+    <ul>
+      <li><b>Calories:</b> ~950–1,000 kcal from three meals + ~370 kcal from your daily milk, chai, whey and collagen ≈ <b>~1,300–1,400 kcal total</b>. You burn ~2,300–2,400, so this is an aggressive ~1,000 kcal deficit — about as far as it's sensible to push.</li>
+      <li><b>Protein:</b> ~85–110 g from food + ~45 g from your collagen &amp; whey ≈ <b>~140 g a day</b> — kept deliberately high to protect muscle at this low calorie level. Your creatine helps here too — take 5 g daily with water and stay well hydrated.</li>
+      <li><b>Daily supplements &amp; drinks:</b> collagen scoop (morning), 1 whey scoop, 5 g creatine, a glass of milk and a low-sugar milk tea — all on your Today checklist. Have the whey shake mid-afternoon to bridge the gap now that snacks are gone.</li>
+      <li><b>Water:</b> 2.5–3 litres (8+ glasses) — even more important on a low-calorie plan.</li>
+      <li><b>Sleep:</b> aim for 7–8 hours — poor sleep raises hunger hormones and stalls weight loss.</li>
+    </ul>
+    <div class="note"><b>At this low calorie level:</b> take a daily multivitamin, make protein and vegetables the priority in every meal, and if you feel dizzy, very fatigued or unwell, eat a bit more — don't push through. Please have your GP or a dietitian supervise a deficit this aggressive, especially with your arthritis and medication.</div>
+
+    <h3>2. Eight golden rules</h3>
+    <ul>
+      <li><b>Protein at every meal</b> — eggs, chicken, fish, yoghurt, paneer, lentils, chickpeas.</li>
+      <li><b>Fill half your plate with vegetables/salad</b> — volume with almost no calories.</li>
+      <li><b>Cut the "white stuff"</b> — less sugar, white bread, white rice, fried food and sugary drinks. Keep roti/rice to one small portion.</li>
+      <li><b>Cook with 1 tsp olive oil, not ladles of ghee/oil.</b></li>
+      <li><b>Anti-inflammatory heroes</b> for your joints: oily fish (salmon, mackerel), walnuts/flaxseed, olive oil, turmeric, ginger, garlic, berries, leafy greens, green tea.</li>
+      <li><b>Drink water before meals</b> — often stops you overeating.</li>
+      <li><b>Stop eating ~3 hours before bed</b> — helps digestion, sleep and morning stiffness.</li>
+      <li><b>One "off" meal won't undo you</b> — just return to plan at the next meal.</li>
+    </ul>
+
+    <h3>3. How this helps your arthritis</h3>
+    <ul>
+      <li><b>Less weight, less load:</b> ~4 kg comes off each knee for every 1 kg you lose — the single biggest thing you can do for joint pain.</li>
+      <li><b>Anti-inflammatory foods</b> (omega-3, turmeric, ginger, colourful veg) can calm the inflammation that drives arthritis pain.</li>
+      <li><b>Gentle movement</b> keeps joints lubricated and builds the muscle that supports them — but always within a pain-free range.</li>
+    </ul>
+
+    <h3>4. Movement (the ≤15-minute approach)</h3>
+    <p>You don't need the gym. See the <b>Exercises</b> tab for five short, joint-safe sessions. While your joints hurt, start with just morning mobility and a gentle walk, and build up slowly. On painful "flare" days, the <b>Isometric Joint-Savers</b> let you build strength without bending sore joints.</p>
+
+    <h3>5. What's built into your daily tracker</h3>
+    <ul>
+      <li><b>Medicines</b> — pre-breakfast, after breakfast, after dinner.</li>
+      <li><b>Daily supplements & drinks</b> — collagen, whey, creatine, milk and milk tea.</li>
+      <li><b>All 5 prayers</b> — Fajr, Dhuhr, Asr, Maghrib, Isha, with a missed-prayer summary in Progress.</li>
+      <li><b>Meals</b> — each links to its recipe.</li>
+      <li><b>Water, weight, sleep, steps, joint pain & energy, and daily notes.</b></li>
+      <li><b>A completion ring</b> at the top so you can see your whole day at a glance.</li>
+      <li><b>Light / dark theme toggle</b> in the top corner, and each exercise now has a YouTube demo link.</li>
+    </ul>
+
+    <h3>6. Using this file</h3>
+    <ul>
+      <li>Open it any time in your phone or laptop browser. <b>Bookmark it</b> or add it to your home screen for one-tap access.</li>
+      <li>Everything saves <b>automatically on your device</b> and stays there until you clear it.</li>
+      <li>Use the <b>Progress</b> tab to Export a backup occasionally, so you never lose your history.</li>
+    </ul>
+
+    <div class="note"><b>Not medical advice.</b> This plan is general wellbeing guidance. With arthritis and regular medication, please confirm it suits you with your GP, pharmacist or dietitian — particularly if you feel unwell, dizzy or unusually tired.</div>
+  </section>
+
+  <footer class="foot">Built for you, Yawar — one small tick at a time. 🌿</footer>
+</div>
+
+<!-- ===================== MODAL ===================== -->
+<div class="overlay" id="overlay">
+  <div class="modal" id="modal" role="dialog" aria-modal="true">
+    <button class="modal-close" id="modalClose" aria-label="Close">✕</button>
+    <div id="modalBody"></div>
+  </div>
+</div>
+
+<script>
+(function(){
+"use strict";
+
+/* ---------- DATA ---------- */
+var RECIPES = {
+  b_omelette:{title:"Masala Omelette",meal:"Breakfast",time:"10 min",kcal:280,protein:21,
+    ing:["3 eggs","¼ onion, finely chopped","1 tomato, chopped","Handful spinach","1 green chilli (optional)","Pinch turmeric, cumin, salt, pepper","1 tsp olive oil"],
+    steps:["Whisk the eggs with the spices.","Soften onion, tomato and spinach in the oil for 2–3 min.","Pour in the eggs, cook until just set, then fold.","Serve hot — skip the bread to keep it light."],
+    note:"Turmeric + eggs = a protein-rich, anti-inflammatory start with barely any carbs."},
+  b_yoghurt:{title:"Greek Yoghurt Power Bowl",meal:"Breakfast",time:"5 min",kcal:290,protein:24,
+    ing:["200 g fat-free Greek yoghurt","Handful berries","1 tbsp ground flaxseed","4 walnut halves","Cinnamon"],
+    steps:["Spoon yoghurt into a bowl.","Top with berries, flaxseed and walnuts.","Sprinkle with cinnamon."],
+    note:"Omega-3 from walnuts and flax plus gut-friendly protein; skip the honey to keep it lean."},
+  b_oats:{title:"Overnight Oats",meal:"Breakfast",time:"5 min (night before)",kcal:300,protein:16,
+    ing:["35 g rolled oats","150 ml milk or unsweetened alternative","3 tbsp Greek yoghurt","Few berries","Cinnamon"],
+    steps:["Mix oats, milk and cinnamon in a jar and leave overnight.","Stir through the yoghurt in the morning.","Top with berries."],
+    note:"Slow-release oats + yoghurt = steady energy with no crash (your whey shake is separate)."},
+  b_shakshuka:{title:"Shakshuka",meal:"Breakfast",time:"15 min",kcal:290,protein:20,
+    ing:["3 eggs","1 can chopped tomatoes (or 3 fresh)","½ onion","1 clove garlic","½ tsp cumin + paprika","Handful spinach","1 tsp olive oil"],
+    steps:["Soften onion and garlic in the oil.","Add tomatoes, spices and spinach; simmer 5 min.","Make wells, crack in the eggs, cover and cook until set.","Eat straight from the pan — no bread needed."],
+    note:"Tomato lycopene + eggs; a warm, filling anti-inflammatory breakfast without the toast."},
+  b_chilla:{title:"Besan Chilla (Gram-Flour Pancake)",meal:"Breakfast",time:"15 min",kcal:300,protein:16,
+    ing:["6 tbsp gram flour (besan)","¼ onion","1 tomato","Coriander + green chilli","Pinch turmeric, ajwain, salt","Water","1 tsp oil","Side: 100 g yoghurt + mint"],
+    steps:["Whisk besan with water, chopped veg and spices to a batter.","Pour thin onto a hot non-stick pan.","Cook both sides until golden.","Serve with mint yoghurt."],
+    note:"High-fibre chickpea flour keeps you full and is naturally low-GI."},
+  b_smokedsalmon:{title:"Scrambled Eggs & Smoked Salmon",meal:"Breakfast",time:"10 min",kcal:290,protein:26,
+    ing:["3 eggs","40 g smoked salmon","Handful spinach","Black pepper","1 tsp olive oil"],
+    steps:["Scramble the eggs softly in the oil.","Fold in the spinach at the end.","Plate with the smoked salmon on top — no toast."],
+    note:"Oily fish = omega-3, one of the best anti-inflammatory foods for your joints."},
+  b_paneer:{title:"Paneer / Cottage Cheese Bhurji",meal:"Breakfast",time:"12 min",kcal:300,protein:22,
+    ing:["100 g paneer (or low-fat cottage cheese), crumbled","¼ onion","1 tomato","Handful peas","Turmeric, cumin, chilli","Coriander","1 tsp oil"],
+    steps:["Soften onion, tomato and spices.","Add crumbled paneer and peas; toss 3–4 min.","Finish with coriander — no roti needed."],
+    note:"A vegetarian protein hit; skipping the roti keeps the carbs low."},
+
+  l_chickensalad:{title:"Grilled Chicken Salad",meal:"Lunch",time:"15 min",kcal:330,protein:40,
+    ing:["130 g chicken breast","Mixed leaves","Cucumber, tomato, onion, peppers","1 tbsp olive oil + lemon","1 tsp mixed herbs"],
+    steps:["Season and grill the chicken 6–7 min per side, then slice.","Toss the salad with oil, lemon and herbs.","Top with the chicken."],
+    note:"Big volume, high protein, low calorie — the classic fat-loss lunch."},
+  l_chana:{title:"Chana Chaat Bowl",meal:"Lunch",time:"10 min",kcal:330,protein:16,
+    ing:["¾ can chickpeas, drained","½ onion","1 tomato","Cucumber","Coriander","Lemon","Chaat masala, cumin, chilli","2 tbsp yoghurt"],
+    steps:["Mix chickpeas with the chopped veg.","Add spices, lemon and yoghurt.","Toss and chill for 5 min."],
+    note:"Fibre + plant protein keeps you full for hours; lovely cold at the office."},
+  l_daal:{title:"Masoor Daal (no rice)",meal:"Lunch",time:"20 min",kcal:320,protein:20,
+    ing:["100 g red lentils","½ onion","1 tomato","Garlic + ginger","Turmeric, cumin, chilli","Cucumber raita (100 g yoghurt)"],
+    steps:["Boil lentils with turmeric until soft.","Fry onion, garlic, ginger, tomato and spices; stir into the daal.","Serve with the raita — skip the rice to stay light."],
+    note:"Lentils are low-GI protein and fibre; leaving out the rice keeps calories down."},
+  l_tikka:{title:"Chicken Tikka + Kachumber",meal:"Lunch",time:"15 min (+ marinate)",kcal:330,protein:44,
+    ing:["150 g chicken","3 tbsp yoghurt","Ginger-garlic, tikka spices, lemon","Salad: onion, tomato, cucumber, lemon"],
+    steps:["Marinate the chicken in yoghurt + spices (30 min if you can).","Grill or air-fry until lightly charred.","Serve with the kachumber salad — no roti."],
+    note:"Yoghurt-marinated lean protein; grilling (not frying) keeps it light."},
+  l_wrap:{title:"Grilled Chicken Wrap",meal:"Lunch",time:"10 min",kcal:330,protein:36,
+    ing:["1 small wholemeal tortilla (or large lettuce leaves)","120 g grilled chicken","Salad leaves, tomato, onion","1 tbsp yoghurt or light mayo","Hot sauce"],
+    steps:["Warm the tortilla, or use lettuce leaves for zero carbs.","Layer chicken, salad and sauce.","Roll up and serve with extra salad."],
+    note:"A small wrap or lettuce keeps carbs low while staying filling."},
+  l_tuna:{title:"Tuna Mediterranean Bowl",meal:"Lunch",time:"8 min",kcal:330,protein:32,
+    ing:["1 can tuna in spring water","Mixed leaves","Cherry tomatoes, cucumber, red onion","Few olives","1 tsp olive oil + lemon"],
+    steps:["Drain the tuna.","Toss with the salad, olives, oil and lemon."],
+    note:"Lean fish + a little olive oil; both are heart- and joint-friendly."},
+  l_soup:{title:"Lentil & Vegetable Soup + Chicken",meal:"Lunch",time:"25 min",kcal:330,protein:30,
+    ing:["80 g red lentils","Carrot, celery, onion, garlic","1 can tomatoes","Stock","Cumin, turmeric","80 g grilled chicken on the side"],
+    steps:["Soften the veg, then add lentils, tomatoes, stock and spices.","Simmer 20 min; blend if you like it smooth.","Serve with chicken on the side."],
+    note:"Warm and filling with very few calories for the volume — batch and freeze."},
+
+  d_salmon:{title:"Baked Salmon + Roasted Veg",meal:"Dinner",time:"20 min",kcal:350,protein:31,
+    ing:["1 salmon fillet (130 g)","Courgette, peppers, red onion, cherry tomatoes","1 tsp olive oil","Lemon, garlic, black pepper"],
+    steps:["Toss the veg in oil and roast at 200°C for 15 min.","Add the salmon and bake 10–12 min more.","Squeeze over lemon and serve."],
+    note:"The best joint meal here — omega-3-rich salmon actively fights inflammation."},
+  d_karahi:{title:"Light Chicken Karahi",meal:"Dinner",time:"20 min",kcal:340,protein:40,
+    ing:["150 g chicken","2 tomatoes","Onion","Ginger-garlic","Green chilli","Karahi / garam masala","1 tsp oil","Coriander","Side salad"],
+    steps:["Sauté ginger-garlic and chicken in 1 tsp oil.","Add tomatoes and spices; cook down 12 min.","Finish with coriander; serve with salad — no roti."],
+    note:"Full desi flavour with a fraction of the usual oil, and no bread."},
+  d_kofta:{title:"Chicken/Turkey Kofta in Tomato Sauce",meal:"Dinner",time:"20 min",kcal:350,protein:38,
+    ing:["180 g lean chicken/turkey mince","Onion, garlic, coriander, cumin, chilli","1 can tomatoes","Big salad or courgette noodles"],
+    steps:["Mix the mince with spices and roll into balls.","Brown, then simmer in tomato sauce for 12 min.","Serve over salad or courgetti."],
+    note:"Courgetti instead of rice keeps it light and joint-friendly."},
+  d_cod:{title:"Mediterranean Baked Cod",meal:"Dinner",time:"18 min",kcal:330,protein:35,
+    ing:["1 cod/white fish fillet","Cherry tomatoes, olives, red onion, garlic","1 tsp olive oil","Oregano, lemon","Side greens"],
+    steps:["Place the fish in a dish and surround with tomatoes, olives and onion.","Drizzle with oil, oregano and lemon.","Bake at 200°C for 15 min; serve with greens."],
+    note:"Lean protein + Mediterranean veg — light, tasty and anti-inflammatory."},
+  d_keema:{title:"Lean Keema with Peas",meal:"Dinner",time:"18 min",kcal:360,protein:36,
+    ing:["180 g lean (5%) mince or chicken mince","Onion, tomato, ginger-garlic","Peas","Keema masala","Coriander","Side salad"],
+    steps:["Brown the mince and drain any fat.","Add onion, tomato, ginger-garlic, spices and peas.","Simmer 12 min; serve with salad — no roti."],
+    note:"Choose 5% mince to enjoy a desi favourite while staying lean."},
+  d_chickengreens:{title:"Grilled Chicken + Greens",meal:"Dinner",time:"20 min",kcal:330,protein:44,
+    ing:["150 g chicken breast","Broccoli, green beans, spinach","1 tsp olive oil","Garlic, chilli flakes, lemon"],
+    steps:["Grill the seasoned chicken.","Sauté the greens in the oil and garlic.","Plate together with a squeeze of lemon."],
+    note:"Protein + greens with no starchy side — steady, low-calorie and filling."},
+  d_bakedfish:{title:"Baked Fish + Salad",meal:"Dinner",time:"18 min",kcal:330,protein:34,
+    ing:["1 white fish or salmon fillet","Lemon, garlic, herbs, 1 tsp olive oil","Large mixed salad"],
+    steps:["Bake the seasoned fish at 200°C for 15 min.","Toss the salad with oil and lemon.","Serve together."],
+    note:"A light, flexible Sunday dinner to reset for the week."},
+
+  s_applealmond:{title:"Apple + Almonds",meal:"Snack",time:"1 min",kcal:150,protein:4,
+    ing:["1 apple","6 almonds"],steps:["Eat the apple with a few almonds."],
+    note:"Fibre + healthy fat curbs those afternoon cravings."},
+  s_hummus:{title:"Veg Sticks + Hummus",meal:"Snack",time:"3 min",kcal:130,protein:5,
+    ing:["Carrot, cucumber, pepper sticks","2 tbsp hummus"],steps:["Dip the veg sticks in hummus."],
+    note:"Crunchy, filling and very low calorie."},
+  s_yoghurtberry:{title:"Greek Yoghurt + Berries",meal:"Snack",time:"2 min",kcal:140,protein:14,
+    ing:["150 g Greek yoghurt","Handful berries"],steps:["Top the yoghurt with berries."],
+    note:"A protein snack that doubles as dessert."},
+  s_egg:{title:"Boiled Egg + Green Tea",meal:"Snack",time:"1 min",kcal:90,protein:6,
+    ing:["1 boiled egg","Green tea"],steps:["Enjoy the egg with a cup of green tea."],
+    note:"Green tea adds gentle anti-inflammatory antioxidants."},
+  s_berrywalnut:{title:"Berries + Walnuts",meal:"Snack",time:"1 min",kcal:140,protein:4,
+    ing:["Handful berries","4 walnut halves"],steps:["Eat together."],
+    note:"Omega-3 walnuts are great for your joints."},
+  s_applegreen:{title:"Apple + Green Tea",meal:"Snack",time:"1 min",kcal:90,protein:1,
+    ing:["1 apple","Green tea"],steps:["Enjoy together."],
+    note:"Light, refreshing and hydrating."},
+  s_yoghurtcinnamon:{title:"Yoghurt + Cinnamon",meal:"Snack",time:"1 min",kcal:120,protein:12,
+    ing:["150 g Greek yoghurt","Cinnamon"],steps:["Stir cinnamon through the yoghurt."],
+    note:"Cinnamon helps steady blood sugar and satisfies a sweet tooth."}
+};
+
+var EXERCISES = {
+  ex_mobility:{title:"Morning Joint Mobility",time:"6–8 min",focus:"Ease stiffness & warm the joints",
+    steps:["Neck: slow tilts side to side, then look up and down — 5 each","Shoulder rolls: backwards then forwards — 10 each","Wrist & ankle circles — 10 each direction","Gentle knee bends (holding a chair), small range — 10","Standing hip circles, hands on hips — 5 each way","Seated spinal twist — hold 15 sec each side"],
+    safety:"Move slowly within a comfortable, pain-free range and never force a joint. If a joint is hot or very swollen, skip it and do the others.",vid:"gentle joint mobility warm up routine for arthritis"},
+  ex_walk:{title:"Gentle Walk",time:"10–15 min",focus:"Low-impact cardio & calorie burn",
+    steps:["Wear supportive, cushioned shoes","Start with 2 min easy to warm up","Walk at a comfortable 'can still talk' pace on flat ground","Stay tall, shoulders relaxed, gentle arm swing","Finish with 2 min slow + a calf stretch"],
+    safety:"Flat, even surfaces only. Stop and rest if a joint sharpens. Two short 7-min walks are just as good as one 15-min walk.",vid:"low impact indoor walking workout for beginners"},
+  ex_chair:{title:"Chair Strength Circuit",time:"10–12 min",focus:"Gentle strength that protects joints",
+    steps:["Sit-to-stands from a sturdy chair — 10 (use hands if needed)","Seated leg extensions (straighten the knee, hold 2 sec) — 10 each leg","Wall press-ups (hands on the wall) — 10","Seated marches (lift the knees) — 20 total","Calf raises holding the chair — 12","Repeat the whole circuit twice"],
+    safety:"Slow and controlled; exhale on effort. Reduce the reps if joints ache — building muscle around a joint reduces its pain over time.",vid:"chair exercises for seniors with arthritis"},
+  ex_isometric:{title:"Isometric Joint-Savers",time:"8–10 min",focus:"Strength with NO joint movement — best on painful days",
+    steps:["Quad sets: legs straight, tighten the thigh, press the knee down — hold 8 sec ×8","Glute squeeze: squeeze the buttocks — hold 8 sec ×10","Isometric chest press: press palms together at chest — hold 8 sec ×8","Shallow wall sit: slide a little down a wall — hold 10–15 sec ×3","Ankle press: press the foot into the floor — hold 8 sec ×8"],
+    safety:"Isometrics build strength without bending sore joints — ideal when you're flaring. Breathe normally; don't hold your breath.",vid:"isometric exercises for knee arthritis"},
+  ex_stretch:{title:"Full-Body Stretch & Wind-Down",time:"8–10 min",focus:"Flexibility & evening relaxation",
+    steps:["Seated hamstring stretch, reach toward toes — 20 sec each leg","Calf stretch against a wall — 20 sec each","Doorway chest/shoulder stretch — 20 sec","Seated figure-4 hip stretch — 20 sec each","Gentle cat-cow or seated back rounding — 5 slow","Neck stretch each side — 15 sec"],
+    safety:"Stretch to mild tension, never pain. Lovely before bed to ease next-morning stiffness.",vid:"gentle full body stretching routine for beginners"}
+};
+
+// dayKey -> meals. getDay(): 0=Sun..6=Sat
+var DAYKEY = ["day7","day1","day2","day3","day4","day5","day6"];
+var PLAN = {
+  day1:{name:"Monday",   breakfast:"b_omelette",    lunch:"l_chickensalad", snack:"s_applealmond",     dinner:"d_salmon"},
+  day2:{name:"Tuesday",  breakfast:"b_yoghurt",     lunch:"l_chana",        snack:"s_hummus",          dinner:"d_karahi"},
+  day3:{name:"Wednesday",breakfast:"b_oats",        lunch:"l_daal",         snack:"s_yoghurtberry",    dinner:"d_kofta"},
+  day4:{name:"Thursday", breakfast:"b_shakshuka",   lunch:"l_tikka",        snack:"s_egg",             dinner:"d_cod"},
+  day5:{name:"Friday",   breakfast:"b_chilla",      lunch:"l_wrap",         snack:"s_berrywalnut",     dinner:"d_keema"},
+  day6:{name:"Saturday", breakfast:"b_smokedsalmon",lunch:"l_tuna",         snack:"s_applegreen",      dinner:"d_chickengreens"},
+  day7:{name:"Sunday",   breakfast:"b_paneer",      lunch:"l_soup",         snack:"s_yoghurtcinnamon", dinner:"d_bakedfish"}
+};
+// getDay index -> exercise id
+var WEEK_EX = ["ex_stretch","ex_mobility","ex_chair","ex_walk","ex_isometric","ex_chair","ex_walk"];
+var EX_WEEK_LABELS = [["Sunday","ex_stretch"],["Monday","ex_mobility"],["Tuesday","ex_chair"],["Wednesday","ex_walk"],["Thursday","ex_isometric"],["Friday","ex_chair"],["Saturday","ex_walk"]];
+
+var MEDS = [["pre","Pre-breakfast medicine","Before you eat breakfast"],["after","After-breakfast medicine","Once breakfast is done"],["dinner","After-dinner medicine","Once dinner is done"]];
+var PRAYERS = [["fajr","Fajr"],["dhuhr","Dhuhr"],["asr","Asr"],["maghrib","Maghrib"],["isha","Isha"]];
+var MEALSLOTS = [["breakfast","Breakfast"],["lunch","Lunch"],["dinner","Dinner"]];
+var DAILY_EXTRAS = [
+  {id:"collagen",label:"Collagen scoop (morning)",detail:"≈ 40 kcal · 10 g protein",kcal:40,protein:10},
+  {id:"whey",label:"Whey protein (1 scoop)",detail:"≈ 120 kcal · 24 g protein",kcal:120,protein:24},
+  {id:"creatine",label:"Creatine (5 g)",detail:"≈ 0 kcal · take with water",kcal:0,protein:0},
+  {id:"milk",label:"Glass of milk (250 ml)",detail:"≈ 120 kcal · 8 g protein",kcal:120,protein:8},
+  {id:"milktea",label:"Milk tea / chai (low sugar)",detail:"≈ 90 kcal",kcal:90,protein:3}
+];
+var EXTRAS_KCAL = DAILY_EXTRAS.reduce(function(a,x){return a+x.kcal;},0);
+
+/* ---------- STATE ---------- */
+var KEY="yawarWellness_v1";
+var state=load();
+function load(){
+  try{var s=JSON.parse(localStorage.getItem(KEY));if(s&&s.days)return s;}catch(e){}
+  return {profile:{startWeight:108,targetWeight:88},days:{}};
+}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(state));}catch(e){}}
+function blankDay(){return{meds:{},prayers:{},meals:{},extras:{},water:0,weight:"",sleep:"",steps:"",jointPain:null,energy:null,exercise:false,notes:""};}
+function dayData(k){
+  if(!state.days[k])state.days[k]=blankDay();
+  var d=state.days[k];
+  if(!d.meds)d.meds={}; if(!d.prayers)d.prayers={}; if(!d.meals)d.meals={}; if(!d.extras)d.extras={};
+  return d;
+}
+
+/* ---------- DATE ---------- */
+var cur=new Date(); cur.setHours(0,0,0,0);
+function keyOf(d){var m=(""+(d.getMonth()+1)).padStart(2,"0");var day=(""+d.getDate()).padStart(2,"0");return d.getFullYear()+"-"+m+"-"+day;}
+function todayKey(){return keyOf(new Date());}
+var WEEKDAYS=["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+var MONTHS=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+function human(d){return WEEKDAYS[d.getDay()]+", "+d.getDate()+" "+MONTHS[d.getMonth()]+" "+d.getFullYear();}
+
+/* ---------- HELPERS ---------- */
+function el(tag,cls,txt){var e=document.createElement(tag);if(cls)e.className=cls;if(txt!=null)e.textContent=txt;return e;}
+function recipeLink(id){var b=el("button","linklike",RECIPES[id].title);b.setAttribute("data-recipe",id);return b;}
+
+/* ---------- RENDER: TODAY ---------- */
+function renderToday(){
+  var k=keyOf(cur), d=dayData(k);
+  document.getElementById("dateLabel").textContent = (k===todayKey()?"Today · ":"")+human(cur);
+  document.getElementById("datePick").value=k;
+
+  // meds
+  var mb=document.getElementById("medsBox"); mb.innerHTML="";
+  MEDS.forEach(function(m){
+    var row=el("label","chk"+(d.meds[m[0]]?" done":""));
+    var cb=el("input");cb.type="checkbox";cb.checked=!!d.meds[m[0]];
+    cb.addEventListener("change",function(){d.meds[m[0]]=cb.checked;save();renderToday();updateRing();});
+    var txt=el("div");txt.appendChild(el("div","lbl",m[1]));txt.appendChild(el("div","sub",m[2]));
+    row.appendChild(cb);row.appendChild(txt);mb.appendChild(row);
+  });
+
+  // prayers
+  var pb=document.getElementById("prayBox"); pb.innerHTML="";
+  PRAYERS.forEach(function(p){
+    var row=el("label","chk"+(d.prayers[p[0]]?" done":""));
+    var cb=el("input");cb.type="checkbox";cb.checked=!!d.prayers[p[0]];
+    cb.addEventListener("change",function(){d.prayers[p[0]]=cb.checked;save();renderToday();updateRing();});
+    var txt=el("div");txt.appendChild(el("div","lbl",p[1]));
+    row.appendChild(cb);row.appendChild(txt);pb.appendChild(row);
+  });
+
+  // meals
+  var plan=PLAN[DAYKEY[cur.getDay()]];
+  var box=document.getElementById("mealsBox"); box.innerHTML="";
+  var total=0;
+  MEALSLOTS.forEach(function(s){
+    var rid=plan[s[0]], r=RECIPES[rid]; total+=r.kcal;
+    var row=el("div","meal-row");
+    var cb=el("input");cb.type="checkbox";cb.checked=!!d.meals[s[0]];
+    cb.addEventListener("change",function(){d.meals[s[0]]=cb.checked;save();updateRing();});
+    var mid=el("div");mid.style.flex="1";
+    var top=el("div");top.appendChild(el("span","tag",s[1]));top.appendChild(document.createTextNode(" "));
+    top.appendChild(recipeLink(rid));
+    mid.appendChild(top);
+    mid.appendChild(el("div","meal-meta","≈ "+r.kcal+" kcal · "+r.protein+" g protein · "+r.time));
+    row.appendChild(cb);row.appendChild(mid);box.appendChild(row);
+  });
+  document.getElementById("mealKcal").textContent="· ≈ "+(total+EXTRAS_KCAL)+" kcal incl. supplements";
+
+  // water
+  renderWater(d);
+
+  // supplements & drinks
+  renderExtras(d);
+
+  // movement
+  var exId=WEEK_EX[cur.getDay()], ex=EXERCISES[exId];
+  var mv=document.getElementById("moveBox"); mv.innerHTML="";
+  var row=el("label","chk"+(d.exercise?" done":""));
+  var cb=el("input");cb.type="checkbox";cb.checked=!!d.exercise;
+  cb.addEventListener("change",function(){d.exercise=cb.checked;save();updateRing();renderToday();});
+  var txt=el("div");
+  var link=el("button","linklike",ex.title);link.setAttribute("data-exercise",exId);
+  txt.appendChild(link);txt.appendChild(el("div","sub",ex.time+" · "+ex.focus));
+  row.appendChild(cb);row.appendChild(txt);mv.appendChild(row);
+  var stepsIn=document.getElementById("stepsIn");stepsIn.value=d.steps;
+
+  // weight / sleep / sliders / notes
+  document.getElementById("weightIn").value=d.weight;
+  document.getElementById("sleepIn").value=d.sleep;
+  var pain=document.getElementById("painIn");pain.value=(d.jointPain==null?0:d.jointPain);
+  document.getElementById("painVal").textContent=(d.jointPain==null?"–":d.jointPain);
+  var en=document.getElementById("energyIn");en.value=(d.energy==null?5:d.energy);
+  document.getElementById("energyVal").textContent=(d.energy==null?"–":d.energy);
+  document.getElementById("notesIn").value=d.notes;
+
+  updateRing();
+}
+
+function renderWater(d){
+  document.getElementById("waterCount").textContent=d.water;
+  var g=document.getElementById("glasses");g.innerHTML="";
+  var n=Math.max(8,d.water);
+  for(var i=0;i<n;i++){var x=el("div","glass"+(i<d.water?" full":""));g.appendChild(x);}
+}
+
+function renderExtras(d){
+  var box=document.getElementById("extrasBox");box.innerHTML="";
+  DAILY_EXTRAS.forEach(function(x){
+    var row=el("label","chk"+(d.extras[x.id]?" done":""));
+    var cb=el("input");cb.type="checkbox";cb.checked=!!d.extras[x.id];
+    cb.addEventListener("change",function(){d.extras[x.id]=cb.checked;save();renderToday();updateRing();});
+    var txt=el("div");txt.appendChild(el("div","lbl",x.label));txt.appendChild(el("div","sub",x.detail));
+    row.appendChild(cb);row.appendChild(txt);box.appendChild(row);
+  });
+}
+
+function updateRing(){
+  var d=dayData(keyOf(cur));
+  var done=0,total=18;
+  MEDS.forEach(function(m){if(d.meds[m[0]])done++;});
+  PRAYERS.forEach(function(p){if(d.prayers[p[0]])done++;});
+  MEALSLOTS.forEach(function(s){if(d.meals[s[0]])done++;});
+  DAILY_EXTRAS.forEach(function(x){if(d.extras[x.id])done++;});
+  if(d.exercise)done++;
+  if(d.water>=8)done++;
+  var pct=Math.round(done/total*100);
+  var ring=document.getElementById("dayRing");
+  ring.style.setProperty("--p",pct);
+  document.getElementById("dayRingTxt").textContent=pct+"%";
+}
+
+/* ---------- RENDER: MEAL PLAN ---------- */
+function renderPlan(){
+  var box=document.getElementById("planBox");box.innerHTML="";
+  ["day1","day2","day3","day4","day5","day6","day7"].forEach(function(dk){
+    var p=PLAN[dk], card=el("div","card plan-day");
+    card.appendChild(el("h4",null,p.name));
+    var total=0;
+    MEALSLOTS.forEach(function(s){
+      var r=RECIPES[p[s[0]]];total+=r.kcal;
+      var line=el("div","meal-row");
+      var mid=el("div");mid.style.flex="1";
+      var top=el("div");top.appendChild(el("span","tag",s[1]));top.appendChild(document.createTextNode(" "));
+      top.appendChild(recipeLink(p[s[0]]));
+      mid.appendChild(top);
+      mid.appendChild(el("div","meal-meta","≈ "+r.kcal+" kcal · "+r.protein+" g protein"));
+      line.appendChild(mid);card.appendChild(line);
+    });
+    card.appendChild(el("div","meal-meta","Meals ≈ "+total+" kcal · with daily supplements ≈ "+(total+EXTRAS_KCAL)+" kcal"));
+    box.appendChild(card);
+  });
+}
+
+/* ---------- RENDER: RECIPES ---------- */
+function renderRecipes(){
+  var box=document.getElementById("recipesBox");box.innerHTML="";
+  var groups=[["Breakfast","b_"],["Lunch","l_"],["Dinner","d_"],["Optional light snacks (only if genuinely hungry)","s_"]];
+  groups.forEach(function(g){
+    box.appendChild(el("div","section-title",g[0]));
+    Object.keys(RECIPES).forEach(function(id){
+      if(id.indexOf(g[1])!==0)return;
+      var r=RECIPES[id],c=el("div","recipe-card");
+      var h=el("h4");h.appendChild(recipeLink(id));c.appendChild(h);
+      c.appendChild(el("div","meal-meta","≈ "+r.kcal+" kcal · "+r.protein+" g protein · "+r.time));
+      c.appendChild(el("div","note",r.note));
+      box.appendChild(c);
+    });
+  });
+}
+
+/* ---------- RENDER: EXERCISES ---------- */
+function renderExercises(){
+  var box=document.getElementById("exercisesBox");box.innerHTML="";
+  Object.keys(EXERCISES).forEach(function(id){
+    var e=EXERCISES[id],c=el("div","ex-card");
+    var h=el("h4");var b=el("button","linklike",e.title);b.setAttribute("data-exercise",id);h.appendChild(b);c.appendChild(h);
+    c.appendChild(el("div","meal-meta",e.time+" · "+e.focus));
+    box.appendChild(c);
+  });
+  var wk=document.getElementById("exWeekBox");wk.innerHTML="";
+  EX_WEEK_LABELS.forEach(function(row){
+    var tr=el("tr");tr.appendChild(el("td",null,row[0]));
+    var td=el("td");var b=el("button","linklike",EXERCISES[row[1]].title+" ("+EXERCISES[row[1]].time+")");b.setAttribute("data-exercise",row[1]);td.appendChild(b);
+    tr.appendChild(td);wk.appendChild(tr);
+  });
+}
+
+/* ---------- RENDER: PRAYER SUMMARY ---------- */
+function renderPraySummary(){
+  var box=document.getElementById("praySummary");box.innerHTML="";
+  var tk=todayKey();
+  var keys=Object.keys(state.days).filter(function(k){return k<=tk;}).sort();
+  if(!keys.length){box.appendChild(el("p","muted","No prayer data yet — tick your prayers on the Today tab and this summary will build up over time."));return;}
+  var past=keys.filter(function(k){return k<tk;});
+  var perDone={},perMissed={};
+  PRAYERS.forEach(function(p){perDone[p[0]]=0;perMissed[p[0]]=0;});
+  past.forEach(function(k){var d=state.days[k];PRAYERS.forEach(function(p){if(d.prayers&&d.prayers[p[0]])perDone[p[0]]++;else perMissed[p[0]]++;});});
+  var totalMissed=0;PRAYERS.forEach(function(p){totalMissed+=perMissed[p[0]];});
+  var allFive=past.filter(function(k){var d=state.days[k];return PRAYERS.every(function(p){return d.prayers&&d.prayers[p[0]];});}).length;
+
+  var msg = past.length===0
+    ? "Your prayer history starts building from tomorrow — today's prayers show below as they're completed."
+    : (totalMissed===0
+        ? ("Masha'Allah — no missed prayers across "+past.length+" completed day(s). Keep it going!")
+        : ("You've missed "+totalMissed+" prayer(s) across "+past.length+" completed day(s); "+allFive+" day(s) had all 5 completed."));
+  box.appendChild(el("div","note",msg));
+
+  var pr=el("div","pill-row");
+  PRAYERS.forEach(function(p){
+    var tot=perDone[p[0]]+perMissed[p[0]];
+    var chip=el("span","tag",p[1]+": "+perDone[p[0]]+"/"+tot+(perMissed[p[0]]?(" · "+perMissed[p[0]]+" missed"):""));
+    if(perMissed[p[0]]>0){chip.style.borderColor="var(--bad)";chip.style.color="var(--bad)";}
+    pr.appendChild(chip);
+  });
+  box.appendChild(pr);
+
+  var tbl=el("table");tbl.style.marginTop="12px";
+  var thead=el("thead"),htr=el("tr");htr.appendChild(el("th",null,"Date"));
+  PRAYERS.forEach(function(p){htr.appendChild(el("th",null,p[1].slice(0,3)));});
+  htr.appendChild(el("th",null,"All 5"));thead.appendChild(htr);tbl.appendChild(thead);
+  var tb=el("tbody");
+  keys.slice().reverse().slice(0,14).forEach(function(k){
+    var d=state.days[k],tr=el("tr");tr.appendChild(el("td",null,k===tk?(k+" (today)"):k));
+    var count=0;
+    PRAYERS.forEach(function(p){
+      var td=el("td"),ok=d.prayers&&d.prayers[p[0]];
+      if(ok){td.textContent="✓";td.style.color="var(--good)";count++;}
+      else if(k<tk){td.textContent="✗";td.style.color="var(--bad)";}
+      else{td.textContent="·";td.style.color="var(--muted)";}
+      tr.appendChild(td);
+    });
+    var tdAll=el("td",null,count+"/5");if(count===5)tdAll.style.color="var(--good)";tr.appendChild(tdAll);
+    tb.appendChild(tr);
+  });
+  tbl.appendChild(tb);box.appendChild(tbl);
+  box.appendChild(el("div","muted","✓ prayed · ✗ missed · · not logged / not yet due"));
+}
+
+/* ---------- RENDER: PROGRESS ---------- */
+function renderProgress(){
+  renderPraySummary();
+  var keys=Object.keys(state.days).sort();
+  var weights=[];
+  keys.forEach(function(k){var w=parseFloat(state.days[k].weight);if(!isNaN(w))weights.push([k,w]);});
+  var start=parseFloat(state.profile.startWeight)||108;
+  var target=parseFloat(state.profile.targetWeight)||88;
+  var latest=weights.length?weights[weights.length-1][1]:start;
+  var lost=(start-latest);
+  var toGo=(latest-target);
+
+  var sg=document.getElementById("statsGrid");sg.innerHTML="";
+  function stat(v,l){var s=el("div","stat");s.appendChild(el("b",null,v));s.appendChild(el("span",null,l));return s;}
+  sg.appendChild(stat(start.toFixed(1)+" kg","Start"));
+  sg.appendChild(stat(latest.toFixed(1)+" kg","Now"));
+  sg.appendChild(stat((lost>=0?"−":"+")+Math.abs(lost).toFixed(1)+" kg","Lost so far"));
+  sg.appendChild(stat((toGo>0?toGo.toFixed(1):"0")+" kg","To goal ("+target.toFixed(0)+")"));
+
+  document.getElementById("startWeightIn").value=start;
+  document.getElementById("targetWeightIn").value=target;
+
+  drawChart(weights,start,target);
+
+  // history
+  var hb=document.getElementById("historyBox");hb.innerHTML="";
+  keys.slice().reverse().slice(0,21).forEach(function(k){
+    var d=state.days[k];
+    var meds=Object.keys(d.meds).filter(function(x){return d.meds[x];}).length;
+    var pr=Object.keys(d.prayers).filter(function(x){return d.prayers[x];}).length;
+    var ml=Object.keys(d.meals).filter(function(x){return d.meals[x];}).length;
+    var ex=d.extras?Object.keys(d.extras).filter(function(x){return d.extras[x];}).length:0;
+    var done=meds+pr+ml+ex+(d.exercise?1:0)+(d.water>=8?1:0);
+    var pct=Math.round(done/18*100);
+    var tr=el("tr");
+    [k,(d.weight?d.weight+" kg":"–"),meds+"/3",pr+"/5",ml+"/3",d.water+"/8",(d.exercise?"✓":"–"),pct+"%"].forEach(function(v){tr.appendChild(el("td",null,v));});
+    hb.appendChild(tr);
+  });
+  if(!keys.length){hb.appendChild(el("tr")).appendChild(el("td",null,"No entries yet — start logging on the Today tab.")).colSpan=8;}
+}
+
+function drawChart(weights,start,target){
+  var c=document.getElementById("weightChart"),ctx=c.getContext("2d");
+  var W=c.width,H=c.height;ctx.clearRect(0,0,W,H);
+  var note=document.getElementById("chartNote");
+  var css=getComputedStyle(document.body);
+  var ink=css.getPropertyValue("--ink"),muted=css.getPropertyValue("--muted"),brand=css.getPropertyValue("--brand"),line=css.getPropertyValue("--line"),good=css.getPropertyValue("--good");
+  if(weights.length<2){note.textContent="Log your weight on at least two different days to see your trend line.";
+    ctx.fillStyle=muted;ctx.font="16px sans-serif";ctx.textAlign="center";ctx.fillText("Your weight trend will appear here.",W/2,H/2);return;}
+  note.textContent="";
+  var pad=44;
+  var vals=weights.map(function(x){return x[1];}).concat([target,start]);
+  var min=Math.min.apply(null,vals)-1,max=Math.max.apply(null,vals)+1;
+  function X(i){return pad+(W-pad*2)*(i/(weights.length-1));}
+  function Y(v){return pad+(H-pad*2)*(1-(v-min)/(max-min));}
+  // grid + axis labels
+  ctx.strokeStyle=line;ctx.fillStyle=muted;ctx.font="12px sans-serif";ctx.textAlign="right";
+  for(var g=0;g<=4;g++){var v=min+(max-min)*g/4;var y=Y(v);ctx.beginPath();ctx.moveTo(pad,y);ctx.lineTo(W-pad,y);ctx.stroke();ctx.fillText(v.toFixed(0),pad-6,y+4);}
+  // target line
+  ctx.strokeStyle=good;ctx.setLineDash([6,5]);ctx.beginPath();ctx.moveTo(pad,Y(target));ctx.lineTo(W-pad,Y(target));ctx.stroke();ctx.setLineDash([]);
+  ctx.fillStyle=good;ctx.textAlign="left";ctx.fillText("Goal "+target,pad+4,Y(target)-6);
+  // weight line
+  ctx.strokeStyle=brand;ctx.lineWidth=3;ctx.beginPath();
+  weights.forEach(function(p,i){var x=X(i),y=Y(p[1]);if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);});ctx.stroke();
+  ctx.fillStyle=brand;
+  weights.forEach(function(p,i){ctx.beginPath();ctx.arc(X(i),Y(p[1]),4,0,7);ctx.fill();});
+}
+
+/* ---------- MODAL ---------- */
+function openRecipe(id){
+  var r=RECIPES[id],b=document.getElementById("modalBody");b.innerHTML="";
+  b.appendChild(el("h2",null,r.title));
+  var meta=el("div","meta");
+  [["🍽️ "+r.meal],["⏱️ "+r.time],["🔥 ≈ "+r.kcal+" kcal"],["💪 "+r.protein+" g protein"]].forEach(function(t){meta.appendChild(el("span","tag",t[0]));});
+  b.appendChild(meta);
+  b.appendChild(el("div","muted","Ingredients"));
+  var ul=el("ul");r.ing.forEach(function(i){ul.appendChild(el("li",null,i));});b.appendChild(ul);
+  b.appendChild(el("div","muted","Method"));
+  var ol=el("ol");r.steps.forEach(function(s){ol.appendChild(el("li",null,s));});b.appendChild(ol);
+  b.appendChild(el("div","note","💚 "+r.note));
+  showModal();
+}
+function openExercise(id){
+  var e=EXERCISES[id],b=document.getElementById("modalBody");b.innerHTML="";
+  b.appendChild(el("h2",null,e.title));
+  var meta=el("div","meta");[["⏱️ "+e.time],["🎯 "+e.focus]].forEach(function(t){meta.appendChild(el("span","tag",t[0]));});
+  b.appendChild(meta);
+  b.appendChild(el("div","muted","How to do it"));
+  var ol=el("ol");e.steps.forEach(function(s){ol.appendChild(el("li",null,s));});b.appendChild(ol);
+  b.appendChild(el("div","warnbox","⚠️ "+e.safety));
+  if(e.vid){
+    var a=el("a");a.className="btn primary";a.textContent="▶ Watch a demo on YouTube";
+    a.href="https://www.youtube.com/results?search_query="+encodeURIComponent(e.vid);
+    a.target="_blank";a.rel="noopener noreferrer";
+    a.style.display="inline-block";a.style.textDecoration="none";a.style.marginTop="8px";
+    b.appendChild(a);
+  }
+  showModal();
+}
+function showModal(){document.getElementById("overlay").classList.add("open");}
+function hideModal(){document.getElementById("overlay").classList.remove("open");}
+
+/* ---------- NAV ---------- */
+function nav(view){
+  var tabs=document.getElementById("tabs").children;
+  for(var i=0;i<tabs.length;i++){tabs[i].classList.toggle("active",tabs[i].getAttribute("data-nav")===view);}
+  ["today","plan","recipes","exercises","progress","guide"].forEach(function(v){
+    document.getElementById("view-"+v).classList.toggle("active",v===view);
+  });
+  if(view==="progress")renderProgress();
+  window.scrollTo(0,0);
+}
+
+/* ---------- EVENTS ---------- */
+document.addEventListener("click",function(ev){
+  var t=ev.target;
+  var rec=t.getAttribute&&t.getAttribute("data-recipe");
+  var exc=t.getAttribute&&t.getAttribute("data-exercise");
+  var nv=t.getAttribute&&t.getAttribute("data-nav");
+  if(rec){ev.preventDefault();openRecipe(rec);}
+  else if(exc){ev.preventDefault();openExercise(exc);}
+  else if(nv){nav(nv);}
+});
+document.getElementById("modalClose").addEventListener("click",hideModal);
+document.getElementById("overlay").addEventListener("click",function(e){if(e.target===this)hideModal();});
+document.addEventListener("keydown",function(e){if(e.key==="Escape")hideModal();});
+
+document.getElementById("prevDay").addEventListener("click",function(){cur.setDate(cur.getDate()-1);renderToday();});
+document.getElementById("jumpToday").addEventListener("click",function(){cur=new Date();cur.setHours(0,0,0,0);renderToday();});
+document.getElementById("datePick").addEventListener("change",function(){var v=this.value.split("-");cur=new Date(+v[0],+v[1]-1,+v[2]);cur.setHours(0,0,0,0);renderToday();});
+
+document.getElementById("waterPlus").addEventListener("click",function(){var d=dayData(keyOf(cur));d.water++;save();renderWater(d);updateRing();});
+document.getElementById("waterMinus").addEventListener("click",function(){var d=dayData(keyOf(cur));if(d.water>0)d.water--;save();renderWater(d);updateRing();});
+
+function bindInput(id,prop,num){
+  document.getElementById(id).addEventListener("input",function(){
+    var d=dayData(keyOf(cur));d[prop]=(num?(this.value===""?"":this.value):this.value);save();
+  });
+}
+bindInput("weightIn","weight",true);
+bindInput("sleepIn","sleep",true);
+bindInput("stepsIn","steps",true);
+bindInput("notesIn","notes",false);
+document.getElementById("painIn").addEventListener("input",function(){var d=dayData(keyOf(cur));d.jointPain=+this.value;document.getElementById("painVal").textContent=this.value;save();});
+document.getElementById("energyIn").addEventListener("input",function(){var d=dayData(keyOf(cur));d.energy=+this.value;document.getElementById("energyVal").textContent=this.value;save();});
+
+document.getElementById("startWeightIn").addEventListener("input",function(){state.profile.startWeight=this.value;save();renderProgress();});
+document.getElementById("targetWeightIn").addEventListener("input",function(){state.profile.targetWeight=this.value;save();renderProgress();});
+
+document.getElementById("exportBtn").addEventListener("click",function(){
+  var blob=new Blob([JSON.stringify(state,null,2)],{type:"application/json"});
+  var url=URL.createObjectURL(blob);var a=document.createElement("a");
+  a.href=url;a.download="wellness-backup-"+todayKey()+".json";document.body.appendChild(a);a.click();
+  document.body.removeChild(a);URL.revokeObjectURL(url);
+});
+document.getElementById("importBtn").addEventListener("click",function(){document.getElementById("importFile").click();});
+document.getElementById("importFile").addEventListener("change",function(){
+  var f=this.files[0];if(!f)return;var r=new FileReader();
+  r.onload=function(){try{var s=JSON.parse(r.result);if(s&&s.days){state=s;if(!state.profile)state.profile={startWeight:108,targetWeight:88};save();renderToday();renderProgress();alert("Backup restored.");}else alert("That file doesn't look like a valid backup.");}catch(e){alert("Couldn't read that file.");}};
+  r.readAsText(f);
+});
+document.getElementById("clearBtn").addEventListener("click",function(){
+  if(confirm("This permanently deletes ALL your logged data on this device. This cannot be undone. Continue?")){
+    localStorage.removeItem(KEY);state={profile:{startWeight:108,targetWeight:88},days:{}};renderToday();renderProgress();alert("All data cleared.");
+  }
+});
+
+/* ---------- THEME ---------- */
+var THEMEKEY="yawarTheme";
+function currentTheme(){
+  var a=document.documentElement.getAttribute("data-theme");
+  if(a)return a;
+  return (window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)").matches)?"dark":"light";
+}
+function applyTheme(t){
+  if(t==="dark"||t==="light")document.documentElement.setAttribute("data-theme",t);
+  var btn=document.getElementById("themeToggle");
+  if(btn)btn.textContent=(currentTheme()==="dark")?"☀️":"🌙";
+}
+try{var savedTheme=localStorage.getItem(THEMEKEY);applyTheme(savedTheme||undefined);}catch(e){applyTheme();}
+document.getElementById("themeToggle").addEventListener("click",function(){
+  var n=(currentTheme()==="dark")?"light":"dark";
+  try{localStorage.setItem(THEMEKEY,n);}catch(e){}
+  applyTheme(n);
+  if(document.getElementById("view-progress").classList.contains("active"))renderProgress();
+});
+
+/* ---------- INIT ---------- */
+renderPlan();renderRecipes();renderExercises();renderToday();
+})();
+</script>
+</body>
+</html>
