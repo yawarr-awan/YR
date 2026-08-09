@@ -208,11 +208,11 @@ input[type=range]{width:100%;accent-color:var(--accent)}
 .cal-hour-label{font-size:.66rem;font-weight:800;color:var(--ink);opacity:.65;flex:0 0 34px;padding-top:2px}
 .cal-hour-events{display:flex;flex-direction:column;gap:3px;flex:1;min-width:0}
 .cal-chip{
-  border-radius:7px;padding:3px 7px;font-size:.7rem;line-height:1.3;
+  border-radius:7px;padding:4px 8px;font-size:.82rem;line-height:1.35;
   background:var(--panel-2);border-inline-start:3px solid var(--brand)
 }
 .cal-chip-time{font-weight:800;color:var(--muted);margin-inline-end:5px}
-.cal-chip-meta{display:block;font-size:.62rem;color:var(--muted)}
+.cal-chip-meta{display:block;font-size:.72rem;color:var(--muted)}
 .cal-nowline{position:absolute;inset-inline:0;height:2px;background:var(--bad);z-index:2}
 .cal-nowline i{position:absolute;inset-inline-start:-2px;top:-3px;width:8px;height:8px;border-radius:50%;background:var(--bad);display:block}
 /* Compact week strip: where you are in the week, and a way to jump. */
@@ -346,26 +346,6 @@ footer.foot{text-align:center;color:var(--muted);font-size:.78rem;margin-top:26p
         <div class="card-body"><div id="medsBox"></div></div>
       </div>
 
-      <div class="card collapsible" data-collapse="prayers">
-        <h3><span class="dot" style="background:var(--pray)"></span> Prayers (Salah)<span class="count" id="prayCount"></span></h3>
-        <div class="card-body">
-          <div id="prayBox"></div>
-          <div class="muted" id="prayerLocText" style="font-size:.74rem;margin:8px 0 4px"></div>
-          <div class="muted" id="prayerNext" style="font-size:.8rem;margin-top:4px;font-weight:700"></div>
-          <div class="pill-row" style="margin-top:8px">
-            <button class="btn loc-btn" id="prayerLocBtn" type="button">
-              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 2a7 7 0 0 0-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 0 0-7-7Zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5Z"/></svg>
-              <span id="prayerLocBtnText">Use my location</span>
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <div class="card collapsible" data-collapse="dhikr">
-        <h3><span class="dot" style="background:var(--accent)"></span> Dhikr<span class="count" id="dhikrCount"></span></h3>
-        <div class="card-body"><div id="dhikrBox"></div></div>
-      </div>
-
       <div class="card collapsible" data-collapse="extras">
         <h3><span class="dot" style="background:var(--brand)"></span> Supplements &amp; Drinks<span class="count" id="extrasCount"></span></h3>
         <div class="card-body"><div id="extrasBox"></div></div>
@@ -426,6 +406,49 @@ footer.foot{text-align:center;color:var(--muted);font-size:.78rem;margin-top:26p
         </div>
       </div>
 
+    </div>
+  </section>
+
+  <!-- ===================== PRAYERS ===================== -->
+  <section id="view-prayers" class="view">
+    <div class="datebar">
+      <button id="prayPrevDay" title="Previous day">‹</button>
+      <div class="dlabel" id="prayDateLabel">Today</div>
+      <button id="prayNextDay" title="Next day">›</button>
+      <button class="today-btn" id="prayJumpToday">Today</button>
+    </div>
+    <div class="grid">
+      <div class="card collapsible" data-collapse="prayers">
+        <h3><span class="dot" style="background:var(--pray)"></span> Prayers (Salah)<span class="count" id="prayCount"></span></h3>
+        <div class="card-body">
+          <div id="prayBox"></div>
+          <div class="muted" id="prayerLocText" style="font-size:.74rem;margin:8px 0 4px"></div>
+          <div class="muted" id="prayerNext" style="font-size:.8rem;margin-top:4px;font-weight:700"></div>
+          <div class="pill-row" style="margin-top:8px">
+            <button class="btn loc-btn" id="prayerLocBtn" type="button">
+              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 2a7 7 0 0 0-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 0 0-7-7Zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5Z"/></svg>
+              <span id="prayerLocBtnText">Use my location</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card collapsible" data-collapse="dhikr">
+        <h3><span class="dot" style="background:var(--accent)"></span> Dhikr<span class="count" id="dhikrCount"></span></h3>
+        <div class="card-body"><div id="dhikrBox"></div></div>
+      </div>
+    </div>
+    <div class="card collapsible" data-collapse="praysum" style="margin-top:12px">
+      <h3>🕌 Prayer summary</h3>
+      <div class="card-body"><div id="praySummary"></div></div>
+    </div>
+
+    <div class="card collapsible" data-collapse="qada" style="margin-top:12px">
+      <h3>🤲 Made-up (qada) prayers</h3>
+      <div class="card-body">
+        <p class="muted" style="font-size:.8rem;margin-top:0">Log prayers you've since made up. Each one you record here comes off the missed count above.</p>
+        <div id="qadaBox"></div>
+      </div>
     </div>
   </section>
 
@@ -515,16 +538,36 @@ footer.foot{text-align:center;color:var(--muted);font-size:.78rem;margin-top:26p
       <div class="muted" style="font-size:.78rem">A safe, sustainable pace is about 0.5–1 kg a week. Aiming for ~88 kg keeps you healthy and reachable; you can lower the goal later.</div>
     </div>
 
-    <div class="card collapsible" data-collapse="praysum" style="margin-top:12px">
-      <h3>🕌 Prayer summary</h3>
-      <div class="card-body"><div id="praySummary"></div></div>
+  </section>
+
+
+
+  <!-- ===================== SETTINGS ===================== -->
+  <section id="view-settings" class="view">
+    <div class="section-title">Settings</div>
+
+    <div class="card collapsible" data-collapse="meds-edit" style="margin-bottom:12px">
+      <h3>💊 Your medicines</h3>
+      <div class="card-body">
+        <p class="muted" style="font-size:.8rem;margin-top:0">Rename or remove anything you no longer take. Changes apply to the Today checklist straight away.</p>
+        <div id="medsEditBox"></div>
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <input type="text" id="medNewIn" placeholder="Add a medicine…" style="flex:1;min-width:0;border:1px solid var(--line);background:var(--panel-2);color:var(--ink);border-radius:10px;padding:9px;font:inherit">
+          <button class="btn primary" id="medAddBtn" type="button">Add</button>
+        </div>
+      </div>
     </div>
 
-    <div class="card collapsible" data-collapse="qada" style="margin-top:12px">
-      <h3>🤲 Made-up (qada) prayers</h3>
+    <div class="card collapsible collapsed" data-collapse="briefprompt" style="margin-bottom:12px">
+      <h3>✨ Today's Brief instructions</h3>
       <div class="card-body">
-        <p class="muted" style="font-size:.8rem;margin-top:0">Log prayers you've since made up. Each one you record here comes off the missed count above.</p>
-        <div id="qadaBox"></div>
+        <p class="muted" style="font-size:.8rem;margin-top:0">What you want the summary to do. Your calendar events and tasks are always appended below this, so it can't be broken by editing here. Leave blank for the default.</p>
+        <div class="field"><textarea id="briefPromptIn" style="min-height:130px" placeholder="Loading…"></textarea></div>
+        <div class="pill-row">
+          <button class="btn primary" id="briefPromptSave" type="button">Save</button>
+          <button class="btn" id="briefPromptReset" type="button">Reset to default</button>
+        </div>
+        <div class="muted" id="briefPromptStatus" style="font-size:.78rem;margin-top:6px"></div>
       </div>
     </div>
 
@@ -569,15 +612,16 @@ footer.foot{text-align:center;color:var(--muted);font-size:.78rem;margin-top:26p
     </div>
   </section>
 
-
   <footer class="foot">Built for you, Yawar — one small tick at a time. 🌿</footer>
 </div>
 
 <nav class="tabs" id="tabs">
   <button data-nav="today" class="active"><i>📋</i>Today</button>
+  <button data-nav="prayers"><i>🕌</i>Prayers</button>
   <button data-nav="calendar"><i>🗓️</i>Calendar</button>
   <button data-nav="others"><i>🍽️</i>Others</button>
   <button data-nav="progress"><i>📈</i>Progress</button>
+  <button data-nav="settings"><i>⚙️</i>Settings</button>
 </nav>
 
 <!-- ===================== MODAL ===================== -->
@@ -737,7 +781,15 @@ var PLAN = {
 var WEEK_EX = ["ex_stretch","ex_mobility","ex_chair","ex_walk","ex_isometric","ex_chair","ex_walk"];
 var EX_WEEK_LABELS = [["Sunday","ex_stretch"],["Monday","ex_mobility"],["Tuesday","ex_chair"],["Wednesday","ex_walk"],["Thursday","ex_isometric"],["Friday","ex_chair"],["Saturday","ex_walk"]];
 
-var MEDS = [["pre","Pre-breakfast medicine","Before you eat breakfast"],["after","After-breakfast medicine","Once breakfast is done"],["dinner","After-dinner medicine","Once dinner is done"]];
+var DEFAULT_MEDS = [["pre","Pre-breakfast medicine","Before you eat breakfast"],["after","After-breakfast medicine","Once breakfast is done"],["dinner","After-dinner medicine","Once dinner is done"]];
+/* The medicine list is the user's own - editable in Settings and carried on
+   the synced profile. Historical days keep whatever keys they were ticked
+   with, so removing one never rewrites the past. */
+function medsList(){
+  var m=state.profile&&state.profile.meds;
+  if(!Array.isArray(m)||!m.length)return DEFAULT_MEDS.map(function(x){return x.slice();});
+  return m;
+}
 var PRAYERS = [["fajr","Fajr"],["dhuhr","Dhuhr"],["asr","Asr"],["maghrib","Maghrib"],["isha","Isha"]];
 var DHIKR_PERIODS = [["morning","Morning"],["afternoon","Afternoon"],["evening","Evening"]];
 var DHIKR_ITEMS = [
@@ -781,26 +833,36 @@ function showSaved(){
 
 function freshState(){
   return {
-    schema:2,
-    profile:{startWeight:108,targetWeight:88,updated_at:0},
+    schema:3,
+    profile:{startWeight:108,targetWeight:88,tasks:[],updated_at:0},
     days:{},
-    tasks:[],
     sync:{enabled:false,since:0,lastSyncAt:null,lastError:null}
   };
 }
 /* schema 1 -> 2: days/profile predating sync get a one-time updated_at stamp
-   so the next push carries real history instead of looking untouched. */
+   so the next push carries real history instead of looking untouched.
+   schema 2 -> 3: tasks move from the top level (device-local, never synced)
+   into the profile blob, which does sync - so a task list finally reaches
+   every device instead of being stranded on the one that made it. */
 var _needsResave=false;      /* set when load() repairs state in memory; persisted right after assignment */
 function migrate(s){
-  if(s.schema>=2)return s;
-  var stamp=Date.now();
-  Object.keys(s.days).forEach(function(k){
-    var d=s.days[k];
-    if(!d.updated_at)d.updated_at=stamp;
-  });
-  if(!s.profile.updated_at)s.profile.updated_at=stamp;
-  s.schema=2;
-  _needsResave=true;
+  if(s.schema<2){
+    var stamp=Date.now();
+    Object.keys(s.days).forEach(function(k){
+      var d=s.days[k];
+      if(!d.updated_at)d.updated_at=stamp;
+    });
+    if(!s.profile.updated_at)s.profile.updated_at=stamp;
+    s.schema=2;
+    _needsResave=true;
+  }
+  if(s.schema<3){
+    if(!Array.isArray(s.profile.tasks))s.profile.tasks=Array.isArray(s.tasks)?s.tasks:[];
+    delete s.tasks;
+    s.profile.updated_at=Math.max(s.profile.updated_at||0,Date.now());
+    s.schema=3;
+    _needsResave=true;
+  }
   return s;
 }
 function parseState(raw){
@@ -810,8 +872,8 @@ function parseState(raw){
   if(!s.profile)s.profile={startWeight:108,targetWeight:88};
   if(!s.schema)s.schema=1;
   if(!s.sync)s.sync={enabled:false,since:0,lastSyncAt:null,lastError:null};
-  if(!Array.isArray(s.tasks))s.tasks=[];
   migrate(s);
+  if(!Array.isArray(s.profile.tasks))s.profile.tasks=[];
   return s;
 }
 function load(){
@@ -917,7 +979,7 @@ function renderToday(){
 
   // meds
   var mb=document.getElementById("medsBox"); mb.innerHTML="";
-  MEDS.forEach(function(m){
+  medsList().forEach(function(m){
     var row=el("label","chk"+(d.meds[m[0]]?" done":""));
     var cb=el("input");cb.type="checkbox";cb.checked=!!d.meds[m[0]];
     cb.addEventListener("change",function(){d.meds[m[0]]=cb.checked;d.updated_at=Date.now();save();renderToday();updateRing();});
@@ -1005,7 +1067,7 @@ function renderToday(){
    card still tells you whether it needs attention. */
 function renderDayCounts(d){
   var doneOf=function(list,bag,idx){var n=0;list.forEach(function(x){if(bag[idx?x[0]:x.id])n++;});return n;};
-  setCount("medsCount",doneOf(MEDS,d.meds,true)+"/"+MEDS.length);
+  setCount("medsCount",doneOf(medsList(),d.meds,true)+"/"+medsList().length);
   setCount("prayCount",doneOf(PRAYERS,d.prayers,true)+"/"+PRAYERS.length);
   setCount("mealsCount",doneOf(MEALSLOTS,d.meals,true)+"/"+MEALSLOTS.length);
   setCount("extrasCount",doneOf(DAILY_EXTRAS,d.extras,false)+"/"+DAILY_EXTRAS.length);
@@ -1089,13 +1151,28 @@ function fmtClock(ts){
   return ("0"+t.getHours()).slice(-2)+":"+("0"+t.getMinutes()).slice(-2);
 }
 
-function pushableDays(since){
-  var out={};
-  Object.keys(state.days).forEach(function(k){
-    var d=state.days[k];
-    if(d.updated_at&&d.updated_at>since)out[k]={data:JSON.stringify(d),updated_at:d.updated_at};
-  });
-  return out;
+/* Every day we hold, in chunks the server will accept.
+ *
+ * This used to push only days newer than `since` - but `since` is set from
+ * the *server's* clock while `updated_at` comes from each *device's* clock.
+ * Any skew between them (seconds is enough) meant a device's own edits were
+ * silently never pushed, and another device's edits were silently never
+ * pulled. Sending the whole set is a few tens of KB for a year of history
+ * and removes that entire class of bug: the server still applies
+ * last-write-wins per day, so re-sending unchanged days is a no-op. */
+var SYNC_CHUNK=400;
+function dayChunks(){
+  var keys=Object.keys(state.days).filter(function(k){return state.days[k].updated_at;});
+  var chunks=[];
+  for(var i=0;i<keys.length;i+=SYNC_CHUNK){
+    var out={};
+    keys.slice(i,i+SYNC_CHUNK).forEach(function(k){
+      var d=state.days[k];
+      out[k]={data:JSON.stringify(d),updated_at:d.updated_at};
+    });
+    chunks.push(out);
+  }
+  return chunks.length?chunks:[{}];
 }
 
 /* True last-write-wins: a remote record only overwrites the local one if it is strictly newer. */
@@ -1126,12 +1203,10 @@ function applySyncResponse(resp){
   return changed;
 }
 
-/* Advance `since` to the server's clock on a full pull; on a truncated
-   (`more`) pull, advance only to the last row actually received so the
-   next sync resumes from there instead of re-fetching the same page. */
-function nextSince(resp,pushedSince){
-  if(!resp.more)return resp.now;
-  var maxTs=pushedSince;
+/* Only used to page through a pull larger than the server's 1000-row cap.
+   A normal sync always asks from 0, so nothing can be missed. */
+function maxReceived(resp,floor){
+  var maxTs=floor;
   Object.keys(resp.days||{}).forEach(function(k){
     var ts=resp.days[k].updated_at; if(ts>maxTs)maxTs=ts;
   });
@@ -1162,27 +1237,45 @@ function runSync(){
   if(!SAFE)return Promise.resolve(false);
   if(!state.sync||!state.sync.enabled)return Promise.resolve(false);
   if(typeof fetch!=="function")return Promise.resolve(false);
-  var since=state.sync.since||0;
-  var payload={since:since,days:pushableDays(since)};
-  if(state.profile.updated_at&&state.profile.updated_at>since){
-    payload.profile={data:JSON.stringify(state.profile),updated_at:state.profile.updated_at};
-  }
+
+  var chunks=dayChunks();
+  var changed=false;
   setSyncStatus("Syncing…");
-  return fetch(SYNC_URL,{
-    method:"POST",
-    headers:{"content-type":"application/json"},
-    credentials:"same-origin",
-    body:JSON.stringify(payload)
-  }).then(function(res){
-    if(!res.ok)throw new Error("server returned HTTP "+res.status);
-    return res.json();
-  }).then(function(resp){
-    var changed=applySyncResponse(resp);
-    state.sync.since=nextSince(resp,since);
+
+  function post(days,since){
+    var payload={since:since,days:days};
+    /* The profile carries the task list too, so it always goes up. */
+    if(state.profile.updated_at){
+      payload.profile={data:JSON.stringify(state.profile),updated_at:state.profile.updated_at};
+    }
+    return fetch(SYNC_URL,{
+      method:"POST",
+      headers:{"content-type":"application/json"},
+      credentials:"same-origin",
+      body:JSON.stringify(payload)
+    }).then(function(res){
+      if(!res.ok)throw new Error("server returned HTTP "+res.status);
+      return res.json();
+    });
+  }
+
+  /* Push every chunk, then keep pulling from 0 until the server says there
+     is nothing further (only relevant past 1000 rows). */
+  var step=function(i,since){
+    return post(chunks[i]||{},since).then(function(resp){
+      if(applySyncResponse(resp))changed=true;
+      if(i+1<chunks.length)return step(i+1,0);
+      if(resp.more)return step(chunks.length,maxReceived(resp,since));
+      return resp;
+    });
+  };
+
+  return step(0,0).then(function(){
+    state.sync.since=0;              /* full reconciliation every time */
     state.sync.lastSyncAt=Date.now();
     state.sync.lastError=null;
     save();
-    if(changed){renderToday();renderProgress();}
+    if(changed){renderToday();renderProgress();renderTasks();}
     else updateSyncUI();
     return true;
   }).catch(function(e){
@@ -1310,7 +1403,7 @@ var TASK_TODAY_LIMIT=3;
 var _taskSchedOpenId=null;   /* which task's inline date picker is showing */
 var _tasksExpanded=false;
 
-function ensureTasks(){if(!Array.isArray(state.tasks))state.tasks=[];return state.tasks;}
+function ensureTasks(){if(!Array.isArray(state.profile.tasks))state.profile.tasks=[];return state.profile.tasks;}
 function taskId(){return "t"+Date.now()+"_"+Math.random().toString(36).slice(2,8);}
 function sortedTasks(){
   return ensureTasks().slice().sort(function(a,b){
@@ -1334,7 +1427,7 @@ function renderTaskList(listEl,tasks,statusId,hiddenCount){
   tasks.forEach(function(t){
     var row=el("div","task-row"+(t.done?" done":""));
     var cb=el("input");cb.type="checkbox";cb.checked=!!t.done;
-    cb.addEventListener("change",function(){t.done=cb.checked;t.updated_at=Date.now();save();renderTasks();});
+    cb.addEventListener("change",function(){t.done=cb.checked;t.updated_at=Date.now();state.profile.updated_at=Date.now();save();renderTasks();});
     row.appendChild(cb);
     row.appendChild(el("span","task-title",t.title));
     if(t.due){
@@ -1357,7 +1450,8 @@ function renderTaskList(listEl,tasks,statusId,hiddenCount){
     delBtn.type="button";delBtn.setAttribute("aria-label","Delete task");
     delBtn.addEventListener("click",function(){
       if(_taskSchedOpenId===t.id)_taskSchedOpenId=null;
-      state.tasks=ensureTasks().filter(function(x){return x.id!==t.id;});save();renderTasks();
+      state.profile.tasks=ensureTasks().filter(function(x){return x.id!==t.id;});
+      state.profile.updated_at=Date.now();save();renderTasks();
     });
     row.appendChild(delBtn);
     listEl.appendChild(row);
@@ -1404,6 +1498,7 @@ function addTask(inputId){
   var title=(titleIn.value||"").trim();
   if(!title)return;
   ensureTasks().push({id:taskId(),title:title,due:null,done:false,scheduled:false,calendarEventId:null,created_at:Date.now(),updated_at:Date.now()});
+  state.profile.updated_at=Date.now();
   titleIn.value="";
   save();renderTasks();
 }
@@ -1425,6 +1520,7 @@ function scheduleTaskAt(t,startIso,statusId){
   }).then(function(resp){
     if(resp.status==="ok"){
       t.due=startIso;t.scheduled=true;t.calendarEventId=resp.eventId||null;t.updated_at=Date.now();
+      state.profile.updated_at=Date.now();
       _taskSchedOpenId=null;
       save();renderTasks();
       if(statusEl)statusEl.textContent="Added to your Google Calendar.";
@@ -2081,11 +2177,6 @@ function renderPraySummary(){
 
 /* ---------- RENDER: PROGRESS ---------- */
 function renderProgress(){
-  renderPraySummary();
-  renderQada();
-  updateSyncUI();
-  updateInstallUI();
-  updateNotifyUI();
   var keys=Object.keys(state.days).sort();
   var weights=[];
   keys.forEach(function(k){var w=parseFloat(state.days[k].weight);if(!isNaN(w))weights.push([k,w]);});
@@ -2112,16 +2203,18 @@ function renderProgress(){
 
 /* One number for how much of a day got ticked off, on the same 18-item
    basis as the ring at the top of the app. */
-var DAY_TOTAL_ITEMS=18;
+function dayTotalItems(){
+  return medsList().length+PRAYERS.length+MEALSLOTS.length+DAILY_EXTRAS.length+2;
+}
 function dayCompletion(d){
   var done=0;
-  MEDS.forEach(function(m){if(d.meds&&d.meds[m[0]])done++;});
+  medsList().forEach(function(m){if(d.meds&&d.meds[m[0]])done++;});
   PRAYERS.forEach(function(p){if(d.prayers&&d.prayers[p[0]])done++;});
   MEALSLOTS.forEach(function(x){if(d.meals&&d.meals[x[0]])done++;});
   DAILY_EXTRAS.forEach(function(x){if(d.extras&&d.extras[x.id])done++;});
   if(d.exercise)done++;
   if(d.water>=8)done++;
-  return Math.round(done/DAY_TOTAL_ITEMS*100);
+  return Math.round(done/dayTotalItems()*100);
 }
 
 /** Daily completion as a percentage over time, with a 7-day average once
@@ -2251,10 +2344,107 @@ function openExercise(id){
 function showModal(){document.getElementById("overlay").classList.add("open");}
 function hideModal(){document.getElementById("overlay").classList.remove("open");}
 
+/* ---------- PRAYERS TAB ---------- */
+/* Shares `cur` with Today, so ticking a prayer here and there is the same
+   record; this just keeps its own date bar in step. */
+function renderPrayersTab(){
+  var k=keyOf(cur);
+  var lbl=document.getElementById("prayDateLabel");
+  if(lbl)lbl.textContent=(k===todayKey()?"Today · ":"")+humanShort(cur);
+  renderToday();
+  renderPrayerClock();
+  renderPraySummary();
+  renderQada();
+}
+
+/* ---------- SETTINGS TAB ---------- */
+function renderSettings(){
+  updateSyncUI();
+  updateInstallUI();
+  updateNotifyUI();
+  renderMedsEditor();
+  loadBriefPrompt();
+}
+
+function renderMedsEditor(){
+  var box=document.getElementById("medsEditBox");
+  if(!box)return;
+  box.innerHTML="";
+  var list=medsList();
+  if(!state.profile.meds)state.profile.meds=list.map(function(x){return x.slice();});
+  list.forEach(function(m,i){
+    var row=el("div","task-row");
+    var name=el("input");name.type="text";name.value=m[1];
+    name.style.cssText="flex:1;min-width:0;border:1px solid var(--line);background:var(--panel-2);color:var(--ink);border-radius:9px;padding:7px;font:inherit;font-size:.82rem";
+    name.addEventListener("change",function(){
+      var v=(this.value||"").trim();
+      if(!v){this.value=m[1];return;}
+      state.profile.meds[i][1]=v;
+      state.profile.updated_at=Date.now();save();renderToday();
+    });
+    row.appendChild(name);
+    var del=el("button","icon-btn danger","✕");del.type="button";
+    del.setAttribute("aria-label","Remove "+m[1]);
+    del.addEventListener("click",function(){
+      state.profile.meds=state.profile.meds.filter(function(_,j){return j!==i;});
+      state.profile.updated_at=Date.now();save();renderMedsEditor();renderToday();
+    });
+    row.appendChild(del);
+    box.appendChild(row);
+  });
+  if(!list.length)box.appendChild(el("p","muted","No medicines tracked. Add one below."));
+}
+
+function addMedicine(){
+  var input=document.getElementById("medNewIn");
+  if(!input)return;
+  var label=(input.value||"").trim();
+  if(!label)return;
+  if(!Array.isArray(state.profile.meds))state.profile.meds=medsList().map(function(x){return x.slice();});
+  state.profile.meds.push(["med"+Date.now().toString(36),label,""]);
+  state.profile.updated_at=Date.now();
+  input.value="";
+  save();renderMedsEditor();renderToday();
+}
+
+/* The brief's instructions live server-side, since the 7am cron generates
+   the brief without any browser involved. */
+var BRIEF_PROMPT_URL="/api/settings/brief-prompt";
+var _briefPromptDefault="";
+function setBriefPromptStatus(msg){var e=document.getElementById("briefPromptStatus");if(e)e.textContent=msg||"";}
+function loadBriefPrompt(){
+  var ta=document.getElementById("briefPromptIn");
+  if(!ta||typeof fetch!=="function")return;
+  fetch(BRIEF_PROMPT_URL,{credentials:"same-origin"}).then(function(r){
+    if(!r.ok)throw new Error("http "+r.status);
+    return r.json();
+  }).then(function(d){
+    _briefPromptDefault=d.default||"";
+    ta.value=d.prompt||d.default||"";
+    ta.placeholder=_briefPromptDefault;
+    setBriefPromptStatus(d.prompt?"Using your own instructions.":"Using the default instructions.");
+  }).catch(function(){setBriefPromptStatus("Couldn't load the brief instructions right now.");});
+}
+function saveBriefPrompt(value){
+  setBriefPromptStatus("Saving…");
+  fetch(BRIEF_PROMPT_URL,{
+    method:"PUT",credentials:"same-origin",
+    headers:{"content-type":"application/json"},
+    body:JSON.stringify({prompt:value})
+  }).then(function(r){
+    if(!r.ok)throw new Error("http "+r.status);
+    return r.json();
+  }).then(function(d){
+    var ta=document.getElementById("briefPromptIn");
+    if(ta)ta.value=d.prompt||_briefPromptDefault;
+    setBriefPromptStatus(d.prompt?"Saved. The next refresh will use it.":"Back to the default instructions.");
+  }).catch(function(){setBriefPromptStatus("Couldn't save that — try again in a moment.");});
+}
+
 /* ---------- NAV ---------- */
 /* Order matters: it's both the bottom bar's left-to-right order and the
    order swiping moves through. */
-var VIEWS=["today","calendar","others","progress"];
+var VIEWS=["today","prayers","calendar","others","progress","settings"];
 /* Meals, recipes and movement are reference material rather than daily
    tracking, so they share one tab with their own sub-tabs. */
 var SUBVIEWS=["plan","recipes","exercises"];
@@ -2275,7 +2465,8 @@ function nav(view){
   try{localStorage.setItem(LASTTAB_KEY,view);}catch(e){}
   if(view==="progress")renderProgress();
   if(view==="calendar")renderCalendarTab();
-  if(view==="today")renderPrayerClock();
+  if(view==="prayers")renderPrayersTab();
+  if(view==="settings")renderSettings();
   window.scrollTo(0,0);
 }
 
@@ -2363,7 +2554,7 @@ document.getElementById("installBtn").addEventListener("click",function(){
 document.getElementById("importBtn").addEventListener("click",function(){document.getElementById("importFile").click();});
 document.getElementById("importFile").addEventListener("change",function(){
   var f=this.files[0];if(!f)return;var r=new FileReader();
-  r.onload=function(){try{var s=JSON.parse(r.result);if(s&&s.days){if(!s.profile)s.profile={startWeight:108,targetWeight:88};if(!s.schema)s.schema=1;if(!s.sync)s.sync={enabled:false,since:0,lastSyncAt:null,lastError:null};if(!Array.isArray(s.tasks))s.tasks=[];migrate(s);state=s;save();renderToday();renderProgress();alert("Backup restored.");}else alert("That file doesn't look like a valid backup.");}catch(e){alert("Couldn't read that file.");}};
+  r.onload=function(){try{var s=JSON.parse(r.result);if(s&&s.days){if(!s.profile)s.profile={startWeight:108,targetWeight:88};if(!s.schema)s.schema=1;if(!s.sync)s.sync={enabled:false,since:0,lastSyncAt:null,lastError:null};migrate(s);state=s;save();renderToday();renderProgress();alert("Backup restored.");}else alert("That file doesn't look like a valid backup.");}catch(e){alert("Couldn't read that file.");}};
   r.readAsText(f);
 });
 document.getElementById("clearBtn").addEventListener("click",function(){
@@ -2387,6 +2578,20 @@ attachCalSwipe();
 attachTabSwipe();
 
 document.getElementById("notifyBtn").addEventListener("click",enableNotifications);
+
+document.getElementById("prayPrevDay").addEventListener("click",function(){cur.setDate(cur.getDate()-1);renderPrayersTab();});
+document.getElementById("prayNextDay").addEventListener("click",function(){cur.setDate(cur.getDate()+1);renderPrayersTab();});
+document.getElementById("prayJumpToday").addEventListener("click",function(){cur=new Date();cur.setHours(0,0,0,0);renderPrayersTab();});
+
+document.getElementById("medAddBtn").addEventListener("click",addMedicine);
+document.getElementById("medNewIn").addEventListener("keydown",function(e){if(e.key==="Enter")addMedicine();});
+document.getElementById("briefPromptSave").addEventListener("click",function(){
+  saveBriefPrompt(document.getElementById("briefPromptIn").value);
+});
+document.getElementById("briefPromptReset").addEventListener("click",function(){
+  var ta=document.getElementById("briefPromptIn");if(ta)ta.value="";
+  saveBriefPrompt("");
+});
 
 /* ---------- THEME ---------- */
 var THEMEKEY="yawarTheme";

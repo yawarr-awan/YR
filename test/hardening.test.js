@@ -28,7 +28,7 @@ test("fresh browser: no localStorage, no crash, nothing written until an edit ha
   assert.doesNotMatch(app.statusKind(), /\bbad\b/);
 });
 
-test("existing good (legacy, pre-sync) data loads, migrates to schema 2, and keeps every field", () => {
+test("existing good (legacy, pre-sync) data loads, migrates to the current schema, and keeps every field", () => {
   const legacy = {
     schema: 1,
     profile: { startWeight: 120, targetWeight: 90 },
@@ -43,7 +43,7 @@ test("existing good (legacy, pre-sync) data loads, migrates to schema 2, and kee
   const app = loadApp({ localStorageSeed: { [MAIN_KEY]: JSON.stringify(legacy) } });
 
   const s = app.state();
-  assert.equal(s.schema, 2, "migration should bump schema to 2 and persist it immediately");
+  assert.equal(s.schema, 3, "migration should bump the schema and persist it immediately");
   const d = s.days["2026-01-01"];
   assert.equal(d.weight, "119.5");
   assert.equal(d.notes, "felt okay");
@@ -117,7 +117,9 @@ test("storage writes blocked (quota exceeded / private mode): edits are not lost
     blockStorage: true,
   });
 
-  // Reading still works even though writes are blocked.
+  // Reading still works even though writes are blocked. The stored copy is
+  // still the seeded schema 2: the app migrates in memory, but the migration
+  // write was refused like every other write - it must not half-apply.
   assert.equal(app.state().schema, 2);
 
   app.click("waterPlus");

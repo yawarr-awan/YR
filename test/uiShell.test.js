@@ -21,7 +21,7 @@ test("nav sits at the bottom of the page as icons, and the Guide tab is gone", (
   assert.equal(app.document.querySelector("header .tabs"), null, "and no longer in the header");
 
   const labels = Array.from(tabs.querySelectorAll("button")).map((b) => b.getAttribute("data-nav"));
-  assert.deepEqual(labels, ["today", "calendar", "others", "progress"]);
+  assert.deepEqual(labels, ["today", "prayers", "calendar", "others", "progress", "settings"]);
   assert.equal(app.document.getElementById("view-guide"), null, "the Guide view is removed too");
   tabs.querySelectorAll("button").forEach((b) => {
     assert.ok(b.querySelector("i"), "each tab renders an icon above its label");
@@ -45,7 +45,7 @@ test("swiping left/right moves through the tabs in bottom-bar order, stopping at
   assert.equal(activeView(), "view-today");
 
   app.swipe(".wrap", -120, 0);
-  assert.equal(activeView(), "view-calendar");
+  assert.equal(activeView(), "view-prayers");
 
   app.swipe(".wrap", 120, 0);
   assert.equal(activeView(), "view-today");
@@ -93,6 +93,23 @@ test("inside Others a swipe steps through the sub-tabs before leaving the tab", 
   // Nowhere further to go inside the tab, so now it moves on.
   app.swipe(".wrap", -120, 0);
   assert.equal(activeView(), "view-progress");
+});
+
+test("prayer tracking and settings each have their own tab", () => {
+  const app = loadApp({ fetchImpl: idle });
+
+  app.goTo("prayers");
+  assert.equal(app.document.querySelector(".view.active").id, "view-prayers");
+  ["prayBox", "dhikrBox", "praySummary", "qadaBox"].forEach((id) => {
+    assert.ok(app.document.querySelector("#view-prayers #" + id), id + " belongs on the Prayers tab");
+  });
+  assert.equal(app.document.querySelector("#view-today #prayBox"), null, "and no longer on Today");
+
+  app.goTo("settings");
+  ["syncEnabled", "installCard", "notifyCard", "exportBtn", "medsEditBox", "briefPromptIn"].forEach((id) => {
+    assert.ok(app.document.querySelector("#view-settings #" + id), id + " belongs in Settings");
+  });
+  assert.equal(app.document.querySelector("#view-progress #syncEnabled"), null, "moved out of Progress");
 });
 
 test("a tab remembered from when Meals was top-level lands on the right sub-tab", () => {

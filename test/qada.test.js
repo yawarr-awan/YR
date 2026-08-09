@@ -41,7 +41,7 @@ function qadaRows(app) {
 
 test("with nothing made up, each prayer shows its full outstanding count", () => {
   const app = loadApp({ fetchImpl: idle, localStorageSeed: seedWithMissedPrayers() });
-  app.goTo("progress");
+  app.goTo("prayers");
 
   const rows = qadaRows(app);
   assert.equal(rows.length, 5, "one row per prayer");
@@ -52,7 +52,7 @@ test("with nothing made up, each prayer shows its full outstanding count", () =>
 
 test("the per-prayer breakdown lives only in the qada card, not duplicated above it", () => {
   const app = loadApp({ fetchImpl: idle, localStorageSeed: seedWithMissedPrayers() });
-  app.goTo("progress");
+  app.goTo("prayers");
 
   // The summary keeps the overall sentence but no longer repeats a chip per prayer.
   const summary = app.document.getElementById("praySummary");
@@ -64,7 +64,7 @@ test("the per-prayer breakdown lives only in the qada card, not duplicated above
 
 test("recording a made-up prayer reduces what's owed without rewriting that day's history", () => {
   const app = loadApp({ fetchImpl: idle, localStorageSeed: seedWithMissedPrayers() });
-  app.goTo("progress");
+  app.goTo("prayers");
 
   const fajr = qadaRows(app)[0];
   Array.from(fajr.querySelectorAll("button")).find((b) => b.textContent === "+").click();
@@ -80,7 +80,7 @@ test("recording a made-up prayer reduces what's owed without rewriting that day'
 
 test("the made-up count is a debt repayment: it cannot exceed what was actually missed", () => {
   const app = loadApp({ fetchImpl: idle, localStorageSeed: seedWithMissedPrayers() });
-  app.goTo("progress");
+  app.goTo("prayers");
 
   const plus = () => Array.from(qadaRows(app)[0].querySelectorAll("button")).find((b) => b.textContent === "+");
   plus().click();
@@ -93,7 +93,7 @@ test("the made-up count is a debt repayment: it cannot exceed what was actually 
 
 test("the minus button and direct entry both work, and never go negative", () => {
   const app = loadApp({ fetchImpl: idle, localStorageSeed: seedWithMissedPrayers({ qada: { fajr: 2 } }) });
-  app.goTo("progress");
+  app.goTo("prayers");
 
   const fajr = () => qadaRows(app)[0];
   assert.equal(fajr().querySelector("input[type=number]").value, "2", "a stored count is shown on load");
@@ -112,7 +112,7 @@ test("clearing the whole backlog reads as nothing outstanding, not as never havi
     fetchImpl: idle,
     localStorageSeed: seedWithMissedPrayers({ qada: { fajr: 2, dhuhr: 2, asr: 2, maghrib: 2, isha: 2 } }),
   });
-  app.goTo("progress");
+  app.goTo("prayers");
 
   const summary = app.document.getElementById("praySummary").textContent;
   assert.match(summary, /nothing outstanding/i);

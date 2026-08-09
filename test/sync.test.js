@@ -64,8 +64,43 @@ test("first sync from empty: local history pushes up and populates an empty serv
   const s = app.state();
   assert.equal(s.sync.enabled, true);
   assert.equal(s.sync.lastError, null);
-  assert.ok(s.sync.since > 0, "since should advance past the initial push");
+  // Deliberately NOT a moving watermark any more - see the skew test below.
+  assert.equal(s.sync.since, 0, "every sync reconciles the full set");
   assert.match(app.syncStatusText(), /last synced/i);
+});
+
+test("a device whose clock lags the server still pushes its own edits and pulls the other device's", async () => {
+  // The regression: `since` was set from the SERVER clock but compared against
+  // `updated_at` stamped by each DEVICE clock. A device running even slightly
+  // behind had its edits silently skipped on push, and rows written by a
+  // lagging device were silently skipped on pull. Both looked like "sync says
+  // it worked but my other device still shows the old data".
+  const server = createMockServer();
+  const LAG = 10 * 60 * 1000; // this device's clock is ten minutes behind
+  const serverNow = Date.now();
+
+  // Another device already wrote a day, stamped with ITS lagging clock.
+  server._days["2026-03-05"] = { data: JSON.stringify({ meds: {}, prayers: {}, meals: {}, extras: {}, water: 7, weight: "101", sleep: "", steps: "", jointPain: null, energy: null, exercise: false, notes: "", updated_at: serverNow - LAG }), updated_at: serverNow - LAG };
+
+  const app = loadApp({
+    localStorageSeed: {
+      [MAIN_KEY]: JSON.stringify({
+        schema: 3,
+        profile: { startWeight: 108, targetWeight: 88, tasks: [], updated_at: serverNow - LAG },
+        days: {
+          "2026-03-06": { meds: {}, prayers: {}, meals: {}, extras: {}, water: 2, weight: "104", sleep: "", steps: "", jointPain: null, energy: null, exercise: false, notes: "", updated_at: serverNow - LAG },
+        },
+        // Pretend a previous sync had already advanced the watermark to server time.
+        sync: { enabled: true, since: serverNow, lastSyncAt: serverNow, lastError: null },
+      }),
+    },
+    fetchImpl: fetchImplFor(server),
+  });
+  await app.flush();
+  await app.flush();
+
+  assert.ok(server._days["2026-03-06"], "this device's own edit must reach the server despite the stale watermark");
+  assert.equal(app.state().days["2026-03-05"].weight, "101", "and the other device's day must come down");
 });
 
 test("conflicting edits from two devices resolve by true last-write-wins", async () => {
@@ -157,4 +192,51 @@ test("a non-OK HTTP response is treated as a failure, not applied as if it were 
   assert.equal(s.days["2026-05-02"].weight, "103");
   assert.ok(s.sync.lastError);
   assert.match(app.syncStatusText(), /sync failed/i);
+});
+
+test("tasks ride the synced profile, so they reach every device", async () => {
+  // They used to sit at the top level of state and were never in the payload
+  // at all - which is why a task added on the phone never showed on the desktop.
+  const server = createMockServer();
+  const app = loadApp({
+    localStorageSeed: {
+      [MAIN_KEY]: JSON.stringify({
+        schema: 3,
+        profile: { startWeight: 108, targetWeight: 88, tasks: [], updated_at: 1 },
+        days: {},
+        sync: { enabled: true, since: 0, lastSyncAt: null, lastError: null },
+      }),
+    },
+    fetchImpl: fetchImplFor(server),
+  });
+  await app.flush();
+
+  app.setInput("taskTitleIn", "Call the pharmacy");
+  app.click("taskAddBtn");
+  app.click("syncNowBtn");
+  await app.flush();
+  await app.flush();
+
+  assert.ok(server._profile, "the profile went up");
+  const pushed = JSON.parse(server._profile.data);
+  assert.deepEqual(pushed.tasks.map((t) => t.title), ["Call the pharmacy"]);
+});
+
+test("a device upgrading from the old layout carries its local tasks into the synced profile", () => {
+  const app = loadApp({
+    localStorageSeed: {
+      [MAIN_KEY]: JSON.stringify({
+        schema: 2,
+        profile: { startWeight: 108, targetWeight: 88, updated_at: 5 },
+        days: {},
+        tasks: [{ id: "t1", title: "Old local task", due: null, done: false, scheduled: false, created_at: 1, updated_at: 1 }],
+        sync: { enabled: false, since: 0, lastSyncAt: null, lastError: null },
+      }),
+    },
+  });
+  const s = app.state();
+  assert.equal(s.schema, 3);
+  assert.deepEqual(s.profile.tasks.map((t) => t.title), ["Old local task"], "nothing is dropped in the move");
+  assert.equal(s.tasks, undefined, "and it no longer lives at the top level");
+  assert.match(app.document.getElementById("taskList").textContent, /Old local task/);
 });

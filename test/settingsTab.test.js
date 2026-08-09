@@ -1,0 +1,111 @@
+"use strict";
+/*
+ * Settings tab: the editable medicine list (which drives the Today
+ * checklist and therefore the completion maths) and the editable
+ * Today's Brief instructions, which live server-side because the 7am cron
+ * generates the brief with no browser involved.
+ */
+const test = require("node:test");
+const { after } = require("node:test");
+const assert = require("node:assert/strict");
+const { loadApp, closeAllApps } = require("./lib.js");
+after(closeAllApps);
+
+function jsonRes(body) { return { ok: true, status: 200, json: async () => body }; }
+const idle = async (url) => {
+  if (String(url).includes("/api/settings/brief-prompt")) return jsonRes({ prompt: null, default: "DEFAULT TEXT" });
+  return jsonRes({ connected: false, status: "not_connected" });
+};
+
+const medRows = (app) => Array.from(app.document.querySelectorAll("#medsEditBox .task-row"));
+
+test("medicines can be renamed, removed and added, and Today follows immediately", () => {
+  const app = loadApp({ fetchImpl: idle });
+  app.goTo("settings");
+
+  assert.equal(medRows(app).length, 3, "the three defaults to start with");
+
+  // Rename
+  const first = medRows(app)[0].querySelector("input[type=text]");
+  first.value = "Morning tablet";
+  first.dispatchEvent(new app.window.Event("change", { bubbles: true }));
+  assert.match(app.document.getElementById("medsBox").textContent, /Morning tablet/);
+  assert.equal(app.state().profile.meds[0][1], "Morning tablet", "stored on the profile, so it syncs");
+
+  // Remove
+  medRows(app)[0].querySelector("button.icon-btn.danger").click();
+  assert.equal(medRows(app).length, 2);
+  assert.doesNotMatch(app.document.getElementById("medsBox").textContent, /Morning tablet/);
+  assert.equal(app.document.getElementById("medsCount").textContent, "0/2", "the count follows the list");
+
+  // Add
+  app.setInput("medNewIn", "Vitamin D");
+  app.click("medAddBtn");
+  assert.equal(medRows(app).length, 3);
+  assert.match(app.document.getElementById("medsBox").textContent, /Vitamin D/);
+});
+
+test("removing a medicine changes what a full day means, without touching past records", () => {
+  const app = loadApp({ fetchImpl: idle });
+  // Tick everything that exists on a default day except the three medicines.
+  const tickAll = (boxId) => app.document.querySelectorAll("#" + boxId + " input[type=checkbox]").forEach((cb) => {
+    cb.checked = true;
+    cb.dispatchEvent(new app.window.Event("change", { bubbles: true }));
+  });
+  ["medsBox", "mealsBox", "extrasBox", "moveBox"].forEach(tickAll);
+  app.goTo("prayers");
+  tickAll("prayBox");
+  app.goTo("today");
+  for (let i = 0; i < 8; i++) app.click("waterPlus");
+  assert.equal(app.document.getElementById("dayRingTxt").textContent, "100%");
+
+  app.goTo("settings");
+  medRows(app)[0].querySelector("button.icon-btn.danger").click();
+  app.goTo("today");
+  // Still 100%: one fewer item to do, and it was already done.
+  assert.equal(app.document.getElementById("dayRingTxt").textContent, "100%");
+});
+
+test("the brief instructions load from the server, save, and reset back to the default", async () => {
+  let stored = null;
+  const app = loadApp({
+    fetchImpl: async (url, opts) => {
+      if (String(url).includes("/api/settings/brief-prompt")) {
+        if (opts && opts.method === "PUT") {
+          stored = JSON.parse(opts.body).prompt || null;
+          return jsonRes({ prompt: stored, default: "DEFAULT TEXT" });
+        }
+        return jsonRes({ prompt: stored, default: "DEFAULT TEXT" });
+      }
+      return jsonRes({ connected: false, status: "not_connected" });
+    },
+  });
+  app.goTo("settings");
+  await app.flush();
+
+  const ta = app.document.getElementById("briefPromptIn");
+  assert.equal(ta.value, "DEFAULT TEXT", "the default is shown so it can be edited from something");
+  assert.match(app.document.getElementById("briefPromptStatus").textContent, /default/i);
+
+  ta.value = "Keep it to two sentences.";
+  app.click("briefPromptSave");
+  await app.flush();
+  assert.equal(stored, "Keep it to two sentences.");
+  assert.match(app.document.getElementById("briefPromptStatus").textContent, /saved/i);
+
+  app.click("briefPromptReset");
+  await app.flush();
+  assert.equal(stored, null, "resetting clears the override rather than storing an empty string");
+});
+
+test("a failure loading the brief instructions is reported, not left looking blank", async () => {
+  const app = loadApp({
+    fetchImpl: async (url) => {
+      if (String(url).includes("/api/settings/brief-prompt")) return { ok: false, status: 500, json: async () => ({}) };
+      return jsonRes({ connected: false, status: "not_connected" });
+    },
+  });
+  app.goTo("settings");
+  await app.flush();
+  assert.match(app.document.getElementById("briefPromptStatus").textContent, /couldn't load/i);
+});
