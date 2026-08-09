@@ -6,8 +6,10 @@
  * index.html in a real DOM, nothing about the app's own logic injected.
  */
 const test = require("node:test");
+const { after } = require("node:test");
 const assert = require("node:assert/strict");
-const { loadApp } = require("./lib.js");
+const { loadApp, closeAllApps } = require("./lib.js");
+after(closeAllApps);
 
 const IOS_UA = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15";
 

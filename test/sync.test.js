@@ -6,9 +6,11 @@
  * failure.
  */
 const test = require("node:test");
+const { after } = require("node:test");
 const assert = require("node:assert/strict");
-const { loadApp, MAIN_KEY } = require("./lib.js");
+const { loadApp, closeAllApps, MAIN_KEY } = require("./lib.js");
 const { createMockServer, fetchImplFor } = require("./mockServer.js");
+after(closeAllApps);
 
 function sleep(ms) { return new Promise((r) => setTimeout(r, ms)); }
 

@@ -6,8 +6,10 @@
  * The network boundary (fetch) is mocked, same as the sync tests.
  */
 const test = require("node:test");
+const { after } = require("node:test");
 const assert = require("node:assert/strict");
-const { loadApp } = require("./lib.js");
+const { loadApp, closeAllApps } = require("./lib.js");
+after(closeAllApps);
 
 function briefResponse(overrides) {
   return { connected: false, day: "2026-08-09", summary: null, status: "not_connected", error: null, generated_at: null, ...overrides };

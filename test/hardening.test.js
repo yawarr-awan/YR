@@ -6,8 +6,10 @@
  * main key with good backup, both corrupt, and storage writes blocked.
  */
 const test = require("node:test");
+const { after } = require("node:test");
 const assert = require("node:assert/strict");
-const { loadApp, MAIN_KEY, BAK_KEY } = require("./lib.js");
+const { loadApp, closeAllApps, MAIN_KEY, BAK_KEY } = require("./lib.js");
+after(closeAllApps);
 
 // Mirrors index.html's keyOf(): local-time Y-M-D, not UTC.
 function localTodayKey() {

@@ -149,7 +149,11 @@ handles an expired/revoked token gracefully — surfaced in the UI as
 
 **Architecture:** everything lives in `worker.js`, no separate backend.
 - `GET /api/google/connect` → redirects to Google's OAuth consent screen
-  (`access_type=offline&prompt=consent`, scope = `calendar.readonly` only).
+  (`access_type=offline&prompt=consent`, scope = `calendar.readonly` +
+  `calendar.events` (write, added for the task-scheduling feature below) +
+  `tasks.readonly`). Still no Gmail. A connection made before the scope was
+  expanded needs to reconnect once — surfaces as the same `reconnect_required`
+  status as an expired token, no separate code path.
 - `GET /api/google/callback` → exchanges the code for tokens, stores the
   refresh token in D1 keyed by the **Access-verified** email (never trusts
   anything Google's redirect claims about identity — same principle as
@@ -196,6 +200,69 @@ by choice — every other test file here is CommonJS and there was no reason
 to disrupt that) against a fake D1 (`test/fakeD1.js`) and a mocked global
 `fetch`. `test/brief.test.js` covers the Today-tab card's states in jsdom,
 same rules as the rest of the suite.
+
+## Calendar tab, live prayer times, task list, Dhikr, notifications — built
+Built in response to feedback that the brief only read the primary calendar
+and the app had no way to see the calendar itself, schedule things onto it,
+or track prayer times/dhikr/reminders day-to-day.
+
+- **Multi-calendar + Tasks brief enrichment:** `listCalendars()` fetches
+  `calendarList` (all calendars the account can read, not just primary);
+  `fetchEventsForRange()` fetches events across all of them, tagging each
+  with its source calendar name/color, and skips a single unreachable
+  calendar rather than failing the whole fetch. `fetchTodayTasks()` pulls
+  Google Tasks due today and — deliberately, since it's a bonus enrichment
+  rather than the critical path — never throws; a Tasks failure just means
+  an empty task list in the brief, not a broken brief. `generateBrief()` now
+  feeds both into the Gemini prompt.
+- **Calendar tab:** `GET /api/calendar/events?date=YYYY-MM-DD` returns the
+  raw (non-summarized) day agenda across all calendars via the same
+  `listCalendars`/`fetchEventsForRange` path. The tab renders it with
+  prev/today/date-pick navigation, color-coded per source calendar, with
+  live prayer times overlaid as colored rows using the same colors as the
+  Today-tab prayer clock.
+- **Task list → real calendar events:** the Today tab has a local quick-add
+  task list (title + optional due date). `POST /api/google/calendar/events`
+  creates a real event on the primary calendar when a task is scheduled —
+  this is why the OAuth scope above now includes write access. A `403` with
+  an insufficient-permission body maps to `reconnect_required`, same
+  pattern as the read path. **Tasks are local-only for now** — not part of
+  the `/api/sync` payload (which only carries `days`/`profile`) — so a task
+  list doesn't cross devices yet; this is a known, documented gap, not an
+  oversight.
+- **Live prayer times:** client-side only, no Worker involvement. An opt-in
+  "Use my location" button (browser Geolocation) fetches
+  `api.aladhan.com/v1/timings/{DD-MM-YYYY}` (method 3, Muslim World League)
+  and caches the result in localStorage per day+location so it isn't
+  re-fetched on every render. Colors are CSS custom properties
+  (`--fajr`, `--sunrise`, etc.) shared between the Today-tab clock and the
+  Calendar-tab overlay so they always match.
+- **Dhikr tracker:** a plain per-day checklist (7 items × morning/
+  afternoon/evening) stored in `days[day].dhikr`, same durability/migration
+  treatment as every other per-day field.
+- **In-app notifications — foreground only, by deliberate choice:** an
+  opt-in button in the Progress tab requests the browser Notification
+  permission; a 60-second interval then checks prayer times, dhikr-anchor
+  times, and scheduled-task due times and fires a local `Notification` if
+  due. There is no service-worker push subscription and no server-side
+  notification dispatch — reminders only fire while the tab is open. If
+  real push (closed-tab/background) delivery is ever wanted, that's a
+  separate, bigger feature (VAPID keys, push subscriptions stored server-
+  side, a Worker-side send path) — not attempted here.
+- A jsdom test-suite gotcha worth remembering: the notification interval's
+  `setInterval` runs inside every `loadApp()`-created jsdom window, and
+  jsdom timers are real Node timers — if a test file never disposes of its
+  window, timers accumulate across the whole `npm test` run and the process
+  hangs instead of exiting. Every test file using `loadApp` now calls
+  `window.close()` in an `after()` hook (`closeAllApps()` in `test/lib.js`)
+  to prevent this.
+- New Worker exports for testability: `listCalendars`,
+  `fetchEventsForRange`, `fetchTodayTasks`, `handleGetCalendarEvents`,
+  `handleCreateCalendarEvent`, `dayBoundsForDate`.
+- Test coverage: `test/worker.test.js` extended for the above;
+  `test/calendarTab.test.js`, `test/prayerTimes.test.js`,
+  `test/tasks.test.js`, `test/dhikrNotify.test.js` added — see CHANGELOG
+  1.5.0 for the full scenario list.
 
 ## Honest caveat
 The "Client-side sync layer," "Access + hosting," and "Current data state"
