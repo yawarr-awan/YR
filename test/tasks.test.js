@@ -108,30 +108,47 @@ test("checking a task marks it done and persists; deleting removes it from stora
   assert.equal(app.state().tasks.length, 0);
 });
 
-test("Today shows only the top three tasks and points at the Calendar tab for the rest", () => {
+function moreButton(app) {
+  return Array.from(app.document.querySelectorAll("#taskList button")).find((b) => b.classList.contains("task-more"));
+}
+
+test("Today shows only the top three tasks by default", () => {
   const app = loadApp({ fetchImpl: briefIdle });
   addTasks(app, ["One", "Two", "Three", "Four", "Five"]);
 
-  const todayRows = app.document.querySelectorAll("#taskList .task-row");
-  assert.equal(todayRows.length, 3, "Today is a dashboard, not the whole backlog");
-  assert.match(app.document.getElementById("taskList").textContent, /\+2 more in the Calendar tab/i);
-  assert.equal(app.state().tasks.length, 5, "the other two still exist, they're just not shown here");
+  assert.equal(app.document.querySelectorAll("#taskList .task-row").length, 3, "Today is a dashboard, not the whole backlog");
+  assert.match(moreButton(app).textContent, /\+2 more/i);
+  assert.equal(app.state().tasks.length, 5, "the other two still exist, they're just not shown yet");
 });
 
-test("the Calendar tab is the full task repository, and can add tasks itself", () => {
-  const app = loadApp({
-    fetchImpl: async (url) => {
-      if (String(url).includes("/api/calendar/events")) return jsonRes({ connected: true, status: "ok", day: "x", events: [] });
-      return jsonRes({ connected: false, status: "not_connected" });
-    },
-  });
+test("tapping '+N more' expands the full list in place on the Today tab, and folds back again", () => {
+  const app = loadApp({ fetchImpl: briefIdle });
   addTasks(app, ["One", "Two", "Three", "Four", "Five"]);
-  app.goTo("calendar");
 
-  assert.equal(app.document.querySelectorAll("#calTaskList .task-row").length, 5, "every task shows here");
-  assert.doesNotMatch(app.document.getElementById("calTaskList").textContent, /more in the Calendar tab/i);
+  moreButton(app).click();
+  assert.equal(app.document.querySelectorAll("#taskList .task-row").length, 5, "all of them, still on Today");
+  assert.match(app.document.getElementById("taskList").textContent, /Five/);
+  assert.match(moreButton(app).textContent, /show fewer/i);
 
-  addTasks(app, ["Sixth"], "calTaskTitleIn", "calTaskAddBtn");
-  assert.equal(app.document.querySelectorAll("#calTaskList .task-row").length, 6);
-  assert.equal(app.state().tasks.length, 6);
+  moreButton(app).click();
+  assert.equal(app.document.querySelectorAll("#taskList .task-row").length, 3);
+  assert.match(moreButton(app).textContent, /\+2 more/i);
+});
+
+test("with three or fewer tasks there is nothing to expand", () => {
+  const app = loadApp({ fetchImpl: briefIdle });
+  addTasks(app, ["One", "Two"]);
+  assert.equal(moreButton(app), undefined);
+});
+
+test("an expanded list stays expanded while you work in it", () => {
+  const app = loadApp({ fetchImpl: briefIdle });
+  addTasks(app, ["One", "Two", "Three", "Four", "Five"]);
+  moreButton(app).click();
+
+  const cb = app.document.querySelectorAll("#taskList .task-row input[type=checkbox]")[4];
+  cb.checked = true;
+  cb.dispatchEvent(new app.window.Event("change", { bubbles: true }));
+
+  assert.equal(app.document.querySelectorAll("#taskList .task-row").length, 5, "ticking a task must not re-collapse the list");
 });

@@ -1,9 +1,10 @@
 "use strict";
 /*
- * Calendar tab coverage: the single-column 24h day grid fed by
- * /api/calendar/events, connect/reconnect/error states, day paging (buttons
- * + swipe, both of which run a real slide animation, hence the waits), and
- * the full-window prayer color bands that tint every hour of the day.
+ * Calendar tab coverage: the seven-day week grid fed by a single ranged
+ * /api/calendar/events request, the selected day getting double width,
+ * connect/reconnect/error states, week paging (buttons + swipe, both of
+ * which run a real slide animation, hence the waits), and the prayer-window
+ * colour bands.
  */
 const test = require("node:test");
 const { after } = require("node:test");
@@ -11,7 +12,7 @@ const assert = require("node:assert/strict");
 const { loadApp, closeAllApps } = require("./lib.js");
 after(closeAllApps);
 
-// The grid slides out and back in; a day change is settled after both halves.
+// The grid slides out and back in; a week change is settled after both halves.
 const PAGE_MS = 500;
 
 function jsonRes(body) { return { ok: true, status: 200, json: async () => body }; }
@@ -24,60 +25,167 @@ function fetchRouter(routes) {
   };
 }
 
-function todayKey() {
-  const d = new Date();
+function keyOf(d) {
   return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
 }
+function todayKey() { return keyOf(new Date()); }
+/** Monday-start week containing today, same rule the app uses. */
+function thisMonday() {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+  return d;
+}
+function addDays(d, n) { const x = new Date(d); x.setDate(x.getDate() + n); return x; }
+function atHourToday(h) {
+  const d = new Date();
+  d.setHours(h, 0, 0, 0);
+  return d.toISOString();
+}
 
-function dateTracker() {
+function rangeTracker(events) {
   const seen = [];
   const route = ["/api/calendar/events", (u) => {
-    seen.push((String(u).match(/date=([^&]+)/) || [])[1]);
-    return jsonRes({ connected: true, status: "ok", day: "x", events: [] });
+    const s = String(u);
+    seen.push({
+      date: (s.match(/date=([^&]+)/) || [])[1],
+      end: (s.match(/end=([^&]+)/) || [])[1],
+    });
+    return jsonRes({ connected: true, status: "ok", day: "x", events: events || [] });
   }];
   return { seen, route, last: () => seen[seen.length - 1] };
 }
 
-test("not connected: shows a connect prompt, but the full 24-hour grid still renders in one column", async () => {
+test("renders a Monday-start week: an hour gutter plus seven day columns, 24 rows deep", async () => {
   const app = loadApp({
-    fetchImpl: fetchRouter([["/api/calendar/events", () => jsonRes({ connected: false, status: "not_connected", day: todayKey(), events: [] })]]),
+    fetchImpl: fetchRouter([["/api/calendar/events", () => jsonRes({ connected: true, status: "ok", day: "x", events: [] })]]),
   });
   app.goTo("calendar");
   await app.flush();
 
-  assert.match(app.document.getElementById("calStatus").textContent, /connect google calendar/i);
-  const hours = app.document.querySelectorAll("#calHours .cal-hour");
-  assert.equal(hours.length, 24, "one column covering the whole day");
-  assert.equal(hours[0].querySelector(".cal-hour-label").textContent, "00:00");
-  assert.equal(hours[23].querySelector(".cal-hour-label").textContent, "23:00");
+  const grid = app.document.getElementById("calWeek");
+  assert.equal(grid.querySelectorAll(".cal-wk-head").length, 7, "seven day headings");
+  assert.equal(grid.querySelectorAll(".cal-cell").length, 24 * 7, "24 hours across 7 days");
+  // 1 gutter cell in the header row + one per hour row.
+  assert.equal(grid.querySelectorAll(".cal-wk-gutter").length, 25);
+
+  const heads = Array.from(grid.querySelectorAll(".cal-wk-head"));
+  assert.deepEqual(heads.map((h) => h.textContent.replace(/^\d+/, "")), ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]);
+  const monday = thisMonday();
+  assert.equal(heads[0].querySelector("b").textContent, String(monday.getDate()));
+  assert.equal(heads[6].querySelector("b").textContent, String(addDays(monday, 6).getDate()));
 });
 
-test("places each event in its starting hour cell, colored by source calendar, with location shown", async () => {
+test("fetches the whole week in one ranged request, not seven day requests", async () => {
+  const tracker = rangeTracker();
+  const app = loadApp({ fetchImpl: fetchRouter([tracker.route]) });
+  app.goTo("calendar");
+  await app.flush();
+
+  assert.equal(tracker.seen.length, 1, "one call covers the week");
+  assert.equal(tracker.last().date, keyOf(thisMonday()));
+  assert.equal(tracker.last().end, keyOf(addDays(thisMonday(), 6)));
+});
+
+test("today's column is double width and marked, and tapping another day widens that one instead", async () => {
+  const tracker = rangeTracker();
+  const app = loadApp({ fetchImpl: fetchRouter([tracker.route]) });
+  app.goTo("calendar");
+  await app.flush();
+
+  const grid = () => app.document.getElementById("calWeek");
+  const todayIdx = (new Date().getDay() + 6) % 7;
+  // minmax(0,2fr) / minmax(0,1fr) per day, after the fixed hour-gutter track.
+  const cols = () => (grid().style.gridTemplateColumns.match(/minmax\([^)]*\)/g) || []);
+
+  assert.equal(cols().length, 7);
+  assert.equal(cols()[todayIdx], "minmax(0,2fr)", "the day in focus gets twice the width");
+  assert.equal(cols().filter((c) => c === "minmax(0,2fr)").length, 1, "and only that one");
+  assert.ok(grid().querySelectorAll(".cal-wk-head")[todayIdx].classList.contains("is-today"));
+
+  // Pick a different day of the same week.
+  const otherIdx = todayIdx === 0 ? 3 : 0;
+  grid().querySelectorAll(".cal-wk-head")[otherIdx].click();
+  await app.flush();
+
+  assert.equal(cols()[otherIdx], "minmax(0,2fr)");
+  assert.equal(cols()[todayIdx], "minmax(0,1fr)");
+  assert.ok(grid().querySelectorAll(".cal-wk-head")[otherIdx].classList.contains("is-sel"));
+  assert.ok(grid().querySelectorAll(".cal-wk-head")[todayIdx].classList.contains("is-today"),
+    "the real today is still flagged even when another day is expanded");
+});
+
+test("each event lands in its own day column and hour row, coloured by source calendar", async () => {
+  const monday = thisMonday();
+  const wed = addDays(monday, 2);
   const app = loadApp({
     fetchImpl: fetchRouter([["/api/calendar/events", () => jsonRes({
-      connected: true, status: "ok", day: "2026-08-09",
+      connected: true, status: "ok", day: "x",
       events: [
-        { title: "Dentist", start: "2026-08-09T14:00:00Z", allDay: false, location: "High St", calendar: "Yawar", color: "#4285f4" },
-        { title: "Standup", start: "2026-08-09T08:00:00Z", allDay: false, calendar: "Yawar", color: "#4285f4" },
-        { title: "Mum's birthday", start: "2026-08-09", allDay: true, calendar: "Family", color: "#0b8043" },
+        { title: "Standup", start: new Date(monday.getFullYear(), monday.getMonth(), monday.getDate(), 9, 0).toISOString(), allDay: false, calendar: "Yawar", color: "#4285f4" },
+        { title: "Physio", start: new Date(wed.getFullYear(), wed.getMonth(), wed.getDate(), 14, 30).toISOString(), allDay: false, location: "Clinic", calendar: "Yawar", color: "#4285f4" },
+        { title: "Mum's birthday", start: keyOf(wed), allDay: true, calendar: "Family", color: "#0b8043" },
       ],
     })]]),
   });
   app.goTo("calendar");
   await app.flush();
 
-  const hours = app.document.querySelectorAll("#calHours .cal-hour");
-  assert.match(hours[0].querySelector(".cal-hour-events").textContent, /Mum's birthday/, "all-day event lands in the 00:00 slot");
-  assert.match(hours[8].querySelector(".cal-hour-events").textContent, /Standup/);
+  const cells = app.document.querySelectorAll("#calWeek .cal-cell");
+  const cellAt = (dayIdx, hour) => cells[hour * 7 + dayIdx];
 
-  const dentistChip = hours[14].querySelector(".cal-event");
-  assert.ok(dentistChip, "expected the Dentist event in the 14:00 slot");
-  assert.match(dentistChip.textContent, /Dentist/);
-  assert.match(dentistChip.textContent, /High St/);
-  assert.equal(dentistChip.style.borderInlineStartColor, "rgb(66, 133, 244)");
+  assert.match(cellAt(0, 9).textContent, /Standup/, "Monday 09:00");
+  assert.match(cellAt(2, 14).textContent, /Physio/, "Wednesday 14:00");
+  assert.match(cellAt(2, 0).textContent, /Mum's birthday/, "an all-day event sits in that day's 00:00 row");
+  assert.equal(cellAt(0, 10).textContent, "", "hours with nothing on stay empty");
+  assert.equal(cellAt(2, 0).querySelector(".cal-chip").style.borderInlineStartColor, "rgb(11, 128, 67)");
 });
 
-test("reconnect_required and calendar_error show distinct, specific messages", async () => {
+test("prayer windows tint every hour of every day, with each day using its own times", async () => {
+  const app = loadApp({
+    geolocation: { lat: 51.5, lon: -0.12 },
+    fetchImpl: fetchRouter([
+      ["/api/calendar/events", () => jsonRes({ connected: true, status: "ok", day: "x", events: [] })],
+      ["api.aladhan.com", () => jsonRes({ data: { timings: { Fajr: "04:45", Sunrise: "05:50", Dhuhr: "13:00", Asr: "17:00", Maghrib: "20:30", Isha: "22:00" } } })],
+    ]),
+  });
+  app.click("prayerLocBtn");
+  await app.flush();
+  await app.flush();
+
+  app.goTo("calendar");
+  await app.flush();
+  await app.flush();
+
+  const cells = app.document.querySelectorAll("#calWeek .cal-cell");
+  assert.equal(cells.length, 24 * 7);
+  cells.forEach((c) => assert.notEqual(c.style.background, "", "every hour of every day is tinted"));
+
+  const cellAt = (dayIdx, hour) => cells[hour * 7 + dayIdx];
+  assert.match(cellAt(0, 6).style.background, /--sunrise/);
+  assert.match(cellAt(4, 14).style.background, /--dhuhr/);
+  // Overnight either side of midnight belongs to Isha's window.
+  assert.match(cellAt(3, 0).style.background, /--isha/);
+  assert.match(cellAt(3, 23).style.background, /--isha/);
+});
+
+test("the current hour is marked once, in today's column only", async () => {
+  const app = loadApp({
+    fetchImpl: fetchRouter([["/api/calendar/events", () => jsonRes({ connected: true, status: "ok", day: "x", events: [{ title: "Now", start: atHourToday(new Date().getHours()), allDay: false, calendar: "Yawar" }] })]]),
+  });
+  app.goTo("calendar");
+  await app.flush();
+
+  const marked = app.document.querySelectorAll("#calWeek .cal-cell.current-hour");
+  assert.equal(marked.length, 1);
+  const cells = Array.from(app.document.querySelectorAll("#calWeek .cal-cell"));
+  const idx = cells.indexOf(marked[0]);
+  assert.equal(idx % 7, (new Date().getDay() + 6) % 7, "in today's column");
+  assert.equal(Math.floor(idx / 7), new Date().getHours(), "on the current hour's row");
+  assert.ok(marked[0].querySelector(".cal-nowline"), "with a now-line inside it");
+});
+
+test("reconnect_required, calendar_error and an empty week each say something specific", async () => {
   const reconnect = loadApp({
     fetchImpl: fetchRouter([["/api/calendar/events", () => jsonRes({ connected: true, status: "reconnect_required", day: todayKey(), events: [] })]]),
   });
@@ -91,94 +199,79 @@ test("reconnect_required and calendar_error show distinct, specific messages", a
   errored.goTo("calendar");
   await errored.flush();
   assert.match(errored.document.getElementById("calStatus").textContent, /couldn't load/i);
+
+  const empty = loadApp({
+    fetchImpl: fetchRouter([["/api/calendar/events", () => jsonRes({ connected: true, status: "ok", day: todayKey(), events: [] })]]),
+  });
+  empty.goTo("calendar");
+  await empty.flush();
+  assert.match(empty.document.getElementById("calStatus").textContent, /nothing scheduled this week/i);
+
+  const off = loadApp({
+    fetchImpl: fetchRouter([["/api/calendar/events", () => jsonRes({ connected: false, status: "not_connected", day: todayKey(), events: [] })]]),
+  });
+  off.goTo("calendar");
+  await off.flush();
+  assert.match(off.document.getElementById("calStatus").textContent, /connect google calendar/i);
 });
 
-test("prayer windows tint the whole day as full colored bands, covering all 24 hours with no gaps", async () => {
-  const app = loadApp({
-    geolocation: { lat: 51.5, lon: -0.12 },
-    fetchImpl: fetchRouter([
-      ["/api/calendar/events", () => jsonRes({ connected: true, status: "ok", day: todayKey(), events: [] })],
-      ["api.aladhan.com", () => jsonRes({ data: { timings: { Fajr: "04:45", Sunrise: "05:50", Dhuhr: "13:00", Asr: "17:00", Maghrib: "20:30", Isha: "22:00" } } })],
-    ]),
-  });
-  app.click("prayerLocBtn");
-  await app.flush();
-  await app.flush();
-
-  app.goTo("calendar");
-  await app.flush();
-  await app.flush();
-
-  const hours = app.document.querySelectorAll("#calHours .cal-hour");
-  assert.equal(hours.length, 24);
-  hours.forEach((hourEl) => {
-    assert.notEqual(hourEl.style.background, "", `hour ${hourEl.querySelector(".cal-hour-label").textContent} should be tinted`);
-  });
-  assert.match(hours[6].style.background, /--sunrise/);
-  assert.match(hours[14].style.background, /--dhuhr/);
-  // Overnight either side of midnight both belong to Isha's window.
-  assert.match(hours[0].style.background, /--isha/);
-  assert.match(hours[23].style.background, /--isha/);
-});
-
-test("date navigation buttons (prev/next/today) refetch the grid for the new day", async () => {
-  const tracker = dateTracker();
+test("the prev/next buttons move a whole week at a time, and Today comes back", async () => {
+  const tracker = rangeTracker();
   const app = loadApp({ fetchImpl: fetchRouter([tracker.route]) });
   app.goTo("calendar");
   await app.flush();
-  const today = tracker.last();
+  const thisWeek = tracker.last().date;
 
   app.click("calNextDay");
   await app.wait(PAGE_MS);
-  assert.notEqual(tracker.last(), today);
+  assert.equal(tracker.last().date, keyOf(addDays(thisMonday(), 7)), "a full week forward");
 
   app.click("calPrevDay");
   await app.wait(PAGE_MS);
-  assert.equal(tracker.last(), today, "back to the day we started on");
+  assert.equal(tracker.last().date, thisWeek);
 
   app.click("calJumpToday");
   await app.flush();
-  assert.equal(tracker.last(), today);
+  assert.equal(tracker.last().date, thisWeek);
 });
 
-test("swiping the grid pages a day and animates it, rather than jumping straight there", async () => {
-  const tracker = dateTracker();
+test("swiping pages a week and animates it, rather than jumping straight there", async () => {
+  const tracker = rangeTracker();
   const app = loadApp({ fetchImpl: fetchRouter([tracker.route]) });
   app.goTo("calendar");
   await app.flush();
-  const today = tracker.last();
+  const thisWeek = tracker.last().date;
   const grid = app.document.getElementById("calGrid");
 
-  app.swipe("calGrid", -80, 0); // swipe left -> next day
-  // Mid-flight the outgoing day is pushed off-screen, and the new day has
-  // NOT been fetched yet - that's what makes it read as a stack, not a jump.
+  app.swipe("calGrid", -80, 0); // swipe left -> next week
+  // Mid-flight the outgoing week is pushed off and the new one has NOT been
+  // fetched yet - that's what makes it read as a stack, not a jump.
   assert.match(grid.style.transform, /translateX\(-100%\)/);
-  assert.equal(tracker.last(), today, "the new day is fetched after the slide-out, not before");
+  assert.equal(tracker.last().date, thisWeek);
 
   await app.wait(PAGE_MS);
-  assert.notEqual(tracker.last(), today);
+  assert.equal(tracker.last().date, keyOf(addDays(thisMonday(), 7)));
   assert.equal(grid.style.transform, "", "settles back to its resting position");
 
   app.swipe("calGrid", 80, 0); // swipe right -> back again
   await app.wait(PAGE_MS);
-  assert.equal(tracker.last(), today);
+  assert.equal(tracker.last().date, thisWeek);
 
   // A short / mostly-vertical drag is a scroll, not a page turn.
   const before = tracker.seen.length;
   app.swipe("calGrid", 10, 60);
   await app.wait(PAGE_MS);
-  assert.equal(tracker.seen.length, before, "no extra fetch from a non-swipe touch");
+  assert.equal(tracker.seen.length, before);
 });
 
-test("opening the calendar tab highlights the current hour", async () => {
+test("the Calendar tab no longer carries a task list - it is just the calendar", async () => {
   const app = loadApp({
-    fetchImpl: fetchRouter([["/api/calendar/events", () => jsonRes({ connected: true, status: "ok", day: todayKey(), events: [] })]]),
+    fetchImpl: fetchRouter([["/api/calendar/events", () => jsonRes({ connected: true, status: "ok", day: "x", events: [] })]]),
   });
   app.goTo("calendar");
   await app.flush();
 
-  const currentHourEls = app.document.querySelectorAll("#calHours .cal-hour.current-hour");
-  assert.equal(currentHourEls.length, 1, "exactly one hour cell should be marked current");
-  assert.equal(currentHourEls[0].querySelector(".cal-hour-label").textContent,
-    String(new Date().getHours()).padStart(2, "0") + ":00");
+  assert.equal(app.document.getElementById("calTaskList"), null);
+  assert.equal(app.document.getElementById("calTaskTitleIn"), null);
+  assert.equal(app.document.getElementById("calTaskAddBtn"), null);
 });

@@ -634,26 +634,31 @@ async function handleRefreshBrief(env, email, now) {
 }
 
 /**
- * GET /api/calendar/events?date=YYYY-MM-DD - raw (non-summarized) events
- * across every calendar the user can read, for the Calendar tab's day
- * agenda view. Defaults to today (Europe/London) if `date` is missing or
- * malformed.
+ * GET /api/calendar/events?date=YYYY-MM-DD[&end=YYYY-MM-DD] - raw
+ * (non-summarized) events across every calendar the user can read, for the
+ * Calendar tab. Defaults to today (Europe/London) if `date` is missing or
+ * malformed. `end` extends it to an inclusive multi-day range, which is how
+ * the week view pulls seven days without listing every calendar seven
+ * times; an absent, malformed or backwards `end` just means a single day.
  */
 async function handleGetCalendarEvents(request, env, email, now) {
   const url = new URL(request.url);
   const dateParam = url.searchParams.get("date");
+  const endParam = url.searchParams.get("end");
   const day = dateParam && DAY_RE.test(dateParam) ? dateParam : localDayBounds(BRIEF_TIMEZONE, now || new Date()).day;
-  const { timeMin, timeMax } = dayBoundsForDate(BRIEF_TIMEZONE, day);
+  const end = endParam && DAY_RE.test(endParam) && endParam >= day ? endParam : day;
+  const { timeMin } = dayBoundsForDate(BRIEF_TIMEZONE, day);
+  const { timeMax } = dayBoundsForDate(BRIEF_TIMEZONE, end);
 
   const tokenResult = await getGoogleAccessToken(env, email);
-  if (tokenResult.error) return json({ connected: false, status: tokenResult.error, day, events: [] });
+  if (tokenResult.error) return json({ connected: false, status: tokenResult.error, day, end, events: [] });
 
   try {
     const calendars = await listCalendars(tokenResult.accessToken);
     const events = await fetchEventsForRange(tokenResult.accessToken, calendars, timeMin, timeMax);
-    return json({ connected: true, status: "ok", day, events });
+    return json({ connected: true, status: "ok", day, end, events });
   } catch (e) {
-    return json({ connected: true, status: "calendar_error", day, events: [], error: String(e.message || e) });
+    return json({ connected: true, status: "calendar_error", day, end, events: [], error: String(e.message || e) });
   }
 }
 

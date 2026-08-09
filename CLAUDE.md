@@ -356,6 +356,41 @@ felt built for a desktop.
   `test/tasks.test.js` and `test/calendarTab.test.js` rewritten for the new
   models. See CHANGELOG 1.7.0.
 
+## Week view, in-place task expansion, tab persistence (1.8.0)
+- **Tasks stay on Today.** The "+N more" line is a button toggling
+  `_tasksExpanded`, which expands the full list in place; the Calendar tab's
+  task card is gone entirely (`renderTasks()` now drives one list). Ticking
+  a task re-renders but keeps the expanded flag, so the list doesn't
+  collapse under you.
+- **Calendar is a Monday-start week grid.** `renderWeek()` builds one CSS
+  grid: a 26px hour-label gutter track plus seven day tracks, laid out
+  row-major (header row, then 24 hour rows × 7 days). The focused day's
+  track is `minmax(0,2fr)` against `minmax(0,1fr)` for the rest — **the
+  `minmax(0,…)` matters**: a bare `2fr`/`1fr` has an `auto` minimum, so a
+  long event title would set the column width and skew the whole week
+  instead of being clipped. `calCur` is the focused day (tap a heading to
+  move it); today is separately flagged `is-today`. Paging is ±7 days via
+  the same `calGoDay()` slide.
+- **One ranged fetch per week.** `GET /api/calendar/events` gained an
+  optional `end=YYYY-MM-DD`; `handleGetCalendarEvents` takes `timeMin` from
+  `date` and `timeMax` from `end`, so `listCalendars()` runs once for the
+  week instead of seven times. A missing/malformed/backwards `end` collapses
+  to a single day, so the old single-day callers are unaffected. Client-side
+  `eventDayKey()` buckets events into columns and deliberately uses an
+  all-day event's bare `YYYY-MM-DD` string rather than parsing it as a Date
+  (that reads as UTC midnight and lands on the wrong day in some zones).
+- **Last tab is remembered** in `yawarLastTab` (localStorage, per device,
+  same reasoning as the collapse prefs — not synced). `nav()` writes it;
+  init replays it through `nav()` when it's a known view, so a stale value
+  like the removed `guide` falls back to Today.
+- Prayer times are fetched per day for the week; `fetchPrayerTimes()`'s
+  per-day cache and in-flight dedup keep that to at most seven requests once.
+- Test coverage: `test/calendarTab.test.js` rewritten for the week grid
+  (column widths, day focus, per-day event/hour placement, week paging,
+  no-task-card); `test/worker.test.js` gained range-param tests;
+  `test/tasks.test.js` and `test/uiShell.test.js` extended. See CHANGELOG
+  1.8.0.
+
 ## Honest caveat
 The "Client-side sync layer," "Access + hosting," and "Current data state"
 sections above were re-verified live in this session (2026-08-09): read

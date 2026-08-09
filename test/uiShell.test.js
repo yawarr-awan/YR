@@ -74,6 +74,28 @@ test("a swipe meant for the calendar grid changes the day, never the tab", async
   assert.equal(app.document.querySelector(".view.active").id, "view-calendar", "still on the calendar tab");
 });
 
+test("the tab you were on is remembered, so a refresh doesn't dump you back on Today", () => {
+  const app = loadApp({ fetchImpl: idle });
+  app.goTo("progress");
+  assert.equal(app.window.localStorage.getItem("yawarLastTab"), "progress");
+
+  const reopened = loadApp({
+    fetchImpl: idle,
+    localStorageSeed: { yawarLastTab: "progress" },
+  });
+  assert.equal(reopened.document.querySelector(".view.active").id, "view-progress");
+  assert.ok(reopened.document.querySelector('#tabs [data-nav="progress"]').classList.contains("active"));
+});
+
+test("a stale or unknown remembered tab falls back to Today rather than showing nothing", () => {
+  const onTodayByDefault = loadApp({ fetchImpl: idle });
+  assert.equal(onTodayByDefault.document.querySelector(".view.active").id, "view-today");
+
+  // "guide" was a real tab once; a device that still has it stored must not break.
+  const stale = loadApp({ fetchImpl: idle, localStorageSeed: { yawarLastTab: "guide" } });
+  assert.equal(stale.document.querySelector(".view.active").id, "view-today");
+});
+
 test("tapping a card heading folds it away and the choice survives a reload", () => {
   const app = loadApp({ fetchImpl: idle });
   const card = app.document.querySelector('.card.collapsible[data-collapse="meds"]');

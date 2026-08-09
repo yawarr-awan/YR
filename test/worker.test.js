@@ -414,6 +414,52 @@ test("handleGetCalendarEvents: falls back to today when the date param is missin
   assert.equal(resp.day, "2026-08-09");
 });
 
+test("handleGetCalendarEvents: an `end` date widens the window to one ranged fetch, not one per day", async (t) => {
+  const { handleGetCalendarEvents } = await loadWorker();
+  const d1 = createFakeD1();
+  d1.seedToken(EMAIL, { access_token: "tok", access_token_expires_at: Date.now() + 600000 });
+
+  let eventsUrl = null;
+  let calendarListCalls = 0;
+  installFetch(t, async (url) => {
+    const u = String(url);
+    if (u.includes("calendarList")) { calendarListCalls++; return jsonResponse(200, { items: [{ id: "primary", summary: "Yawar", primary: true }] }); }
+    if (u.includes("calendars/primary/events")) { eventsUrl = u; return jsonResponse(200, { items: [] }); }
+    throw new Error("unexpected fetch " + u);
+  });
+
+  const req = new Request("https://x/api/calendar/events?date=2026-08-03&end=2026-08-09");
+  const body = await (await handleGetCalendarEvents(req, d1.env, EMAIL, new Date("2026-08-09T10:00:00Z"))).json();
+
+  assert.equal(body.day, "2026-08-03");
+  assert.equal(body.end, "2026-08-09");
+  assert.equal(calendarListCalls, 1, "calendars are listed once for the whole range");
+  assert.match(decodeURIComponent(eventsUrl), /timeMin=2026-08-03T00:00:00\+01:00/);
+  assert.match(decodeURIComponent(eventsUrl), /timeMax=2026-08-09T23:59:59\+01:00/);
+});
+
+test("handleGetCalendarEvents: a malformed or backwards `end` falls back to a single day", async (t) => {
+  const { handleGetCalendarEvents } = await loadWorker();
+  const d1 = createFakeD1();
+  d1.seedToken(EMAIL, { access_token: "tok", access_token_expires_at: Date.now() + 600000 });
+
+  const urls = [];
+  installFetch(t, async (url) => {
+    const u = String(url);
+    if (u.includes("calendarList")) return jsonResponse(200, { items: [{ id: "primary", summary: "Yawar", primary: true }] });
+    urls.push(decodeURIComponent(u));
+    return jsonResponse(200, { items: [] });
+  });
+  const now = new Date("2026-08-09T10:00:00Z");
+
+  const junk = await (await handleGetCalendarEvents(new Request("https://x/api/calendar/events?date=2026-08-09&end=nope"), d1.env, EMAIL, now)).json();
+  assert.equal(junk.end, "2026-08-09");
+
+  const backwards = await (await handleGetCalendarEvents(new Request("https://x/api/calendar/events?date=2026-08-09&end=2026-08-01"), d1.env, EMAIL, now)).json();
+  assert.equal(backwards.end, "2026-08-09", "an end before the start is ignored rather than inverting the range");
+  urls.forEach((u) => assert.match(u, /timeMax=2026-08-09T23:59:59/));
+});
+
 test("handleCreateCalendarEvent: rejects a missing title/start before touching the network", async (t) => {
   const { handleCreateCalendarEvent } = await loadWorker();
   const d1 = createFakeD1();
