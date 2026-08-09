@@ -87,3 +87,30 @@ test("next-prayer highlighting picks the chip with the smallest time-until, wrap
   assert.equal(nextChips.length, 1);
   assert.match(app.document.getElementById("prayerNext").textContent, /^Next: \w+ in /);
 });
+
+test("prayer checklist (Today tab tick-box): each row is colored per prayer, with no time shown until a location is saved", () => {
+  const app = loadApp({});
+  const box = app.document.getElementById("prayBox");
+  const rows = box.querySelectorAll("label.chk");
+  assert.equal(rows.length, 5, "Fajr, Dhuhr, Asr, Maghrib, Isha");
+  assert.match(rows[0].querySelector(".lbl").textContent, /^Fajr$/, "no time yet - no saved location");
+  assert.match(rows[0].style.borderInlineStart, /--fajr/);
+  assert.match(rows[3].style.borderInlineStart, /--maghrib/);
+});
+
+test("prayer checklist: once a location is saved, each row's label gains its actual time", async () => {
+  const app = loadApp({
+    geolocation: { lat: 51.5, lon: -0.12 },
+    fetchImpl: async (url) => {
+      if (String(url).includes("api.aladhan.com")) return aladhanRes(SAMPLE_TIMINGS);
+      return { ok: true, status: 200, json: async () => ({ connected: false, status: "not_connected" }) };
+    },
+  });
+  app.click("prayerLocBtn");
+  await app.flush();
+  await app.flush();
+
+  const box = app.document.getElementById("prayBox");
+  const fajrLbl = box.querySelectorAll("label.chk .lbl")[0];
+  assert.match(fajrLbl.textContent, /Fajr.*04:45/);
+});

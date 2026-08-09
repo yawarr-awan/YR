@@ -198,6 +198,38 @@ test("generateBrief: end to end success across two calendars, tagged and merged,
   assert.equal(d1.dailyBrief.get(`${EMAIL}|2026-08-09`).summary, result.summary);
 });
 
+test("generateBrief: a refresh mid-day only tells Gemini about what's still remaining, and bans time-of-day greetings", async (t) => {
+  const { generateBrief } = await loadWorker();
+  const d1 = createFakeD1();
+  d1.seedToken(EMAIL, { access_token: "tok", access_token_expires_at: Date.now() + 10 * 60 * 1000 });
+
+  let geminiPrompt = null;
+  installFetch(t, async (url, opts) => {
+    const u = String(url);
+    if (u.includes("calendarList")) return jsonResponse(200, { items: [{ id: "primary", summary: "Yawar", primary: true }] });
+    if (u.includes("calendars/primary/events")) {
+      return jsonResponse(200, { items: [
+        { summary: "Morning standup", start: { dateTime: "2026-08-09T09:00:00+01:00" }, end: { dateTime: "2026-08-09T09:30:00+01:00" } },
+        { summary: "Afternoon call", start: { dateTime: "2026-08-09T15:00:00+01:00" }, end: { dateTime: "2026-08-09T15:30:00+01:00" } },
+      ] });
+    }
+    if (u.includes("tasks.googleapis.com/tasks/v1/users/@me/lists")) return jsonResponse(200, { items: [] });
+    if (u.includes("generativelanguage")) {
+      geminiPrompt = JSON.parse(opts.body).contents[0].parts[0].text;
+      return geminiOk("Just the afternoon call left.");
+    }
+    throw new Error("unexpected fetch " + u);
+  });
+
+  // "Now" is midday London time: the 09:00 standup has already finished, the 15:00 call has not.
+  const result = await generateBrief(d1.env, EMAIL, new Date("2026-08-09T11:00:00Z"));
+  assert.equal(result.status, "ok");
+  assert.doesNotMatch(geminiPrompt, /Morning standup/, "an already-finished event must not be sent to Gemini");
+  assert.match(geminiPrompt, /Afternoon call/);
+  assert.match(geminiPrompt, /currently 12:00/, "London is BST (+1) in August, so 11:00Z is 12:00 local");
+  assert.match(geminiPrompt, /Do not open with a time-of-day greeting/i);
+});
+
 test("handleGetBrief reflects not_connected / pending / ok correctly", async (t) => {
   const { handleGetBrief } = await loadWorker();
   installFetch(t, async () => { throw new Error("handleGetBrief must never touch the network itself"); });
