@@ -15,6 +15,7 @@
   --line:#e2e7f0; --brand:#0f766e; --brand-2:#14b8a6; --accent:#7c3aed;
   --good:#16a34a; --warn:#d97706; --bad:#dc2626; --gold:#b45309;
   --pray:#6d28d9; --med:#0369a1; --water:#0891b2; --food:#c2410c; --move:#15803d;
+  --fajr:#4338ca; --sunrise:#ca8a04; --dhuhr:#0369a1; --asr:#0e7490; --maghrib:#c2410c; --isha:#312e81;
   --shadow:0 1px 2px rgba(16,24,40,.06),0 6px 20px rgba(16,24,40,.06);
   --radius:16px;
 }
@@ -24,6 +25,7 @@
     --line:#2a3550; --brand:#2dd4bf; --brand-2:#5eead4; --accent:#a78bfa;
     --good:#4ade80; --warn:#fbbf24; --bad:#f87171; --gold:#fbbf24;
     --pray:#c4b5fd; --med:#7dd3fc; --water:#67e8f9; --food:#fdba74; --move:#86efac;
+    --fajr:#818cf8; --sunrise:#fbbf24; --dhuhr:#7dd3fc; --asr:#67e8f9; --maghrib:#fdba74; --isha:#a5b4fc;
     --shadow:0 1px 2px rgba(0,0,0,.3),0 8px 26px rgba(0,0,0,.35);
     color-scheme:dark;
   }
@@ -33,6 +35,7 @@
   --line:#2a3550; --brand:#2dd4bf; --brand-2:#5eead4; --accent:#a78bfa;
   --good:#4ade80; --warn:#fbbf24; --bad:#f87171; --gold:#fbbf24;
   --pray:#c4b5fd; --med:#7dd3fc; --water:#67e8f9; --food:#fdba74; --move:#86efac;
+  --fajr:#818cf8; --sunrise:#fbbf24; --dhuhr:#7dd3fc; --asr:#67e8f9; --maghrib:#fdba74; --isha:#a5b4fc;
   --shadow:0 1px 2px rgba(0,0,0,.3),0 8px 26px rgba(0,0,0,.35);
   color-scheme:dark;
 }
@@ -122,6 +125,21 @@ nav.tabs button.active{background:var(--brand);border-color:var(--brand);color:#
 .slider-val{font-weight:800;float:right}
 input[type=range]{width:100%;accent-color:var(--accent)}
 .pill-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
+.prayer-chip{font-weight:700}
+.prayer-chip.next{box-shadow:0 0 0 2px var(--ink);font-weight:800}
+.agenda-row{display:flex;align-items:flex-start;gap:10px;padding:9px 8px;border-radius:10px;border-inline-start:4px solid var(--line)}
+.agenda-row:hover{background:var(--panel-2)}
+.agenda-time{font-weight:700;font-size:.8rem;min-width:64px;color:var(--muted)}
+.agenda-body{flex:1}
+.agenda-title{font-weight:700}
+.agenda-meta{font-size:.76rem;color:var(--muted)}
+.agenda-prayer{padding:5px 8px;border-radius:8px;font-size:.78rem;font-weight:700;color:#fff}
+.task-row{display:flex;align-items:center;gap:10px;padding:8px;border-radius:10px}
+.task-row:hover{background:var(--panel-2)}
+.task-row input[type=checkbox]{width:18px;height:18px;accent-color:var(--brand);flex:0 0 auto}
+.task-row .task-title{flex:1;font-weight:600}
+.task-row.done .task-title{text-decoration:line-through;color:var(--muted)}
+.task-due{font-size:.72rem;color:var(--muted);white-space:nowrap}
 .statusbar{display:none;padding:11px 14px;font-size:.86rem;line-height:1.35;font-weight:600;text-align:center}
 .statusbar.show{display:block}
 .statusbar.warn{background:var(--warn);color:#fff}
@@ -181,6 +199,7 @@ footer.foot{text-align:center;color:var(--muted);font-size:.78rem;margin-top:26p
   <div class="top-inner" style="padding-top:0">
     <nav class="tabs" id="tabs">
       <button data-nav="today" class="active">📋 Today</button>
+      <button data-nav="calendar">🗓️ Calendar</button>
       <button data-nav="plan">🍽️ Meal Plan</button>
       <button data-nav="recipes">👨‍🍳 Recipes</button>
       <button data-nav="exercises">🧘 Exercises</button>
@@ -201,6 +220,17 @@ footer.foot{text-align:center;color:var(--muted);font-size:.78rem;margin-top:26p
       <div class="muted" id="briefMeta" style="font-size:.72rem;margin-top:6px"></div>
     </div>
 
+    <div class="card" id="taskCard" style="margin-bottom:14px">
+      <h3>✅ Tasks</h3>
+      <div class="field" style="display:flex;gap:8px;margin:0 0 8px;flex-wrap:wrap">
+        <input type="text" id="taskTitleIn" placeholder="Add a task…" style="flex:1;min-width:160px;border:1px solid var(--line);background:var(--panel-2);color:var(--ink);border-radius:10px;padding:10px">
+        <input type="datetime-local" id="taskWhenIn" style="border:1px solid var(--line);background:var(--panel-2);color:var(--ink);border-radius:10px;padding:10px">
+        <button class="btn primary" id="taskAddBtn">Add</button>
+      </div>
+      <div id="taskList"></div>
+      <div class="muted" id="taskStatus" style="font-size:.78rem;margin-top:6px"></div>
+    </div>
+
     <div class="datebar">
       <button id="prevDay" title="Previous day">‹</button>
       <div class="dlabel" id="dateLabel">Today</div>
@@ -219,6 +249,17 @@ footer.foot{text-align:center;color:var(--muted);font-size:.78rem;margin-top:26p
       <div class="card">
         <h3><span class="dot" style="background:var(--pray)"></span> Prayers (Salah)</h3>
         <div id="prayBox"></div>
+        <div class="muted" id="prayerLocText" style="font-size:.76rem;margin:8px 0 4px"></div>
+        <div class="pill-row" id="prayerSlots"></div>
+        <div class="muted" id="prayerNext" style="font-size:.82rem;margin-top:8px;font-weight:700"></div>
+        <div class="pill-row" style="margin-top:8px">
+          <button class="btn" id="prayerLocBtn">📍 Use my location</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3><span class="dot" style="background:var(--accent)"></span> Dhikr</h3>
+        <div id="dhikrBox"></div>
       </div>
 
       <div class="card">
@@ -275,6 +316,22 @@ footer.foot{text-align:center;color:var(--muted);font-size:.78rem;margin-top:26p
         <div class="field"><textarea id="notesIn" placeholder="How did today go? Cravings, wins, how your joints felt, anything to remember…"></textarea></div>
       </div>
 
+    </div>
+  </section>
+
+  <!-- ===================== CALENDAR ===================== -->
+  <section id="view-calendar" class="view">
+    <div class="datebar">
+      <button id="calPrevDay" title="Previous day">‹</button>
+      <div class="dlabel" id="calDateLabel">Today</div>
+      <input type="date" id="calDatePick">
+      <button class="today-btn" id="calJumpToday">Today</button>
+    </div>
+    <div class="card">
+      <h3>🗓️ Your Day</h3>
+      <div id="calAgenda"></div>
+      <div class="muted" id="calStatus" style="font-size:.82rem;margin-top:8px"></div>
+      <div class="legend" id="calLegend"></div>
     </div>
   </section>
 
@@ -358,6 +415,14 @@ footer.foot{text-align:center;color:var(--muted);font-size:.78rem;margin-top:26p
       <p class="muted" id="installText" style="font-size:.85rem;margin-top:0"></p>
       <div class="pill-row">
         <button class="btn primary" id="installBtn" style="display:none">📲 Install app</button>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:14px" id="notifyCard">
+      <h3>🔔 Reminders</h3>
+      <p class="muted" id="notifyText" style="font-size:.85rem;margin-top:0">Get a browser notification for prayer times, task due times, and dhikr reminders — only while this app is open in a tab or installed. Off until you turn it on.</p>
+      <div class="pill-row">
+        <button class="btn primary" id="notifyBtn">🔔 Enable reminders</button>
       </div>
     </div>
 
@@ -594,6 +659,16 @@ var EX_WEEK_LABELS = [["Sunday","ex_stretch"],["Monday","ex_mobility"],["Tuesday
 
 var MEDS = [["pre","Pre-breakfast medicine","Before you eat breakfast"],["after","After-breakfast medicine","Once breakfast is done"],["dinner","After-dinner medicine","Once dinner is done"]];
 var PRAYERS = [["fajr","Fajr"],["dhuhr","Dhuhr"],["asr","Asr"],["maghrib","Maghrib"],["isha","Isha"]];
+var DHIKR_PERIODS = [["morning","Morning"],["afternoon","Afternoon"],["evening","Evening"]];
+var DHIKR_ITEMS = [
+  ["istighfar","Istighfar (seeking forgiveness) ×33"],
+  ["tasbih","SubhanAllah ×33"],
+  ["tahmid","Alhamdulillah ×33"],
+  ["takbir","Allahu Akbar ×34"],
+  ["salawat","Salawat upon the Prophet ﷺ"],
+  ["ayatulkursi","Ayat al-Kursi"],
+  ["threesurahs","Al-Ikhlas, Al-Falaq, An-Nas (×3 each)"]
+];
 var MEALSLOTS = [["breakfast","Breakfast"],["lunch","Lunch"],["dinner","Dinner"]];
 var DAILY_EXTRAS = [
   {id:"collagen",label:"Collagen scoop (morning)",detail:"≈ 40 kcal · 10 g protein",kcal:40,protein:10},
@@ -629,6 +704,7 @@ function freshState(){
     schema:2,
     profile:{startWeight:108,targetWeight:88,updated_at:0},
     days:{},
+    tasks:[],
     sync:{enabled:false,since:0,lastSyncAt:null,lastError:null}
   };
 }
@@ -654,6 +730,7 @@ function parseState(raw){
   if(!s.profile)s.profile={startWeight:108,targetWeight:88};
   if(!s.schema)s.schema=1;
   if(!s.sync)s.sync={enabled:false,since:0,lastSyncAt:null,lastError:null};
+  if(!Array.isArray(s.tasks))s.tasks=[];
   migrate(s);
   return s;
 }
@@ -690,11 +767,13 @@ var state=load();
 if(_needsResave)save();           /* heal a corrupt main key / persist migration stamps right away */
 /* Console escape hatch: window.__YRdump() returns both raw copies for manual recovery. */
 window.__YRdump=function(){var o={};try{o.main=localStorage.getItem(KEY);}catch(e){o.main="<unreadable>";}try{o.bak=localStorage.getItem(BAKKEY);}catch(e){o.bak="<unreadable>";}return o;};
-function blankDay(){return{meds:{},prayers:{},meals:{},extras:{},water:0,weight:"",sleep:"",steps:"",jointPain:null,energy:null,exercise:false,notes:""};}
+function blankDay(){return{meds:{},prayers:{},meals:{},extras:{},dhikr:{morning:{},afternoon:{},evening:{}},water:0,weight:"",sleep:"",steps:"",jointPain:null,energy:null,exercise:false,notes:""};}
 function dayData(k){
   if(!state.days[k])state.days[k]=blankDay();
   var d=state.days[k];
   if(!d.meds)d.meds={}; if(!d.prayers)d.prayers={}; if(!d.meals)d.meals={}; if(!d.extras)d.extras={};
+  if(!d.dhikr)d.dhikr={morning:{},afternoon:{},evening:{}};
+  DHIKR_PERIODS.forEach(function(p){if(!d.dhikr[p[0]])d.dhikr[p[0]]={};});
   return d;
 }
 
@@ -760,6 +839,9 @@ function renderToday(){
   // supplements & drinks
   renderExtras(d);
 
+  // dhikr
+  renderDhikr(d);
+
   // movement
   var exId=WEEK_EX[cur.getDay()], ex=EXERCISES[exId];
   var mv=document.getElementById("moveBox"); mv.innerHTML="";
@@ -799,6 +881,23 @@ function renderExtras(d){
     cb.addEventListener("change",function(){d.extras[x.id]=cb.checked;d.updated_at=Date.now();save();renderToday();updateRing();});
     var txt=el("div");txt.appendChild(el("div","lbl",x.label));txt.appendChild(el("div","sub",x.detail));
     row.appendChild(cb);row.appendChild(txt);box.appendChild(row);
+  });
+}
+
+function renderDhikr(d){
+  var box=document.getElementById("dhikrBox");if(!box)return;box.innerHTML="";
+  DHIKR_PERIODS.forEach(function(period){
+    box.appendChild(el("div","tag",period[1]));
+    DHIKR_ITEMS.forEach(function(item){
+      var checked=!!d.dhikr[period[0]][item[0]];
+      var row=el("label","chk"+(checked?" done":""));
+      var cb=el("input");cb.type="checkbox";cb.checked=checked;
+      cb.addEventListener("change",function(){
+        d.dhikr[period[0]][item[0]]=cb.checked;d.updated_at=Date.now();save();renderDhikr(d);
+      });
+      var txt=el("div");txt.appendChild(el("div","lbl",item[1]));
+      row.appendChild(cb);row.appendChild(txt);box.appendChild(row);
+    });
   });
 }
 
@@ -1029,6 +1128,311 @@ function refreshBrief(){
   }).then(renderBrief).catch(function(){renderBrief(null);});
 }
 
+/* ---------- TASKS (local; not yet part of cloud sync) ---------- */
+function ensureTasks(){if(!Array.isArray(state.tasks))state.tasks=[];return state.tasks;}
+function taskId(){return "t"+Date.now()+"_"+Math.random().toString(36).slice(2,8);}
+
+function renderTasks(){
+  var list=document.getElementById("taskList");
+  if(!list)return;
+  list.innerHTML="";
+  var tasks=ensureTasks().slice().sort(function(a,b){
+    if(!!a.done!==!!b.done)return a.done?1:-1;
+    return String(a.due||"9999").localeCompare(String(b.due||"9999"));
+  });
+  if(!tasks.length){list.appendChild(el("p","muted","No tasks yet — add one above."));return;}
+  tasks.forEach(function(t){
+    var row=el("div","task-row"+(t.done?" done":""));
+    var cb=el("input");cb.type="checkbox";cb.checked=!!t.done;
+    cb.addEventListener("change",function(){t.done=cb.checked;t.updated_at=Date.now();save();renderTasks();});
+    row.appendChild(cb);
+    row.appendChild(el("span","task-title",t.title));
+    if(t.due){
+      var due=new Date(t.due);
+      row.appendChild(el("span","task-due",due.toLocaleString("en-GB",{weekday:"short",day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"})));
+    }
+    if(t.due&&!t.scheduled){
+      var schedBtn=el("button","btn","📅 Schedule");
+      schedBtn.addEventListener("click",function(){scheduleTask(t);});
+      row.appendChild(schedBtn);
+    }else if(t.scheduled){
+      row.appendChild(el("span","tag","On calendar"));
+    }
+    var delBtn=el("button","btn danger","✕");
+    delBtn.addEventListener("click",function(){
+      state.tasks=ensureTasks().filter(function(x){return x.id!==t.id;});save();renderTasks();
+    });
+    row.appendChild(delBtn);
+    list.appendChild(row);
+  });
+}
+
+function addTask(){
+  var titleIn=document.getElementById("taskTitleIn"),whenIn=document.getElementById("taskWhenIn");
+  var title=(titleIn.value||"").trim();
+  if(!title)return;
+  var due=whenIn.value?new Date(whenIn.value).toISOString():null;
+  ensureTasks().push({id:taskId(),title:title,due:due,done:false,scheduled:false,calendarEventId:null,created_at:Date.now(),updated_at:Date.now()});
+  titleIn.value="";whenIn.value="";
+  save();renderTasks();
+}
+
+/** Turns a local task with a due date into a real Google Calendar event.
+ * Requires the calendar.events (write) scope - an older read-only token
+ * surfaces as reconnect_required from the server, not a generic error. */
+function scheduleTask(t){
+  var statusEl=document.getElementById("taskStatus");
+  if(statusEl)statusEl.textContent="Scheduling…";
+  fetch("/api/google/calendar/events",{
+    method:"POST",
+    credentials:"same-origin",
+    headers:{"content-type":"application/json"},
+    body:JSON.stringify({title:t.title,start:t.due,durationMinutes:30}),
+  }).then(function(res){
+    if(!res.ok)throw new Error("http "+res.status);
+    return res.json();
+  }).then(function(resp){
+    if(resp.status==="ok"){
+      t.scheduled=true;t.calendarEventId=resp.eventId||null;t.updated_at=Date.now();save();renderTasks();
+      if(statusEl)statusEl.textContent="Added to your Google Calendar.";
+    }else if(resp.status==="reconnect_required"||resp.status==="not_connected"){
+      if(statusEl)statusEl.textContent="Connect Google Calendar (Today's Brief card) to schedule tasks.";
+    }else{
+      if(statusEl)statusEl.textContent="Couldn't schedule that task — try again in a bit.";
+    }
+  }).catch(function(){
+    if(statusEl)statusEl.textContent="Couldn't reach the server to schedule that task.";
+  });
+}
+
+/* ---------- PRAYER TIMES (Aladhan API + geolocation) ---------- */
+var PRAYER_NAMES=["Fajr","Sunrise","Dhuhr","Asr","Maghrib","Isha"];
+var PRAYER_COLOR_VAR={Fajr:"--fajr",Sunrise:"--sunrise",Dhuhr:"--dhuhr",Asr:"--asr",Maghrib:"--maghrib",Isha:"--isha"};
+var PRAYER_METHOD=3; // Muslim World League calculation method
+
+function prayerCacheKey(day,lat,lon){return day+"|"+lat.toFixed(2)+"|"+lon.toFixed(2)+"|"+PRAYER_METHOD;}
+
+/** Fetches (and caches per day+location) prayer times from Aladhan.
+ * Your coordinates are sent to that third-party API each time a new
+ * day/location combination isn't already cached - a deliberate tradeoff
+ * for simplicity over a fully local astronomical calculation. */
+function fetchPrayerTimes(day,lat,lon){
+  var key=prayerCacheKey(day,lat,lon);
+  try{
+    var cached=localStorage.getItem("yawarPrayerCache_"+key);
+    if(cached)return Promise.resolve(JSON.parse(cached));
+  }catch(e){}
+  var p=day.split("-");
+  var dateParam=p[2]+"-"+p[1]+"-"+p[0]; // Aladhan wants DD-MM-YYYY
+  var url="https://api.aladhan.com/v1/timings/"+dateParam+"?latitude="+lat+"&longitude="+lon+"&method="+PRAYER_METHOD;
+  return fetch(url).then(function(res){
+    if(!res.ok)throw new Error("aladhan http "+res.status);
+    return res.json();
+  }).then(function(data){
+    var raw=data&&data.data&&data.data.timings;
+    if(!raw)throw new Error("bad aladhan response");
+    var times={};
+    PRAYER_NAMES.forEach(function(name){
+      var m=(raw[name]||"").match(/(\d{2}):(\d{2})/);
+      times[name]=m?(m[1]+":"+m[2]):null;
+    });
+    try{localStorage.setItem("yawarPrayerCache_"+key,JSON.stringify(times));}catch(e){}
+    return times;
+  });
+}
+
+function minutesOfDay(hhmm){var p=hhmm.split(":");return (+p[0])*60+(+p[1]);}
+
+function nextPrayerInfo(times,now){
+  var nowMin=now.getHours()*60+now.getMinutes();
+  var best=null,bestDiff=Infinity;
+  PRAYER_NAMES.forEach(function(name){
+    if(!times[name])return;
+    var diff=minutesOfDay(times[name])-nowMin;
+    if(diff<0)diff+=24*60;
+    if(diff<bestDiff){bestDiff=diff;best=name;}
+  });
+  return {name:best,diff:bestDiff};
+}
+
+function renderPrayerClock(){
+  var slotsBox=document.getElementById("prayerSlots"),nextEl=document.getElementById("prayerNext"),locText=document.getElementById("prayerLocText");
+  if(!slotsBox)return;
+  var loc=state.profile&&state.profile.prayerLoc;
+  if(!loc){
+    if(locText)locText.textContent="Tap “Use my location” to see live prayer times here.";
+    slotsBox.innerHTML="";if(nextEl)nextEl.textContent="";
+    return;
+  }
+  if(locText)locText.textContent="Times for your saved location.";
+  fetchPrayerTimes(todayKey(),loc.lat,loc.lon).then(function(times){
+    slotsBox.innerHTML="";
+    var next=nextPrayerInfo(times,new Date());
+    PRAYER_NAMES.forEach(function(name){
+      if(!times[name])return;
+      var chip=el("span","tag prayer-chip"+(name===next.name?" next":""),name+" "+times[name]);
+      chip.style.background="var("+PRAYER_COLOR_VAR[name]+")";chip.style.color="#fff";chip.style.borderColor="transparent";
+      slotsBox.appendChild(chip);
+    });
+    if(nextEl&&next.name){
+      var h=Math.floor(next.diff/60),m=next.diff%60;
+      nextEl.textContent="Next: "+next.name+" in "+(h?h+"h ":"")+m+"m";
+    }
+  }).catch(function(){
+    if(locText)locText.textContent="Couldn't load prayer times right now.";
+  });
+}
+
+function requestPrayerLocation(){
+  var locText=document.getElementById("prayerLocText");
+  if(!navigator.geolocation){if(locText)locText.textContent="Location isn't available in this browser.";return;}
+  if(locText)locText.textContent="Getting your location…";
+  navigator.geolocation.getCurrentPosition(function(pos){
+    state.profile.prayerLoc={lat:pos.coords.latitude,lon:pos.coords.longitude};
+    state.profile.updated_at=Date.now();
+    save();
+    renderPrayerClock();
+  },function(err){
+    if(locText)locText.textContent="Couldn't get your location ("+(err&&err.message?err.message:"permission denied")+"). Try again.";
+  },{maximumAge:3600000,timeout:15000});
+}
+
+/* ---------- CALENDAR TAB ---------- */
+var calCur=new Date(); calCur.setHours(0,0,0,0);
+
+function renderCalendarTab(){
+  var k=keyOf(calCur);
+  document.getElementById("calDateLabel").textContent=(k===todayKey()?"Today · ":"")+human(calCur);
+  document.getElementById("calDatePick").value=k;
+
+  var loc=state.profile&&state.profile.prayerLoc;
+  var prayerPromise=loc?fetchPrayerTimes(k,loc.lat,loc.lon).catch(function(){return null;}):Promise.resolve(null);
+  var eventsPromise=fetch("/api/calendar/events?date="+k,{credentials:"same-origin"}).then(function(res){
+    if(!res.ok)throw new Error("http "+res.status);
+    return res.json();
+  }).catch(function(){return {connected:false,status:"error",events:[]};});
+
+  Promise.all([eventsPromise,prayerPromise]).then(function(results){
+    renderAgenda(results[0],results[1],k);
+  });
+}
+
+function renderAgenda(data,times,dayKey){
+  var agenda=document.getElementById("calAgenda"),status=document.getElementById("calStatus"),legend=document.getElementById("calLegend");
+  agenda.innerHTML="";
+
+  var rows=[];
+  (data.events||[]).forEach(function(e){
+    rows.push({
+      sortKey:e.allDay?"00:00":e.start,
+      time:e.allDay?"All day":new Date(e.start).toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"}),
+      type:"event",event:e,
+    });
+  });
+  if(times){
+    PRAYER_NAMES.forEach(function(name){
+      if(!times[name])return;
+      rows.push({sortKey:times[name],time:times[name],type:"prayer",name:name});
+    });
+  }
+  rows.sort(function(a,b){return String(a.sortKey).localeCompare(String(b.sortKey));});
+
+  if(!rows.length)agenda.appendChild(el("p","muted","Nothing scheduled."));
+  rows.forEach(function(r){
+    if(r.type==="prayer"){
+      var prow=el("div","agenda-prayer",r.name+" — "+r.time);
+      prow.style.background="var("+PRAYER_COLOR_VAR[r.name]+")";
+      prow.style.marginBottom="6px";
+      agenda.appendChild(prow);
+      return;
+    }
+    var e=r.event;
+    var row=el("div","agenda-row");
+    row.style.borderInlineStartColor=e.color||"var(--brand)";
+    var body=el("div","agenda-body");
+    body.appendChild(el("div","agenda-title",e.title));
+    var metaParts=[e.calendar,e.location].filter(Boolean).join(" · ");
+    if(metaParts)body.appendChild(el("div","agenda-meta",metaParts));
+    row.appendChild(el("div","agenda-time",r.time));
+    row.appendChild(body);
+    agenda.appendChild(row);
+  });
+
+  if(!data.connected)status.textContent="Connect Google Calendar (Today's Brief card, Today tab) to see your schedule here.";
+  else if(data.status==="reconnect_required")status.textContent="Google Calendar access has expired — reconnect from the Today's Brief card.";
+  else if(data.status==="calendar_error")status.textContent="Couldn't load your calendar right now.";
+  else status.textContent="";
+
+  legend.innerHTML="";
+  PRAYER_NAMES.forEach(function(name){
+    var chip=el("span",null," "+name);
+    var dot=el("i");dot.style.background="var("+PRAYER_COLOR_VAR[name]+")";
+    chip.insertBefore(dot,chip.firstChild);
+    legend.appendChild(chip);
+  });
+}
+
+/* ---------- NOTIFICATIONS (foreground only) ---------- */
+function updateNotifyUI(){
+  var btn=document.getElementById("notifyBtn"),txt=document.getElementById("notifyText");
+  if(!btn)return;
+  if(!("Notification" in window)){
+    btn.style.display="none";
+    if(txt)txt.textContent="Your browser doesn't support notifications.";
+    return;
+  }
+  if(Notification.permission==="granted"){btn.textContent="🔔 Reminders enabled";btn.disabled=true;}
+  else if(Notification.permission==="denied"){btn.textContent="🔔 Blocked in browser settings";btn.disabled=true;}
+  else{btn.textContent="🔔 Enable reminders";btn.disabled=false;}
+}
+
+function enableNotifications(){
+  if(!("Notification" in window))return;
+  Notification.requestPermission().then(function(){updateNotifyUI();});
+}
+
+var _notifiedKeys={};
+function notifyOnce(key,title,body){
+  if(_notifiedKeys[key])return;
+  _notifiedKeys[key]=true;
+  if("Notification" in window&&Notification.permission==="granted"){
+    try{new Notification(title,{body:body,tag:key});}catch(e){}
+  }
+}
+
+/** Runs every minute while the app is open: prayer-time, dhikr-period,
+ * and task-due reminders. Never fires anything unless the user explicitly
+ * granted browser notification permission - checked fresh every call, not
+ * cached, so revoking permission elsewhere takes effect immediately. */
+function checkReminders(){
+  if(!("Notification" in window)||Notification.permission!=="granted")return;
+  var now=new Date(),todayStr=todayKey(),nowMins=now.getHours()*60+now.getMinutes();
+
+  var loc=state.profile&&state.profile.prayerLoc;
+  if(loc){
+    fetchPrayerTimes(todayStr,loc.lat,loc.lon).then(function(times){
+      PRAYER_NAMES.forEach(function(name){
+        if(!times[name])return;
+        if(minutesOfDay(times[name])===nowMins)notifyOnce("prayer-"+todayStr+"-"+name,name+" time",name+" is now — "+times[name]);
+      });
+      var dhikrAnchor={Fajr:"morning",Dhuhr:"afternoon",Maghrib:"evening"};
+      Object.keys(dhikrAnchor).forEach(function(prayerName){
+        if(!times[prayerName])return;
+        if(minutesOfDay(times[prayerName])===nowMins){
+          notifyOnce("dhikr-"+todayStr+"-"+dhikrAnchor[prayerName],"Dhikr reminder","Time for your "+dhikrAnchor[prayerName]+" dhikr.");
+        }
+      });
+    }).catch(function(){});
+  }
+
+  ensureTasks().forEach(function(t){
+    if(t.done||!t.due)return;
+    var diffMs=new Date(t.due).getTime()-now.getTime();
+    if(diffMs<=0&&diffMs>-60000)notifyOnce("task-"+t.id,"Task due",t.title);
+  });
+}
+setInterval(checkReminders,60000);
+
 /* ---------- RENDER: MEAL PLAN ---------- */
 function renderPlan(){
   var box=document.getElementById("planBox");box.innerHTML="";
@@ -1141,6 +1545,7 @@ function renderProgress(){
   renderPraySummary();
   updateSyncUI();
   updateInstallUI();
+  updateNotifyUI();
   var keys=Object.keys(state.days).sort();
   var weights=[];
   keys.forEach(function(k){var w=parseFloat(state.days[k].weight);if(!isNaN(w))weights.push([k,w]);});
@@ -1244,10 +1649,12 @@ function hideModal(){document.getElementById("overlay").classList.remove("open")
 function nav(view){
   var tabs=document.getElementById("tabs").children;
   for(var i=0;i<tabs.length;i++){tabs[i].classList.toggle("active",tabs[i].getAttribute("data-nav")===view);}
-  ["today","plan","recipes","exercises","progress","guide"].forEach(function(v){
+  ["today","calendar","plan","recipes","exercises","progress","guide"].forEach(function(v){
     document.getElementById("view-"+v).classList.toggle("active",v===view);
   });
   if(view==="progress")renderProgress();
+  if(view==="calendar")renderCalendarTab();
+  if(view==="today")renderPrayerClock();
   window.scrollTo(0,0);
 }
 
@@ -1314,7 +1721,7 @@ document.getElementById("installBtn").addEventListener("click",function(){
 document.getElementById("importBtn").addEventListener("click",function(){document.getElementById("importFile").click();});
 document.getElementById("importFile").addEventListener("change",function(){
   var f=this.files[0];if(!f)return;var r=new FileReader();
-  r.onload=function(){try{var s=JSON.parse(r.result);if(s&&s.days){if(!s.profile)s.profile={startWeight:108,targetWeight:88};if(!s.schema)s.schema=1;if(!s.sync)s.sync={enabled:false,since:0,lastSyncAt:null,lastError:null};migrate(s);state=s;save();renderToday();renderProgress();alert("Backup restored.");}else alert("That file doesn't look like a valid backup.");}catch(e){alert("Couldn't read that file.");}};
+  r.onload=function(){try{var s=JSON.parse(r.result);if(s&&s.days){if(!s.profile)s.profile={startWeight:108,targetWeight:88};if(!s.schema)s.schema=1;if(!s.sync)s.sync={enabled:false,since:0,lastSyncAt:null,lastError:null};if(!Array.isArray(s.tasks))s.tasks=[];migrate(s);state=s;save();renderToday();renderProgress();alert("Backup restored.");}else alert("That file doesn't look like a valid backup.");}catch(e){alert("Couldn't read that file.");}};
   r.readAsText(f);
 });
 document.getElementById("clearBtn").addEventListener("click",function(){
@@ -1322,6 +1729,17 @@ document.getElementById("clearBtn").addEventListener("click",function(){
     localStorage.removeItem(KEY);localStorage.removeItem(BAKKEY);state=freshState();renderToday();renderProgress();alert("All data cleared.");
   }
 });
+
+document.getElementById("taskAddBtn").addEventListener("click",addTask);
+document.getElementById("taskTitleIn").addEventListener("keydown",function(e){if(e.key==="Enter")addTask();});
+
+document.getElementById("prayerLocBtn").addEventListener("click",requestPrayerLocation);
+
+document.getElementById("calPrevDay").addEventListener("click",function(){calCur.setDate(calCur.getDate()-1);renderCalendarTab();});
+document.getElementById("calJumpToday").addEventListener("click",function(){calCur=new Date();calCur.setHours(0,0,0,0);renderCalendarTab();});
+document.getElementById("calDatePick").addEventListener("change",function(){var v=this.value.split("-");calCur=new Date(+v[0],+v[1]-1,+v[2]);calCur.setHours(0,0,0,0);renderCalendarTab();});
+
+document.getElementById("notifyBtn").addEventListener("click",enableNotifications);
 
 /* ---------- THEME ---------- */
 var THEMEKEY="yawarTheme";
@@ -1347,6 +1765,9 @@ document.getElementById("themeToggle").addEventListener("click",function(){
 renderPlan();renderRecipes();renderExercises();renderToday();
 updateInstallUI();
 loadBrief();
+renderTasks();
+renderPrayerClock();
+updateNotifyUI();
 flushMsgs();
 if(state.sync&&state.sync.enabled)runSync();
 })();

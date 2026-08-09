@@ -232,7 +232,11 @@ async function handleStats(env, email) {
 
 /* ---------- Google Calendar + Gemini daily brief ---------- */
 
-const GOOGLE_SCOPE = "https://www.googleapis.com/auth/calendar.readonly";
+const GOOGLE_SCOPE = [
+  "https://www.googleapis.com/auth/calendar.readonly",
+  "https://www.googleapis.com/auth/calendar.events", // write - lets scheduled tasks create real events
+  "https://www.googleapis.com/auth/tasks.readonly", // Google Tasks, for the brief only
+].join(" ");
 const BRIEF_TIMEZONE = "Europe/London";
 const GEMINI_MODEL = "gemini-flash-latest"; // Google-maintained alias for their current default Flash model
 
@@ -382,40 +386,118 @@ function utcOffsetMinutes(timeZone, date) {
   return sign * (parseInt(m[2], 10) * 60 + parseInt(m[3] || "0", 10));
 }
 
-/** Local midnight-to-midnight bounds for `timeZone`, as RFC3339 strings
- * with an explicit offset (required by Calendar's timeMin/timeMax). */
-function localDayBounds(timeZone, now) {
-  const parts = Object.fromEntries(
-    new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" })
-      .formatToParts(now).map((p) => [p.type, p.value])
-  );
-  const day = `${parts.year}-${parts.month}-${parts.day}`;
-  const offsetMin = utcOffsetMinutes(timeZone, now);
+/** Midnight-to-midnight bounds for a specific `YYYY-MM-DD` in `timeZone`,
+ * as RFC3339 strings with an explicit offset (required by Calendar's
+ * timeMin/timeMax). Looks up the offset at local noon of that day - safe
+ * for Europe/London (offset is always 0 or +1h), the only zone this file
+ * ever uses; not a general-purpose solution for zones near UTC+/-12. */
+function dayBoundsForDate(timeZone, day) {
+  const noonGuess = new Date(`${day}T12:00:00Z`);
+  const offsetMin = utcOffsetMinutes(timeZone, noonGuess);
   const sign = offsetMin >= 0 ? "+" : "-";
   const abs = Math.abs(offsetMin);
   const offset = `${sign}${String(Math.floor(abs / 60)).padStart(2, "0")}:${String(abs % 60).padStart(2, "0")}`;
   return { day, timeMin: `${day}T00:00:00${offset}`, timeMax: `${day}T23:59:59${offset}` };
 }
 
-async function fetchTodayEvents(accessToken, timeMin, timeMax) {
-  const params = new URLSearchParams({ timeMin, timeMax, singleEvents: "true", orderBy: "startTime", maxResults: "50" });
-  const res = await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events?${params}`, {
+/** Local midnight-to-midnight bounds for "now" in `timeZone`. */
+function localDayBounds(timeZone, now) {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" })
+      .formatToParts(now).map((p) => [p.type, p.value])
+  );
+  return dayBoundsForDate(timeZone, `${parts.year}-${parts.month}-${parts.day}`);
+}
+
+/** Every calendar the user has read access to - including shared/family
+ * calendars, not just their own primary one. */
+async function listCalendars(accessToken) {
+  const res = await fetch("https://www.googleapis.com/calendar/v3/users/me/calendarList?minAccessRole=reader", {
     headers: { authorization: `Bearer ${accessToken}` },
   });
   if (!res.ok) {
     const detail = await res.text().catch(() => "");
-    throw new Error(`calendar fetch failed: HTTP ${res.status} ${detail.slice(0, 200)}`);
+    throw new Error(`calendar list failed: HTTP ${res.status} ${detail.slice(0, 200)}`);
   }
   const data = await res.json();
-  return (data.items || []).map((e) => ({
-    title: e.summary || "(no title)",
-    start: e.start?.dateTime || e.start?.date,
-    allDay: !e.start?.dateTime,
-    location: e.location || null,
+  return (data.items || []).map((c) => ({
+    id: c.id,
+    name: c.summaryOverride || c.summary || c.id,
+    color: c.backgroundColor || "#4285F4",
+    primary: Boolean(c.primary),
   }));
 }
 
-async function summarizeWithGemini(env, day, events) {
+/** Events across every given calendar, tagged with their source
+ * calendar's name/color so the UI can tell them apart. One unreachable
+ * calendar (revoked share, deleted, etc.) is skipped rather than failing
+ * the whole fetch - better to show the rest than nothing. */
+async function fetchEventsForRange(accessToken, calendars, timeMin, timeMax) {
+  const all = [];
+  for (const cal of calendars) {
+    const params = new URLSearchParams({ timeMin, timeMax, singleEvents: "true", orderBy: "startTime", maxResults: "50" });
+    const res = await fetch(
+      `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(cal.id)}/events?${params}`,
+      { headers: { authorization: `Bearer ${accessToken}` } }
+    );
+    if (!res.ok) {
+      console.error(`skipping calendar ${cal.id}: HTTP ${res.status}`);
+      continue;
+    }
+    const data = await res.json();
+    for (const e of data.items || []) {
+      all.push({
+        title: e.summary || "(no title)",
+        start: e.start?.dateTime || e.start?.date,
+        end: e.end?.dateTime || e.end?.date,
+        allDay: !e.start?.dateTime,
+        location: e.location || null,
+        calendar: cal.name,
+        color: cal.color,
+      });
+    }
+  }
+  all.sort((a, b) => new Date(a.start) - new Date(b.start));
+  return all;
+}
+
+/** Today's not-yet-completed Google Tasks, across every task list. Tasks
+ * are a bonus enrichment for the brief, never its critical path - any
+ * failure here (not connected with the tasks scope yet, API hiccup,
+ * network error) returns an empty list rather than breaking the brief. */
+async function fetchTodayTasks(accessToken, day) {
+  try {
+    const listsRes = await fetch("https://tasks.googleapis.com/tasks/v1/users/@me/lists", {
+      headers: { authorization: `Bearer ${accessToken}` },
+    });
+    if (!listsRes.ok) return [];
+    const listsData = await listsRes.json();
+
+    const tasks = [];
+    for (const list of listsData.items || []) {
+      const params = new URLSearchParams({
+        showCompleted: "false",
+        dueMin: `${day}T00:00:00Z`,
+        dueMax: `${day}T23:59:59Z`,
+      });
+      const res = await fetch(
+        `https://tasks.googleapis.com/tasks/v1/lists/${encodeURIComponent(list.id)}/tasks?${params}`,
+        { headers: { authorization: `Bearer ${accessToken}` } }
+      );
+      if (!res.ok) continue;
+      const data = await res.json();
+      for (const t of data.items || []) {
+        if (t.status === "completed") continue;
+        tasks.push({ title: t.title || "(untitled task)", due: t.due || null, list: list.title || null });
+      }
+    }
+    return tasks;
+  } catch {
+    return [];
+  }
+}
+
+async function summarizeWithGemini(env, day, events, tasks) {
   if (!env.GEMINI_API_KEY) throw new Error("Gemini API key not configured");
 
   const eventLines = events.length
@@ -423,16 +505,24 @@ async function summarizeWithGemini(env, day, events) {
         const when = e.allDay
           ? "All day"
           : new Date(e.start).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: BRIEF_TIMEZONE });
-        return `- ${when}: ${e.title}${e.location ? ` (${e.location})` : ""}`;
+        const cal = e.calendar ? ` [${e.calendar}]` : "";
+        return `- ${when}: ${e.title}${e.location ? ` (${e.location})` : ""}${cal}`;
       }).join("\n")
     : "(No calendar events today.)";
 
+  const taskLines = tasks && tasks.length
+    ? tasks.map((t) => `- ${t.title}${t.list ? ` [${t.list}]` : ""}`).join("\n")
+    : "(No tasks due today.)";
+
   const prompt =
     `You are a concise personal daily-briefing assistant. Given today's ` +
-    `(${day}) calendar events below, write a short, friendly summary ` +
+    `(${day}) calendar events (across all of the person's calendars, ` +
+    `including shared/family ones - the bracketed tag names the source ` +
+    `calendar) and due tasks below, write a short, friendly summary ` +
     `(3-5 sentences max) highlighting what the day looks like, any tight ` +
-    `back-to-back meetings, and any free stretches. Do not invent events ` +
-    `not listed. Plain text, no markdown.\n\nEvents:\n${eventLines}`;
+    `back-to-back meetings, free stretches, and anything due today. Do ` +
+    `not invent events or tasks not listed. Plain text, no markdown.\n\n` +
+    `Events:\n${eventLines}\n\nTasks due today:\n${taskLines}`;
 
   const res = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${env.GEMINI_API_KEY}`,
@@ -473,16 +563,19 @@ async function generateBrief(env, email, now) {
 
   let events;
   try {
-    events = await fetchTodayEvents(tokenResult.accessToken, timeMin, timeMax);
+    const calendars = await listCalendars(tokenResult.accessToken);
+    events = await fetchEventsForRange(tokenResult.accessToken, calendars, timeMin, timeMax);
   } catch (e) {
     const detail = String(e.message || e);
     await saveBriefStatus(env, email, day, "calendar_error", null, detail);
     return { status: "calendar_error", day, error: detail };
   }
 
+  const tasks = await fetchTodayTasks(tokenResult.accessToken, day);
+
   let summary;
   try {
-    summary = await summarizeWithGemini(env, day, events);
+    summary = await summarizeWithGemini(env, day, events, tasks);
   } catch (e) {
     const detail = String(e.message || e);
     await saveBriefStatus(env, email, day, "gemini_error", null, detail);
@@ -523,6 +616,82 @@ async function handleRefreshBrief(env, email, now) {
     error: result.error ?? null,
     generated_at: result.generated_at ?? null,
   });
+}
+
+/**
+ * GET /api/calendar/events?date=YYYY-MM-DD - raw (non-summarized) events
+ * across every calendar the user can read, for the Calendar tab's day
+ * agenda view. Defaults to today (Europe/London) if `date` is missing or
+ * malformed.
+ */
+async function handleGetCalendarEvents(request, env, email, now) {
+  const url = new URL(request.url);
+  const dateParam = url.searchParams.get("date");
+  const day = dateParam && DAY_RE.test(dateParam) ? dateParam : localDayBounds(BRIEF_TIMEZONE, now || new Date()).day;
+  const { timeMin, timeMax } = dayBoundsForDate(BRIEF_TIMEZONE, day);
+
+  const tokenResult = await getGoogleAccessToken(env, email);
+  if (tokenResult.error) return json({ connected: false, status: tokenResult.error, day, events: [] });
+
+  try {
+    const calendars = await listCalendars(tokenResult.accessToken);
+    const events = await fetchEventsForRange(tokenResult.accessToken, calendars, timeMin, timeMax);
+    return json({ connected: true, status: "ok", day, events });
+  } catch (e) {
+    return json({ connected: true, status: "calendar_error", day, events: [], error: String(e.message || e) });
+  }
+}
+
+/**
+ * POST /api/google/calendar/events - creates a real event on the user's
+ * primary calendar, e.g. when scheduling a local task. Requires the
+ * calendar.events (write) scope; a token granted only the older
+ * read-only scope surfaces as reconnect_required, not a generic error.
+ * body: { title, start (ISO datetime), durationMinutes?, notes? }
+ */
+async function handleCreateCalendarEvent(request, env, email) {
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return json({ error: "invalid json" }, 400);
+  }
+
+  const title = typeof body.title === "string" ? body.title.trim() : "";
+  if (!title) return json({ error: "title is required" }, 400);
+  if (typeof body.start !== "string") return json({ error: "start (ISO datetime) is required" }, 400);
+  const startDate = new Date(body.start);
+  if (Number.isNaN(startDate.getTime())) return json({ error: "invalid start" }, 400);
+
+  const tokenResult = await getGoogleAccessToken(env, email);
+  if (tokenResult.error) return json({ status: tokenResult.error });
+
+  const durationMinutes = Number.isFinite(body.durationMinutes) && body.durationMinutes > 0 ? body.durationMinutes : 30;
+  const endDate = new Date(startDate.getTime() + durationMinutes * 60000);
+
+  const res = await fetch("https://www.googleapis.com/calendar/v3/calendars/primary/events", {
+    method: "POST",
+    headers: { authorization: `Bearer ${tokenResult.accessToken}`, "content-type": "application/json" },
+    body: JSON.stringify({
+      summary: title,
+      description: typeof body.notes === "string" ? body.notes : undefined,
+      start: { dateTime: startDate.toISOString() },
+      end: { dateTime: endDate.toISOString() },
+    }),
+  });
+
+  if (!res.ok) {
+    const detail = await res.text().catch(() => "");
+    // An old read-only-scope token (pre-reconnect) can't create events -
+    // Google surfaces that as 403 insufficientPermissions. Map it to
+    // reconnect_required so the UI can prompt exactly that.
+    if (res.status === 403 && /insufficient/i.test(detail)) {
+      return json({ status: "reconnect_required" });
+    }
+    return json({ status: "error", error: `HTTP ${res.status} ${detail.slice(0, 200)}` });
+  }
+  const created = await res.json();
+  return json({ status: "ok", eventId: created.id, htmlLink: created.htmlLink || null });
 }
 
 /** Cron entry point. Runs hourly (see wrangler.jsonc) but only actually
@@ -588,6 +757,12 @@ export default {
       if (url.pathname === "/api/brief/refresh" && request.method === "POST") {
         return await handleRefreshBrief(env, email);
       }
+      if (url.pathname === "/api/calendar/events" && request.method === "GET") {
+        return await handleGetCalendarEvents(request, env, email);
+      }
+      if (url.pathname === "/api/google/calendar/events" && request.method === "POST") {
+        return await handleCreateCalendarEvent(request, env, email);
+      }
     } catch (e) {
       return json({ error: "server error", detail: String(e.message || e) }, 500);
     }
@@ -607,11 +782,17 @@ export default {
 // coverage is unchanged and already covered separately.
 export {
   localDayBounds,
+  dayBoundsForDate,
   utcOffsetMinutes,
   getGoogleAccessToken,
+  listCalendars,
+  fetchEventsForRange,
+  fetchTodayTasks,
   generateBrief,
   handleGetBrief,
   handleRefreshBrief,
+  handleGetCalendarEvents,
+  handleCreateCalendarEvent,
   handleGoogleConnect,
   handleGoogleCallback,
   handleScheduled,

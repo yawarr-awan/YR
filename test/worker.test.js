@@ -32,6 +32,28 @@ function geminiOk(text) {
   return jsonResponse(200, { candidates: [{ content: { parts: [{ text }] } }] });
 }
 
+/**
+ * A realistic router for the Google APIs generateBrief/handleGetCalendarEvents
+ * actually call in sequence: calendarList -> events per calendar -> Tasks
+ * lists -> tasks per list -> Gemini. Distinguishes each sub-endpoint by URL
+ * shape, unlike a single catch-all "any calendar/v3 URL" mock, so these
+ * tests exercise the real multi-calendar/multi-list fan-out instead of
+ * passing by coincidence.
+ */
+function googleApiMocks({ calendars = [], eventsByCalendar = {}, taskLists = [], tasksByList = {}, geminiText = "OK." } = {}) {
+  return async (url) => {
+    const u = String(url);
+    if (u.includes("calendarList")) return jsonResponse(200, { items: calendars });
+    const calMatch = u.match(/calendars\/([^/]+)\/events/);
+    if (calMatch) return jsonResponse(200, { items: eventsByCalendar[decodeURIComponent(calMatch[1])] || [] });
+    if (u.includes("tasks.googleapis.com/tasks/v1/users/@me/lists")) return jsonResponse(200, { items: taskLists });
+    const listMatch = u.match(/tasks\/v1\/lists\/([^/]+)\/tasks/);
+    if (listMatch) return jsonResponse(200, { items: tasksByList[decodeURIComponent(listMatch[1])] || [] });
+    if (u.includes("generativelanguage")) return geminiOk(geminiText);
+    throw new Error("unexpected fetch " + u);
+  };
+}
+
 test("localDayBounds / utcOffsetMinutes track Europe/London across DST with no manual offset table", async () => {
   const { localDayBounds, utcOffsetMinutes } = await loadWorker();
   const summer = new Date("2026-08-09T10:00:00Z"); // BST -> UTC+1
@@ -118,12 +140,12 @@ test("generateBrief: not connected short-circuits before any network call", asyn
   assert.equal(d1.dailyBrief.size, 0, "no day is known yet when we're not even connected");
 });
 
-test("generateBrief: a calendar fetch failure is recorded against today, not silently dropped", async (t) => {
+test("generateBrief: a calendar list failure is recorded against today, not silently dropped", async (t) => {
   const { generateBrief } = await loadWorker();
   const d1 = createFakeD1();
   d1.seedToken(EMAIL, { access_token: "tok", access_token_expires_at: Date.now() + 10 * 60 * 1000 });
   installFetch(t, async (url) => {
-    assert.match(String(url), /calendar\/v3/);
+    assert.match(String(url), /calendarList/);
     return jsonResponse(500, {}, "backend error");
   });
 
@@ -139,9 +161,12 @@ test("generateBrief: calendar succeeds but Gemini fails is a distinct, recorded 
   const d1 = createFakeD1();
   d1.seedToken(EMAIL, { access_token: "tok", access_token_expires_at: Date.now() + 10 * 60 * 1000 });
   installFetch(t, async (url) => {
-    if (String(url).includes("calendar/v3")) return jsonResponse(200, { items: [] });
-    if (String(url).includes("generativelanguage")) return jsonResponse(503, {}, "overloaded");
-    throw new Error("unexpected fetch " + url);
+    const u = String(url);
+    if (u.includes("calendarList")) return jsonResponse(200, { items: [{ id: "primary", summary: "Primary" }] });
+    if (u.includes("/events")) return jsonResponse(200, { items: [] });
+    if (u.includes("tasks.googleapis.com")) return jsonResponse(200, { items: [] });
+    if (u.includes("generativelanguage")) return jsonResponse(503, {}, "overloaded");
+    throw new Error("unexpected fetch " + u);
   });
 
   const result = await generateBrief(d1.env, EMAIL, new Date("2026-08-09T10:00:00Z"));
@@ -149,22 +174,28 @@ test("generateBrief: calendar succeeds but Gemini fails is a distinct, recorded 
   assert.equal(d1.dailyBrief.get(`${EMAIL}|2026-08-09`).status, "gemini_error");
 });
 
-test("generateBrief: end to end success persists the Gemini summary for today", async (t) => {
+test("generateBrief: end to end success across two calendars, tagged and merged, plus a due task", async (t) => {
   const { generateBrief } = await loadWorker();
   const d1 = createFakeD1();
   d1.seedToken(EMAIL, { access_token: "tok", access_token_expires_at: Date.now() + 10 * 60 * 1000 });
-  installFetch(t, async (url) => {
-    if (String(url).includes("calendar/v3")) {
-      return jsonResponse(200, { items: [{ summary: "Standup", start: { dateTime: "2026-08-09T09:00:00+01:00" } }] });
-    }
-    if (String(url).includes("generativelanguage")) return geminiOk("A light day with just a morning standup.");
-    throw new Error("unexpected fetch " + url);
-  });
+  installFetch(t, googleApiMocks({
+    calendars: [
+      { id: "primary", summary: "Yawar", backgroundColor: "#4285F4", primary: true },
+      { id: "family@group.calendar.google.com", summary: "Family" },
+    ],
+    eventsByCalendar: {
+      primary: [{ summary: "Standup", start: { dateTime: "2026-08-09T09:00:00+01:00" } }],
+      "family@group.calendar.google.com": [{ summary: "Mum's birthday", start: { date: "2026-08-09" } }],
+    },
+    taskLists: [{ id: "list1", title: "My Tasks" }],
+    tasksByList: { list1: [{ title: "Pay rent", status: "needsAction", due: "2026-08-09T00:00:00.000Z" }] },
+    geminiText: "A light day with a morning standup and Mum's birthday.",
+  }));
 
   const result = await generateBrief(d1.env, EMAIL, new Date("2026-08-09T10:00:00Z"));
   assert.equal(result.status, "ok");
-  assert.equal(result.summary, "A light day with just a morning standup.");
-  assert.equal(d1.dailyBrief.get(`${EMAIL}|2026-08-09`).summary, "A light day with just a morning standup.");
+  assert.equal(result.summary, "A light day with a morning standup and Mum's birthday.");
+  assert.equal(d1.dailyBrief.get(`${EMAIL}|2026-08-09`).summary, result.summary);
 });
 
 test("handleGetBrief reflects not_connected / pending / ok correctly", async (t) => {
@@ -207,19 +238,189 @@ test("handleScheduled: at 7am London, generates once and skips a user already do
   const { handleScheduled } = await loadWorker();
   const d1 = createFakeD1();
   d1.seedToken(EMAIL, { access_token: "tok", access_token_expires_at: Date.now() + 10 * 60 * 1000 });
-  let calendarCalls = 0;
+  let calendarListCalls = 0;
+  const baseMock = googleApiMocks({ calendars: [{ id: "primary", summary: "Primary" }], geminiText: "Nothing scheduled today." });
   installFetch(t, async (url) => {
-    if (String(url).includes("calendar/v3")) { calendarCalls++; return jsonResponse(200, { items: [] }); }
-    if (String(url).includes("generativelanguage")) return geminiOk("Nothing scheduled today.");
-    throw new Error("unexpected fetch " + url);
+    if (String(url).includes("calendarList")) calendarListCalls++;
+    return baseMock(url);
   });
 
   const sevenAmBst = new Date("2026-08-09T06:30:00Z"); // 7:30am BST
   await handleScheduled(d1.env, sevenAmBst);
-  assert.equal(calendarCalls, 1);
+  assert.equal(calendarListCalls, 1);
   assert.equal(d1.dailyBrief.get(`${EMAIL}|2026-08-09`).status, "ok");
 
   // Firing again in the same 7am hour must not regenerate an already-ok brief.
   await handleScheduled(d1.env, sevenAmBst);
-  assert.equal(calendarCalls, 1, "already-generated-today briefs must not be recomputed");
+  assert.equal(calendarListCalls, 1, "already-generated-today briefs must not be recomputed");
+});
+
+test("listCalendars: maps calendarList items, defaulting missing color/name sensibly", async (t) => {
+  const { listCalendars } = await loadWorker();
+  installFetch(t, googleApiMocks({
+    calendars: [
+      { id: "primary", summary: "Yawar", backgroundColor: "#4285F4", primary: true },
+      { id: "family@group.calendar.google.com", summaryOverride: "Family (shared)" },
+      { id: "no-color@group.calendar.google.com", summary: "No Color Cal" },
+    ],
+  }));
+
+  const calendars = await listCalendars("tok");
+  assert.equal(calendars.length, 3);
+  assert.deepEqual(calendars[0], { id: "primary", name: "Yawar", color: "#4285F4", primary: true });
+  assert.equal(calendars[1].name, "Family (shared)", "summaryOverride wins over summary when both are present");
+  assert.equal(calendars[2].color, "#4285F4", "a calendar with no backgroundColor falls back to a sane default");
+});
+
+test("listCalendars: a non-OK response throws (this is on the critical path, unlike tasks)", async (t) => {
+  const { listCalendars } = await loadWorker();
+  installFetch(t, async () => jsonResponse(401, {}, "unauthorized"));
+  await assert.rejects(() => listCalendars("tok"));
+});
+
+test("fetchEventsForRange: merges and time-sorts events across calendars, tagging each with its source", async (t) => {
+  const { fetchEventsForRange } = await loadWorker();
+  installFetch(t, googleApiMocks({
+    eventsByCalendar: {
+      primary: [{ summary: "Lunch", start: { dateTime: "2026-08-09T12:00:00+01:00" }, location: "Cafe" }],
+      "family@group.calendar.google.com": [{ summary: "Mum's birthday", start: { date: "2026-08-09" } }],
+    },
+  }));
+  const calendars = [
+    { id: "primary", name: "Yawar", color: "#4285F4" },
+    { id: "family@group.calendar.google.com", name: "Family", color: "#0B8043" },
+  ];
+
+  const events = await fetchEventsForRange("tok", calendars, "2026-08-09T00:00:00+01:00", "2026-08-09T23:59:59+01:00");
+  assert.equal(events.length, 2);
+  // The all-day "family" event has an earlier sort key ("2026-08-09") than the dateTime one, so it sorts first.
+  assert.equal(events[0].calendar, "Family");
+  assert.equal(events[0].allDay, true);
+  assert.equal(events[1].title, "Lunch");
+  assert.equal(events[1].calendar, "Yawar");
+  assert.equal(events[1].location, "Cafe");
+});
+
+test("fetchEventsForRange: one unreachable calendar is skipped, the rest still come back", async (t) => {
+  const { fetchEventsForRange } = await loadWorker();
+  installFetch(t, async (url) => {
+    if (String(url).includes("broken-cal")) return jsonResponse(403, {}, "revoked");
+    return jsonResponse(200, { items: [{ summary: "Still here", start: { dateTime: "2026-08-09T10:00:00+01:00" } }] });
+  });
+  const calendars = [
+    { id: "broken-cal", name: "Revoked", color: "#000" },
+    { id: "primary", name: "Yawar", color: "#4285F4" },
+  ];
+
+  const events = await fetchEventsForRange("tok", calendars, "2026-08-09T00:00:00+01:00", "2026-08-09T23:59:59+01:00");
+  assert.equal(events.length, 1);
+  assert.equal(events[0].title, "Still here");
+});
+
+test("fetchTodayTasks: filters out completed tasks and never throws on failure (a bonus, not the critical path)", async (t) => {
+  const { fetchTodayTasks } = await loadWorker();
+  installFetch(t, googleApiMocks({
+    taskLists: [{ id: "list1", title: "My Tasks" }],
+    tasksByList: {
+      list1: [
+        { title: "Pay rent", status: "needsAction", due: "2026-08-09T00:00:00.000Z" },
+        { title: "Already done", status: "completed", due: "2026-08-09T00:00:00.000Z" },
+      ],
+    },
+  }));
+
+  const tasks = await fetchTodayTasks("tok", "2026-08-09");
+  assert.equal(tasks.length, 1);
+  assert.equal(tasks[0].title, "Pay rent");
+  assert.equal(tasks[0].list, "My Tasks");
+});
+
+test("fetchTodayTasks: a network failure returns an empty list, never throws", async (t) => {
+  const { fetchTodayTasks } = await loadWorker();
+  installFetch(t, async () => { throw new TypeError("network down"); });
+  const tasks = await fetchTodayTasks("tok", "2026-08-09");
+  assert.deepEqual(tasks, []);
+});
+
+test("handleGetCalendarEvents: not connected returns an empty agenda, no network call", async (t) => {
+  const { handleGetCalendarEvents } = await loadWorker();
+  const d1 = createFakeD1();
+  installFetch(t, async () => { throw new Error("must not touch the network when not connected"); });
+
+  const req = { url: "https://x/api/calendar/events?date=2026-08-09" };
+  const resp = await (await handleGetCalendarEvents(req, d1.env, EMAIL)).json();
+  assert.equal(resp.connected, false);
+  assert.equal(resp.status, "not_connected");
+  assert.deepEqual(resp.events, []);
+});
+
+test("handleGetCalendarEvents: returns the raw (non-summarized) agenda for the requested date", async (t) => {
+  const { handleGetCalendarEvents } = await loadWorker();
+  const d1 = createFakeD1();
+  d1.seedToken(EMAIL, { access_token: "tok", access_token_expires_at: Date.now() + 10 * 60 * 1000 });
+  installFetch(t, googleApiMocks({
+    calendars: [{ id: "primary", summary: "Yawar", backgroundColor: "#4285F4" }],
+    eventsByCalendar: { primary: [{ summary: "Dentist", start: { dateTime: "2026-08-09T15:00:00+01:00" } }] },
+  }));
+
+  const req = { url: "https://x/api/calendar/events?date=2026-08-09" };
+  const resp = await (await handleGetCalendarEvents(req, d1.env, EMAIL)).json();
+  assert.equal(resp.connected, true);
+  assert.equal(resp.status, "ok");
+  assert.equal(resp.day, "2026-08-09");
+  assert.equal(resp.events.length, 1);
+  assert.equal(resp.events[0].title, "Dentist");
+});
+
+test("handleGetCalendarEvents: falls back to today when the date param is missing or malformed", async (t) => {
+  const { handleGetCalendarEvents } = await loadWorker();
+  const d1 = createFakeD1();
+  installFetch(t, async () => { throw new Error("not_connected short-circuits before any fetch"); });
+
+  const now = new Date("2026-08-09T10:00:00Z");
+  const resp = await (await handleGetCalendarEvents({ url: "https://x/api/calendar/events?date=not-a-date" }, d1.env, EMAIL, now)).json();
+  assert.equal(resp.day, "2026-08-09");
+});
+
+test("handleCreateCalendarEvent: rejects a missing title/start before touching the network", async (t) => {
+  const { handleCreateCalendarEvent } = await loadWorker();
+  const d1 = createFakeD1();
+  installFetch(t, async () => { throw new Error("must not touch the network on a validation failure"); });
+
+  const noTitle = await (await handleCreateCalendarEvent({ json: async () => ({ start: "2026-08-09T10:00:00Z" }) }, d1.env, EMAIL)).json();
+  assert.match(noTitle.error, /title/i);
+
+  const noStart = await (await handleCreateCalendarEvent({ json: async () => ({ title: "Meeting" }) }, d1.env, EMAIL)).json();
+  assert.match(noStart.error, /start/i);
+});
+
+test("handleCreateCalendarEvent: creates a real event when connected with write access", async (t) => {
+  const { handleCreateCalendarEvent } = await loadWorker();
+  const d1 = createFakeD1();
+  d1.seedToken(EMAIL, { access_token: "tok", access_token_expires_at: Date.now() + 10 * 60 * 1000 });
+  let sentBody = null;
+  installFetch(t, async (url, opts) => {
+    assert.match(String(url), /calendars\/primary\/events/);
+    sentBody = JSON.parse(opts.body);
+    return jsonResponse(200, { id: "evt123", htmlLink: "https://calendar.google.com/evt123" });
+  });
+
+  const req = { json: async () => ({ title: "Pay rent", start: "2026-08-09T10:00:00.000Z", durationMinutes: 15 }) };
+  const resp = await (await handleCreateCalendarEvent(req, d1.env, EMAIL)).json();
+  assert.equal(resp.status, "ok");
+  assert.equal(resp.eventId, "evt123");
+  assert.equal(sentBody.summary, "Pay rent");
+  assert.equal(sentBody.start.dateTime, "2026-08-09T10:00:00.000Z");
+  assert.equal(sentBody.end.dateTime, "2026-08-09T10:15:00.000Z");
+});
+
+test("handleCreateCalendarEvent: an old read-only token surfaces as reconnect_required, not a generic error", async (t) => {
+  const { handleCreateCalendarEvent } = await loadWorker();
+  const d1 = createFakeD1();
+  d1.seedToken(EMAIL, { access_token: "tok", access_token_expires_at: Date.now() + 10 * 60 * 1000 });
+  installFetch(t, async () => jsonResponse(403, {}, JSON.stringify({ error: { status: "PERMISSION_DENIED", message: "Insufficient Permission" } })));
+
+  const req = { json: async () => ({ title: "Pay rent", start: "2026-08-09T10:00:00.000Z" }) };
+  const resp = await (await handleCreateCalendarEvent(req, d1.env, EMAIL)).json();
+  assert.equal(resp.status, "reconnect_required");
 });

@@ -20,7 +20,12 @@
 
 ## ✨ Features
 
-- **Today's Brief** — an AI summary of your day at the top of the Today tab, generated from your Google Calendar (read-only) via Gemini, automatically each morning.
+- **Today's Brief** — an AI summary of your day at the top of the Today tab, generated from every Google calendar you have access to plus your Google Tasks due today, via Gemini, automatically each morning.
+- **Task list** — quick-add a task at the top of the Today tab, with an optional due date; schedule it straight onto your Google Calendar with one tap.
+- **Calendar tab** — a day-agenda view across all your Google calendars, color-coded by calendar, with live prayer times overlaid.
+- **Live prayer times** — opt-in location-based prayer times (Aladhan API) with colored chips and a next-prayer countdown, shown on the Today tab and in the Calendar tab.
+- **Dhikr tracker** — a morning/afternoon/evening checklist alongside your prayers.
+- **In-app reminders** — optional browser notifications (while the app is open) for prayer times, dhikr periods, and scheduled task due times.
 - **Today dashboard** — one screen for your whole day, with a completion ring.
 - **Diet plan** — a tasty 7-day halal rotation (~1,300–1,400 kcal/day incl. supplements), high-protein and anti-inflammatory. Each meal name links to its full recipe.
 - **Recipe library** — 20+ quick recipes (10–20 min) with ingredients, method, calories and protein.
@@ -83,7 +88,10 @@ git push -u origin main
   - **On iPhone/Safari:** add the app to your **Home Screen**. Safari can clear a website's storage after ~7 days of not visiting it, but a home-screen (installed) app is far more durable. Export a backup now and then to be safe.
 - **Optional cloud sync.** The Progress tab has an off-by-default "Enable cloud sync" toggle. Turning it on backs your data up to a private Cloudflare backend and lets your devices share one history via last-write-wins merging. It stays off until you switch it on — no data leaves your device otherwise.
 - **This deployment is private.** `yr-wellness.yawar-awan.workers.dev` sits behind Cloudflare Access, restricted to one email — visiting it requires signing in first. The old public GitHub Pages copy has been retired for the same reason: static hosting has no server-side way to check a password or session, so it could never actually be made private.
-- **Optional Google Calendar connection.** The "Today's Brief" card is off until you click "Connect Google Calendar." Once connected, the server reads your calendar's read-only event list (never Gmail, never anything else in your Google account) once a day to generate a short AI summary via the Gemini API. Nothing is read unless you connect it, and disconnecting is as simple as revoking access at [myaccount.google.com/permissions](https://myaccount.google.com/permissions).
+- **Optional Google Calendar connection.** The "Today's Brief" card, the Calendar tab, and "Schedule to Calendar" are off until you click "Connect Google Calendar." Once connected, the server reads events across all calendars you have access to and your Google Tasks (never Gmail, never anything else in your Google account) to generate a short AI summary via the Gemini API, and can create new calendar events when you explicitly schedule a task. Nothing is read or written unless you connect it, and disconnecting is as simple as revoking access at [myaccount.google.com/permissions](https://myaccount.google.com/permissions).
+- **Live prayer times require your location.** Nothing is fetched until you tap "Use my location" — your coordinates are sent only to the free Aladhan prayer-times API and saved locally so they don't need to be requested again.
+- **Notifications are foreground-only.** Reminders only fire while the app tab is open; there is no push notification server and nothing is sent off your device for this feature.
+- **Tasks are currently local-only** — they are not yet included in cloud sync, so a task list is per-device until that's added.
 
 ## 🩺 Health disclaimer
 

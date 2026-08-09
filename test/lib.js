@@ -32,6 +32,22 @@ const HTML_PATH = path.join(__dirname, "..", "index.html");
 const MAIN_KEY = "yawarWellness_v1";
 const BAK_KEY = "yawarWellness_v1_bak";
 
+// The app runs a real setInterval() for foreground reminders (prayer/task/
+// dhikr checks) - exactly as it should in a browser tab, which cleans up
+// its timers when the tab closes. jsdom's window.close() does the same,
+// but nothing calls it by default, so every loadApp() would otherwise
+// leave a live interval behind - harmless individually, but it piles up
+// across a whole test run and stops the process from exiting on its own.
+// Each test file should register `after(closeAllApps)` once (from
+// node:test) so this happens automatically.
+const openWindows = [];
+function closeAllApps() {
+  while (openWindows.length) {
+    const w = openWindows.pop();
+    try { w.close(); } catch (e) { /* already closed */ }
+  }
+}
+
 function stubCanvas(window) {
   const noop = function () {};
   window.HTMLCanvasElement.prototype.getContext = function () {
@@ -61,6 +77,8 @@ function fireEvent(window, el, type) {
  * @param {string} [opts.userAgent] - override navigator.userAgent (e.g. to simulate iOS)
  * @param {boolean} [opts.standalone] - simulate navigator.standalone (already installed, iOS)
  * @param {boolean} [opts.stubServiceWorker] - install a fake navigator.serviceWorker.register
+ * @param {object} [opts.geolocation] - {lat, lon} to succeed with, or {error: "message"} to fail
+ * @param {string} [opts.notificationPermission] - "granted" | "denied" | "default"; installs window.Notification
  */
 function loadApp(opts = {}) {
   const html = fs.readFileSync(HTML_PATH, "utf8");
@@ -80,6 +98,7 @@ function loadApp(opts = {}) {
     ...(opts.userAgent ? { resources: { userAgent: opts.userAgent } } : {}),
   });
   const window = dom.window;
+  openWindows.push(window);
   stubCanvas(window);
 
   if (opts.localStorageSeed) {
@@ -96,6 +115,28 @@ function loadApp(opts = {}) {
 
   if (opts.fetchImpl) window.fetch = opts.fetchImpl;
   if (opts.standalone) window.navigator.standalone = true;
+
+  // jsdom implements neither the Geolocation nor Notification APIs at all -
+  // both are real browser capabilities the app depends on, stubbed the
+  // same way fetch/canvas/serviceWorker are above.
+  if (opts.geolocation) {
+    window.navigator.geolocation = {
+      getCurrentPosition: (success, error) => {
+        if (opts.geolocation.error) error({ message: opts.geolocation.error });
+        else success({ coords: { latitude: opts.geolocation.lat, longitude: opts.geolocation.lon } });
+      },
+    };
+  }
+  const notifications = [];
+  if (opts.notificationPermission) {
+    function NotificationStub(title, options) { notifications.push({ title, ...options }); }
+    NotificationStub.permission = opts.notificationPermission;
+    NotificationStub.requestPermission = () => {
+      NotificationStub.permission = "granted";
+      return Promise.resolve("granted");
+    };
+    window.Notification = NotificationStub;
+  }
 
   const serviceWorkerCalls = [];
   if (opts.stubServiceWorker) {
@@ -129,6 +170,7 @@ function loadApp(opts = {}) {
     pickDate: (dateStr) => { const el = window.document.getElementById("datePick"); el.value = dateStr; fireEvent(window, el, "change"); },
     flush: () => new Promise((resolve) => setTimeout(resolve, 0)),
     serviceWorkerCalls,
+    notifications,
     installCardVisible: () => window.document.getElementById("installCard").style.display !== "none",
     installButtonVisible: () => window.document.getElementById("installBtn").style.display !== "none",
     installText: () => window.document.getElementById("installText").textContent,
@@ -144,7 +186,8 @@ function loadApp(opts = {}) {
       return ev;
     },
     fireAppInstalled: () => window.dispatchEvent(new window.Event("appinstalled")),
+    close: () => window.close(),
   };
 }
 
-module.exports = { loadApp, MAIN_KEY, BAK_KEY };
+module.exports = { loadApp, closeAllApps, MAIN_KEY, BAK_KEY };
