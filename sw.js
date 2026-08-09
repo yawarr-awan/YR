@@ -2,17 +2,24 @@
  * YR Wellness Tracker - Service Worker
  *
  * Exists so the app satisfies install criteria and keeps working offline
- * once installed. Deliberately narrow scope: it only ever caches the
- * static app shell (index.html, manifest, icons). It never touches
- * /api/* — those requests must always hit the network untouched, so
- * Cloudflare Access auth and the sync logic behave exactly as if this
- * file didn't exist. Caching a stale sync response, or a stale
- * auth-required page, would be worse than no offline support at all.
+ * once installed. Deliberately narrow scope: it only ever caches static
+ * sub-resources (manifest, icons, favicon). It never intercepts:
+ *   - /api/* — those requests must always hit the network untouched, so
+ *     Cloudflare Access auth and the sync logic behave exactly as if this
+ *     file didn't exist.
+ *   - navigations (mode: "navigate") — every page load, including the
+ *     app's own start_url. Two reasons, either one alone is enough:
+ *     (1) fetch() cannot be called with a Request whose mode is
+ *     "navigate" — it throws, which is exactly the bug this file used to
+ *     have: it broke the app shell with ERR_FAILED, since the thrown
+ *     exception rejected the promise fed to respondWith(). (2) Cloudflare
+ *     Access protects the whole origin, not just /api/*, so a navigation
+ *     can be redirected to Access's login page at any time; that redirect
+ *     must run as a normal top-level browser navigation, not a fetch()
+ *     mediated by this worker.
  */
-var CACHE_NAME = "yr-wellness-shell-v1";
+var CACHE_NAME = "yr-wellness-shell-v2";
 var SHELL_ASSETS = [
-  "./",
-  "./index.html",
   "./manifest.webmanifest",
   "./favicon.ico",
   "./icons/icon-192.png",
@@ -42,6 +49,7 @@ self.addEventListener("activate", function (event) {
 self.addEventListener("fetch", function (event) {
   var req = event.request;
   if (req.method !== "GET") return;                 // never intercept writes
+  if (req.mode === "navigate") return;               // never intercept page loads
   var url = new URL(req.url);
   if (url.pathname.startsWith("/api/")) return;      // never cache the API
 
