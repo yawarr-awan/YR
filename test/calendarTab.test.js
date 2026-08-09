@@ -1,10 +1,10 @@
 "use strict";
 /*
  * Calendar tab coverage: the seven-day week grid fed by a single ranged
- * /api/calendar/events request, the selected day getting double width,
- * connect/reconnect/error states, week paging (buttons + swipe, both of
- * which run a real slide animation, hence the waits), and the prayer-window
- * colour bands.
+ * /api/calendar/events request, the focused day being several times wider
+ * than the rest, connect/reconnect/error states, sliding between days
+ * within a week, week paging via the arrows (a real slide animation, hence
+ * the waits), and the prayer-window colour bands.
  */
 const test = require("node:test");
 const { after } = require("node:test");
@@ -87,7 +87,7 @@ test("fetches the whole week in one ranged request, not seven day requests", asy
   assert.equal(tracker.last().end, keyOf(addDays(thisMonday(), 6)));
 });
 
-test("today's column is double width and marked, and tapping another day widens that one instead", async () => {
+test("today's column is the wide one and is marked, and tapping another day widens that one instead", async () => {
   const tracker = rangeTracker();
   const app = loadApp({ fetchImpl: fetchRouter([tracker.route]) });
   app.goTo("calendar");
@@ -95,12 +95,12 @@ test("today's column is double width and marked, and tapping another day widens 
 
   const grid = () => app.document.getElementById("calWeek");
   const todayIdx = (new Date().getDay() + 6) % 7;
-  // minmax(0,2fr) / minmax(0,1fr) per day, after the fixed hour-gutter track.
+  // minmax(0,4fr) / minmax(0,1fr) per day, after the fixed hour-gutter track.
   const cols = () => (grid().style.gridTemplateColumns.match(/minmax\([^)]*\)/g) || []);
 
   assert.equal(cols().length, 7);
-  assert.equal(cols()[todayIdx], "minmax(0,2fr)", "the day in focus gets twice the width");
-  assert.equal(cols().filter((c) => c === "minmax(0,2fr)").length, 1, "and only that one");
+  assert.equal(cols()[todayIdx], "minmax(0,4fr)", "the day in focus is several times wider");
+  assert.equal(cols().filter((c) => c === "minmax(0,4fr)").length, 1, "and only that one");
   assert.ok(grid().querySelectorAll(".cal-wk-head")[todayIdx].classList.contains("is-today"));
 
   // Pick a different day of the same week.
@@ -108,7 +108,7 @@ test("today's column is double width and marked, and tapping another day widens 
   grid().querySelectorAll(".cal-wk-head")[otherIdx].click();
   await app.flush();
 
-  assert.equal(cols()[otherIdx], "minmax(0,2fr)");
+  assert.equal(cols()[otherIdx], "minmax(0,4fr)");
   assert.equal(cols()[todayIdx], "minmax(0,1fr)");
   assert.ok(grid().querySelectorAll(".cal-wk-head")[otherIdx].classList.contains("is-sel"));
   assert.ok(grid().querySelectorAll(".cal-wk-head")[todayIdx].classList.contains("is-today"),
@@ -134,11 +134,21 @@ test("each event lands in its own day column and hour row, coloured by source ca
   const cells = app.document.querySelectorAll("#calWeek .cal-cell");
   const cellAt = (dayIdx, hour) => cells[hour * 7 + dayIdx];
 
-  assert.match(cellAt(0, 9).textContent, /Standup/, "Monday 09:00");
-  assert.match(cellAt(2, 14).textContent, /Physio/, "Wednesday 14:00");
-  assert.match(cellAt(2, 0).textContent, /Mum's birthday/, "an all-day event sits in that day's 00:00 row");
-  assert.equal(cellAt(0, 10).textContent, "", "hours with nothing on stay empty");
-  assert.equal(cellAt(2, 0).querySelector(".cal-chip").style.borderInlineStartColor, "rgb(11, 128, 67)");
+  // Narrow days show a colour bar per event; you slide to a day to read it.
+  assert.equal(cellAt(0, 9).querySelectorAll(".cal-bar").length, 1, "Monday 09:00");
+  assert.equal(cellAt(2, 14).querySelectorAll(".cal-bar").length, 1, "Wednesday 14:00");
+  assert.equal(cellAt(2, 0).querySelectorAll(".cal-bar").length, 1, "an all-day event sits in that day's 00:00 row");
+  assert.equal(cellAt(0, 10).children.length, 0, "hours with nothing on stay empty");
+  assert.equal(cellAt(2, 0).querySelector(".cal-bar").style.background, "rgb(11, 128, 67)");
+  assert.match(cellAt(2, 14).querySelector(".cal-bar").title, /Physio/, "the full detail is still reachable");
+
+  // Focusing Wednesday turns its bars into readable chips.
+  app.document.querySelectorAll("#calWeek .cal-wk-head")[2].click();
+  const chip = cellAt(2, 14).querySelector(".cal-chip");
+  assert.ok(chip, "the focused day renders text, not bars");
+  assert.match(chip.textContent, /Physio/);
+  assert.match(chip.textContent, /Clinic/);
+  assert.equal(cellAt(2, 14).querySelector(".cal-bar"), null);
 });
 
 test("prayer windows tint every hour of every day, with each day using its own times", async () => {
@@ -235,7 +245,38 @@ test("the prev/next buttons move a whole week at a time, and Today comes back", 
   assert.equal(tracker.last().date, thisWeek);
 });
 
-test("swiping pages a week and animates it, rather than jumping straight there", async () => {
+test("swiping slides between days inside the week, without refetching or paging the week", async () => {
+  const tracker = rangeTracker();
+  const app = loadApp({ fetchImpl: fetchRouter([tracker.route]) });
+  app.goTo("calendar");
+  await app.flush();
+
+  const heads = () => app.document.querySelectorAll("#calWeek .cal-wk-head");
+  const focused = () => Array.from(heads()).findIndex((h) => h.classList.contains("is-sel"));
+  const grid = app.document.getElementById("calGrid");
+
+  // Start from midweek so there's room to slide either way regardless of
+  // which weekday the suite happens to run on.
+  heads()[2].click();
+  assert.equal(focused(), 2);
+  const fetchesSoFar = tracker.seen.length;
+
+  app.swipe("calGrid", -80, 0); // left -> next day
+  assert.equal(focused(), 3);
+
+  app.swipe("calGrid", 80, 0);  // right -> back
+  app.swipe("calGrid", 80, 0);  // right again
+  assert.equal(focused(), 1);
+
+  assert.equal(tracker.seen.length, fetchesSoFar, "the week is already loaded - no refetching to change day");
+  assert.equal(grid.style.transform, "", "the week itself doesn't slide away; only the focus moves");
+
+  // A short / mostly-vertical drag is a scroll, not a slide.
+  app.swipe("calGrid", 10, 60);
+  assert.equal(focused(), 1);
+});
+
+test("swiping past the edge of the week carries on into the next one rather than dead-ending", async () => {
   const tracker = rangeTracker();
   const app = loadApp({ fetchImpl: fetchRouter([tracker.route]) });
   app.goTo("calendar");
@@ -243,25 +284,20 @@ test("swiping pages a week and animates it, rather than jumping straight there",
   const thisWeek = tracker.last().date;
   const grid = app.document.getElementById("calGrid");
 
-  app.swipe("calGrid", -80, 0); // swipe left -> next week
-  // Mid-flight the outgoing week is pushed off and the new one has NOT been
+  app.document.querySelectorAll("#calWeek .cal-wk-head")[6].click(); // Sunday
+  app.swipe("calGrid", -80, 0);
+
+  // Mid-flight the outgoing week is pushed off and the next one has NOT been
   // fetched yet - that's what makes it read as a stack, not a jump.
   assert.match(grid.style.transform, /translateX\(-100%\)/);
   assert.equal(tracker.last().date, thisWeek);
 
   await app.wait(PAGE_MS);
-  assert.equal(tracker.last().date, keyOf(addDays(thisMonday(), 7)));
+  assert.equal(tracker.last().date, keyOf(addDays(thisMonday(), 7)), "landed in the following week");
   assert.equal(grid.style.transform, "", "settles back to its resting position");
-
-  app.swipe("calGrid", 80, 0); // swipe right -> back again
-  await app.wait(PAGE_MS);
-  assert.equal(tracker.last().date, thisWeek);
-
-  // A short / mostly-vertical drag is a scroll, not a page turn.
-  const before = tracker.seen.length;
-  app.swipe("calGrid", 10, 60);
-  await app.wait(PAGE_MS);
-  assert.equal(tracker.seen.length, before);
+  assert.equal(
+    Array.from(app.document.querySelectorAll("#calWeek .cal-wk-head")).findIndex((h) => h.classList.contains("is-sel")),
+    0, "on the Monday just past the edge we swiped over");
 });
 
 test("the Calendar tab no longer carries a task list - it is just the calendar", async () => {

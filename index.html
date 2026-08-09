@@ -16,6 +16,7 @@
   --good:#16a34a; --warn:#d97706; --bad:#dc2626; --gold:#b45309;
   --pray:#6d28d9; --med:#0369a1; --water:#0891b2; --food:#c2410c; --move:#15803d;
   --fajr:#4338ca; --sunrise:#ca8a04; --dhuhr:#0369a1; --asr:#0e7490; --maghrib:#c2410c; --isha:#312e81;
+  --cal-tint:30%;
   --shadow:0 1px 2px rgba(16,24,40,.06),0 6px 20px rgba(16,24,40,.06);
   --radius:16px;
 }
@@ -26,6 +27,7 @@
     --good:#4ade80; --warn:#fbbf24; --bad:#f87171; --gold:#fbbf24;
     --pray:#c4b5fd; --med:#7dd3fc; --water:#67e8f9; --food:#fdba74; --move:#86efac;
     --fajr:#818cf8; --sunrise:#fbbf24; --dhuhr:#7dd3fc; --asr:#67e8f9; --maghrib:#fdba74; --isha:#a5b4fc;
+    --cal-tint:34%;
     --shadow:0 1px 2px rgba(0,0,0,.3),0 8px 26px rgba(0,0,0,.35);
     color-scheme:dark;
   }
@@ -36,6 +38,7 @@
   --good:#4ade80; --warn:#fbbf24; --bad:#f87171; --gold:#fbbf24;
   --pray:#c4b5fd; --med:#7dd3fc; --water:#67e8f9; --food:#fdba74; --move:#86efac;
   --fajr:#818cf8; --sunrise:#fbbf24; --dhuhr:#7dd3fc; --asr:#67e8f9; --maghrib:#fdba74; --isha:#a5b4fc;
+  --cal-tint:34%;
   --shadow:0 1px 2px rgba(0,0,0,.3),0 8px 26px rgba(0,0,0,.35);
   color-scheme:dark;
 }
@@ -178,24 +181,29 @@ input[type=range]{width:100%;accent-color:var(--accent)}
 .prayer-chip{font-weight:700}
 .prayer-chip.next{box-shadow:0 0 0 2px var(--ink);font-weight:800}
 /* Week grid: an hour-label gutter plus one column per day, laid out as a
-   single CSS grid so every day's 09:00 sits on the same row. The selected
-   day's column is given twice the width of the rest, which is what makes a
-   seven-day view readable on a phone at all. The viewport clips it so a
-   week can slide fully out of frame during a swipe. */
+   single CSS grid so every day's 09:00 sits on the same row. The focused
+   day is given several times the width of the rest - that column is the one
+   you actually read; the others are a glanceable overview you slide to.
+   Because only the column template and a couple of classes change when the
+   focus moves (the DOM is kept), the resize animates. */
 .cal-viewport{overflow:hidden}
 .cal-daygrid{touch-action:pan-y;will-change:transform}
-.cal-week{display:grid;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.cal-week{
+  display:grid;border:1px solid var(--line);border-radius:12px;overflow:hidden;
+  transition:grid-template-columns .22s ease
+}
 .cal-wk-head{
-  padding:5px 2px;text-align:center;font-size:.58rem;font-weight:700;line-height:1.25;
+  padding:6px 2px;text-align:center;font-size:.56rem;font-weight:700;line-height:1.2;
   color:var(--muted);background:var(--panel-2);border-inline-start:1px solid var(--line);
   cursor:pointer;overflow:hidden
 }
 .cal-wk-head:first-child,.cal-wk-gutter{border-inline-start:none}
-.cal-wk-head b{display:block;font-size:.72rem;color:var(--ink)}
+.cal-wk-head b{display:block;font-size:.78rem;color:var(--ink)}
 .cal-wk-head.is-today b{color:var(--brand)}
-.cal-wk-head.is-sel{background:var(--panel)}
+.cal-wk-head.is-sel{background:var(--brand);color:rgba(255,255,255,.85)}
+.cal-wk-head.is-sel b,.cal-wk-head.is-sel.is-today b{color:#fff}
 .cal-wk-gutter{
-  font-size:.55rem;font-weight:700;color:var(--muted);padding:1px 3px 0;
+  font-size:.58rem;font-weight:800;color:var(--ink);opacity:.7;padding:1px 3px 0;
   border-top:1px solid var(--line);text-align:end;background:var(--panel-2)
 }
 .cal-cell{
@@ -203,16 +211,20 @@ input[type=range]{width:100%;accent-color:var(--accent)}
   border-top:1px solid var(--line);border-inline-start:1px solid var(--line)
 }
 .cal-cell.current-hour{box-shadow:inset 0 0 0 2px var(--brand)}
+/* Narrow days can't hold text, so an event is a solid colour bar there -
+   enough to see that something is on, and you slide to that day to read it. */
+.cal-bar{display:block;height:5px;border-radius:2px;margin:0 1px 2px;background:var(--brand)}
 .cal-chip{
-  display:block;border-radius:4px;padding:0 2px;margin-bottom:1px;font-size:.5rem;line-height:1.3;
+  display:block;border-radius:5px;padding:1px 4px;margin-bottom:2px;font-size:.62rem;line-height:1.3;
   background:var(--panel-2);border-inline-start:3px solid var(--brand);
-  overflow:hidden;text-overflow:ellipsis;white-space:nowrap
+  overflow:hidden;text-overflow:ellipsis
 }
-.cal-cell.wide{min-height:30px;padding:2px}
-.cal-cell.wide .cal-chip{font-size:.62rem;padding:1px 4px;white-space:normal}
+.cal-cell.wide{min-height:32px;padding:2px}
 .cal-chip-time{font-weight:700;color:var(--muted);margin-inline-end:4px}
 .cal-nowline{position:absolute;inset-inline:0;height:2px;background:var(--bad);z-index:2}
 .cal-nowline i{position:absolute;inset-inline-start:-2px;top:-3px;width:7px;height:7px;border-radius:50%;background:var(--bad);display:block}
+.loc-btn{display:inline-flex;align-items:center;gap:7px;padding:9px 13px}
+.loc-btn svg{width:15px;height:15px;flex:0 0 auto;fill:currentColor}
 .task-row{display:flex;align-items:center;gap:8px;padding:7px 4px;border-radius:10px}
 .task-row:hover{background:var(--panel-2)}
 .task-row input[type=checkbox]{width:18px;height:18px;accent-color:var(--brand);flex:0 0 auto}
@@ -337,10 +349,12 @@ footer.foot{text-align:center;color:var(--muted);font-size:.78rem;margin-top:26p
         <div class="card-body">
           <div id="prayBox"></div>
           <div class="muted" id="prayerLocText" style="font-size:.74rem;margin:8px 0 4px"></div>
-          <div class="pill-row" id="prayerSlots"></div>
-          <div class="muted" id="prayerNext" style="font-size:.8rem;margin-top:8px;font-weight:700"></div>
+          <div class="muted" id="prayerNext" style="font-size:.8rem;margin-top:4px;font-weight:700"></div>
           <div class="pill-row" style="margin-top:8px">
-            <button class="btn" id="prayerLocBtn">📍 Use my location</button>
+            <button class="btn loc-btn" id="prayerLocBtn" type="button">
+              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 2a7 7 0 0 0-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 0 0-7-7Zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5Z"/></svg>
+              <span id="prayerLocBtnText">Use my location</span>
+            </button>
           </div>
         </div>
       </div>
@@ -423,7 +437,7 @@ footer.foot{text-align:center;color:var(--muted);font-size:.78rem;margin-top:26p
       <button class="today-btn" id="calJumpToday">Today</button>
     </div>
     <div class="card">
-      <h3>🗓️ Your Week <span class="muted" style="font-weight:600;font-size:.72rem">— swipe to change week, tap a day to expand it</span></h3>
+      <h3>🗓️ Your Week <span class="muted" style="font-weight:600;font-size:.72rem">— swipe or tap a day to expand it, ‹ › for other weeks</span></h3>
       <div class="cal-viewport">
         <div class="cal-daygrid" id="calGrid">
           <div class="cal-week" id="calWeek"></div>
@@ -1472,25 +1486,24 @@ function nextPrayerInfo(times,now){
   return {name:best,diff:bestDiff};
 }
 
+/* The prayer times themselves are shown inline on each checklist row (see
+   renderToday), so this only maintains the location line, the "next prayer"
+   countdown and the button's label - there is deliberately no second list
+   of prayer names underneath the tracker. */
 function renderPrayerClock(){
-  var slotsBox=document.getElementById("prayerSlots"),nextEl=document.getElementById("prayerNext"),locText=document.getElementById("prayerLocText");
-  if(!slotsBox)return;
+  var nextEl=document.getElementById("prayerNext"),locText=document.getElementById("prayerLocText");
+  var btnText=document.getElementById("prayerLocBtnText");
+  if(!nextEl&&!locText)return;
   var loc=state.profile&&state.profile.prayerLoc;
+  if(btnText)btnText.textContent=loc?"Update location":"Use my location";
   if(!loc){
     if(locText)locText.textContent="Tap “Use my location” to see live prayer times here.";
-    slotsBox.innerHTML="";if(nextEl)nextEl.textContent="";
+    if(nextEl)nextEl.textContent="";
     return;
   }
   if(locText)locText.textContent="Times for your saved location.";
   fetchPrayerTimes(todayKey(),loc.lat,loc.lon).then(function(times){
-    slotsBox.innerHTML="";
     var next=nextPrayerInfo(times,new Date());
-    PRAYER_NAMES.forEach(function(name){
-      if(!times[name])return;
-      var chip=el("span","tag prayer-chip"+(name===next.name?" next":""),name+" "+times[name]);
-      chip.style.background="var("+PRAYER_COLOR_VAR[name]+")";chip.style.color="#fff";chip.style.borderColor="transparent";
-      slotsBox.appendChild(chip);
-    });
     if(nextEl&&next.name){
       var h=Math.floor(next.diff/60),m=next.diff%60;
       nextEl.textContent="Next: "+next.name+" in "+(h?h+"h ":"")+m+"m";
@@ -1626,10 +1639,66 @@ function hourWindowName(segs,hour){
 }
 
 var WK_LABELS=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+var CAL_FOCUS_FR=4;      /* how many times wider the focused day is */
+
+/* Kept between renders so shifting focus only has to re-fill two columns
+   rather than rebuild the week - which is also what lets the column resize
+   animate, since the cells themselves survive. */
+var _wkCells=null,_wkHeads=null,_wkEvents=null,_wkKeys=null,_wkFocus=0;
+
+function calGridCols(selIdx){
+  /* minmax(0,…) rather than a bare fr: an `auto` minimum would let a long
+     event title set the column's width, so one busy day would push the
+     others out of shape instead of the chip being clipped. */
+  var cols=[];
+  for(var i=0;i<7;i++)cols.push("minmax(0,"+(i===selIdx?CAL_FOCUS_FR:1)+"fr)");
+  return "26px "+cols.join(" ");
+}
+
+/** Fills one day/hour cell. The focused column gets readable chips; the
+ * narrow ones get colour bars, since there's no room for text there. */
+function fillCell(cell,dayIdx,hour,wide){
+  var nowline=cell.querySelector(".cal-nowline");
+  cell.innerHTML="";
+  var list=(_wkEvents[_wkKeys[dayIdx]]||{})[hour]||[];
+  list.forEach(function(e){
+    if(wide){
+      var chip=el("div","cal-chip");
+      chip.style.borderInlineStartColor=e.color||"var(--brand)";
+      chip.title=[e.timeLabel,e.title,e.calendar,e.location].filter(Boolean).join(" · ");
+      chip.appendChild(el("span","cal-chip-time",e.timeLabel));
+      chip.appendChild(document.createTextNode(e.title+(e.location?" ("+e.location+")":"")));
+      cell.appendChild(chip);
+    }else{
+      var bar=el("div","cal-bar");
+      bar.style.background=e.color||"var(--brand)";
+      bar.title=[e.timeLabel,e.title,e.calendar].filter(Boolean).join(" · ");
+      cell.appendChild(bar);
+    }
+  });
+  if(nowline)cell.appendChild(nowline);
+}
+
+/** Moves which day is expanded, without rebuilding the week. */
+function setCalFocus(idx){
+  if(!_wkCells||idx<0||idx>6||idx===_wkFocus)return;
+  var prev=_wkFocus;
+  _wkFocus=idx;
+  calCur=new Date(_wkKeys[idx].split("-")[0],+_wkKeys[idx].split("-")[1]-1,+_wkKeys[idx].split("-")[2]);
+  calCur.setHours(0,0,0,0);
+  document.getElementById("calDatePick").value=_wkKeys[idx];
+  document.getElementById("calWeek").style.gridTemplateColumns=calGridCols(idx);
+  [prev,idx].forEach(function(di){
+    _wkHeads[di].classList.toggle("is-sel",di===idx);
+    for(var h=0;h<24;h++){
+      _wkCells[di][h].classList.toggle("wide",di===idx);
+      fillCell(_wkCells[di][h],di,h,di===idx);
+    }
+  });
+}
 
 /** Seven day columns plus an hour gutter, as one CSS grid so each row is a
- * shared hour across the whole week. The selected day gets double width -
- * without that, seven columns on a phone are too narrow to read. */
+ * shared hour across the whole week. */
 function renderWeek(data,timesByDay,days){
   var grid=document.getElementById("calWeek");
   var status=document.getElementById("calStatus"),legend=document.getElementById("calLegend");
@@ -1640,13 +1709,9 @@ function renderWeek(data,timesByDay,days){
   var dayKeys=days.map(keyOf);
   var selIdx=dayKeys.indexOf(selKey);
   if(selIdx<0)selIdx=0;
+  _wkKeys=dayKeys;_wkFocus=selIdx;
+  grid.style.gridTemplateColumns=calGridCols(selIdx);
 
-  /* minmax(0,…) rather than a bare fr: an `auto` minimum would let a long
-     event title set the column's width, so one busy day would push the
-     others out of shape instead of the chip being clipped. */
-  grid.style.gridTemplateColumns="26px "+dayKeys.map(function(_,i){return i===selIdx?"minmax(0,2fr)":"minmax(0,1fr)";}).join(" ");
-
-  /* events[dayKey][hour] -> chips */
   var byDay={};
   dayKeys.forEach(function(k){byDay[k]={};});
   (data.events||[]).forEach(function(e){
@@ -1661,51 +1726,43 @@ function renderWeek(data,timesByDay,days){
       byDay[k][h].sort(function(a,b){return a.timeLabel.localeCompare(b.timeLabel);});
     });
   });
+  _wkEvents=byDay;
 
   var segsByDay=days.map(function(_,i){return calWindowsForDay(timesByDay&&timesByDay[i]);});
   var now=new Date(),nowMinutes=now.getHours()*60+now.getMinutes();
 
   /* header row: empty gutter cell, then one tappable day heading each */
+  _wkHeads=[];
   grid.appendChild(el("div","cal-wk-gutter"));
   days.forEach(function(d,i){
-    var k=dayKeys[i];
-    var head=el("div","cal-wk-head"+(k===tk?" is-today":"")+(i===selIdx?" is-sel":""));
+    var head=el("div","cal-wk-head"+(dayKeys[i]===tk?" is-today":"")+(i===selIdx?" is-sel":""));
     head.appendChild(el("b",null,String(d.getDate())));
     head.appendChild(document.createTextNode(WK_LABELS[i]));
-    head.addEventListener("click",function(){
-      calCur=new Date(d);calCur.setHours(0,0,0,0);
-      renderCalendarTab();
-    });
+    head.addEventListener("click",function(){setCalFocus(i);});
     grid.appendChild(head);
+    _wkHeads.push(head);
   });
 
   /* one row per hour: gutter label, then a cell per day */
+  _wkCells=[[],[],[],[],[],[],[]];
   for(var h=0;h<24;h++){
     grid.appendChild(el("div","cal-wk-gutter",String(h).padStart(2,"0")));
     for(var di=0;di<7;di++){
-      var k=dayKeys[di];
       var cell=el("div","cal-cell"+(di===selIdx?" wide":""));
       var winName=hourWindowName(segsByDay[di],h);
-      if(winName)cell.style.background="color-mix(in srgb, var("+PRAYER_COLOR_VAR[winName]+") 16%, var(--panel))";
-      var isCurrentHour=(k===tk)&&Math.floor(nowMinutes/60)===h;
-      if(isCurrentHour)cell.classList.add("current-hour");
-      (byDay[k][h]||[]).forEach(function(e){
-        var chip=el("div","cal-chip");
-        chip.style.borderInlineStartColor=e.color||"var(--brand)";
-        chip.title=[e.timeLabel,e.title,e.calendar,e.location].filter(Boolean).join(" · ");
-        if(di===selIdx)chip.appendChild(el("span","cal-chip-time",e.timeLabel));
-        chip.appendChild(document.createTextNode(e.title+(di===selIdx&&e.location?" ("+e.location+")":"")));
-        cell.appendChild(chip);
-      });
-      if(isCurrentHour){
+      if(winName)cell.style.background="color-mix(in srgb, var("+PRAYER_COLOR_VAR[winName]+") var(--cal-tint), var(--panel))";
+      if(dayKeys[di]===tk&&Math.floor(nowMinutes/60)===h){
+        cell.classList.add("current-hour");
         var line=el("div","cal-nowline");
         line.style.top=((nowMinutes%60)/60*100)+"%";
         line.appendChild(el("i"));
         cell.appendChild(line);
       }
       grid.appendChild(cell);
+      _wkCells[di].push(cell);
     }
   }
+  for(var d2=0;d2<7;d2++)for(var h2=0;h2<24;h2++)fillCell(_wkCells[d2][h2],d2,h2,d2===selIdx);
 
   if(!data.connected)status.textContent="Connect Google Calendar (Today's Brief card, Today tab) to see your schedule here.";
   else if(data.status==="reconnect_required")status.textContent="Google Calendar access has expired — reconnect from the Today's Brief card.";
@@ -1771,7 +1828,19 @@ function attachCalSwipe(){
       if(wasDragging)calSetTransform(null,true);       /* not far enough - spring back */
       return;
     }
-    calGoDay(dx<0?7:-7,wasDragging?dragDx:null);
+    var dir=dx<0?1:-1;
+    var next=_wkFocus+dir;
+    if(next>=0&&next<=6){
+      /* Still inside the displayed week: shift which day is expanded. The
+         week itself stays put - that's what the arrows are for - so undo
+         any drag offset rather than sliding the whole grid away. */
+      if(wasDragging)calSetTransform(null,true);
+      setCalFocus(next);
+      return;
+    }
+    /* Past the edge of the week - carry on into the neighbouring one so the
+       gesture never dead-ends, landing on the day just beyond. */
+    calGoDay(dir,wasDragging?dragDx:null);
   },{passive:true});
 }
 

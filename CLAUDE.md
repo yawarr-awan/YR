@@ -391,6 +391,28 @@ felt built for a desktop.
   `test/tasks.test.js` and `test/uiShell.test.js` extended. See CHANGELOG
   1.8.0.
 
+## Calendar refinements after feedback (1.8.1)
+- **Focus ratio** is `CAL_FOCUS_FR` (4), applied via `calGridCols(selIdx)`.
+- **The week's DOM is built once** and kept in `_wkCells`/`_wkHeads`/
+  `_wkEvents`/`_wkKeys`; `setCalFocus(idx)` only rewrites the column
+  template, the two affected columns' cells and the heading classes. That is
+  what lets `transition:grid-template-columns` on `.cal-week` actually
+  animate — a full re-render would swap the elements out and kill it — and
+  it means changing day costs no refetch.
+- **`fillCell()`** renders a text chip in the focused column and a
+  `.cal-bar` colour block in the narrow ones (30px can't hold text). Both
+  carry the full detail in `title`.
+- **Gesture split**: swipe = ±1 day *within* the week (`setCalFocus`);
+  ‹ › = ±1 week (`calGoDay(±7)`, the full slide). A swipe past either edge
+  falls through to `calGoDay(±1)` so the gesture never dead-ends, landing on
+  the adjacent week's edge day.
+- **Contrast** is a `--cal-tint` custom property (30% light / 34% dark) fed
+  into the `color-mix()` that tints each hour cell — verified in Chromium
+  that `color-mix()` accepts a var() percentage.
+- The Today prayer card no longer has a `#prayerSlots` chip row; the names
+  and times live on the checklist rows only. `renderPrayerClock()` now just
+  maintains the location line, the countdown and the button label.
+
 ## Honest caveat
 The "Client-side sync layer," "Access + hosting," and "Current data state"
 sections above were re-verified live in this session (2026-08-09): read

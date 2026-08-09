@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.8.1
+
+- **Calendar: the focused day is now much bigger** — four times the width of the other days rather than twice, so it's genuinely readable. The narrow days show a coloured bar per event (enough to see that something's on) and you slide to a day to read it.
+- **Swiping now slides between days inside the week**, which is what the gesture should do when a week is on screen; the **‹ › arrows move between weeks**. Changing the focused day animates the columns and needs no refetch, since the week's data is already loaded. Swiping past Sunday (or before Monday) carries on into the neighbouring week rather than dead-ending.
+- **Stronger colour contrast** on the prayer-window bands and the hour labels, so the day's shape is clear at a glance. The tint is a single `--cal-tint` token, set deeper in dark mode where the palette is paler.
+- **Removed the duplicate row of prayer names** under the Today-tab prayer tracker — each prayer's name and time already appear on its own checklist row, so the chips below were saying it twice. The "Next: … in …" countdown stays.
+- **Better location button**: a drawn map-pin icon instead of the 📍 emoji, and it reads "Update location" once you've already set one.
+
 ## 1.8.0
 
 - **"+N more" on the Today task list is now a button** — tapping it expands the full list in place on the Today tab, and turns into "Show fewer". Expanding stays put while you tick things off. The separate task list has been **removed from the Calendar tab**, which is now just the calendar.
