@@ -10,6 +10,12 @@
   progress. <b>All your data is stored on your own device.</b>
 </p>
 
+<p align="center">
+  <b>Live app:</b> <code>https://yr-wellness.yawar-awan.workers.dev</code> — gated by
+  Cloudflare Access, restricted to one email. This is the canonical, private deployment;
+  the old public GitHub Pages copy has been retired since it has no way to require sign-in.
+</p>
+
 ---
 
 ## ✨ Features
@@ -25,6 +31,7 @@
 - **Progress** — weight-trend chart, prayer summary, history table, and streak-style completion.
 - **Light / dark theme** toggle.
 - **Backup & restore** — export/import your data as a JSON file.
+- **Installable as a real app** — a service worker caches the app shell for offline loads; the Progress tab has a working "Install app" button on Chrome/Edge/Android, and Share → Add to Home Screen guidance on iOS.
 
 ## 📦 What's in here
 
@@ -43,9 +50,13 @@ wellness-tracker/
 
 ## 🚀 Use it
 
+For this deployment, just open `https://yr-wellness.yawar-awan.workers.dev`, sign in via
+Cloudflare Access, and **Add to Home Screen** — it installs like an app. The options
+below are for anyone hosting their own copy of this app elsewhere.
+
 **Option A — just open it.** Double-click `index.html` (or open it in any browser). It works fully offline; your data saves automatically.
 
-**Option B — host it on GitHub Pages** (recommended, so you can add it to your phone):
+**Option B — host it on GitHub Pages** (works, but note: GitHub Pages is fully public and cannot require sign-in — there is no server to check a password against. For anything private, put it behind Cloudflare Access instead, as this deployment does):
 
 1. Create a new repository on GitHub (e.g. `wellness-tracker`).
 2. Upload these files (or push them — see below).
@@ -70,6 +81,7 @@ git push -u origin main
   - **Don't use "Clear browsing data / site data"** for this site, or your history will be wiped.
   - **On iPhone/Safari:** add the app to your **Home Screen**. Safari can clear a website's storage after ~7 days of not visiting it, but a home-screen (installed) app is far more durable. Export a backup now and then to be safe.
 - **Optional cloud sync.** The Progress tab has an off-by-default "Enable cloud sync" toggle. Turning it on backs your data up to a private Cloudflare backend and lets your devices share one history via last-write-wins merging. It stays off until you switch it on — no data leaves your device otherwise.
+- **This deployment is private.** `yr-wellness.yawar-awan.workers.dev` sits behind Cloudflare Access, restricted to one email — visiting it requires signing in first. The old public GitHub Pages copy has been retired for the same reason: static hosting has no server-side way to check a password or session, so it could never actually be made private.
 
 ## 🩺 Health disclaimer
 

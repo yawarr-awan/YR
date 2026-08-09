@@ -4,6 +4,9 @@ package.json
 package-lock.json
 node_modules
 .assetsignore
+.gitignore
 README.md
 CHANGELOG.md
 LICENSE
+CLAUDE.md
+test/

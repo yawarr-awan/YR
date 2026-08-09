@@ -4,8 +4,13 @@
 A personal, single-user wellness tracker. NOT related to AyahInk in any way.
 
 - Repo: yawarr-awan/YR (public, personal GitHub account)
-- Live app: https://yawarr-awan.github.io/YR/ (GitHub Pages — current source of truth)
-- New backend: https://yr-wellness.yawar-awan.workers.dev (Cloudflare Worker, being brought online)
+- Live app: https://yr-wellness.yawar-awan.workers.dev (Cloudflare Worker + D1, gated by
+  Cloudflare Access restricted to one email) — this is now the canonical, private
+  deployment and current source of truth.
+- Retired: https://yawarr-awan.github.io/YR/ (GitHub Pages). It was the source of truth
+  before the Worker went live, but static hosting has no server-side way to require
+  sign-in, so it could never actually be made private. GitHub Pages has been disabled
+  for this repo.
 
 ## Hard boundary — read this first
 This project's infrastructure lives EXCLUSIVELY in the personal Cloudflare account
@@ -87,30 +92,39 @@ anthropics/claude-code #57161, #18467, #27155, #57396, #60637. If a session
 can't see this repo in the web picker, that's this bug, not a permissions
 problem. The CLI run locally works around it since it uses git directly.
 
-## Immediate next task: client-side sync layer
-Not yet built. Needs:
-- Every day's record gets `updated_at` on modification
-- A one-time migration stamping existing days that predate this
-- On load (only if the user has opted in — see next point), POST to `/api/sync`
-  with `{since, days, profile}`, merge the response using true last-write-wins:
-  a server day only overwrites a local day if its `updated_at` is newer
-- An opt-in toggle in the Progress tab. Sync stays off until enabled — do not
-  auto-enable it, and do not sync anything from the workers.dev origin until
-  this exists, since that origin's localStorage is currently empty and syncing
-  it now would create a second, divergent history against the real data on
-  Yawar's devices
-- Full jsdom test coverage per the testing requirement above, including: first
-  sync from empty, conflicting edits arriving from two "devices," and the
-  server being unreachable
-- Branch + PR, not main
+## Client-side sync layer — built (PR #1, merged)
+Every day's record and the profile get `updated_at` on modification. A
+one-time schema 1 → 2 migration stamps pre-existing days/profile and persists
+immediately (not just in memory) so a corrupt-main-key recovery or a stale
+migration can't silently sit unsaved. An opt-in "Enable cloud sync" toggle
+lives in the Progress tab (off by default, never auto-enabled); when on, it
+POSTs to `/api/sync` with `{since, days, profile}` and merges the response
+with true last-write-wins. A failed/unreachable/erroring sync never touches
+local state. Test coverage lives in `test/` (`npm test`, jsdom, real DOM,
+nothing injected) — see CHANGELOG 1.2.0 for the full scenario list.
+
+## Access + hosting — settled
+`yr-wellness.yawar-awan.workers.dev` is the canonical, private deployment:
+Cloudflare Access (team domain `yawar-awan`) restricts it to one email,
+covering the whole site (static assets + `/api/*`), confirmed via the
+Access application's "Manage policy" screen. The old public GitHub Pages
+copy (`yawarr-awan.github.io/YR/`) has been retired and disabled, since
+static hosting has no server-side way to require sign-in.
 
 ## Current data state
-Yawar has full history in localStorage on his phone and laptop, both exported
-as backup files. The workers.dev deployment is empty. Do not treat these as
-the same dataset.
+Yawar's full history (32 days + profile, as of the first real sync) has been
+pushed from his primary device into D1 (`yr-wellness-sync`, EU jurisdiction)
+via the sync toggle. Verified directly against the database: schema intact
+(`days`/`profile`/`meta` tables), row counts match, `user_email` matches his
+sign-in address. Any other device should enable sync too so it pulls this
+same history down before it accumulates independent local-only entries.
 
 ## Honest caveat
-This file was written from a separate session's memory of the work, not
-re-verified against the live repo at the moment of writing. Before acting on
-it, read worker.js and wrangler.jsonc directly and confirm they match what's
-described here.
+The "Client-side sync layer," "Access + hosting," and "Current data state"
+sections above were re-verified live in this session (2026-08-09): read
+worker.js/wrangler.jsonc directly, confirmed the deployed Worker code matches
+the repo byte-for-byte, queried the D1 schema and row counts directly, and
+checked the Access application's policy screen. Everything above that point
+matched. Earlier sections of this file predate that verification pass — if
+something here seems off, re-check the live repo/dashboard/D1 before trusting
+it, the same way this pass did.
