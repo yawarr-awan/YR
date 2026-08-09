@@ -128,6 +128,75 @@ via the sync toggle. Verified directly against the database: schema intact
 sign-in address. Any other device should enable sync too so it pulls this
 same history down before it accumulates independent local-only entries.
 
+## Today's Brief — Google Calendar + Gemini (built)
+A card at the top of the Today tab shows an AI summary of the day, sourced
+from Google Calendar only (deliberately **not** Gmail — see below) and
+generated via the Gemini API.
+
+**Why Calendar-only, no Gmail:** Google classifies `gmail.readonly` as a
+*restricted* scope. An unverified ("Testing" mode) OAuth app gets refresh
+tokens that expire every 7 days regardless of scope; to get indefinite
+tokens for a *restricted* scope, the app must pass full Google verification
+**including a CASA security assessment** — a multi-week process meant for
+real multi-user products, wildly disproportionate for a single-user
+dashboard. `calendar.readonly` is merely *sensitive*, not *restricted* —
+still needs a verification review to leave Testing mode and get indefinite
+tokens, but a much lighter one (no security audit). Yawar chose to build
+native Google OAuth into the Worker but skip Gmail entirely for this reason.
+Either way (Testing mode with periodic reconnects, or verified), the app
+handles an expired/revoked token gracefully — surfaced in the UI as
+`reconnect_required`, not a generic failure.
+
+**Architecture:** everything lives in `worker.js`, no separate backend.
+- `GET /api/google/connect` → redirects to Google's OAuth consent screen
+  (`access_type=offline&prompt=consent`, scope = `calendar.readonly` only).
+- `GET /api/google/callback` → exchanges the code for tokens, stores the
+  refresh token in D1 keyed by the **Access-verified** email (never trusts
+  anything Google's redirect claims about identity — same principle as
+  `verifyAccess` elsewhere in this file).
+- `getGoogleAccessToken()` → returns a cached access token if still valid,
+  otherwise refreshes via Google's token endpoint. An `invalid_grant`
+  response (revoked/expired refresh token) maps to `reconnect_required`,
+  not a generic error.
+- `generateBrief()` → refresh token → fetch today's Calendar events
+  (bounds computed via `localDayBounds()`/`utcOffsetMinutes()`, which use
+  `Intl.DateTimeFormat` to self-adjust across BST/GMT with no manual DST
+  table) → summarize with Gemini (`gemini-flash-latest`, Google's
+  self-updating alias so this doesn't need bumping as models rotate) →
+  persist to D1. Every failure mode (`calendar_error`, `gemini_error`,
+  `reconnect_required`, `not_connected`) is a distinct, persisted status,
+  not a single generic "failed" — the whole point is the UI can say
+  something precise.
+- `GET /api/brief` reads the cached brief for today; `POST
+  /api/brief/refresh` regenerates on demand (same `generateBrief()` path).
+  A failed/unreachable brief never breaks the rest of the Today tab — it's
+  an isolated card with its own error states, same durability philosophy
+  as everything else in this file.
+- A Cloudflare Cron Trigger (`wrangler.jsonc`, hourly) drives the daily
+  refresh. The `scheduled()` handler itself only acts during the 7am
+  Europe/London hour (computed fresh each run, so it tracks BST/GMT) and
+  dedupes against D1 (skips a user already `ok` for today) — this keeps a
+  once-a-day brief despite the hourly trigger, with no separate scheduler
+  or timezone table to maintain.
+
+**D1 additions:** `google_tokens(user_email PK, refresh_token, access_token,
+access_token_expires_at, updated_at)`, `daily_brief(user_email, day,
+summary, status, error, generated_at, PK(user_email, day))`. Created
+directly against the live `yr-wellness-sync` database (additive DDL, no
+existing data touched).
+
+**Required Worker secrets** (dashboard, same place as the Access secrets):
+`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GEMINI_API_KEY`. No tool
+available to any Claude session can set Worker secrets — this has always
+been, and remains, a manual dashboard step for Yawar.
+
+**Testing:** `test/worker.test.js` loads the real `worker.js` via a `data:`
+URL import (it's an ES module with no `"type": "module"` in package.json,
+by choice — every other test file here is CommonJS and there was no reason
+to disrupt that) against a fake D1 (`test/fakeD1.js`) and a mocked global
+`fetch`. `test/brief.test.js` covers the Today-tab card's states in jsdom,
+same rules as the rest of the suite.
+
 ## Honest caveat
 The "Client-side sync layer," "Access + hosting," and "Current data state"
 sections above were re-verified live in this session (2026-08-09): read

@@ -194,6 +194,13 @@ footer.foot{text-align:center;color:var(--muted);font-size:.78rem;margin-top:26p
 
   <!-- ===================== TODAY ===================== -->
   <section id="view-today" class="view active">
+    <div class="card" id="briefCard" style="margin-bottom:14px">
+      <h3>✨ Today's Brief</h3>
+      <p class="muted" id="briefText" style="margin:0 0 8px">Loading…</p>
+      <div class="pill-row" id="briefActions"></div>
+      <div class="muted" id="briefMeta" style="font-size:.72rem;margin-top:6px"></div>
+    </div>
+
     <div class="datebar">
       <button id="prevDay" title="Previous day">‹</button>
       <div class="dlabel" id="dateLabel">Today</div>
@@ -962,6 +969,66 @@ if("serviceWorker" in navigator){
   else window.addEventListener("load",registerSW);
 }
 
+/* ---------- TODAY'S BRIEF (Google Calendar + Gemini) ---------- */
+var BRIEF_URL="/api/brief";
+var BRIEF_REFRESH_URL="/api/brief/refresh";
+
+function briefStatusText(b){
+  if(!b)return "Couldn't load today's brief right now.";
+  switch(b.status){
+    case "not_connected": return "Connect your Google Calendar to get an AI summary of today, generated automatically each morning.";
+    case "pending": return "Connected — your first brief will be ready by 7am London time, or generate one now.";
+    case "ok": return b.summary||"(empty summary)";
+    case "reconnect_required": return "Google Calendar access has expired — reconnect to keep getting your daily brief.";
+    case "calendar_error": return "Couldn't read your calendar just now. This usually clears up on its own — try again in a bit.";
+    case "gemini_error": return "Got your calendar, but the summary failed to generate. Try again in a bit.";
+    case "refresh_failed": return "Couldn't refresh your Google connection. Try reconnecting.";
+    default: return "Couldn't load today's brief right now.";
+  }
+}
+
+function renderBrief(b){
+  var body=document.getElementById("briefText"),actions=document.getElementById("briefActions"),meta=document.getElementById("briefMeta");
+  if(!body)return;
+  body.textContent=briefStatusText(b);
+  actions.innerHTML="";
+  meta.textContent="";
+
+  if(!b||b.status==="not_connected"){
+    var connectBtn=el("a","btn primary","🔗 Connect Google Calendar");
+    connectBtn.href="/api/google/connect";
+    actions.appendChild(connectBtn);
+    return;
+  }
+  if(b.status==="reconnect_required"){
+    var reconnectBtn=el("a","btn primary","🔗 Reconnect Google Calendar");
+    reconnectBtn.href="/api/google/connect";
+    actions.appendChild(reconnectBtn);
+    return;
+  }
+  var refreshBtn=el("button","btn","🔄 "+(b.status==="pending"?"Generate now":"Refresh"));
+  refreshBtn.addEventListener("click",function(){refreshBrief();});
+  actions.appendChild(refreshBtn);
+  if(b.status==="ok"&&b.generated_at)meta.textContent="Generated "+fmtClock(b.generated_at);
+}
+
+function loadBrief(){
+  if(typeof fetch!=="function")return;
+  fetch(BRIEF_URL,{credentials:"same-origin"}).then(function(res){
+    if(!res.ok)throw new Error("http "+res.status);
+    return res.json();
+  }).then(renderBrief).catch(function(){renderBrief(null);});
+}
+
+function refreshBrief(){
+  var body=document.getElementById("briefText");
+  if(body)body.textContent="Refreshing…";
+  fetch(BRIEF_REFRESH_URL,{method:"POST",credentials:"same-origin"}).then(function(res){
+    if(!res.ok)throw new Error("http "+res.status);
+    return res.json();
+  }).then(renderBrief).catch(function(){renderBrief(null);});
+}
+
 /* ---------- RENDER: MEAL PLAN ---------- */
 function renderPlan(){
   var box=document.getElementById("planBox");box.innerHTML="";
@@ -1279,6 +1346,7 @@ document.getElementById("themeToggle").addEventListener("click",function(){
 /* ---------- INIT ---------- */
 renderPlan();renderRecipes();renderExercises();renderToday();
 updateInstallUI();
+loadBrief();
 flushMsgs();
 if(state.sync&&state.sync.enabled)runSync();
 })();
