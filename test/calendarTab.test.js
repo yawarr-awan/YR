@@ -268,3 +268,49 @@ test("connect / reconnect / error / empty each say something specific", async ()
     assert.match(app.document.getElementById("calStatus").textContent, expected);
   }
 });
+
+test("the next two days sit beside today as peek columns, and tapping one jumps to it", async () => {
+  const tomorrow = addDays(new Date(), 1);
+  const dayAfter = addDays(new Date(), 2);
+  const at = (d, h) => { const x = new Date(d); x.setHours(h, 0, 0, 0); return x.toISOString(); };
+  const app = loadApp({
+    fetchImpl: fetchRouter([["/api/calendar/events", () => jsonRes({
+      connected: true, status: "ok",
+      events: [
+        { title: "Physio", start: at(new Date(), 14), allDay: false, calendar: "Yawar", color: "#4285f4" },
+        { title: "School run", start: at(tomorrow, 8), allDay: false, calendar: "Family", color: "#0b8043" },
+        { title: "Dentist", start: at(dayAfter, 11), allDay: false, calendar: "Yawar", color: "#4285f4" },
+      ],
+    })]]),
+  });
+  app.goTo("calendar");
+  await app.flush();
+  await app.flush();
+
+  const peeks = app.document.querySelectorAll("#calDayCur .cal-peek");
+  assert.equal(peeks.length, 2, "a narrow column for each of the next two days");
+  assert.equal(peeks[0].querySelector("h4 b").textContent, String(tomorrow.getDate()));
+  assert.equal(peeks[1].querySelector("h4 b").textContent, String(dayAfter.getDate()));
+  assert.match(peeks[0].textContent, /School run/, "so you can see what's coming without swiping");
+  assert.match(peeks[1].textContent, /Dentist/);
+
+  // The focused day keeps its full hour grid alongside them.
+  assert.equal(app.document.querySelectorAll("#calDayCur .cal-main .cal-hour").length, 24);
+  assert.match(app.document.querySelector("#calDayCur .cal-main").textContent, /Physio/);
+
+  peeks[1].click();
+  await app.flush();
+  await app.flush();
+  assert.equal(app.document.getElementById("calDatePick").value, keyOf(dayAfter));
+});
+
+test("a day with nothing on reads as clear rather than looking broken", async () => {
+  const app = loadApp({
+    fetchImpl: fetchRouter([["/api/calendar/events", () => jsonRes({ connected: true, status: "ok", events: [] })]]),
+  });
+  app.goTo("calendar");
+  await app.flush();
+  await app.flush();
+  const peeks = app.document.querySelectorAll("#calDayCur .cal-peek");
+  peeks.forEach((p) => assert.match(p.textContent, /Clear/));
+});

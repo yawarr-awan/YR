@@ -195,10 +195,34 @@ input[type=range]{width:100%;accent-color:var(--accent)}
    reveals the real next/previous day following your finger rather than
    blanking and re-fetching. After a slide the track is silently re-centred,
    which is what keeps it feeling continuous. */
+:root{--cal-h:62vh}
 .cal-viewport{overflow:hidden;touch-action:pan-y}
 .cal-track{display:flex;width:300%;transform:translateX(-33.3333%);will-change:transform}
 .cal-day{flex:0 0 33.3333%;width:33.3333%;min-width:0;padding:0 1px}
-.cal-hours{border:1px solid var(--line);border-radius:12px;overflow:hidden}
+/* The focused day takes most of the width; the next two sit beside it as
+   narrow "what's coming" columns rather than being a swipe away. */
+.cal-daygroup{display:flex;gap:5px;align-items:flex-start}
+.cal-main{flex:1 1 auto;min-width:0}
+.cal-peek{
+  flex:0 0 76px;min-width:0;border:1px solid var(--line);border-radius:12px;
+  background:var(--panel-2);cursor:pointer;max-height:var(--cal-h);overflow:auto
+}
+.cal-peek h4{
+  margin:0;padding:5px 4px;font-size:.58rem;font-weight:800;text-align:center;line-height:1.25;
+  color:var(--muted);border-bottom:1px solid var(--line);background:var(--panel)
+}
+.cal-peek h4 b{display:block;font-size:.76rem;color:var(--ink)}
+.cal-peek-body{padding:4px;display:flex;flex-direction:column;gap:3px}
+.cal-peek-ev{
+  border-radius:5px;padding:2px 4px;font-size:.56rem;line-height:1.25;background:var(--panel);
+  border-inline-start:3px solid var(--brand);overflow:hidden
+}
+.cal-peek-ev b{display:block;font-weight:800;color:var(--muted)}
+.cal-peek-empty{font-size:.56rem;color:var(--muted);text-align:center;padding:6px 2px}
+/* The day scrolls inside its own box rather than down the page, so the
+   peek columns beside it stay on screen while you move through the hours.
+   (Sticky can't help here: the carousel viewport is overflow:hidden.) */
+.cal-hours{border:1px solid var(--line);border-radius:12px;overflow-y:auto;max-height:var(--cal-h)}
 .cal-hour{
   position:relative;display:flex;gap:8px;min-height:34px;padding:3px 8px 4px;
   border-top:1px solid var(--line)
@@ -558,6 +582,26 @@ footer.foot{text-align:center;color:var(--muted);font-size:.78rem;margin-top:26p
       </div>
     </div>
 
+    <div class="card collapsible collapsed" data-collapse="extras-edit" style="margin-bottom:12px">
+      <h3>🥤 Supplements &amp; drinks</h3>
+      <div class="card-body">
+        <p class="muted" style="font-size:.8rem;margin-top:0">Your daily list. The calorie figure next to each one feeds the meal totals; leave it at 0 if you don't care.</p>
+        <div id="extrasEditBox"></div>
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <input type="text" id="extraNewIn" placeholder="Add a supplement or drink…" style="flex:1;min-width:0;border:1px solid var(--line);background:var(--panel-2);color:var(--ink);border-radius:10px;padding:9px;font:inherit">
+          <button class="btn primary" id="extraAddBtn" type="button">Add</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card collapsible collapsed" data-collapse="dhikr-edit" style="margin-bottom:12px">
+      <h3>📿 Dhikr</h3>
+      <div class="card-body">
+        <p class="muted" style="font-size:.8rem;margin-top:0">Each period has its own list — set morning, afternoon and evening to whatever you actually recite.</p>
+        <div id="dhikrEditBox"></div>
+      </div>
+    </div>
+
     <div class="card collapsible collapsed" data-collapse="briefprompt" style="margin-bottom:12px">
       <h3>✨ Today's Brief instructions</h3>
       <div class="card-body">
@@ -809,7 +853,23 @@ var DAILY_EXTRAS = [
   {id:"milk",label:"Glass of milk (250 ml)",detail:"≈ 120 kcal · 8 g protein",kcal:120,protein:8},
   {id:"milktea",label:"Milk tea / chai (low sugar)",detail:"≈ 90 kcal",kcal:90,protein:3}
 ];
-var EXTRAS_KCAL = DAILY_EXTRAS.reduce(function(a,x){return a+x.kcal;},0);
+/* Supplements/drinks and dhikr are the user's own lists, editable in
+   Settings and carried on the synced profile. Past days keep whatever keys
+   they were ticked with, so removing an item never rewrites history. */
+function extrasList(){
+  var x=state.profile&&state.profile.extras;
+  if(!Array.isArray(x)||!x.length)return DAILY_EXTRAS.map(function(e){return Object.assign({},e);});
+  return x;
+}
+function extrasKcal(){
+  return extrasList().reduce(function(a,x){return a+(Number(x.kcal)||0);},0);
+}
+function dhikrItems(period){
+  var d=state.profile&&state.profile.dhikr;
+  if(d&&Array.isArray(d[period])&&d[period].length)return d[period];
+  if(d&&Array.isArray(d[period]))return d[period];      /* deliberately emptied */
+  return DHIKR_ITEMS.map(function(i){return i.slice();});
+}
 
 /* ---------- STATE ---------- */
 var KEY="yawarWellness_v1";
@@ -1027,7 +1087,7 @@ function renderToday(){
     mid.appendChild(el("div","meal-meta","≈ "+r.kcal+" kcal · "+r.protein+" g protein · "+r.time));
     row.appendChild(cb);row.appendChild(mid);box.appendChild(row);
   });
-  document.getElementById("mealKcal").textContent="· ≈ "+(total+EXTRAS_KCAL)+" kcal incl. supplements";
+  document.getElementById("mealKcal").textContent="· ≈ "+(total+extrasKcal())+" kcal incl. supplements";
 
   // water
   renderWater(d);
@@ -1070,10 +1130,13 @@ function renderDayCounts(d){
   setCount("medsCount",doneOf(medsList(),d.meds,true)+"/"+medsList().length);
   setCount("prayCount",doneOf(PRAYERS,d.prayers,true)+"/"+PRAYERS.length);
   setCount("mealsCount",doneOf(MEALSLOTS,d.meals,true)+"/"+MEALSLOTS.length);
-  setCount("extrasCount",doneOf(DAILY_EXTRAS,d.extras,false)+"/"+DAILY_EXTRAS.length);
+  setCount("extrasCount",doneOf(extrasList(),d.extras,false)+"/"+extrasList().length);
   setCount("waterCountTag",d.water+"/8");
-  var dhikrDone=0,dhikrTotal=DHIKR_PERIODS.length*DHIKR_ITEMS.length;
-  DHIKR_PERIODS.forEach(function(p){DHIKR_ITEMS.forEach(function(i){if(d.dhikr[p[0]][i[0]])dhikrDone++;});});
+  var dhikrDone=0,dhikrTotal=0;
+  DHIKR_PERIODS.forEach(function(p){
+    var items=dhikrItems(p[0]);dhikrTotal+=items.length;
+    items.forEach(function(i){if(d.dhikr[p[0]][i[0]])dhikrDone++;});
+  });
   setCount("dhikrCount",dhikrDone+"/"+dhikrTotal);
 }
 
@@ -1087,7 +1150,7 @@ function renderWater(d){
 
 function renderExtras(d){
   var box=document.getElementById("extrasBox");box.innerHTML="";
-  DAILY_EXTRAS.forEach(function(x){
+  extrasList().forEach(function(x){
     var row=el("label","chk"+(d.extras[x.id]?" done":""));
     var cb=el("input");cb.type="checkbox";cb.checked=!!d.extras[x.id];
     cb.addEventListener("change",function(){d.extras[x.id]=cb.checked;d.updated_at=Date.now();save();renderToday();updateRing();});
@@ -1105,11 +1168,12 @@ function renderDhikr(d){
     var collapsed=Object.prototype.hasOwnProperty.call(collapsePrefs,prefKey)?!!collapsePrefs[prefKey]:true;
     var card=el("div","subcard"+(collapsed?" collapsed":""));
     var done=0;
-    DHIKR_ITEMS.forEach(function(i){if(d.dhikr[period[0]][i[0]])done++;});
+    var items=dhikrItems(period[0]);
+    items.forEach(function(i){if(d.dhikr[period[0]][i[0]])done++;});
 
     var head=el("button",null,period[1]);
     head.type="button";
-    head.appendChild(el("span","count",done+"/"+DHIKR_ITEMS.length));
+    head.appendChild(el("span","count",done+"/"+items.length));
     head.addEventListener("click",function(){
       var nowCollapsed=!card.classList.contains("collapsed");
       card.classList.toggle("collapsed",nowCollapsed);
@@ -1118,7 +1182,7 @@ function renderDhikr(d){
     card.appendChild(head);
 
     var body=el("div","subcard-body");
-    DHIKR_ITEMS.forEach(function(item){
+    items.forEach(function(item){
       var checked=!!d.dhikr[period[0]][item[0]];
       var row=el("label","chk"+(checked?" done":""));
       var cb=el("input");cb.type="checkbox";cb.checked=checked;
@@ -1703,7 +1767,9 @@ function eventDayKey(e){
 /** Loads a padded window around `centre` unless the one in memory already
  * covers the days we're about to show. Returns a promise either way. */
 function ensureCalWindow(centre){
-  var need0=keyOf(addDays(centre,-1)),need1=keyOf(addDays(centre,1));
+  /* -1 for the previous panel, +3 because the next panel's peek columns
+     reach two days beyond it. */
+  var need0=keyOf(addDays(centre,-1)),need1=keyOf(addDays(centre,3));
   if(_calWin&&need0>=_calWin.from&&need1<=_calWin.to)return Promise.resolve(_calWin);
   var from=keyOf(addDays(centre,-CAL_WINDOW_PAD)),to=keyOf(addDays(centre,CAL_WINDOW_PAD));
   var reqId=++_calReqId;
@@ -1725,7 +1791,7 @@ function ensureCalWindow(centre){
 }
 
 /** One day's 24-hour column. */
-function buildDayPanel(dayDate,times){
+function buildDayColumn(dayDate,times){
   var wrap=el("div","cal-hours");
   var k=keyOf(dayDate);
   var segs=calWindowsForDay(times);
@@ -1803,6 +1869,48 @@ function renderCalendarTab(){
   renderCalStrip();
 
   ensureCalWindow(calCur).then(function(){return renderCalPanels();});
+}
+
+/** A compact "what's coming" column for a day beside the focused one. */
+function buildPeekColumn(dayDate){
+  var k=keyOf(dayDate);
+  var col=el("div","cal-peek");
+  col.setAttribute("role","button");
+  var head=el("h4");
+  head.appendChild(el("b",null,String(dayDate.getDate())));
+  head.appendChild(document.createTextNode(WK_LABELS[(dayDate.getDay()+6)%7]));
+  col.appendChild(head);
+  var body=el("div","cal-peek-body");
+  var evs=((_calWin&&_calWin.byDay[k])||[]).slice().sort(function(a,b){
+    return String(a.start).localeCompare(String(b.start));
+  });
+  if(!evs.length)body.appendChild(el("div","cal-peek-empty","Clear"));
+  evs.slice(0,8).forEach(function(e){
+    var chip=el("div","cal-peek-ev");
+    chip.style.borderInlineStartColor=e.color||"var(--brand)";
+    chip.title=[e.title,e.calendar,e.location].filter(Boolean).join(" · ");
+    chip.appendChild(el("b",null,e.allDay?"All day":new Date(e.start).toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"})));
+    chip.appendChild(document.createTextNode(e.title));
+    body.appendChild(chip);
+  });
+  if(evs.length>8)body.appendChild(el("div","cal-peek-empty","+"+(evs.length-8)+" more"));
+  col.appendChild(body);
+  col.addEventListener("click",function(){
+    calCur=new Date(dayDate);calCur.setHours(0,0,0,0);
+    renderCalendarTab();
+  });
+  return col;
+}
+
+/** The focused day plus the next two, side by side. */
+function buildDayPanel(dayDate,times){
+  var group=el("div","cal-daygroup");
+  var main=el("div","cal-main");
+  main.appendChild(buildDayColumn(dayDate,times));
+  group.appendChild(main);
+  group.appendChild(buildPeekColumn(addDays(dayDate,1)));
+  group.appendChild(buildPeekColumn(addDays(dayDate,2)));
+  return group;
 }
 
 /** Rebuilds the three panels around calCur and re-centres the track. */
@@ -2029,7 +2137,7 @@ function renderPlan(){
       mid.appendChild(el("div","meal-meta","≈ "+r.kcal+" kcal · "+r.protein+" g protein"));
       line.appendChild(mid);card.appendChild(line);
     });
-    card.appendChild(el("div","meal-meta","Meals ≈ "+total+" kcal · with daily supplements ≈ "+(total+EXTRAS_KCAL)+" kcal"));
+    card.appendChild(el("div","meal-meta","Meals ≈ "+total+" kcal · with daily supplements ≈ "+(total+extrasKcal())+" kcal"));
     box.appendChild(card);
   });
 }
@@ -2204,14 +2312,14 @@ function renderProgress(){
 /* One number for how much of a day got ticked off, on the same 18-item
    basis as the ring at the top of the app. */
 function dayTotalItems(){
-  return medsList().length+PRAYERS.length+MEALSLOTS.length+DAILY_EXTRAS.length+2;
+  return medsList().length+PRAYERS.length+MEALSLOTS.length+extrasList().length+2;
 }
 function dayCompletion(d){
   var done=0;
   medsList().forEach(function(m){if(d.meds&&d.meds[m[0]])done++;});
   PRAYERS.forEach(function(p){if(d.prayers&&d.prayers[p[0]])done++;});
   MEALSLOTS.forEach(function(x){if(d.meals&&d.meals[x[0]])done++;});
-  DAILY_EXTRAS.forEach(function(x){if(d.extras&&d.extras[x.id])done++;});
+  extrasList().forEach(function(x){if(d.extras&&d.extras[x.id])done++;});
   if(d.exercise)done++;
   if(d.water>=8)done++;
   return Math.round(done/dayTotalItems()*100);
@@ -2363,6 +2471,8 @@ function renderSettings(){
   updateInstallUI();
   updateNotifyUI();
   renderMedsEditor();
+  renderExtrasEditor();
+  renderDhikrEditor();
   loadBriefPrompt();
 }
 
@@ -2373,24 +2483,12 @@ function renderMedsEditor(){
   var list=medsList();
   if(!state.profile.meds)state.profile.meds=list.map(function(x){return x.slice();});
   list.forEach(function(m,i){
-    var row=el("div","task-row");
-    var name=el("input");name.type="text";name.value=m[1];
-    name.style.cssText="flex:1;min-width:0;border:1px solid var(--line);background:var(--panel-2);color:var(--ink);border-radius:9px;padding:7px;font:inherit;font-size:.82rem";
-    name.addEventListener("change",function(){
-      var v=(this.value||"").trim();
-      if(!v){this.value=m[1];return;}
-      state.profile.meds[i][1]=v;
-      state.profile.updated_at=Date.now();save();renderToday();
-    });
-    row.appendChild(name);
-    var del=el("button","icon-btn danger","✕");del.type="button";
-    del.setAttribute("aria-label","Remove "+m[1]);
-    del.addEventListener("click",function(){
+    box.appendChild(listEditorRow(m[1],function(v){
+      state.profile.meds[i][1]=v;profileChanged();renderToday();
+    },function(){
       state.profile.meds=state.profile.meds.filter(function(_,j){return j!==i;});
-      state.profile.updated_at=Date.now();save();renderMedsEditor();renderToday();
-    });
-    row.appendChild(del);
-    box.appendChild(row);
+      profileChanged();renderMedsEditor();renderToday();
+    }));
   });
   if(!list.length)box.appendChild(el("p","muted","No medicines tracked. Add one below."));
 }
@@ -2405,6 +2503,113 @@ function addMedicine(){
   state.profile.updated_at=Date.now();
   input.value="";
   save();renderMedsEditor();renderToday();
+}
+
+/** Shared shape for the little "rename / remove" list editors. */
+function listEditorRow(label,onRename,onRemove,extra){
+  var row=el("div","task-row");
+  var name=el("input");name.type="text";name.value=label;
+  name.style.cssText="flex:1;min-width:0;border:1px solid var(--line);background:var(--panel-2);color:var(--ink);border-radius:9px;padding:7px;font:inherit;font-size:.82rem";
+  name.addEventListener("change",function(){
+    var v=(this.value||"").trim();
+    if(!v){this.value=label;return;}
+    onRename(v);
+  });
+  row.appendChild(name);
+  if(extra)row.appendChild(extra);
+  var del=el("button","icon-btn danger","✕");del.type="button";
+  del.setAttribute("aria-label","Remove "+label);
+  del.addEventListener("click",onRemove);
+  row.appendChild(del);
+  return row;
+}
+
+function profileChanged(){
+  state.profile.updated_at=Date.now();
+  save();
+}
+
+function renderExtrasEditor(){
+  var box=document.getElementById("extrasEditBox");
+  if(!box)return;
+  box.innerHTML="";
+  if(!Array.isArray(state.profile.extras))state.profile.extras=extrasList().map(function(x){return Object.assign({},x);});
+  var list=state.profile.extras;
+  list.forEach(function(x,i){
+    var kcal=el("input");kcal.type="number";kcal.min="0";kcal.value=String(Number(x.kcal)||0);
+    kcal.setAttribute("aria-label","Calories for "+x.label);
+    kcal.style.cssText="width:66px;border:1px solid var(--line);background:var(--panel-2);color:var(--ink);border-radius:9px;padding:7px;font:inherit;font-size:.8rem;text-align:center";
+    kcal.addEventListener("change",function(){
+      var n=parseInt(this.value,10);if(isNaN(n)||n<0)n=0;
+      this.value=String(n);list[i].kcal=n;profileChanged();renderToday();
+    });
+    box.appendChild(listEditorRow(x.label,function(v){
+      list[i].label=v;profileChanged();renderToday();
+    },function(){
+      state.profile.extras=list.filter(function(_,j){return j!==i;});
+      profileChanged();renderExtrasEditor();renderToday();
+    },kcal));
+  });
+  if(!list.length)box.appendChild(el("p","muted","Nothing tracked. Add something below."));
+}
+
+function addExtra(){
+  var input=document.getElementById("extraNewIn");
+  if(!input)return;
+  var label=(input.value||"").trim();
+  if(!label)return;
+  if(!Array.isArray(state.profile.extras))state.profile.extras=extrasList().map(function(x){return Object.assign({},x);});
+  state.profile.extras.push({id:"x"+Date.now().toString(36),label:label,detail:"",kcal:0,protein:0});
+  input.value="";
+  profileChanged();renderExtrasEditor();renderToday();
+}
+
+function ensureDhikrProfile(){
+  if(!state.profile.dhikr||typeof state.profile.dhikr!=="object")state.profile.dhikr={};
+  DHIKR_PERIODS.forEach(function(p){
+    if(!Array.isArray(state.profile.dhikr[p[0]]))state.profile.dhikr[p[0]]=dhikrItems(p[0]).map(function(i){return i.slice();});
+  });
+  return state.profile.dhikr;
+}
+
+function renderDhikrEditor(){
+  var box=document.getElementById("dhikrEditBox");
+  if(!box)return;
+  box.innerHTML="";
+  var store=ensureDhikrProfile();
+  DHIKR_PERIODS.forEach(function(period){
+    var card=el("div","subcard");
+    var head=el("button",null,period[1]);head.type="button";
+    head.appendChild(el("span","count",store[period[0]].length+" item(s)"));
+    head.addEventListener("click",function(){card.classList.toggle("collapsed");});
+    card.appendChild(head);
+    var body=el("div","subcard-body");
+    store[period[0]].forEach(function(item,i){
+      body.appendChild(listEditorRow(item[1],function(v){
+        store[period[0]][i][1]=v;profileChanged();renderToday();
+      },function(){
+        store[period[0]]=store[period[0]].filter(function(_,j){return j!==i;});
+        profileChanged();renderDhikrEditor();renderToday();
+      }));
+    });
+    var addRow=el("div","task-sched");
+    var input=el("input");input.type="text";input.placeholder="Add to "+period[1].toLowerCase()+"…";
+    input.style.cssText="flex:1;min-width:0;border:1px solid var(--line);background:var(--panel-2);color:var(--ink);border-radius:9px;padding:7px;font:inherit;font-size:.82rem";
+    var addBtn=el("button","btn primary","Add");addBtn.type="button";
+    var commit=function(){
+      var v=(input.value||"").trim();
+      if(!v)return;
+      store[period[0]].push(["dz"+Date.now().toString(36),v]);
+      input.value="";
+      profileChanged();renderDhikrEditor();renderToday();
+    };
+    addBtn.addEventListener("click",commit);
+    input.addEventListener("keydown",function(e){if(e.key==="Enter")commit();});
+    addRow.appendChild(input);addRow.appendChild(addBtn);
+    body.appendChild(addRow);
+    card.appendChild(body);
+    box.appendChild(card);
+  });
 }
 
 /* The brief's instructions live server-side, since the 7am cron generates
@@ -2584,6 +2789,8 @@ document.getElementById("prayNextDay").addEventListener("click",function(){cur.s
 document.getElementById("prayJumpToday").addEventListener("click",function(){cur=new Date();cur.setHours(0,0,0,0);renderPrayersTab();});
 
 document.getElementById("medAddBtn").addEventListener("click",addMedicine);
+document.getElementById("extraAddBtn").addEventListener("click",addExtra);
+document.getElementById("extraNewIn").addEventListener("keydown",function(e){if(e.key==="Enter")addExtra();});
 document.getElementById("medNewIn").addEventListener("keydown",function(e){if(e.key==="Enter")addMedicine();});
 document.getElementById("briefPromptSave").addEventListener("click",function(){
   saveBriefPrompt(document.getElementById("briefPromptIn").value);

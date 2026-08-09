@@ -109,3 +109,64 @@ test("a failure loading the brief instructions is reported, not left looking bla
   await app.flush();
   assert.match(app.document.getElementById("briefPromptStatus").textContent, /couldn't load/i);
 });
+
+const extraRows = (app) => Array.from(app.document.querySelectorAll("#extrasEditBox .task-row"));
+
+test("supplements and drinks can be renamed, re-costed, removed and added", () => {
+  const app = loadApp({ fetchImpl: idle });
+  app.goTo("settings");
+
+  assert.equal(extraRows(app).length, 5, "the five defaults");
+
+  const first = extraRows(app)[0].querySelector("input[type=text]");
+  first.value = "Collagen (evening)";
+  first.dispatchEvent(new app.window.Event("change", { bubbles: true }));
+  assert.match(app.document.getElementById("extrasBox").textContent, /Collagen \(evening\)/);
+  assert.equal(app.state().profile.extras[0].label, "Collagen (evening)");
+
+  // The calorie figure feeds the meal total on Today.
+  const kcal = extraRows(app)[0].querySelector("input[type=number]");
+  kcal.value = "0";
+  kcal.dispatchEvent(new app.window.Event("change", { bubbles: true }));
+  assert.equal(app.state().profile.extras[0].kcal, 0);
+
+  extraRows(app)[0].querySelector("button.icon-btn.danger").click();
+  assert.equal(extraRows(app).length, 4);
+  assert.equal(app.document.getElementById("extrasCount").textContent, "0/4");
+
+  app.setInput("extraNewIn", "Magnesium");
+  app.click("extraAddBtn");
+  assert.equal(extraRows(app).length, 5);
+  assert.match(app.document.getElementById("extrasBox").textContent, /Magnesium/);
+});
+
+test("dhikr is editable per period, so morning and evening can differ", () => {
+  const app = loadApp({ fetchImpl: idle });
+  app.goTo("settings");
+
+  const periods = app.document.querySelectorAll("#dhikrEditBox .subcard");
+  assert.equal(periods.length, 3, "morning, afternoon and evening each get their own list");
+
+  const morningRows = () => Array.from(app.document.querySelectorAll("#dhikrEditBox .subcard")[0].querySelectorAll(".task-row"));
+  assert.equal(morningRows().length, 7);
+
+  // Remove one from the morning only.
+  morningRows()[0].querySelector("button.icon-btn.danger").click();
+  assert.equal(morningRows().length, 6);
+  assert.equal(app.state().profile.dhikr.morning.length, 6);
+  assert.equal(app.state().profile.dhikr.evening.length, 7, "the evening list is untouched");
+
+  // Add one to the evening only.
+  const eveningCard = app.document.querySelectorAll("#dhikrEditBox .subcard")[2];
+  const addBox = eveningCard.querySelector(".task-sched");
+  addBox.querySelector("input").value = "Surah Al-Mulk";
+  Array.from(addBox.querySelectorAll("button")).find((b) => /add/i.test(b.textContent)).click();
+  assert.equal(app.state().profile.dhikr.evening.length, 8);
+
+  app.goTo("prayers");
+  const cards = app.document.querySelectorAll("#dhikrBox .subcard");
+  assert.equal(cards[0].querySelector(".count").textContent, "0/6");
+  assert.equal(cards[2].querySelector(".count").textContent, "0/8");
+  assert.equal(app.document.getElementById("dhikrCount").textContent, "0/21");
+  assert.match(cards[2].textContent, /Surah Al-Mulk/);
+});
