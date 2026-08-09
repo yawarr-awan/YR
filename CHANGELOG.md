@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.7.0
+
+A mobile-first pass over the whole app: less scrolling, fewer taps, everything reachable with a thumb.
+
+- **Navigation moved to a bottom icon bar** and you can now **swipe left/right between tabs** in the same order. The **Guide tab has been removed**.
+- **Collapsible cards throughout.** Every card on the Today tab (and the prayer/qada cards in Progress) folds away from its heading, and each heading shows its own progress (`2/3`, `0/8`…) so a folded card still tells you whether it needs attention. Joint Pain and Notes start folded. What you fold is remembered per device — it's a display preference, deliberately kept out of the synced record.
+- **Dhikr is now three collapsible sub-cards** (Morning / Afternoon / Evening), each with its own count, folded by default instead of one 21-row list.
+- **All the tips and explanatory notes are gone from the Today dashboard.** (The data-safety wording in Progress — cloud sync, backups, clearing data — is kept, along with the exercise safety warning, since those aren't dashboard clutter.)
+- **Slightly smaller base text size** across the app for a more compact phone layout, and the date bar now stays on one line instead of wrapping to four.
+- **Tasks reworked:** adding a task now asks only for a title — no more time field. Every task row has a **📅 button** that opens an inline time picker, and only then does it go on your Google Calendar. The **Today tab shows just the top 3** tasks with a pointer to the rest; the **Calendar tab is now the full task repository**, and can add tasks too.
+- **Calendar rebuilt as a single 24-hour column** (was two side-by-side columns), and **swiping between days is now an animated slide** — the outgoing day is pushed off in the direction of travel and the new one slides in behind it, tracking your finger as you drag, instead of snapping straight to the next day.
+- **Made-up (qada) prayers:** a new Progress card lets you record prayers you've since made up, per prayer. Each one comes off the outstanding count in the prayer summary. The count is capped at the number actually missed, and it never rewrites the historical record of what was prayed on a given day — it lives on your profile and syncs with it.
+- **Fix:** tapping a bottom-bar tab's *icon* did nothing, because the delegated click handler read the attribute off the literal click target rather than the button that owns it. Since the icon is the obvious thing to tap on a phone, this made most tab taps miss.
+
 ## 1.6.0
 
 - **Fix:** removed the "Grant new permissions" link from the Today's Brief card now that reconnecting has actually been done - it was a one-time fix for the 1.5.0 scope expansion, not something that needed to stay visible permanently.

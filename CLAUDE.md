@@ -298,6 +298,64 @@ or track prayer times/dhikr/reminders day-to-day.
   (previously only "‹" existed). Opening the tab scrolls the current
   hour into view and marks it `.current-hour` automatically.
 
+## Mobile-first shell rework (1.7.0)
+Driven by feedback that the Today tab was one very long list and the app
+felt built for a desktop.
+
+- **Bottom icon nav + tab swiping.** `nav.tabs` is now `position:fixed` at
+  the bottom of `<body>` (outside `header.top`), with `env(safe-area-inset-
+  bottom)` padding so an installed iOS app clears the home indicator.
+  `VIEWS` is the single source of truth for both the bar's order and the
+  order `attachTabSwipe()` moves through; the Guide tab/view is gone.
+- **A real bug this surfaced:** the delegated click handler matched
+  `data-nav`/`data-recipe`/`data-exercise` on `ev.target` directly. Once
+  tabs contained an `<i>` icon, tapping the icon — the obvious target on a
+  phone — hit a child with no attribute and did nothing. It now resolves
+  via `ev.target.closest("[data-...]")`. jsdom tests missed this entirely
+  because `goTo()` dispatches straight at the button; it was only caught by
+  rendering the page in real Chromium via Playwright. **Screenshot the app
+  after any layout change** — the jsdom suite verifies behaviour, not that
+  the thing you need to tap is actually tappable.
+- **Collapsible cards.** `.card.collapsible[data-collapse="<key>"]` with the
+  content in `.card-body`; `initCollapsibles()` wires the `h3` as the
+  toggle. Folded state lives in its own `yawarCollapsed` localStorage key —
+  **deliberately not in `state`**, so a display preference never rides the
+  sync protocol or lands in the health record. A `.collapsed` class in the
+  markup is the default until the user overrides it. Card headings carry a
+  `.count` element kept current by `renderDayCounts()`.
+- **Dhikr** renders as three `.subcard` collapsibles (one per period),
+  folded by default, each with its own count.
+- **Text scale**: `html{font-size:15px}` — one knob, since everything else
+  is in rem. The date bar is `flex-wrap:nowrap` with an ellipsing label and
+  `humanShort()` ("Sun 9 Aug", year only when it isn't the current one),
+  because the full form wrapped to four lines at 390px.
+- **Tasks**: adding takes a title only (`addTask(inputId)`); scheduling is
+  per-row via a 📅 button that opens an inline `datetime-local` panel and
+  then calls `scheduleTaskAt(task, iso, statusId)`. Today renders the first
+  `TASK_TODAY_LIMIT` (3) with a "+N more" pointer; the Calendar tab renders
+  the full list and has its own add box. Still local-only, still not in the
+  `/api/sync` payload.
+- **Calendar** is one 24-hour column (`#calHours`) inside `.cal-viewport`,
+  which clips the slide. `calGoDay(delta, fromX)` animates in two halves of
+  `CAL_ANIM_MS`: push the outgoing day off in the direction of travel, then
+  swap the data and slide the new day in from the opposite edge.
+  `attachCalSwipe()` tracks `touchmove` so the grid follows the finger and
+  springs back if the drag falls short, and stops touch propagation so a
+  calendar gesture never also triggers the page-level tab swipe. **Tests
+  that page a day must wait out the animation** (~500ms) rather than a
+  single microtask — `app.wait(ms)` in `test/lib.js`.
+- **Made-up (qada) prayers** live on `state.profile.qada` (per prayer key),
+  so they sync with the profile and pay down a running debt rather than
+  editing any day's `prayers` record. `missedByPrayer()` computes the raw
+  miss count; the summary subtracts qada from it. The stored value is
+  clamped to the number actually missed — it's a repayment, not a free
+  tally.
+- Test coverage: `test/uiShell.test.js` (bottom nav, icon-tap regression,
+  tab swipe, collapsibles + persistence + the "never enters synced state"
+  guarantee, dhikr subcards) and `test/qada.test.js` added;
+  `test/tasks.test.js` and `test/calendarTab.test.js` rewritten for the new
+  models. See CHANGELOG 1.7.0.
+
 ## Honest caveat
 The "Client-side sync layer," "Access + hosting," and "Current data state"
 sections above were re-verified live in this session (2026-08-09): read
