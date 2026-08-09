@@ -68,6 +68,12 @@ function createMockServer() {
 function fetchImplFor(server, { failWith } = {}) {
   return async (url, options) => {
     if (failWith) throw failWith;
+    // The page also fetches /api/brief unconditionally, unrelated to sync -
+    // give it a harmless "not connected" response rather than letting a
+    // sync-shaped mock choke on a bodyless GET.
+    if (!String(url).includes("/api/sync")) {
+      return { ok: true, status: 200, json: async () => ({ connected: false, status: "not_connected" }) };
+    }
     const body = JSON.parse(options.body);
     const result = server.handle(body);
     return {

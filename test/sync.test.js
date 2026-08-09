@@ -19,13 +19,19 @@ test("sync stays off until explicitly enabled, even with existing local data", (
     days: { "2026-03-01": { meds: {}, prayers: {}, meals: {}, extras: {}, water: 1, weight: "", sleep: "", steps: "", jointPain: null, energy: null, exercise: false, notes: "", updated_at: 10 } },
     sync: { enabled: false, since: 0, lastSyncAt: null, lastError: null },
   };
-  let called = false;
+  let syncCalled = false;
   const app = loadApp({
     localStorageSeed: { [MAIN_KEY]: JSON.stringify(seed) },
-    fetchImpl: async () => { called = true; return { ok: true, json: async () => ({ now: 1, days: {}, profile: null, applied: 0, skipped: [], more: false }) }; },
+    // The page also fetches /api/brief unconditionally (that feature has
+    // its own opt-in gate: nothing happens until Google is connected) -
+    // this test only cares whether /api/sync specifically gets hit.
+    fetchImpl: async (url) => {
+      if (String(url).includes("/api/sync")) syncCalled = true;
+      return { ok: true, json: async () => ({ now: 1, days: {}, profile: null, applied: 0, skipped: [], more: false, status: "not_connected" }) };
+    },
   });
   app.goTo("progress");
-  assert.equal(called, false, "loading with sync disabled must never call the network");
+  assert.equal(syncCalled, false, "loading with sync disabled must never call /api/sync");
   assert.equal(app.document.getElementById("syncEnabled").checked, false);
   assert.equal(app.document.getElementById("syncNowBtn").disabled, true);
 });

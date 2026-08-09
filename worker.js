@@ -7,6 +7,12 @@
  * Required vars (set in the Cloudflare dashboard, not secrets - neither is sensitive):
  *   ACCESS_TEAM_DOMAIN  e.g. "yawar" for https://yawar.cloudflareaccess.com
  *   ACCESS_AUD          the Application Audience tag from the Access app
+ *
+ * Required secrets for the daily Calendar + Gemini brief (Settings ->
+ * Variables and secrets, same place as the two above):
+ *   GOOGLE_CLIENT_ID      OAuth 2.0 Web application client ID
+ *   GOOGLE_CLIENT_SECRET  its client secret
+ *   GEMINI_API_KEY        Gemini API key from Google AI Studio
  */
 
 const JSON_HEADERS = {
@@ -224,6 +230,324 @@ async function handleStats(env, email) {
   return json({ email, days: row?.n ?? 0, lastUpdate: row?.last ?? null });
 }
 
+/* ---------- Google Calendar + Gemini daily brief ---------- */
+
+const GOOGLE_SCOPE = "https://www.googleapis.com/auth/calendar.readonly";
+const BRIEF_TIMEZONE = "Europe/London";
+const GEMINI_MODEL = "gemini-flash-latest"; // Google-maintained alias for their current default Flash model
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+function htmlMessage(msg, ok) {
+  return new Response(
+    `<!doctype html><meta charset="utf-8"><body style="font-family:sans-serif;padding:40px;text-align:center;max-width:480px;margin:0 auto">
+     <h2>${ok ? "✅" : "⚠️"} ${escapeHtml(msg)}</h2>
+     <p><a href="/">Back to the app</a></p></body>`,
+    { headers: { "content-type": "text/html; charset=utf-8" } }
+  );
+}
+
+function googleRedirectUri(url) {
+  return `${url.protocol}//${url.host}/api/google/callback`;
+}
+
+/**
+ * GET /api/google/connect - redirects to Google's consent screen.
+ * access_type=offline + prompt=consent guarantee a refresh_token comes
+ * back even on a re-connect, which a bare "offline" request would skip
+ * if the user had already granted consent once before.
+ */
+function handleGoogleConnect(request, env) {
+  if (!env.GOOGLE_CLIENT_ID) return json({ error: "Google OAuth not configured" }, 500);
+  const url = new URL(request.url);
+  const params = new URLSearchParams({
+    client_id: env.GOOGLE_CLIENT_ID,
+    redirect_uri: googleRedirectUri(url),
+    response_type: "code",
+    scope: GOOGLE_SCOPE,
+    access_type: "offline",
+    prompt: "consent",
+  });
+  return Response.redirect(`https://accounts.google.com/o/oauth2/v2/auth?${params}`, 302);
+}
+
+/**
+ * GET /api/google/callback - exchanges the auth code for tokens and
+ * stores the refresh_token in D1, keyed by the Access-authenticated email
+ * (not anything Google told us) - the whole point of Access verification
+ * is that we never trust an identity claim we haven't checked ourselves.
+ */
+async function handleGoogleCallback(request, env, email) {
+  const url = new URL(request.url);
+  const errParam = url.searchParams.get("error");
+  if (errParam) return htmlMessage(`Google sign-in was cancelled or failed: ${errParam}`);
+
+  const code = url.searchParams.get("code");
+  if (!code) return htmlMessage("Missing authorization code from Google.");
+  if (!env.GOOGLE_CLIENT_ID || !env.GOOGLE_CLIENT_SECRET) {
+    return htmlMessage("Google OAuth is not configured on the server yet.");
+  }
+
+  const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "content-type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      code,
+      client_id: env.GOOGLE_CLIENT_ID,
+      client_secret: env.GOOGLE_CLIENT_SECRET,
+      redirect_uri: googleRedirectUri(url),
+      grant_type: "authorization_code",
+    }),
+  });
+  if (!tokenRes.ok) {
+    return htmlMessage(`Google token exchange failed (HTTP ${tokenRes.status}). Try connecting again.`);
+  }
+  const tok = await tokenRes.json();
+  if (!tok.refresh_token) {
+    return htmlMessage(
+      "Google didn't return a refresh token. Revoke this app's access at " +
+      "https://myaccount.google.com/permissions and try connecting again."
+    );
+  }
+
+  const now = Date.now();
+  const expiresAt = tok.expires_in ? now + tok.expires_in * 1000 : null;
+  await env.DB.prepare(
+    `INSERT INTO google_tokens (user_email, refresh_token, access_token, access_token_expires_at, updated_at)
+     VALUES (?1, ?2, ?3, ?4, ?5)
+     ON CONFLICT(user_email) DO UPDATE SET
+       refresh_token = excluded.refresh_token,
+       access_token = excluded.access_token,
+       access_token_expires_at = excluded.access_token_expires_at,
+       updated_at = excluded.updated_at`
+  ).bind(email, tok.refresh_token, tok.access_token || null, expiresAt, now).run();
+
+  return htmlMessage("Google Calendar connected. You can close this and go back to the app.", true);
+}
+
+/**
+ * Returns a valid access token for `email`, refreshing it first if it's
+ * missing or near expiry. Never throws - callers branch on `.error`
+ * instead, since "not connected yet" and "needs reconnecting" are normal,
+ * expected states here, not exceptional ones.
+ */
+async function getGoogleAccessToken(env, email) {
+  const row = await env.DB.prepare(
+    `SELECT refresh_token, access_token, access_token_expires_at FROM google_tokens WHERE user_email = ?1`
+  ).bind(email).first();
+  if (!row) return { error: "not_connected" };
+
+  const now = Date.now();
+  if (row.access_token && row.access_token_expires_at && row.access_token_expires_at > now + 60000) {
+    return { accessToken: row.access_token };
+  }
+
+  const res = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "content-type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      client_id: env.GOOGLE_CLIENT_ID,
+      client_secret: env.GOOGLE_CLIENT_SECRET,
+      refresh_token: row.refresh_token,
+      grant_type: "refresh_token",
+    }),
+  });
+  if (!res.ok) {
+    const detail = await res.text().catch(() => "");
+    // A revoked/expired refresh token (e.g. Google's 7-day Testing-mode
+    // limit) surfaces as invalid_grant - that means "reconnect", not a
+    // generic failure.
+    if (res.status === 400 && /invalid_grant/.test(detail)) return { error: "reconnect_required" };
+    return { error: "refresh_failed" };
+  }
+  const tok = await res.json();
+  const expiresAt = tok.expires_in ? now + tok.expires_in * 1000 : null;
+  await env.DB.prepare(
+    `UPDATE google_tokens SET access_token = ?1, access_token_expires_at = ?2, updated_at = ?3 WHERE user_email = ?4`
+  ).bind(tok.access_token, expiresAt, now, email).run();
+  return { accessToken: tok.access_token };
+}
+
+/** The UTC offset (minutes) of an IANA time zone at a given instant, via
+ * Intl only - self-adjusts across DST transitions (BST/GMT) with no
+ * manual offset table to maintain. */
+function utcOffsetMinutes(timeZone, date) {
+  const parts = new Intl.DateTimeFormat("en-US", { timeZone, timeZoneName: "longOffset" }).formatToParts(date);
+  const tzName = parts.find((p) => p.type === "timeZoneName")?.value || "GMT+00:00";
+  const m = tzName.match(/GMT([+-])(\d{1,2})(?::?(\d{2}))?/);
+  if (!m) return 0;
+  const sign = m[1] === "-" ? -1 : 1;
+  return sign * (parseInt(m[2], 10) * 60 + parseInt(m[3] || "0", 10));
+}
+
+/** Local midnight-to-midnight bounds for `timeZone`, as RFC3339 strings
+ * with an explicit offset (required by Calendar's timeMin/timeMax). */
+function localDayBounds(timeZone, now) {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" })
+      .formatToParts(now).map((p) => [p.type, p.value])
+  );
+  const day = `${parts.year}-${parts.month}-${parts.day}`;
+  const offsetMin = utcOffsetMinutes(timeZone, now);
+  const sign = offsetMin >= 0 ? "+" : "-";
+  const abs = Math.abs(offsetMin);
+  const offset = `${sign}${String(Math.floor(abs / 60)).padStart(2, "0")}:${String(abs % 60).padStart(2, "0")}`;
+  return { day, timeMin: `${day}T00:00:00${offset}`, timeMax: `${day}T23:59:59${offset}` };
+}
+
+async function fetchTodayEvents(accessToken, timeMin, timeMax) {
+  const params = new URLSearchParams({ timeMin, timeMax, singleEvents: "true", orderBy: "startTime", maxResults: "50" });
+  const res = await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events?${params}`, {
+    headers: { authorization: `Bearer ${accessToken}` },
+  });
+  if (!res.ok) {
+    const detail = await res.text().catch(() => "");
+    throw new Error(`calendar fetch failed: HTTP ${res.status} ${detail.slice(0, 200)}`);
+  }
+  const data = await res.json();
+  return (data.items || []).map((e) => ({
+    title: e.summary || "(no title)",
+    start: e.start?.dateTime || e.start?.date,
+    allDay: !e.start?.dateTime,
+    location: e.location || null,
+  }));
+}
+
+async function summarizeWithGemini(env, day, events) {
+  if (!env.GEMINI_API_KEY) throw new Error("Gemini API key not configured");
+
+  const eventLines = events.length
+    ? events.map((e) => {
+        const when = e.allDay
+          ? "All day"
+          : new Date(e.start).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: BRIEF_TIMEZONE });
+        return `- ${when}: ${e.title}${e.location ? ` (${e.location})` : ""}`;
+      }).join("\n")
+    : "(No calendar events today.)";
+
+  const prompt =
+    `You are a concise personal daily-briefing assistant. Given today's ` +
+    `(${day}) calendar events below, write a short, friendly summary ` +
+    `(3-5 sentences max) highlighting what the day looks like, any tight ` +
+    `back-to-back meetings, and any free stretches. Do not invent events ` +
+    `not listed. Plain text, no markdown.\n\nEvents:\n${eventLines}`;
+
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${env.GEMINI_API_KEY}`,
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
+    }
+  );
+  if (!res.ok) {
+    const detail = await res.text().catch(() => "");
+    throw new Error(`gemini call failed: HTTP ${res.status} ${detail.slice(0, 200)}`);
+  }
+  const data = await res.json();
+  const text = (data.candidates?.[0]?.content?.parts || []).map((p) => p.text || "").join("").trim();
+  if (!text) throw new Error("gemini returned no text");
+  return text;
+}
+
+async function saveBriefStatus(env, email, day, status, summary, error) {
+  await env.DB.prepare(
+    `INSERT INTO daily_brief (user_email, day, summary, status, error, generated_at)
+     VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+     ON CONFLICT(user_email, day) DO UPDATE SET
+       summary = excluded.summary, status = excluded.status, error = excluded.error, generated_at = excluded.generated_at`
+  ).bind(email, day, summary, status, error, Date.now()).run();
+}
+
+/** Does the actual work: refresh token -> today's events -> Gemini summary
+ * -> persisted to D1. Every failure mode still returns a tagged result
+ * instead of throwing, so both the manual-refresh endpoint and the cron
+ * handler can report (or log) precisely what happened. */
+async function generateBrief(env, email, now) {
+  const { day, timeMin, timeMax } = localDayBounds(BRIEF_TIMEZONE, now || new Date());
+
+  const tokenResult = await getGoogleAccessToken(env, email);
+  if (tokenResult.error) return { status: tokenResult.error, day };
+
+  let events;
+  try {
+    events = await fetchTodayEvents(tokenResult.accessToken, timeMin, timeMax);
+  } catch (e) {
+    const detail = String(e.message || e);
+    await saveBriefStatus(env, email, day, "calendar_error", null, detail);
+    return { status: "calendar_error", day, error: detail };
+  }
+
+  let summary;
+  try {
+    summary = await summarizeWithGemini(env, day, events);
+  } catch (e) {
+    const detail = String(e.message || e);
+    await saveBriefStatus(env, email, day, "gemini_error", null, detail);
+    return { status: "gemini_error", day, error: detail };
+  }
+
+  const generatedAt = Date.now();
+  await saveBriefStatus(env, email, day, "ok", summary, null);
+  return { status: "ok", day, summary, generated_at: generatedAt };
+}
+
+async function handleGetBrief(env, email, now) {
+  const { day } = localDayBounds(BRIEF_TIMEZONE, now || new Date());
+  const [tokenRow, briefRow] = await Promise.all([
+    env.DB.prepare(`SELECT 1 AS present FROM google_tokens WHERE user_email = ?1`).bind(email).first(),
+    env.DB.prepare(
+      `SELECT summary, status, error, generated_at FROM daily_brief WHERE user_email = ?1 AND day = ?2`
+    ).bind(email, day).first(),
+  ]);
+  const connected = Boolean(tokenRow);
+  return json({
+    connected,
+    day,
+    summary: briefRow?.summary ?? null,
+    status: briefRow?.status ?? (connected ? "pending" : "not_connected"),
+    error: briefRow?.error ?? null,
+    generated_at: briefRow?.generated_at ?? null,
+  });
+}
+
+async function handleRefreshBrief(env, email, now) {
+  const result = await generateBrief(env, email, now);
+  return json({
+    connected: result.status !== "not_connected" && result.status !== "reconnect_required",
+    day: result.day,
+    status: result.status,
+    summary: result.summary ?? null,
+    error: result.error ?? null,
+    generated_at: result.generated_at ?? null,
+  });
+}
+
+/** Cron entry point. Runs hourly (see wrangler.jsonc) but only actually
+ * does anything during the 7am hour in Europe/London - computed fresh via
+ * Intl each run, so it self-adjusts across BST/GMT with no DST table to
+ * maintain - and only once per day per user, via the daily_brief dedupe
+ * check below. */
+async function handleScheduled(env, now) {
+  now = now || new Date();
+  const londonHour = Number(
+    new Intl.DateTimeFormat("en-GB", { timeZone: BRIEF_TIMEZONE, hour: "2-digit", hour12: false }).format(now)
+  );
+  if (londonHour !== 7) return;
+
+  const { day } = localDayBounds(BRIEF_TIMEZONE, now);
+  const { results } = await env.DB.prepare(`SELECT user_email FROM google_tokens`).all();
+  for (const row of results) {
+    const existing = await env.DB.prepare(
+      `SELECT status FROM daily_brief WHERE user_email = ?1 AND day = ?2`
+    ).bind(row.user_email, day).first();
+    if (existing && existing.status === "ok") continue;
+    await generateBrief(env, row.user_email, now);
+  }
+}
+
 /* ---------- router ---------- */
 
 export default {
@@ -252,10 +576,43 @@ export default {
       if (url.pathname === "/api/stats" && request.method === "GET") {
         return await handleStats(env, email);
       }
+      if (url.pathname === "/api/google/connect" && request.method === "GET") {
+        return handleGoogleConnect(request, env);
+      }
+      if (url.pathname === "/api/google/callback" && request.method === "GET") {
+        return await handleGoogleCallback(request, env, email);
+      }
+      if (url.pathname === "/api/brief" && request.method === "GET") {
+        return await handleGetBrief(env, email);
+      }
+      if (url.pathname === "/api/brief/refresh" && request.method === "POST") {
+        return await handleRefreshBrief(env, email);
+      }
     } catch (e) {
       return json({ error: "server error", detail: String(e.message || e) }, 500);
     }
 
     return json({ error: "not found" }, 404);
   },
+
+  async scheduled(event, env, ctx) {
+    ctx.waitUntil(handleScheduled(env));
+  },
+};
+
+// Named exports alongside the default: these are the same real functions
+// the router above calls, exposed so tests can exercise them directly
+// (with a mocked env.DB/fetch) without having to fabricate a signed
+// Cloudflare Access JWT for every case - verifyAccess/handleSync's own
+// coverage is unchanged and already covered separately.
+export {
+  localDayBounds,
+  utcOffsetMinutes,
+  getGoogleAccessToken,
+  generateBrief,
+  handleGetBrief,
+  handleRefreshBrief,
+  handleGoogleConnect,
+  handleGoogleCallback,
+  handleScheduled,
 };

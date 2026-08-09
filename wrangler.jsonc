@@ -21,9 +21,16 @@
     }
   ],
 
-  // ACCESS_TEAM_DOMAIN and ACCESS_AUD are set as SECRETS in the dashboard,
-  // not vars. Plain vars declared here would overwrite the dashboard values
-  // on every deploy; secrets persist across deploys.
+  // ACCESS_TEAM_DOMAIN, ACCESS_AUD, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET,
+  // and GEMINI_API_KEY are all set as SECRETS in the dashboard, not vars.
+  // Plain vars declared here would overwrite the dashboard values on every
+  // deploy; secrets persist across deploys.
+
+  // Fires hourly; the scheduled handler itself only acts during the 7am
+  // Europe/London hour (computed via Intl, so it tracks BST/GMT with no
+  // DST table to maintain here) and dedupes against D1, so this stays a
+  // once-a-day brief despite the hourly trigger.
+  "triggers": { "crons": ["0 * * * *"] },
 
   "observability": { "enabled": true }
 }

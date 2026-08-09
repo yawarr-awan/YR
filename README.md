@@ -20,6 +20,7 @@
 
 ## ✨ Features
 
+- **Today's Brief** — an AI summary of your day at the top of the Today tab, generated from your Google Calendar (read-only) via Gemini, automatically each morning.
 - **Today dashboard** — one screen for your whole day, with a completion ring.
 - **Diet plan** — a tasty 7-day halal rotation (~1,300–1,400 kcal/day incl. supplements), high-protein and anti-inflammatory. Each meal name links to its full recipe.
 - **Recipe library** — 20+ quick recipes (10–20 min) with ingredients, method, calories and protein.
@@ -82,6 +83,7 @@ git push -u origin main
   - **On iPhone/Safari:** add the app to your **Home Screen**. Safari can clear a website's storage after ~7 days of not visiting it, but a home-screen (installed) app is far more durable. Export a backup now and then to be safe.
 - **Optional cloud sync.** The Progress tab has an off-by-default "Enable cloud sync" toggle. Turning it on backs your data up to a private Cloudflare backend and lets your devices share one history via last-write-wins merging. It stays off until you switch it on — no data leaves your device otherwise.
 - **This deployment is private.** `yr-wellness.yawar-awan.workers.dev` sits behind Cloudflare Access, restricted to one email — visiting it requires signing in first. The old public GitHub Pages copy has been retired for the same reason: static hosting has no server-side way to check a password or session, so it could never actually be made private.
+- **Optional Google Calendar connection.** The "Today's Brief" card is off until you click "Connect Google Calendar." Once connected, the server reads your calendar's read-only event list (never Gmail, never anything else in your Google account) once a day to generate a short AI summary via the Gemini API. Nothing is read unless you connect it, and disconnecting is as simple as revoking access at [myaccount.google.com/permissions](https://myaccount.google.com/permissions).
 
 ## 🩺 Health disclaimer
 
