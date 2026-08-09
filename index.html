@@ -334,6 +334,19 @@ footer.foot{text-align:center;color:var(--muted);font-size:.78rem;margin-top:26p
     </div>
 
     <div class="card" style="margin-top:14px">
+      <h3>🔄 Cloud sync <span class="muted" style="font-weight:600;font-size:.78rem">(optional, off by default)</span></h3>
+      <p class="muted" style="font-size:.85rem;margin-top:0">Backs your data up to your own private Cloudflare backend and lets it move between your devices. Your data stays local-only until you turn this on — nothing is sent anywhere unless you enable it.</p>
+      <label class="chk" style="padding-inline-start:0">
+        <input type="checkbox" id="syncEnabled">
+        <div><div class="lbl">Enable cloud sync</div></div>
+      </label>
+      <div class="pill-row">
+        <button class="btn" id="syncNowBtn" disabled>🔄 Sync now</button>
+      </div>
+      <div class="muted" id="syncStatus" style="font-size:.8rem;margin-top:8px"></div>
+    </div>
+
+    <div class="card" style="margin-top:14px">
       <h3>💾 Your data</h3>
       <p class="muted" style="font-size:.85rem;margin-top:0">Everything you log lives <b>only on this device</b>, inside this file's storage. It stays there — even if you close the page — until you clear it. Nothing is sent anywhere. Back it up now and then with Export.</p>
       <div class="pill-row">
@@ -596,13 +609,37 @@ function showSaved(){
   s.textContent="Saved "+("0"+lastSaved.getHours()).slice(-2)+":"+("0"+lastSaved.getMinutes()).slice(-2);
 }
 
-function freshState(){return {schema:1,profile:{startWeight:108,targetWeight:88},days:{}};}
+function freshState(){
+  return {
+    schema:2,
+    profile:{startWeight:108,targetWeight:88,updated_at:0},
+    days:{},
+    sync:{enabled:false,since:0,lastSyncAt:null,lastError:null}
+  };
+}
+/* schema 1 -> 2: days/profile predating sync get a one-time updated_at stamp
+   so the next push carries real history instead of looking untouched. */
+var _needsResave=false;      /* set when load() repairs state in memory; persisted right after assignment */
+function migrate(s){
+  if(s.schema>=2)return s;
+  var stamp=Date.now();
+  Object.keys(s.days).forEach(function(k){
+    var d=s.days[k];
+    if(!d.updated_at)d.updated_at=stamp;
+  });
+  if(!s.profile.updated_at)s.profile.updated_at=stamp;
+  s.schema=2;
+  _needsResave=true;
+  return s;
+}
 function parseState(raw){
   if(!raw)return null;
   var s=JSON.parse(raw);                                   /* throws if corrupt */
   if(!s||typeof s!=="object"||!s.days||typeof s.days!=="object")return null;
   if(!s.profile)s.profile={startWeight:108,targetWeight:88};
   if(!s.schema)s.schema=1;
+  if(!s.sync)s.sync={enabled:false,since:0,lastSyncAt:null,lastError:null};
+  migrate(s);
   return s;
 }
 function load(){
@@ -610,7 +647,7 @@ function load(){
   try{rawA=localStorage.getItem(KEY);}catch(e){}
   try{rawB=localStorage.getItem(BAKKEY);}catch(e){}
   try{var a=parseState(rawA); if(a)return a;}catch(e){}
-  try{var b=parseState(rawB); if(b){flash("Main save was unreadable. Restored from the automatic backup.","warn");return b;}}catch(e){}
+  try{var b=parseState(rawB); if(b){flash("Main save was unreadable. Restored from the automatic backup.","warn");_needsResave=true;return b;}}catch(e){}
   if(rawA||rawB){
     /* Data exists but neither copy parsed. Do NOT blank it. */
     SAFE=false;
@@ -635,6 +672,7 @@ function save(){
   }
 }
 var state=load();
+if(_needsResave)save();           /* heal a corrupt main key / persist migration stamps right away */
 /* Console escape hatch: window.__YRdump() returns both raw copies for manual recovery. */
 window.__YRdump=function(){var o={};try{o.main=localStorage.getItem(KEY);}catch(e){o.main="<unreadable>";}try{o.bak=localStorage.getItem(BAKKEY);}catch(e){o.bak="<unreadable>";}return o;};
 function blankDay(){return{meds:{},prayers:{},meals:{},extras:{},water:0,weight:"",sleep:"",steps:"",jointPain:null,energy:null,exercise:false,notes:""};}
@@ -668,7 +706,7 @@ function renderToday(){
   MEDS.forEach(function(m){
     var row=el("label","chk"+(d.meds[m[0]]?" done":""));
     var cb=el("input");cb.type="checkbox";cb.checked=!!d.meds[m[0]];
-    cb.addEventListener("change",function(){d.meds[m[0]]=cb.checked;save();renderToday();updateRing();});
+    cb.addEventListener("change",function(){d.meds[m[0]]=cb.checked;d.updated_at=Date.now();save();renderToday();updateRing();});
     var txt=el("div");txt.appendChild(el("div","lbl",m[1]));txt.appendChild(el("div","sub",m[2]));
     row.appendChild(cb);row.appendChild(txt);mb.appendChild(row);
   });
@@ -678,7 +716,7 @@ function renderToday(){
   PRAYERS.forEach(function(p){
     var row=el("label","chk"+(d.prayers[p[0]]?" done":""));
     var cb=el("input");cb.type="checkbox";cb.checked=!!d.prayers[p[0]];
-    cb.addEventListener("change",function(){d.prayers[p[0]]=cb.checked;save();renderToday();updateRing();});
+    cb.addEventListener("change",function(){d.prayers[p[0]]=cb.checked;d.updated_at=Date.now();save();renderToday();updateRing();});
     var txt=el("div");txt.appendChild(el("div","lbl",p[1]));
     row.appendChild(cb);row.appendChild(txt);pb.appendChild(row);
   });
@@ -691,7 +729,7 @@ function renderToday(){
     var rid=plan[s[0]], r=RECIPES[rid]; total+=r.kcal;
     var row=el("div","meal-row");
     var cb=el("input");cb.type="checkbox";cb.checked=!!d.meals[s[0]];
-    cb.addEventListener("change",function(){d.meals[s[0]]=cb.checked;save();updateRing();});
+    cb.addEventListener("change",function(){d.meals[s[0]]=cb.checked;d.updated_at=Date.now();save();updateRing();});
     var mid=el("div");mid.style.flex="1";
     var top=el("div");top.appendChild(el("span","tag",s[1]));top.appendChild(document.createTextNode(" "));
     top.appendChild(recipeLink(rid));
@@ -712,7 +750,7 @@ function renderToday(){
   var mv=document.getElementById("moveBox"); mv.innerHTML="";
   var row=el("label","chk"+(d.exercise?" done":""));
   var cb=el("input");cb.type="checkbox";cb.checked=!!d.exercise;
-  cb.addEventListener("change",function(){d.exercise=cb.checked;save();updateRing();renderToday();});
+  cb.addEventListener("change",function(){d.exercise=cb.checked;d.updated_at=Date.now();save();updateRing();renderToday();});
   var txt=el("div");
   var link=el("button","linklike",ex.title);link.setAttribute("data-exercise",exId);
   txt.appendChild(link);txt.appendChild(el("div","sub",ex.time+" · "+ex.focus));
@@ -743,7 +781,7 @@ function renderExtras(d){
   DAILY_EXTRAS.forEach(function(x){
     var row=el("label","chk"+(d.extras[x.id]?" done":""));
     var cb=el("input");cb.type="checkbox";cb.checked=!!d.extras[x.id];
-    cb.addEventListener("change",function(){d.extras[x.id]=cb.checked;save();renderToday();updateRing();});
+    cb.addEventListener("change",function(){d.extras[x.id]=cb.checked;d.updated_at=Date.now();save();renderToday();updateRing();});
     var txt=el("div");txt.appendChild(el("div","lbl",x.label));txt.appendChild(el("div","sub",x.detail));
     row.appendChild(cb);row.appendChild(txt);box.appendChild(row);
   });
@@ -762,6 +800,118 @@ function updateRing(){
   var ring=document.getElementById("dayRing");
   ring.style.setProperty("--p",pct);
   document.getElementById("dayRingTxt").textContent=pct+"%";
+}
+
+/* ---------- SYNC ---------- */
+var SYNC_URL="/api/sync";
+
+function fmtClock(ts){
+  var t=new Date(ts);
+  return ("0"+t.getHours()).slice(-2)+":"+("0"+t.getMinutes()).slice(-2);
+}
+
+function pushableDays(since){
+  var out={};
+  Object.keys(state.days).forEach(function(k){
+    var d=state.days[k];
+    if(d.updated_at&&d.updated_at>since)out[k]={data:JSON.stringify(d),updated_at:d.updated_at};
+  });
+  return out;
+}
+
+/* True last-write-wins: a remote record only overwrites the local one if it is strictly newer. */
+function applySyncResponse(resp){
+  var changed=false;
+  if(resp.days){
+    Object.keys(resp.days).forEach(function(k){
+      var incoming=resp.days[k];
+      var remote;
+      try{remote=JSON.parse(incoming.data);}catch(e){return;}
+      remote.updated_at=incoming.updated_at;
+      var local=state.days[k];
+      if(!local||!local.updated_at||incoming.updated_at>local.updated_at){
+        state.days[k]=remote; changed=true;
+      }
+    });
+  }
+  if(resp.profile){
+    var rp;
+    try{rp=JSON.parse(resp.profile.data);}catch(e){rp=null;}
+    if(rp){
+      rp.updated_at=resp.profile.updated_at;
+      if(!state.profile.updated_at||resp.profile.updated_at>state.profile.updated_at){
+        state.profile=rp; changed=true;
+      }
+    }
+  }
+  return changed;
+}
+
+/* Advance `since` to the server's clock on a full pull; on a truncated
+   (`more`) pull, advance only to the last row actually received so the
+   next sync resumes from there instead of re-fetching the same page. */
+function nextSince(resp,pushedSince){
+  if(!resp.more)return resp.now;
+  var maxTs=pushedSince;
+  Object.keys(resp.days||{}).forEach(function(k){
+    var ts=resp.days[k].updated_at; if(ts>maxTs)maxTs=ts;
+  });
+  return maxTs;
+}
+
+function setSyncStatus(msg,kind){
+  var el=document.getElementById("syncStatus");
+  if(!el)return;
+  el.textContent=msg;
+  el.style.color=(kind==="bad")?"var(--bad)":(kind==="good"?"var(--good)":"");
+}
+
+function updateSyncUI(){
+  var box=document.getElementById("syncEnabled"),btn=document.getElementById("syncNowBtn");
+  if(!box||!state.sync)return;
+  box.checked=!!state.sync.enabled;
+  btn.disabled=!state.sync.enabled;
+  if(!state.sync.enabled){setSyncStatus("Cloud sync is off.");return;}
+  if(state.sync.lastError)setSyncStatus("Sync failed: "+state.sync.lastError+" — your local data is untouched.","bad");
+  else if(state.sync.lastSyncAt)setSyncStatus("Last synced "+fmtClock(state.sync.lastSyncAt)+".","good");
+  else setSyncStatus("Enabled — not synced yet.");
+}
+
+/* Never touches local state on failure: a slow/unreachable/misconfigured
+   server must not risk the only copy of real history on this device. */
+function runSync(){
+  if(!SAFE)return Promise.resolve(false);
+  if(!state.sync||!state.sync.enabled)return Promise.resolve(false);
+  if(typeof fetch!=="function")return Promise.resolve(false);
+  var since=state.sync.since||0;
+  var payload={since:since,days:pushableDays(since)};
+  if(state.profile.updated_at&&state.profile.updated_at>since){
+    payload.profile={data:JSON.stringify(state.profile),updated_at:state.profile.updated_at};
+  }
+  setSyncStatus("Syncing…");
+  return fetch(SYNC_URL,{
+    method:"POST",
+    headers:{"content-type":"application/json"},
+    credentials:"same-origin",
+    body:JSON.stringify(payload)
+  }).then(function(res){
+    if(!res.ok)throw new Error("server returned HTTP "+res.status);
+    return res.json();
+  }).then(function(resp){
+    var changed=applySyncResponse(resp);
+    state.sync.since=nextSince(resp,since);
+    state.sync.lastSyncAt=Date.now();
+    state.sync.lastError=null;
+    save();
+    if(changed){renderToday();renderProgress();}
+    else updateSyncUI();
+    return true;
+  }).catch(function(e){
+    state.sync.lastError=String((e&&e.message)||e);
+    save();
+    updateSyncUI();
+    return false;
+  });
 }
 
 /* ---------- RENDER: MEAL PLAN ---------- */
@@ -874,6 +1024,7 @@ function renderPraySummary(){
 /* ---------- RENDER: PROGRESS ---------- */
 function renderProgress(){
   renderPraySummary();
+  updateSyncUI();
   var keys=Object.keys(state.days).sort();
   var weights=[];
   keys.forEach(function(k){var w=parseFloat(state.days[k].weight);if(!isNaN(w))weights.push([k,w]);});
@@ -1002,23 +1153,23 @@ document.getElementById("prevDay").addEventListener("click",function(){cur.setDa
 document.getElementById("jumpToday").addEventListener("click",function(){cur=new Date();cur.setHours(0,0,0,0);renderToday();});
 document.getElementById("datePick").addEventListener("change",function(){var v=this.value.split("-");cur=new Date(+v[0],+v[1]-1,+v[2]);cur.setHours(0,0,0,0);renderToday();});
 
-document.getElementById("waterPlus").addEventListener("click",function(){var d=dayData(keyOf(cur));d.water++;save();renderWater(d);updateRing();});
-document.getElementById("waterMinus").addEventListener("click",function(){var d=dayData(keyOf(cur));if(d.water>0)d.water--;save();renderWater(d);updateRing();});
+document.getElementById("waterPlus").addEventListener("click",function(){var d=dayData(keyOf(cur));d.water++;d.updated_at=Date.now();save();renderWater(d);updateRing();});
+document.getElementById("waterMinus").addEventListener("click",function(){var d=dayData(keyOf(cur));if(d.water>0)d.water--;d.updated_at=Date.now();save();renderWater(d);updateRing();});
 
 function bindInput(id,prop,num){
   document.getElementById(id).addEventListener("input",function(){
-    var d=dayData(keyOf(cur));d[prop]=(num?(this.value===""?"":this.value):this.value);save();
+    var d=dayData(keyOf(cur));d[prop]=(num?(this.value===""?"":this.value):this.value);d.updated_at=Date.now();save();
   });
 }
 bindInput("weightIn","weight",true);
 bindInput("sleepIn","sleep",true);
 bindInput("stepsIn","steps",true);
 bindInput("notesIn","notes",false);
-document.getElementById("painIn").addEventListener("input",function(){var d=dayData(keyOf(cur));d.jointPain=+this.value;document.getElementById("painVal").textContent=this.value;save();});
-document.getElementById("energyIn").addEventListener("input",function(){var d=dayData(keyOf(cur));d.energy=+this.value;document.getElementById("energyVal").textContent=this.value;save();});
+document.getElementById("painIn").addEventListener("input",function(){var d=dayData(keyOf(cur));d.jointPain=+this.value;d.updated_at=Date.now();document.getElementById("painVal").textContent=this.value;save();});
+document.getElementById("energyIn").addEventListener("input",function(){var d=dayData(keyOf(cur));d.energy=+this.value;d.updated_at=Date.now();document.getElementById("energyVal").textContent=this.value;save();});
 
-document.getElementById("startWeightIn").addEventListener("input",function(){state.profile.startWeight=this.value;save();renderProgress();});
-document.getElementById("targetWeightIn").addEventListener("input",function(){state.profile.targetWeight=this.value;save();renderProgress();});
+document.getElementById("startWeightIn").addEventListener("input",function(){state.profile.startWeight=this.value;state.profile.updated_at=Date.now();save();renderProgress();});
+document.getElementById("targetWeightIn").addEventListener("input",function(){state.profile.targetWeight=this.value;state.profile.updated_at=Date.now();save();renderProgress();});
 
 document.getElementById("exportBtn").addEventListener("click",function(){
   var blob=new Blob([JSON.stringify(state,null,2)],{type:"application/json"});
@@ -1026,15 +1177,24 @@ document.getElementById("exportBtn").addEventListener("click",function(){
   a.href=url;a.download="wellness-backup-"+todayKey()+".json";document.body.appendChild(a);a.click();
   document.body.removeChild(a);URL.revokeObjectURL(url);
 });
+document.getElementById("syncEnabled").addEventListener("change",function(){
+  state.sync.enabled=this.checked;
+  state.sync.lastError=null;
+  save();
+  updateSyncUI();
+  if(this.checked)runSync();
+});
+document.getElementById("syncNowBtn").addEventListener("click",function(){runSync();});
+
 document.getElementById("importBtn").addEventListener("click",function(){document.getElementById("importFile").click();});
 document.getElementById("importFile").addEventListener("change",function(){
   var f=this.files[0];if(!f)return;var r=new FileReader();
-  r.onload=function(){try{var s=JSON.parse(r.result);if(s&&s.days){state=s;if(!state.profile)state.profile={startWeight:108,targetWeight:88};save();renderToday();renderProgress();alert("Backup restored.");}else alert("That file doesn't look like a valid backup.");}catch(e){alert("Couldn't read that file.");}};
+  r.onload=function(){try{var s=JSON.parse(r.result);if(s&&s.days){if(!s.profile)s.profile={startWeight:108,targetWeight:88};if(!s.schema)s.schema=1;if(!s.sync)s.sync={enabled:false,since:0,lastSyncAt:null,lastError:null};migrate(s);state=s;save();renderToday();renderProgress();alert("Backup restored.");}else alert("That file doesn't look like a valid backup.");}catch(e){alert("Couldn't read that file.");}};
   r.readAsText(f);
 });
 document.getElementById("clearBtn").addEventListener("click",function(){
   if(confirm("This permanently deletes ALL your logged data on this device. This cannot be undone. Continue?")){
-    localStorage.removeItem(KEY);state={profile:{startWeight:108,targetWeight:88},days:{}};renderToday();renderProgress();alert("All data cleared.");
+    localStorage.removeItem(KEY);localStorage.removeItem(BAKKEY);state=freshState();renderToday();renderProgress();alert("All data cleared.");
   }
 });
 
@@ -1061,6 +1221,7 @@ document.getElementById("themeToggle").addEventListener("click",function(){
 /* ---------- INIT ---------- */
 renderPlan();renderRecipes();renderExercises();renderToday();
 flushMsgs();
+if(state.sync&&state.sync.enabled)runSync();
 })();
 </script>
 </body>
