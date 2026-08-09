@@ -186,6 +186,19 @@ function loadApp(opts = {}) {
       return ev;
     },
     fireAppInstalled: () => window.dispatchEvent(new window.Event("appinstalled")),
+    // jsdom has no TouchEvent constructor at all - the app only ever reads
+    // e.touches[0]/e.changedTouches[0], so a plain Event with those arrays
+    // attached is indistinguishable to it from a real touch gesture.
+    swipe: (id, dx, dy) => {
+      const targetEl = window.document.getElementById(id);
+      const startX = 200, startY = 200;
+      const start = new window.Event("touchstart", { bubbles: true });
+      start.touches = [{ clientX: startX, clientY: startY }];
+      targetEl.dispatchEvent(start);
+      const end = new window.Event("touchend", { bubbles: true });
+      end.changedTouches = [{ clientX: startX + (dx || 0), clientY: startY + (dy || 0) }];
+      targetEl.dispatchEvent(end);
+    },
     close: () => window.close(),
   };
 }

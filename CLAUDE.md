@@ -264,6 +264,40 @@ or track prayer times/dhikr/reminders day-to-day.
   `test/tasks.test.js`, `test/dhikrNotify.test.js` added — see CHANGELOG
   1.5.0 for the full scenario list.
 
+## Follow-up refinements after initial user feedback (1.6.0)
+- The "Grant new permissions" link added to the Brief card in 1.5.1 (to
+  work around an old refresh token silently keeping its original scope)
+  was removed again once the user actually reconnected — it was a one-time
+  fix, not meant to stay visible permanently.
+- `generateBrief()`/`summarizeWithGemini()` now take the effective `now`
+  and filter events to only those not yet ended (`e.end || e.start` >
+  now) before building the Gemini prompt — a mid-day "Refresh" describes
+  what's left, not the whole day again. The prompt also states the
+  current London time and explicitly forbids a "Good morning"/"Good
+  evening" greeting, since a refresh can happen at any hour.
+- The Prayers (Salah) checklist on the Today tab (the plain done/not-done
+  tracker, distinct from the live prayer clock) now colors each row to
+  match that prayer (`PRAYER_COLOR_VAR`, same colors everywhere else) and
+  shows the actual time next to the name once a location is saved —
+  fetched via the same `fetchPrayerTimes()` used by the clock and
+  Calendar tab.
+- `fetchPrayerTimes()` gained an in-flight-request map keyed by cache key:
+  the clock, the Today checklist, and the Calendar tab can all ask for the
+  same day+location within the same tick, before the first request has
+  written the cache — without dedup this fired one real Aladhan request
+  per caller instead of one for all of them.
+- **Calendar tab rebuilt** from a scrolling agenda list into a full
+  24-hour, two-column day grid (00:00–11:59 / 12:00–23:59 side by side) —
+  the whole day visible without scrolling. `calWindowsForDay()` splits the
+  day into consecutive prayer-window segments covering all 1440 minutes
+  with no gaps (including overnight — Isha's window correctly spans
+  across midnight into the next Fajr), and every hour cell is tinted with
+  its window's color. Events render inside their starting hour's cell.
+  Swiping left/right on the grid (`attachCalSwipe()`, touchstart/touchend
+  delta) pages to the next/previous day, same as the new "›" button
+  (previously only "‹" existed). Opening the tab scrolls the current
+  hour into view and marks it `.current-hour` automatically.
+
 ## Honest caveat
 The "Client-side sync layer," "Access + hosting," and "Current data state"
 sections above were re-verified live in this session (2026-08-09): read

@@ -497,8 +497,10 @@ async function fetchTodayTasks(accessToken, day) {
   }
 }
 
-async function summarizeWithGemini(env, day, events, tasks) {
+async function summarizeWithGemini(env, day, events, tasks, now) {
   if (!env.GEMINI_API_KEY) throw new Error("Gemini API key not configured");
+
+  const nowLabel = (now || new Date()).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: BRIEF_TIMEZONE });
 
   const eventLines = events.length
     ? events.map((e) => {
@@ -508,21 +510,25 @@ async function summarizeWithGemini(env, day, events, tasks) {
         const cal = e.calendar ? ` [${e.calendar}]` : "";
         return `- ${when}: ${e.title}${e.location ? ` (${e.location})` : ""}${cal}`;
       }).join("\n")
-    : "(No calendar events today.)";
+    : "(No calendar events remaining today.)";
 
   const taskLines = tasks && tasks.length
     ? tasks.map((t) => `- ${t.title}${t.list ? ` [${t.list}]` : ""}`).join("\n")
-    : "(No tasks due today.)";
+    : "(No tasks still due today.)";
 
   const prompt =
-    `You are a concise personal daily-briefing assistant. Given today's ` +
-    `(${day}) calendar events (across all of the person's calendars, ` +
+    `You are a concise personal daily-briefing assistant. It is currently ` +
+    `${nowLabel} on ${day}. The events and tasks below are only what's ` +
+    `still remaining today - anything already finished has been left out ` +
+    `on purpose, so do not imply the day is just starting. Given this ` +
+    `remaining schedule (events span all of the person's calendars, ` +
     `including shared/family ones - the bracketed tag names the source ` +
-    `calendar) and due tasks below, write a short, friendly summary ` +
-    `(3-5 sentences max) highlighting what the day looks like, any tight ` +
-    `back-to-back meetings, free stretches, and anything due today. Do ` +
+    `calendar), write a short, friendly summary (3-5 sentences max) of ` +
+    `what's left: any tight back-to-back meetings, free stretches, and ` +
+    `anything still due. Do not open with a time-of-day greeting like ` +
+    `"Good morning" or "Good evening" - go straight into the summary. Do ` +
     `not invent events or tasks not listed. Plain text, no markdown.\n\n` +
-    `Events:\n${eventLines}\n\nTasks due today:\n${taskLines}`;
+    `Remaining events today:\n${eventLines}\n\nTasks still due today:\n${taskLines}`;
 
   const res = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${env.GEMINI_API_KEY}`,
@@ -556,7 +562,8 @@ async function saveBriefStatus(env, email, day, status, summary, error) {
  * instead of throwing, so both the manual-refresh endpoint and the cron
  * handler can report (or log) precisely what happened. */
 async function generateBrief(env, email, now) {
-  const { day, timeMin, timeMax } = localDayBounds(BRIEF_TIMEZONE, now || new Date());
+  const effectiveNow = now || new Date();
+  const { day, timeMin, timeMax } = localDayBounds(BRIEF_TIMEZONE, effectiveNow);
 
   const tokenResult = await getGoogleAccessToken(env, email);
   if (tokenResult.error) return { status: tokenResult.error, day };
@@ -564,7 +571,15 @@ async function generateBrief(env, email, now) {
   let events;
   try {
     const calendars = await listCalendars(tokenResult.accessToken);
-    events = await fetchEventsForRange(tokenResult.accessToken, calendars, timeMin, timeMax);
+    const allEvents = await fetchEventsForRange(tokenResult.accessToken, calendars, timeMin, timeMax);
+    // A refresh triggered mid-day should talk about what's left, not
+    // re-describe meetings that already happened - drop anything whose
+    // end time (or start, for events missing one) is already in the past.
+    const nowMs = effectiveNow.getTime();
+    events = allEvents.filter((e) => {
+      const endMs = new Date(e.end || e.start).getTime();
+      return !Number.isFinite(endMs) || endMs > nowMs;
+    });
   } catch (e) {
     const detail = String(e.message || e);
     await saveBriefStatus(env, email, day, "calendar_error", null, detail);
@@ -575,7 +590,7 @@ async function generateBrief(env, email, now) {
 
   let summary;
   try {
-    summary = await summarizeWithGemini(env, day, events, tasks);
+    summary = await summarizeWithGemini(env, day, events, tasks, effectiveNow);
   } catch (e) {
     const detail = String(e.message || e);
     await saveBriefStatus(env, email, day, "gemini_error", null, detail);

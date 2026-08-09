@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.6.0
+
+- **Fix:** removed the "Grant new permissions" link from the Today's Brief card now that reconnecting has actually been done - it was a one-time fix for the 1.5.0 scope expansion, not something that needed to stay visible permanently.
+- **Fix:** refreshing the Today's Brief now only tells Gemini about events/tasks still *remaining* for the day - anything already finished is dropped before the prompt is built, and the prompt is explicitly told the current time and told not to open with a time-of-day greeting ("Good morning" etc.) that may no longer be accurate.
+- **Prayers (Salah) checklist:** each tick-box row is now colored to match its prayer (same colors as the live clock/Calendar tab), and once a location is saved, shows that prayer's actual time next to its name.
+- **Calendar tab rebuilt as a full 24-hour, two-column day view** (00:00-11:59 / 12:00-23:59 side by side) instead of a scrolling agenda list - every hour of the day is visible at once, no scrolling required to see the whole day.
+  - Each event appears in its starting hour's slot, colored by source calendar, with its location shown inline.
+  - Every hour is tinted with the color of whichever prayer's *window* it falls in - Fajr through Sunrise, Sunrise through Dhuhr, and so on, including overnight (Isha's window correctly spans across midnight into Fajr the next morning) - so the whole day is covered with no gaps, not just single colored dots at prayer times.
+  - Swipe left/right on the grid moves to the next/previous day, same as the new "›" next-day button (previously there was only "‹" for previous day).
+  - Opening the tab automatically highlights the current hour in whichever column (AM/PM) it falls in and scrolls it into view - no extra tap needed to see "now."
+
 ## 1.5.1
 
 - **Fix:** after the 1.5.0 OAuth scope expansion, there was no way to actually re-grant the new permissions from the UI. A refresh token from before the scope change keeps working for its *original* scopes — Google doesn't invalidate it — so the Today's Brief card kept reporting `ok` and never showed the "Reconnect" button; the only place that button appears is the `not_connected`/`reconnect_required` states. The Today's Brief card now always offers a "🔗 Grant new permissions" link (re-runs Google's consent screen) alongside Refresh/Generate-now, even while already connected and working, so upgrading to newly-added scopes doesn't require waiting for something to fail first.

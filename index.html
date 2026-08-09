@@ -127,13 +127,19 @@ input[type=range]{width:100%;accent-color:var(--accent)}
 .pill-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
 .prayer-chip{font-weight:700}
 .prayer-chip.next{box-shadow:0 0 0 2px var(--ink);font-weight:800}
-.agenda-row{display:flex;align-items:flex-start;gap:10px;padding:9px 8px;border-radius:10px;border-inline-start:4px solid var(--line)}
-.agenda-row:hover{background:var(--panel-2)}
-.agenda-time{font-weight:700;font-size:.8rem;min-width:64px;color:var(--muted)}
-.agenda-body{flex:1}
-.agenda-title{font-weight:700}
-.agenda-meta{font-size:.76rem;color:var(--muted)}
-.agenda-prayer{padding:5px 8px;border-radius:8px;font-size:.78rem;font-weight:700;color:#fff}
+.cal-daygrid{display:flex;gap:12px;overflow-x:auto;touch-action:pan-y}
+.cal-col{flex:1 1 0;min-width:210px}
+.cal-col-label{font-size:.7rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px}
+.cal-col-body{border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.cal-hour{position:relative;min-height:44px;border-top:1px solid var(--line);padding:3px 6px 5px;z-index:1}
+.cal-hour:first-child{border-top:none}
+.cal-hour.current-hour{box-shadow:inset 0 0 0 2px var(--brand)}
+.cal-hour-label{font-size:.68rem;font-weight:700;color:var(--muted)}
+.cal-hour-events{display:flex;flex-direction:column;gap:3px;margin-top:2px}
+.cal-event{border-radius:8px;padding:3px 7px;font-size:.72rem;line-height:1.25;border-inline-start:3px solid var(--brand);background:var(--panel-2)}
+.cal-event-time{font-weight:700;color:var(--muted);margin-inline-end:5px}
+.cal-nowline{position:absolute;inset-inline:0;height:2px;background:var(--bad);z-index:2}
+.cal-nowline i{position:absolute;inset-inline-start:-3px;top:-4px;width:9px;height:9px;border-radius:50%;background:var(--bad);display:block}
 .task-row{display:flex;align-items:center;gap:10px;padding:8px;border-radius:10px}
 .task-row:hover{background:var(--panel-2)}
 .task-row input[type=checkbox]{width:18px;height:18px;accent-color:var(--brand);flex:0 0 auto}
@@ -324,12 +330,22 @@ footer.foot{text-align:center;color:var(--muted);font-size:.78rem;margin-top:26p
     <div class="datebar">
       <button id="calPrevDay" title="Previous day">‹</button>
       <div class="dlabel" id="calDateLabel">Today</div>
+      <button id="calNextDay" title="Next day">›</button>
       <input type="date" id="calDatePick">
       <button class="today-btn" id="calJumpToday">Today</button>
     </div>
     <div class="card">
-      <h3>🗓️ Your Day</h3>
-      <div id="calAgenda"></div>
+      <h3>🗓️ Your Day <span class="muted" style="font-weight:600;font-size:.76rem">— swipe left/right to change day</span></h3>
+      <div class="cal-daygrid" id="calGrid">
+        <div class="cal-col">
+          <div class="cal-col-label">00:00 – 11:59</div>
+          <div class="cal-col-body" id="calColAMBody"></div>
+        </div>
+        <div class="cal-col">
+          <div class="cal-col-label">12:00 – 23:59</div>
+          <div class="cal-col-body" id="calColPMBody"></div>
+        </div>
+      </div>
       <div class="muted" id="calStatus" style="font-size:.82rem;margin-top:8px"></div>
       <div class="legend" id="calLegend"></div>
     </div>
@@ -807,13 +823,27 @@ function renderToday(){
 
   // prayers
   var pb=document.getElementById("prayBox"); pb.innerHTML="";
+  var prayerLbls={};
   PRAYERS.forEach(function(p){
+    var pname=p[1];
     var row=el("label","chk"+(d.prayers[p[0]]?" done":""));
+    row.style.borderInlineStart="4px solid var("+(PRAYER_COLOR_VAR[pname]||"--pray")+")";
     var cb=el("input");cb.type="checkbox";cb.checked=!!d.prayers[p[0]];
     cb.addEventListener("change",function(){d.prayers[p[0]]=cb.checked;d.updated_at=Date.now();save();renderToday();updateRing();});
-    var txt=el("div");txt.appendChild(el("div","lbl",p[1]));
+    var lbl=el("div","lbl",pname);
+    var txt=el("div");txt.appendChild(lbl);
     row.appendChild(cb);row.appendChild(txt);pb.appendChild(row);
+    prayerLbls[pname]=lbl;
   });
+  var ploc=state.profile&&state.profile.prayerLoc;
+  if(ploc){
+    fetchPrayerTimes(k,ploc.lat,ploc.lon).then(function(times){
+      PRAYERS.forEach(function(p){
+        var pname=p[1];
+        if(times[pname]&&prayerLbls[pname])prayerLbls[pname].textContent=pname+" · "+times[pname];
+      });
+    }).catch(function(){});
+  }
 
   // meals
   var plan=PLAN[DAYKEY[cur.getDay()]];
@@ -1108,15 +1138,6 @@ function renderBrief(b){
   var refreshBtn=el("button","btn","🔄 "+(b.status==="pending"?"Generate now":"Refresh"));
   refreshBtn.addEventListener("click",function(){refreshBrief();});
   actions.appendChild(refreshBtn);
-  /* A refresh token that predates a scope expansion (e.g. adding calendar
-   * write or Tasks access) keeps working for its original scopes - Google
-   * doesn't invalidate it, so the brief/calendar keep returning "ok" and
-   * reconnect_required never fires on their own. The only way to actually
-   * pick up new scopes is to redo consent, so always offer that here rather
-   * than only in the error states above. */
-  var grantBtn=el("a","btn","🔗 Grant new permissions");
-  grantBtn.href="/api/google/connect";
-  actions.appendChild(grantBtn);
   if(b.status==="ok"&&b.generated_at)meta.textContent="Generated "+fmtClock(b.generated_at);
 }
 
@@ -1224,17 +1245,23 @@ function prayerCacheKey(day,lat,lon){return day+"|"+lat.toFixed(2)+"|"+lon.toFix
 /** Fetches (and caches per day+location) prayer times from Aladhan.
  * Your coordinates are sent to that third-party API each time a new
  * day/location combination isn't already cached - a deliberate tradeoff
- * for simplicity over a fully local astronomical calculation. */
+ * for simplicity over a fully local astronomical calculation. Several
+ * parts of the UI (the clock, the Today checklist, the Calendar tab) can
+ * all ask for the same day+location within the same tick, before the
+ * first request has had a chance to populate the cache - an in-flight
+ * map lets them share one network call instead of firing one each. */
+var _prayerFetchInFlight={};
 function fetchPrayerTimes(day,lat,lon){
   var key=prayerCacheKey(day,lat,lon);
   try{
     var cached=localStorage.getItem("yawarPrayerCache_"+key);
     if(cached)return Promise.resolve(JSON.parse(cached));
   }catch(e){}
+  if(_prayerFetchInFlight[key])return _prayerFetchInFlight[key];
   var p=day.split("-");
   var dateParam=p[2]+"-"+p[1]+"-"+p[0]; // Aladhan wants DD-MM-YYYY
   var url="https://api.aladhan.com/v1/timings/"+dateParam+"?latitude="+lat+"&longitude="+lon+"&method="+PRAYER_METHOD;
-  return fetch(url).then(function(res){
+  var promise=fetch(url).then(function(res){
     if(!res.ok)throw new Error("aladhan http "+res.status);
     return res.json();
   }).then(function(data){
@@ -1247,7 +1274,9 @@ function fetchPrayerTimes(day,lat,lon){
     });
     try{localStorage.setItem("yawarPrayerCache_"+key,JSON.stringify(times));}catch(e){}
     return times;
-  });
+  }).finally(function(){delete _prayerFetchInFlight[key];});
+  _prayerFetchInFlight[key]=promise;
+  return promise;
 }
 
 function minutesOfDay(hhmm){var p=hhmm.split(":");return (+p[0])*60+(+p[1]);}
@@ -1301,6 +1330,7 @@ function requestPrayerLocation(){
     state.profile.updated_at=Date.now();
     save();
     renderPrayerClock();
+    renderToday();
   },function(err){
     if(locText)locText.textContent="Couldn't get your location ("+(err&&err.message?err.message:"permission denied")+"). Try again.";
   },{maximumAge:3600000,timeout:15000});
@@ -1308,6 +1338,11 @@ function requestPrayerLocation(){
 
 /* ---------- CALENDAR TAB ---------- */
 var calCur=new Date(); calCur.setHours(0,0,0,0);
+
+function calGoDay(delta){
+  calCur.setDate(calCur.getDate()+delta);
+  renderCalendarTab();
+}
 
 function renderCalendarTab(){
   var k=keyOf(calCur);
@@ -1326,50 +1361,91 @@ function renderCalendarTab(){
   });
 }
 
-function renderAgenda(data,times,dayKey){
-  var agenda=document.getElementById("calAgenda"),status=document.getElementById("calStatus"),legend=document.getElementById("calLegend");
-  agenda.innerHTML="";
+/** Splits the day into consecutive prayer-window segments (minutes-of-day,
+ * [0,1440)) covering the *entire* 24h span, so every hour of the grid can
+ * be tinted with exactly one prayer's color - including overnight, which
+ * belongs to Isha (today's Isha through midnight, and midnight through
+ * today's Fajr belongs to *last night's* Isha window). Returns null when
+ * there isn't enough data (no location/Fajr/Isha) to segment the day. */
+function calWindowsForDay(times){
+  if(!times||!times.Fajr||!times.Isha)return null;
+  var m={};
+  PRAYER_NAMES.forEach(function(n){m[n]=times[n]?minutesOfDay(times[n]):null;});
+  var segs=[
+    {name:"Isha",from:0,to:m.Fajr},
+    {name:"Fajr",from:m.Fajr,to:m.Sunrise!=null?m.Sunrise:m.Fajr},
+    {name:"Sunrise",from:m.Sunrise!=null?m.Sunrise:m.Fajr,to:m.Dhuhr!=null?m.Dhuhr:(m.Sunrise!=null?m.Sunrise:m.Fajr)},
+    {name:"Dhuhr",from:m.Dhuhr,to:m.Asr!=null?m.Asr:m.Dhuhr},
+    {name:"Asr",from:m.Asr,to:m.Maghrib!=null?m.Maghrib:m.Asr},
+    {name:"Maghrib",from:m.Maghrib,to:m.Isha},
+    {name:"Isha",from:m.Isha,to:1440},
+  ];
+  return segs.filter(function(s){return s.to>s.from;});
+}
 
-  var rows=[];
-  (data.events||[]).forEach(function(e){
-    rows.push({
-      sortKey:e.allDay?"00:00":e.start,
-      time:e.allDay?"All day":new Date(e.start).toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"}),
-      type:"event",event:e,
-    });
-  });
-  if(times){
-    PRAYER_NAMES.forEach(function(name){
-      if(!times[name])return;
-      rows.push({sortKey:times[name],time:times[name],type:"prayer",name:name});
-    });
-  }
-  rows.sort(function(a,b){return String(a.sortKey).localeCompare(String(b.sortKey));});
+function hourWindowName(segs,hour){
+  if(!segs)return null;
+  var mid=hour*60+30;
+  for(var i=0;i<segs.length;i++)if(mid>=segs[i].from&&mid<segs[i].to)return segs[i].name;
+  return null;
+}
 
-  if(!rows.length)agenda.appendChild(el("p","muted","Nothing scheduled."));
-  rows.forEach(function(r){
-    if(r.type==="prayer"){
-      var prow=el("div","agenda-prayer",r.name+" — "+r.time);
-      prow.style.background="var("+PRAYER_COLOR_VAR[r.name]+")";
-      prow.style.marginBottom="6px";
-      agenda.appendChild(prow);
-      return;
+function renderDayGridColumn(bodyEl,hourFrom,hourTo,eventsByHour,segs,isToday,nowMinutes){
+  bodyEl.innerHTML="";
+  for(var h=hourFrom;h<hourTo;h++){
+    var row=el("div","cal-hour");
+    var winName=hourWindowName(segs,h);
+    if(winName)row.style.background="color-mix(in srgb, var("+PRAYER_COLOR_VAR[winName]+") 16%, var(--panel))";
+    var isCurrentHour=isToday&&nowMinutes!=null&&Math.floor(nowMinutes/60)===h;
+    if(isCurrentHour)row.classList.add("current-hour");
+    row.appendChild(el("span","cal-hour-label",String(h).padStart(2,"0")+":00"));
+    var evBox=el("div","cal-hour-events");
+    (eventsByHour[h]||[]).forEach(function(e){
+      var chip=el("div","cal-event");
+      chip.style.borderInlineStartColor=e.color||"var(--brand)";
+      chip.title=[e.calendar,e.location].filter(Boolean).join(" · ");
+      chip.appendChild(el("span","cal-event-time",e.timeLabel));
+      chip.appendChild(document.createTextNode(e.title+(e.location?" ("+e.location+")":"")));
+      evBox.appendChild(chip);
+    });
+    row.appendChild(evBox);
+    if(isCurrentHour){
+      var line=el("div","cal-nowline");
+      line.style.top=((nowMinutes%60)/60*100)+"%";
+      line.appendChild(el("i"));
+      row.appendChild(line);
     }
-    var e=r.event;
-    var row=el("div","agenda-row");
-    row.style.borderInlineStartColor=e.color||"var(--brand)";
-    var body=el("div","agenda-body");
-    body.appendChild(el("div","agenda-title",e.title));
-    var metaParts=[e.calendar,e.location].filter(Boolean).join(" · ");
-    if(metaParts)body.appendChild(el("div","agenda-meta",metaParts));
-    row.appendChild(el("div","agenda-time",r.time));
-    row.appendChild(body);
-    agenda.appendChild(row);
+    bodyEl.appendChild(row);
+  }
+}
+
+function renderAgenda(data,times,dayKey){
+  var amBody=document.getElementById("calColAMBody"),pmBody=document.getElementById("calColPMBody");
+  var status=document.getElementById("calStatus"),legend=document.getElementById("calLegend");
+  if(!amBody||!pmBody)return;
+
+  var eventsByHour={};
+  (data.events||[]).forEach(function(e){
+    var hour=e.allDay?0:new Date(e.start).getHours();
+    var timeLabel=e.allDay?"All day":new Date(e.start).toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"});
+    (eventsByHour[hour]=eventsByHour[hour]||[]).push({title:e.title,color:e.color,timeLabel:timeLabel,location:e.location,calendar:e.calendar});
   });
+  Object.keys(eventsByHour).forEach(function(h){
+    eventsByHour[h].sort(function(a,b){return a.timeLabel.localeCompare(b.timeLabel);});
+  });
+
+  var segs=calWindowsForDay(times);
+  var isToday=dayKey===todayKey();
+  var now=new Date();
+  var nowMinutes=isToday?(now.getHours()*60+now.getMinutes()):null;
+
+  renderDayGridColumn(amBody,0,12,eventsByHour,segs,isToday,nowMinutes);
+  renderDayGridColumn(pmBody,12,24,eventsByHour,segs,isToday,nowMinutes);
 
   if(!data.connected)status.textContent="Connect Google Calendar (Today's Brief card, Today tab) to see your schedule here.";
   else if(data.status==="reconnect_required")status.textContent="Google Calendar access has expired — reconnect from the Today's Brief card.";
   else if(data.status==="calendar_error")status.textContent="Couldn't load your calendar right now.";
+  else if(!(data.events||[]).length)status.textContent="Nothing scheduled.";
   else status.textContent="";
 
   legend.innerHTML="";
@@ -1379,6 +1455,37 @@ function renderAgenda(data,times,dayKey){
     chip.insertBefore(dot,chip.firstChild);
     legend.appendChild(chip);
   });
+
+  if(isToday&&nowMinutes!=null){
+    var targetBody=nowMinutes<720?amBody:pmBody;
+    var target=targetBody.children[Math.floor(nowMinutes/60)%12];
+    if(target&&typeof target.scrollIntoView==="function"){
+      try{target.scrollIntoView({block:"center"});}catch(e){}
+    }
+  }
+}
+
+/** Left/right swipe on the day grid pages to the previous/next day - a
+ * quick way to flip through the rest of the week without the datebar. */
+function attachCalSwipe(){
+  var grid=document.getElementById("calGrid");
+  if(!grid)return;
+  var startX=null,startY=null;
+  grid.addEventListener("touchstart",function(e){
+    var t=e.touches&&e.touches[0];
+    if(!t)return;
+    startX=t.clientX;startY=t.clientY;
+  },{passive:true});
+  grid.addEventListener("touchend",function(e){
+    if(startX==null)return;
+    var t=e.changedTouches&&e.changedTouches[0];
+    var sx=startX,sy=startY;
+    startX=null;startY=null;
+    if(!t)return;
+    var dx=t.clientX-sx,dy=t.clientY-sy;
+    if(Math.abs(dx)<40||Math.abs(dx)<Math.abs(dy)*1.2)return;
+    calGoDay(dx<0?1:-1);
+  },{passive:true});
 }
 
 /* ---------- NOTIFICATIONS (foreground only) ---------- */
@@ -1744,9 +1851,11 @@ document.getElementById("taskTitleIn").addEventListener("keydown",function(e){if
 
 document.getElementById("prayerLocBtn").addEventListener("click",requestPrayerLocation);
 
-document.getElementById("calPrevDay").addEventListener("click",function(){calCur.setDate(calCur.getDate()-1);renderCalendarTab();});
+document.getElementById("calPrevDay").addEventListener("click",function(){calGoDay(-1);});
+document.getElementById("calNextDay").addEventListener("click",function(){calGoDay(1);});
 document.getElementById("calJumpToday").addEventListener("click",function(){calCur=new Date();calCur.setHours(0,0,0,0);renderCalendarTab();});
 document.getElementById("calDatePick").addEventListener("change",function(){var v=this.value.split("-");calCur=new Date(+v[0],+v[1]-1,+v[2]);calCur.setHours(0,0,0,0);renderCalendarTab();});
+attachCalSwipe();
 
 document.getElementById("notifyBtn").addEventListener("click",enableNotifications);
 
