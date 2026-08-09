@@ -412,7 +412,11 @@ function localDayBounds(timeZone, now) {
 /** Every calendar the user has read access to - including shared/family
  * calendars, not just their own primary one. */
 async function listCalendars(accessToken) {
-  const res = await fetch("https://www.googleapis.com/calendar/v3/users/me/calendarList?minAccessRole=reader", {
+  /* showHidden matters: a secondary/shared calendar that's been unticked in
+     the Google Calendar UI is "hidden", and calendarList leaves those out by
+     default - so events on it would silently never reach the brief. */
+  const params = new URLSearchParams({ minAccessRole: "reader", showHidden: "true", showDeleted: "false", maxResults: "250" });
+  const res = await fetch(`https://www.googleapis.com/calendar/v3/users/me/calendarList?${params}`, {
     headers: { authorization: `Bearer ${accessToken}` },
   });
   if (!res.ok) {
@@ -435,7 +439,7 @@ async function listCalendars(accessToken) {
 async function fetchEventsForRange(accessToken, calendars, timeMin, timeMax) {
   const all = [];
   for (const cal of calendars) {
-    const params = new URLSearchParams({ timeMin, timeMax, singleEvents: "true", orderBy: "startTime", maxResults: "50" });
+    const params = new URLSearchParams({ timeMin, timeMax, singleEvents: "true", orderBy: "startTime", maxResults: "250" });
     const res = await fetch(
       `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(cal.id)}/events?${params}`,
       { headers: { authorization: `Bearer ${accessToken}` } }
@@ -461,40 +465,56 @@ async function fetchEventsForRange(accessToken, calendars, timeMin, timeMax) {
   return all;
 }
 
-/** Today's not-yet-completed Google Tasks, across every task list. Tasks
- * are a bonus enrichment for the brief, never its critical path - any
- * failure here (not connected with the tasks scope yet, API hiccup,
- * network error) returns an empty list rather than breaking the brief. */
-async function fetchTodayTasks(accessToken, day) {
+/** Open Google Tasks across every task list, bucketed relative to `day`.
+ *
+ * Tasks are an enrichment, never the brief's critical path, so this still
+ * never throws - but it now *reports* why it came back empty instead of
+ * swallowing it. A silent empty list is indistinguishable from "no tasks",
+ * which is exactly how an unenabled Tasks API or a missing scope hid itself.
+ *
+ * It deliberately asks for everything open rather than filtering server-side
+ * on the due date: Google Tasks stores `due` as a date (midnight UTC) and
+ * most tasks have no due date at all, so a dueMin/dueMax window silently
+ * dropped both undated and overdue work - the very things worth surfacing. */
+async function fetchTasks(accessToken, day) {
+  const out = { dueToday: [], overdue: [], undated: [], error: null };
   try {
-    const listsRes = await fetch("https://tasks.googleapis.com/tasks/v1/users/@me/lists", {
+    const listsRes = await fetch("https://tasks.googleapis.com/tasks/v1/users/@me/lists?maxResults=100", {
       headers: { authorization: `Bearer ${accessToken}` },
     });
-    if (!listsRes.ok) return [];
+    if (!listsRes.ok) {
+      const detail = await listsRes.text().catch(() => "");
+      out.error = `task lists unavailable: HTTP ${listsRes.status} ${detail.slice(0, 300)}`;
+      return out;
+    }
     const listsData = await listsRes.json();
 
-    const tasks = [];
     for (const list of listsData.items || []) {
-      const params = new URLSearchParams({
-        showCompleted: "false",
-        dueMin: `${day}T00:00:00Z`,
-        dueMax: `${day}T23:59:59Z`,
-      });
+      // maxResults defaults to 20, which quietly truncates a real task list.
+      const params = new URLSearchParams({ showCompleted: "false", showHidden: "true", maxResults: "100" });
       const res = await fetch(
         `https://tasks.googleapis.com/tasks/v1/lists/${encodeURIComponent(list.id)}/tasks?${params}`,
         { headers: { authorization: `Bearer ${accessToken}` } }
       );
-      if (!res.ok) continue;
+      if (!res.ok) {
+        if (!out.error) out.error = `task list "${list.title || list.id}" unavailable: HTTP ${res.status}`;
+        continue;
+      }
       const data = await res.json();
       for (const t of data.items || []) {
-        if (t.status === "completed") continue;
-        tasks.push({ title: t.title || "(untitled task)", due: t.due || null, list: list.title || null });
+        if (t.status === "completed" || t.deleted) continue;
+        const entry = { title: (t.title || "").trim() || "(untitled task)", due: t.due || null, list: list.title || null };
+        if (!t.due) { out.undated.push(entry); continue; }
+        const dueDay = String(t.due).slice(0, 10);
+        if (dueDay < day) out.overdue.push(entry);
+        else if (dueDay === day) out.dueToday.push(entry);
+        /* Later than today: not part of a brief about today. */
       }
     }
-    return tasks;
-  } catch {
-    return [];
+  } catch (e) {
+    out.error = String(e.message || e);
   }
+  return out;
 }
 
 async function summarizeWithGemini(env, day, events, tasks, now) {
@@ -512,23 +532,35 @@ async function summarizeWithGemini(env, day, events, tasks, now) {
       }).join("\n")
     : "(No calendar events remaining today.)";
 
-  const taskLines = tasks && tasks.length
-    ? tasks.map((t) => `- ${t.title}${t.list ? ` [${t.list}]` : ""}`).join("\n")
-    : "(No tasks still due today.)";
+  const t = tasks || { dueToday: [], overdue: [], undated: [] };
+  const taskBlock = (label, list, cap) => {
+    if (!list || !list.length) return `${label}:\n(none)`;
+    const shown = cap ? list.slice(0, cap) : list;
+    const lines = shown.map((x) => `- ${x.title}${x.list ? ` [${x.list}]` : ""}`).join("\n");
+    const more = list.length > shown.length ? `\n- (+${list.length - shown.length} more)` : "";
+    return `${label}:\n${lines}${more}`;
+  };
 
   const prompt =
     `You are a concise personal daily-briefing assistant. It is currently ` +
-    `${nowLabel} on ${day}. The events and tasks below are only what's ` +
-    `still remaining today - anything already finished has been left out ` +
-    `on purpose, so do not imply the day is just starting. Given this ` +
-    `remaining schedule (events span all of the person's calendars, ` +
-    `including shared/family ones - the bracketed tag names the source ` +
-    `calendar), write a short, friendly summary (3-5 sentences max) of ` +
-    `what's left: any tight back-to-back meetings, free stretches, and ` +
-    `anything still due. Do not open with a time-of-day greeting like ` +
-    `"Good morning" or "Good evening" - go straight into the summary. Do ` +
-    `not invent events or tasks not listed. Plain text, no markdown.\n\n` +
-    `Remaining events today:\n${eventLines}\n\nTasks still due today:\n${taskLines}`;
+    `${nowLabel} on ${day}. Everything below is what is still outstanding - ` +
+    `events that have already finished were removed on purpose, so do not ` +
+    `imply the day is just starting.\n\n` +
+    `Cover ALL of it: the calendar events AND the Google Tasks. The events ` +
+    `span every calendar the person can see, including shared, family and ` +
+    `secondary ones - the bracketed tag names the source calendar or task ` +
+    `list. Treat them all as equally real; do not skip a section because it ` +
+    `is short.\n\n` +
+    `Write a clear, friendly summary (up to 6 sentences). Say what is left ` +
+    `on the schedule, call out any tight back-to-back timings or free ` +
+    `stretches, and then say what needs doing - naming overdue tasks first, ` +
+    `since those are the ones slipping. Do not open with a time-of-day ` +
+    `greeting like "Good morning" or "Good evening". Do not invent anything ` +
+    `not listed below. Plain text, no markdown.\n\n` +
+    `Remaining events today:\n${eventLines}\n\n` +
+    `${taskBlock("Tasks due today", t.dueToday)}\n\n` +
+    `${taskBlock("Overdue tasks", t.overdue, 10)}\n\n` +
+    `${taskBlock("Tasks with no due date", t.undated, 10)}`;
 
   const res = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${env.GEMINI_API_KEY}`,
@@ -586,7 +618,7 @@ async function generateBrief(env, email, now) {
     return { status: "calendar_error", day, error: detail };
   }
 
-  const tasks = await fetchTodayTasks(tokenResult.accessToken, day);
+  const tasks = await fetchTasks(tokenResult.accessToken, day);
 
   let summary;
   try {
@@ -598,8 +630,11 @@ async function generateBrief(env, email, now) {
   }
 
   const generatedAt = Date.now();
-  await saveBriefStatus(env, email, day, "ok", summary, null);
-  return { status: "ok", day, summary, generated_at: generatedAt };
+  /* A Tasks failure doesn't stop the brief, but it is recorded alongside the
+     successful summary so "why are none of my tasks in here?" is answerable
+     instead of looking identical to "you have no tasks". */
+  await saveBriefStatus(env, email, day, "ok", summary, tasks.error);
+  return { status: "ok", day, summary, generated_at: generatedAt, error: tasks.error };
 }
 
 async function handleGetBrief(env, email, now) {
@@ -807,7 +842,7 @@ export {
   getGoogleAccessToken,
   listCalendars,
   fetchEventsForRange,
-  fetchTodayTasks,
+  fetchTasks,
   generateBrief,
   handleGetBrief,
   handleRefreshBrief,

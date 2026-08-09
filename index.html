@@ -180,49 +180,41 @@ input[type=range]{width:100%;accent-color:var(--accent)}
 .pill-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
 .prayer-chip{font-weight:700}
 .prayer-chip.next{box-shadow:0 0 0 2px var(--ink);font-weight:800}
-/* Week grid: an hour-label gutter plus one column per day, laid out as a
-   single CSS grid so every day's 09:00 sits on the same row. The focused
-   day is given several times the width of the rest - that column is the one
-   you actually read; the others are a glanceable overview you slide to.
-   Because only the column template and a couple of classes change when the
-   focus moves (the DOM is kept), the resize animates. */
-.cal-viewport{overflow:hidden}
-.cal-daygrid{touch-action:pan-y;will-change:transform}
-.cal-week{
-  display:grid;border:1px solid var(--line);border-radius:12px;overflow:hidden;
-  transition:grid-template-columns .22s ease
+/* One day fills the card - that day is the point of the screen. Its two
+   neighbours are rendered either side inside a 300%-wide track, so dragging
+   reveals the real next/previous day following your finger rather than
+   blanking and re-fetching. After a slide the track is silently re-centred,
+   which is what keeps it feeling continuous. */
+.cal-viewport{overflow:hidden;touch-action:pan-y}
+.cal-track{display:flex;width:300%;transform:translateX(-33.3333%);will-change:transform}
+.cal-day{flex:0 0 33.3333%;width:33.3333%;min-width:0;padding:0 1px}
+.cal-hours{border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.cal-hour{
+  position:relative;display:flex;gap:8px;min-height:34px;padding:3px 8px 4px;
+  border-top:1px solid var(--line)
 }
-.cal-wk-head{
-  padding:6px 2px;text-align:center;font-size:.56rem;font-weight:700;line-height:1.2;
-  color:var(--muted);background:var(--panel-2);border-inline-start:1px solid var(--line);
-  cursor:pointer;overflow:hidden
-}
-.cal-wk-head:first-child,.cal-wk-gutter{border-inline-start:none}
-.cal-wk-head b{display:block;font-size:.78rem;color:var(--ink)}
-.cal-wk-head.is-today b{color:var(--brand)}
-.cal-wk-head.is-sel{background:var(--brand);color:rgba(255,255,255,.85)}
-.cal-wk-head.is-sel b,.cal-wk-head.is-sel.is-today b{color:#fff}
-.cal-wk-gutter{
-  font-size:.58rem;font-weight:800;color:var(--ink);opacity:.7;padding:1px 3px 0;
-  border-top:1px solid var(--line);text-align:end;background:var(--panel-2)
-}
-.cal-cell{
-  position:relative;min-height:26px;padding:1px;overflow:hidden;
-  border-top:1px solid var(--line);border-inline-start:1px solid var(--line)
-}
-.cal-cell.current-hour{box-shadow:inset 0 0 0 2px var(--brand)}
-/* Narrow days can't hold text, so an event is a solid colour bar there -
-   enough to see that something is on, and you slide to that day to read it. */
-.cal-bar{display:block;height:5px;border-radius:2px;margin:0 1px 2px;background:var(--brand)}
+.cal-hour:first-child{border-top:none}
+.cal-hour.current-hour{box-shadow:inset 0 0 0 2px var(--brand)}
+.cal-hour-label{font-size:.66rem;font-weight:800;color:var(--ink);opacity:.65;flex:0 0 34px;padding-top:2px}
+.cal-hour-events{display:flex;flex-direction:column;gap:3px;flex:1;min-width:0}
 .cal-chip{
-  display:block;border-radius:5px;padding:1px 4px;margin-bottom:2px;font-size:.62rem;line-height:1.3;
-  background:var(--panel-2);border-inline-start:3px solid var(--brand);
-  overflow:hidden;text-overflow:ellipsis
+  border-radius:7px;padding:3px 7px;font-size:.7rem;line-height:1.3;
+  background:var(--panel-2);border-inline-start:3px solid var(--brand)
 }
-.cal-cell.wide{min-height:32px;padding:2px}
-.cal-chip-time{font-weight:700;color:var(--muted);margin-inline-end:4px}
+.cal-chip-time{font-weight:800;color:var(--muted);margin-inline-end:5px}
+.cal-chip-meta{display:block;font-size:.62rem;color:var(--muted)}
 .cal-nowline{position:absolute;inset-inline:0;height:2px;background:var(--bad);z-index:2}
-.cal-nowline i{position:absolute;inset-inline-start:-2px;top:-3px;width:7px;height:7px;border-radius:50%;background:var(--bad);display:block}
+.cal-nowline i{position:absolute;inset-inline-start:-2px;top:-3px;width:8px;height:8px;border-radius:50%;background:var(--bad);display:block}
+/* Compact week strip: where you are in the week, and a way to jump. */
+.cal-strip{display:flex;gap:4px;margin:0 0 10px}
+.cal-strip button{
+  flex:1 1 0;min-width:0;border:1px solid var(--line);background:var(--panel);color:var(--muted);
+  border-radius:10px;padding:5px 1px;cursor:pointer;font:inherit;font-weight:700;font-size:.56rem;line-height:1.2
+}
+.cal-strip button b{display:block;font-size:.8rem;color:var(--ink)}
+.cal-strip button.is-today b{color:var(--brand)}
+.cal-strip button.is-sel{background:var(--brand);border-color:var(--brand);color:rgba(255,255,255,.85)}
+.cal-strip button.is-sel b,.cal-strip button.is-sel.is-today b{color:#fff}
 .loc-btn{display:inline-flex;align-items:center;gap:7px;padding:9px 13px}
 .loc-btn svg{width:15px;height:15px;flex:0 0 auto;fill:currentColor}
 .task-row{display:flex;align-items:center;gap:8px;padding:7px 4px;border-radius:10px}
@@ -436,11 +428,15 @@ footer.foot{text-align:center;color:var(--muted);font-size:.78rem;margin-top:26p
       <input type="date" id="calDatePick">
       <button class="today-btn" id="calJumpToday">Today</button>
     </div>
+    <div class="cal-strip" id="calStrip"></div>
+
     <div class="card">
-      <h3>🗓️ Your Week <span class="muted" style="font-weight:600;font-size:.72rem">— swipe or tap a day to expand it, ‹ › for other weeks</span></h3>
-      <div class="cal-viewport">
-        <div class="cal-daygrid" id="calGrid">
-          <div class="cal-week" id="calWeek"></div>
+      <h3 id="calDayHeading">🗓️ Today</h3>
+      <div class="cal-viewport" id="calGrid">
+        <div class="cal-track" id="calTrack">
+          <div class="cal-day" id="calDayPrev"></div>
+          <div class="cal-day" id="calDayCur"></div>
+          <div class="cal-day" id="calDayNext"></div>
         </div>
       </div>
       <div class="muted" id="calStatus" style="font-size:.8rem;margin-top:8px"></div>
@@ -1271,6 +1267,13 @@ function renderBrief(b){
   refreshBtn.addEventListener("click",function(){refreshBrief();});
   actions.appendChild(refreshBtn);
   if(b.status==="ok"&&b.generated_at)meta.textContent="Generated "+fmtClock(b.generated_at);
+  /* A brief can succeed while Google Tasks specifically failed. Say so -
+     otherwise a missing task list is indistinguishable from having none. */
+  if(b.status==="ok"&&b.error){
+    var warn=el("div","muted","⚠️ Couldn't read your Google Tasks, so they're missing from this summary. ("+b.error+")");
+    warn.style.fontSize=".7rem";warn.style.marginTop="6px";
+    meta.appendChild(warn);
+  }
 }
 
 function loadBrief(){
@@ -1529,84 +1532,24 @@ function requestPrayerLocation(){
 }
 
 /* ---------- CALENDAR TAB ---------- */
+/* One day at a time, full width - the day you're on is the point of the
+   screen. Its neighbours are rendered either side so a drag reveals the
+   real adjacent day instead of a blank panel, and so changing day costs no
+   round trip: events are fetched a window at a time and kept in memory. */
 var calCur=new Date(); calCur.setHours(0,0,0,0);
-var CAL_ANIM_MS=170;
-var _calAnimating=false;
+var CAL_SLIDE_MS=280;
+var CAL_WINDOW_PAD=7;          /* days fetched either side of the focused day */
+var _calSliding=false;
+var _calWin=null;              /* {from,to,byDay,connected,status} */
+var _calReqId=0;
 
 function calGridEl(){return document.getElementById("calGrid");}
-function calSetTransform(x,animate){
-  var g=calGridEl();if(!g)return;
-  g.style.transition=animate?("transform "+CAL_ANIM_MS+"ms ease-out, opacity "+CAL_ANIM_MS+"ms ease-out"):"none";
-  g.style.transform=x?("translateX("+x+")"):"";
-  g.style.opacity=x?"0":"1";
-}
+function calTrackEl(){return document.getElementById("calTrack");}
 
-/** Pages the grid as a sliding stack: the outgoing week is pushed off in the
- * direction of travel, then the new one slides in from the opposite edge.
- * Data is fetched during the second half, so the animation never blocks the
- * request. `delta` is in days - the week view moves ±7 at a time. */
-function calGoDay(delta,fromX){
-  if(_calAnimating)return;
-  var g=calGridEl();
-  if(!g){calCur.setDate(calCur.getDate()+delta);renderCalendarTab();return;}
-  _calAnimating=true;
-  if(fromX!=null)calSetTransform(fromX+"px",false);
-  /* Let the browser paint the finger's last position before easing out of
-     it, otherwise the drag and the animation collapse into one jump. */
-  void g.offsetWidth;
-  calSetTransform(delta>0?"-100%":"100%",true);
-  setTimeout(function(){
-    calCur.setDate(calCur.getDate()+delta);
-    renderCalendarTab();
-    calSetTransform(delta>0?"100%":"-100%",false);
-    void g.offsetWidth;
-    calSetTransform(null,true);
-    setTimeout(function(){_calAnimating=false;g.style.transition="";},CAL_ANIM_MS);
-  },CAL_ANIM_MS);
-}
-
-/** Monday-start week containing `d`. */
-function weekStart(d){
-  var x=new Date(d);x.setHours(0,0,0,0);
-  x.setDate(x.getDate()-((x.getDay()+6)%7));
-  return x;
-}
-function addDays(d,n){var x=new Date(d);x.setDate(x.getDate()+n);return x;}
-
-/** Which day column an event belongs in. All-day events carry a bare
- * "YYYY-MM-DD" and must be used as-is: parsing one as a Date reads it as UTC
- * midnight, which lands on the wrong day in some zones. */
-function eventDayKey(e){
-  if(e.allDay&&typeof e.start==="string"&&/^\d{4}-\d{2}-\d{2}$/.test(e.start))return e.start;
-  return keyOf(new Date(e.start));
-}
-
-function renderCalendarTab(){
-  var ws=weekStart(calCur);
-  var days=[];for(var i=0;i<7;i++)days.push(addDays(ws,i));
-  var firstKey=keyOf(days[0]),lastKey=keyOf(days[6]);
-
-  document.getElementById("calDateLabel").textContent=humanShort(days[0])+" – "+humanShort(days[6]);
-  document.getElementById("calDatePick").value=keyOf(calCur);
-
-  var loc=state.profile&&state.profile.prayerLoc;
-  /* Prayer windows shift a little each day, so each column gets its own -
-     fetchPrayerTimes caches per day+location and de-dupes in flight, so a
-     week costs at most seven requests once. */
-  var prayerPromise=Promise.all(days.map(function(d){
-    if(!loc)return Promise.resolve(null);
-    return fetchPrayerTimes(keyOf(d),loc.lat,loc.lon).catch(function(){return null;});
-  }));
-  /* One ranged request for the whole week rather than seven day requests -
-     the server would otherwise re-list every calendar each time. */
-  var eventsPromise=fetch("/api/calendar/events?date="+firstKey+"&end="+lastKey,{credentials:"same-origin"}).then(function(res){
-    if(!res.ok)throw new Error("http "+res.status);
-    return res.json();
-  }).catch(function(){return {connected:false,status:"error",events:[]};});
-
-  Promise.all([eventsPromise,prayerPromise]).then(function(results){
-    renderWeek(results[0],results[1],days);
-  });
+function calSetTrack(offsetPx,animate){
+  var t=calTrackEl();if(!t)return;
+  t.style.transition=animate?("transform "+CAL_SLIDE_MS+"ms cubic-bezier(.22,.61,.36,1)"):"none";
+  t.style.transform=offsetPx?("translateX(calc(-33.3333% + "+offsetPx+"px))"):"translateX(-33.3333%)";
 }
 
 /** Splits the day into consecutive prayer-window segments (minutes-of-day,
@@ -1638,209 +1581,237 @@ function hourWindowName(segs,hour){
   return null;
 }
 
-var WK_LABELS=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
-var CAL_FOCUS_FR=4;      /* how many times wider the focused day is */
+/** Monday-start week containing `d`. */
+function weekStart(d){
+  var x=new Date(d);x.setHours(0,0,0,0);
+  x.setDate(x.getDate()-((x.getDay()+6)%7));
+  return x;
+}
+function addDays(d,n){var x=new Date(d);x.setDate(x.getDate()+n);return x;}
 
-/* Kept between renders so shifting focus only has to re-fill two columns
-   rather than rebuild the week - which is also what lets the column resize
-   animate, since the cells themselves survive. */
-var _wkCells=null,_wkHeads=null,_wkEvents=null,_wkKeys=null,_wkFocus=0;
-
-function calGridCols(selIdx){
-  /* minmax(0,…) rather than a bare fr: an `auto` minimum would let a long
-     event title set the column's width, so one busy day would push the
-     others out of shape instead of the chip being clipped. */
-  var cols=[];
-  for(var i=0;i<7;i++)cols.push("minmax(0,"+(i===selIdx?CAL_FOCUS_FR:1)+"fr)");
-  return "26px "+cols.join(" ");
+/** Which day an event belongs to. All-day events carry a bare "YYYY-MM-DD"
+ * and must be used as-is: parsing one as a Date reads it as UTC midnight,
+ * which lands on the wrong day in some zones. */
+function eventDayKey(e){
+  if(e.allDay&&typeof e.start==="string"&&/^\d{4}-\d{2}-\d{2}$/.test(e.start))return e.start;
+  return keyOf(new Date(e.start));
 }
 
-/** Fills one day/hour cell. The focused column gets readable chips; the
- * narrow ones get colour bars, since there's no room for text there. */
-function fillCell(cell,dayIdx,hour,wide){
-  var nowline=cell.querySelector(".cal-nowline");
-  cell.innerHTML="";
-  var list=(_wkEvents[_wkKeys[dayIdx]]||{})[hour]||[];
-  list.forEach(function(e){
-    if(wide){
-      var chip=el("div","cal-chip");
-      chip.style.borderInlineStartColor=e.color||"var(--brand)";
-      chip.title=[e.timeLabel,e.title,e.calendar,e.location].filter(Boolean).join(" · ");
-      chip.appendChild(el("span","cal-chip-time",e.timeLabel));
-      chip.appendChild(document.createTextNode(e.title+(e.location?" ("+e.location+")":"")));
-      cell.appendChild(chip);
-    }else{
-      var bar=el("div","cal-bar");
-      bar.style.background=e.color||"var(--brand)";
-      bar.title=[e.timeLabel,e.title,e.calendar].filter(Boolean).join(" · ");
-      cell.appendChild(bar);
-    }
-  });
-  if(nowline)cell.appendChild(nowline);
-}
-
-/** Moves which day is expanded, without rebuilding the week. */
-function setCalFocus(idx){
-  if(!_wkCells||idx<0||idx>6||idx===_wkFocus)return;
-  var prev=_wkFocus;
-  _wkFocus=idx;
-  calCur=new Date(_wkKeys[idx].split("-")[0],+_wkKeys[idx].split("-")[1]-1,+_wkKeys[idx].split("-")[2]);
-  calCur.setHours(0,0,0,0);
-  document.getElementById("calDatePick").value=_wkKeys[idx];
-  document.getElementById("calWeek").style.gridTemplateColumns=calGridCols(idx);
-  [prev,idx].forEach(function(di){
-    _wkHeads[di].classList.toggle("is-sel",di===idx);
-    for(var h=0;h<24;h++){
-      _wkCells[di][h].classList.toggle("wide",di===idx);
-      fillCell(_wkCells[di][h],di,h,di===idx);
-    }
-  });
-}
-
-/** Seven day columns plus an hour gutter, as one CSS grid so each row is a
- * shared hour across the whole week. */
-function renderWeek(data,timesByDay,days){
-  var grid=document.getElementById("calWeek");
-  var status=document.getElementById("calStatus"),legend=document.getElementById("calLegend");
-  if(!grid)return;
-  grid.innerHTML="";
-
-  var tk=todayKey(),selKey=keyOf(calCur);
-  var dayKeys=days.map(keyOf);
-  var selIdx=dayKeys.indexOf(selKey);
-  if(selIdx<0)selIdx=0;
-  _wkKeys=dayKeys;_wkFocus=selIdx;
-  grid.style.gridTemplateColumns=calGridCols(selIdx);
-
-  var byDay={};
-  dayKeys.forEach(function(k){byDay[k]={};});
-  (data.events||[]).forEach(function(e){
-    var dk=eventDayKey(e);
-    if(!byDay[dk])return;                       /* outside the visible week */
-    var hour=e.allDay?0:new Date(e.start).getHours();
-    var timeLabel=e.allDay?"All day":new Date(e.start).toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"});
-    (byDay[dk][hour]=byDay[dk][hour]||[]).push({title:e.title,color:e.color,timeLabel:timeLabel,location:e.location,calendar:e.calendar});
-  });
-  dayKeys.forEach(function(k){
-    Object.keys(byDay[k]).forEach(function(h){
-      byDay[k][h].sort(function(a,b){return a.timeLabel.localeCompare(b.timeLabel);});
+/** Loads a padded window around `centre` unless the one in memory already
+ * covers the days we're about to show. Returns a promise either way. */
+function ensureCalWindow(centre){
+  var need0=keyOf(addDays(centre,-1)),need1=keyOf(addDays(centre,1));
+  if(_calWin&&need0>=_calWin.from&&need1<=_calWin.to)return Promise.resolve(_calWin);
+  var from=keyOf(addDays(centre,-CAL_WINDOW_PAD)),to=keyOf(addDays(centre,CAL_WINDOW_PAD));
+  var reqId=++_calReqId;
+  return fetch("/api/calendar/events?date="+from+"&end="+to,{credentials:"same-origin"}).then(function(res){
+    if(!res.ok)throw new Error("http "+res.status);
+    return res.json();
+  }).catch(function(){
+    return {connected:false,status:"error",events:[]};
+  }).then(function(data){
+    if(reqId!==_calReqId)return _calWin;         /* a newer window won the race */
+    var byDay={};
+    (data.events||[]).forEach(function(e){
+      var k=eventDayKey(e);
+      (byDay[k]=byDay[k]||[]).push(e);
     });
+    _calWin={from:from,to:to,byDay:byDay,connected:!!data.connected,status:data.status};
+    return _calWin;
   });
-  _wkEvents=byDay;
+}
 
-  var segsByDay=days.map(function(_,i){return calWindowsForDay(timesByDay&&timesByDay[i]);});
+/** One day's 24-hour column. */
+function buildDayPanel(dayDate,times){
+  var wrap=el("div","cal-hours");
+  var k=keyOf(dayDate);
+  var segs=calWindowsForDay(times);
+  var isToday=k===todayKey();
   var now=new Date(),nowMinutes=now.getHours()*60+now.getMinutes();
 
-  /* header row: empty gutter cell, then one tappable day heading each */
-  _wkHeads=[];
-  grid.appendChild(el("div","cal-wk-gutter"));
-  days.forEach(function(d,i){
-    var head=el("div","cal-wk-head"+(dayKeys[i]===tk?" is-today":"")+(i===selIdx?" is-sel":""));
-    head.appendChild(el("b",null,String(d.getDate())));
-    head.appendChild(document.createTextNode(WK_LABELS[i]));
-    head.addEventListener("click",function(){setCalFocus(i);});
-    grid.appendChild(head);
-    _wkHeads.push(head);
+  var byHour={};
+  ((_calWin&&_calWin.byDay[k])||[]).forEach(function(e){
+    var hour=e.allDay?0:new Date(e.start).getHours();
+    (byHour[hour]=byHour[hour]||[]).push(e);
   });
 
-  /* one row per hour: gutter label, then a cell per day */
-  _wkCells=[[],[],[],[],[],[],[]];
   for(var h=0;h<24;h++){
-    grid.appendChild(el("div","cal-wk-gutter",String(h).padStart(2,"0")));
-    for(var di=0;di<7;di++){
-      var cell=el("div","cal-cell"+(di===selIdx?" wide":""));
-      var winName=hourWindowName(segsByDay[di],h);
-      if(winName)cell.style.background="color-mix(in srgb, var("+PRAYER_COLOR_VAR[winName]+") var(--cal-tint), var(--panel))";
-      if(dayKeys[di]===tk&&Math.floor(nowMinutes/60)===h){
-        cell.classList.add("current-hour");
-        var line=el("div","cal-nowline");
-        line.style.top=((nowMinutes%60)/60*100)+"%";
-        line.appendChild(el("i"));
-        cell.appendChild(line);
-      }
-      grid.appendChild(cell);
-      _wkCells[di].push(cell);
+    var row=el("div","cal-hour");
+    var win=hourWindowName(segs,h);
+    if(win)row.style.background="color-mix(in srgb, var("+PRAYER_COLOR_VAR[win]+") var(--cal-tint), var(--panel))";
+    var isCurrentHour=isToday&&Math.floor(nowMinutes/60)===h;
+    if(isCurrentHour)row.classList.add("current-hour");
+    row.appendChild(el("span","cal-hour-label",String(h).padStart(2,"0")+":00"));
+    var box=el("div","cal-hour-events");
+    (byHour[h]||[]).slice().sort(function(a,b){
+      return String(a.start).localeCompare(String(b.start));
+    }).forEach(function(e){
+      var chip=el("div","cal-chip");
+      chip.style.borderInlineStartColor=e.color||"var(--brand)";
+      var time=e.allDay?"All day":new Date(e.start).toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"});
+      chip.appendChild(el("span","cal-chip-time",time));
+      chip.appendChild(document.createTextNode(e.title));
+      var meta=[e.calendar,e.location].filter(Boolean).join(" · ");
+      if(meta)chip.appendChild(el("span","cal-chip-meta",meta));
+      box.appendChild(chip);
+    });
+    row.appendChild(box);
+    if(isCurrentHour){
+      var line=el("div","cal-nowline");
+      line.style.top=((nowMinutes%60)/60*100)+"%";
+      line.appendChild(el("i"));
+      row.appendChild(line);
     }
+    wrap.appendChild(row);
   }
-  for(var d2=0;d2<7;d2++)for(var h2=0;h2<24;h2++)fillCell(_wkCells[d2][h2],d2,h2,d2===selIdx);
+  return wrap;
+}
 
-  if(!data.connected)status.textContent="Connect Google Calendar (Today's Brief card, Today tab) to see your schedule here.";
-  else if(data.status==="reconnect_required")status.textContent="Google Calendar access has expired — reconnect from the Today's Brief card.";
-  else if(data.status==="calendar_error")status.textContent="Couldn't load your calendar right now.";
-  else if(!(data.events||[]).length)status.textContent="Nothing scheduled this week.";
-  else status.textContent="";
-
-  legend.innerHTML="";
-  PRAYER_NAMES.forEach(function(name){
-    var chip=el("span",null," "+name);
-    var dot=el("i");dot.style.background="var("+PRAYER_COLOR_VAR[name]+")";
-    chip.insertBefore(dot,chip.firstChild);
-    legend.appendChild(chip);
-  });
-
-  if(dayKeys.indexOf(tk)>=0){
-    var target=grid.querySelector(".cal-cell.current-hour");
-    if(target&&typeof target.scrollIntoView==="function"){
-      try{target.scrollIntoView({block:"center"});}catch(e){}
-    }
+function renderCalStrip(){
+  var strip=document.getElementById("calStrip");
+  if(!strip)return;
+  strip.innerHTML="";
+  var ws=weekStart(calCur),tk=todayKey(),selKey=keyOf(calCur);
+  for(var i=0;i<7;i++){
+    (function(d){
+      var k=keyOf(d);
+      var b=el("button",(k===tk?"is-today ":"")+(k===selKey?"is-sel":""));
+      b.type="button";
+      b.appendChild(el("b",null,String(d.getDate())));
+      b.appendChild(document.createTextNode(WK_LABELS[(d.getDay()+6)%7]));
+      b.addEventListener("click",function(){
+        calCur=new Date(d);calCur.setHours(0,0,0,0);
+        renderCalendarTab();
+      });
+      strip.appendChild(b);
+    })(addDays(ws,i));
   }
 }
 
-/** Left/right swipe on the day grid pages to the previous/next day. The grid
- * follows the finger while dragging so it reads as a stack of days being
- * pushed aside, then either completes the turn or springs back on release.
- * Touch events are stopped here so the page-level tab swipe never also
- * fires from a gesture that was meant for the calendar. */
+var WK_LABELS=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+
+function renderCalendarTab(){
+  var k=keyOf(calCur);
+  var isToday=k===todayKey();
+  document.getElementById("calDateLabel").textContent=(isToday?"Today · ":"")+humanShort(calCur);
+  document.getElementById("calDatePick").value=k;
+  var heading=document.getElementById("calDayHeading");
+  if(heading)heading.textContent="🗓️ "+(isToday?"Today":humanShort(calCur));
+  renderCalStrip();
+
+  ensureCalWindow(calCur).then(function(){return renderCalPanels();});
+}
+
+/** Rebuilds the three panels around calCur and re-centres the track. */
+function renderCalPanels(){
+  var loc=state.profile&&state.profile.prayerLoc;
+  var days=[addDays(calCur,-1),calCur,addDays(calCur,1)];
+  return Promise.all(days.map(function(d){
+    if(!loc)return Promise.resolve(null);
+    return fetchPrayerTimes(keyOf(d),loc.lat,loc.lon).catch(function(){return null;});
+  })).then(function(times){
+    ["calDayPrev","calDayCur","calDayNext"].forEach(function(id,i){
+      var host=document.getElementById(id);
+      if(!host)return;
+      host.innerHTML="";
+      host.appendChild(buildDayPanel(days[i],times[i]));
+    });
+    calSetTrack(0,false);
+
+    var status=document.getElementById("calStatus"),legend=document.getElementById("calLegend");
+    var win=_calWin||{};
+    var todaysEvents=(win.byDay&&win.byDay[keyOf(calCur)])||[];
+    if(!win.connected)status.textContent="Connect Google Calendar (Today's Brief card, Today tab) to see your schedule here.";
+    else if(win.status==="reconnect_required")status.textContent="Google Calendar access has expired — reconnect from the Today's Brief card.";
+    else if(win.status==="calendar_error")status.textContent="Couldn't load your calendar right now.";
+    else if(!todaysEvents.length)status.textContent="Nothing scheduled.";
+    else status.textContent="";
+
+    legend.innerHTML="";
+    PRAYER_NAMES.forEach(function(name){
+      var chip=el("span",null," "+name);
+      var dot=el("i");dot.style.background="var("+PRAYER_COLOR_VAR[name]+")";
+      chip.insertBefore(dot,chip.firstChild);
+      legend.appendChild(chip);
+    });
+
+    if(keyOf(calCur)===todayKey()){
+      var target=document.getElementById("calDayCur").querySelector(".cal-hour.current-hour");
+      if(target&&typeof target.scrollIntoView==="function"){
+        try{target.scrollIntoView({block:"center"});}catch(e){}
+      }
+    }
+  });
+}
+
+/** Slides one day in `dir`. The neighbour is already on screen, so this is
+ * purely a transform - nothing is fetched or rebuilt mid-animation, which
+ * is what removes the stutter. */
+function calGoDay(dir,fromX){
+  if(_calSliding)return Promise.resolve();
+  var t=calTrackEl();
+  if(!t){calCur=addDays(calCur,dir);renderCalendarTab();return Promise.resolve();}
+  _calSliding=true;
+  if(fromX!=null)calSetTrack(fromX,false);
+  void t.offsetWidth;                       /* commit the drag position first */
+  t.style.transition="transform "+CAL_SLIDE_MS+"ms cubic-bezier(.22,.61,.36,1)";
+  t.style.transform="translateX("+(dir>0?"-66.6667%":"0%")+")";
+  return new Promise(function(resolve){
+    setTimeout(function(){
+      calCur=addDays(calCur,dir);
+      _calSliding=false;
+      /* Re-centre without a transition, then swap the panels underneath -
+         the day that slid in is already the one in the middle. */
+      resolve(renderCalendarTab());
+    },CAL_SLIDE_MS);
+  });
+}
+
+/** Moves by more than a day (the ‹ › week arrows, the date picker). */
+function calJumpDays(n){
+  calCur=addDays(calCur,n);
+  return renderCalendarTab();
+}
+
+/** Drag the track with the finger so the next/previous day is genuinely
+ * visible while swiping, then either complete the slide or spring back.
+ * Touch events stop here so a calendar gesture never also changes tab. */
 function attachCalSwipe(){
-  var grid=calGridEl();
-  if(!grid)return;
+  var view=calGridEl();
+  if(!view)return;
   var startX=null,startY=null,dragging=false,lastDx=0;
-  grid.addEventListener("touchstart",function(e){
+  view.addEventListener("touchstart",function(e){
     e.stopPropagation();
-    if(_calAnimating)return;
+    if(_calSliding)return;
     var t=e.touches&&e.touches[0];
     if(!t)return;
     startX=t.clientX;startY=t.clientY;dragging=false;lastDx=0;
   },{passive:true});
-  grid.addEventListener("touchmove",function(e){
+  view.addEventListener("touchmove",function(e){
     e.stopPropagation();
-    if(startX==null||_calAnimating)return;
+    if(startX==null||_calSliding)return;
     var t=e.touches&&e.touches[0];
     if(!t)return;
     var dx=t.clientX-startX,dy=t.clientY-startY;
     if(!dragging&&Math.abs(dx)<Math.abs(dy))return;   /* vertical scroll wins */
-    if(Math.abs(dx)>8)dragging=true;
+    if(Math.abs(dx)>6)dragging=true;
     if(!dragging)return;
     lastDx=dx;
-    grid.style.transition="none";
-    grid.style.transform="translateX("+dx+"px)";
-    grid.style.opacity=String(Math.max(0.35,1-Math.abs(dx)/600));
+    calSetTrack(dx,false);
   },{passive:true});
-  grid.addEventListener("touchend",function(e){
+  view.addEventListener("touchend",function(e){
     e.stopPropagation();
     if(startX==null)return;
     var t=e.changedTouches&&e.changedTouches[0];
     var sx=startX,sy=startY,wasDragging=dragging,dragDx=lastDx;
     startX=null;startY=null;dragging=false;lastDx=0;
-    if(!t){if(wasDragging)calSetTransform(null,true);return;}
+    if(!t){if(wasDragging)calSetTrack(0,true);return;}
     var dx=t.clientX-sx,dy=t.clientY-sy;
     if(Math.abs(dx)<40||Math.abs(dx)<Math.abs(dy)*1.2){
-      if(wasDragging)calSetTransform(null,true);       /* not far enough - spring back */
+      if(wasDragging)calSetTrack(0,true);              /* not far enough - spring back */
       return;
     }
-    var dir=dx<0?1:-1;
-    var next=_wkFocus+dir;
-    if(next>=0&&next<=6){
-      /* Still inside the displayed week: shift which day is expanded. The
-         week itself stays put - that's what the arrows are for - so undo
-         any drag offset rather than sliding the whole grid away. */
-      if(wasDragging)calSetTransform(null,true);
-      setCalFocus(next);
-      return;
-    }
-    /* Past the edge of the week - carry on into the neighbouring one so the
-       gesture never dead-ends, landing on the day just beyond. */
-    calGoDay(dir,wasDragging?dragDx:null);
+    calGoDay(dx<0?1:-1,wasDragging?dragDx:null);
   },{passive:true});
 }
 
@@ -2314,8 +2285,10 @@ document.getElementById("taskTitleIn").addEventListener("keydown",function(e){if
 
 document.getElementById("prayerLocBtn").addEventListener("click",requestPrayerLocation);
 
-document.getElementById("calPrevDay").addEventListener("click",function(){calGoDay(-7);});
-document.getElementById("calNextDay").addEventListener("click",function(){calGoDay(7);});
+/* The arrows jump a whole week; the carousel only ever holds the two
+   adjacent days, so a week move is a re-render rather than a slide. */
+document.getElementById("calPrevDay").addEventListener("click",function(){calJumpDays(-7);});
+document.getElementById("calNextDay").addEventListener("click",function(){calJumpDays(7);});
 document.getElementById("calJumpToday").addEventListener("click",function(){calCur=new Date();calCur.setHours(0,0,0,0);renderCalendarTab();});
 document.getElementById("calDatePick").addEventListener("change",function(){var v=this.value.split("-");calCur=new Date(+v[0],+v[1]-1,+v[2]);calCur.setHours(0,0,0,0);renderCalendarTab();});
 attachCalSwipe();
