@@ -63,12 +63,13 @@ git push -u origin main
 
 ## 💾 Your data & privacy
 
-- Everything you log is saved **only on your device**, in your browser's `localStorage`. Nothing is uploaded anywhere — there is no server and no account.
+- Everything you log is saved **only on your device**, in your browser's `localStorage`. By default nothing is uploaded anywhere — there is no server and no account.
 - **Yes, it saves your progress when hosted on GitHub Pages too** — because it uses the same on-device storage, tied to the page's web address.
 - Because it's device-side storage, please note:
-  - **Per device + per browser.** Your phone and your laptop keep *separate* logs. Use **Export / Import** (Progress tab) to move data between them or to keep a backup.
+  - **Per device + per browser.** Your phone and your laptop keep *separate* logs unless you turn on cloud sync (below). Use **Export / Import** (Progress tab) to move data between them or to keep a backup either way.
   - **Don't use "Clear browsing data / site data"** for this site, or your history will be wiped.
   - **On iPhone/Safari:** add the app to your **Home Screen**. Safari can clear a website's storage after ~7 days of not visiting it, but a home-screen (installed) app is far more durable. Export a backup now and then to be safe.
+- **Optional cloud sync.** The Progress tab has an off-by-default "Enable cloud sync" toggle. Turning it on backs your data up to a private Cloudflare backend and lets your devices share one history via last-write-wins merging. It stays off until you switch it on — no data leaves your device otherwise.
 
 ## 🩺 Health disclaimer
 

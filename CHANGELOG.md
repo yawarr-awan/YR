@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.2.0
+
+- Client-side sync layer: every day's record and your profile now carry an `updated_at` stamp, set on every edit.
+- One-time migration stamps existing history from before this change, so it participates in sync correctly.
+- Opt-in "Enable cloud sync" toggle in the Progress tab (off by default, never auto-enabled) that syncs to the `yr-wellness` Worker backend via `/api/sync`, merging with true last-write-wins.
+- A failed or unreachable sync never touches local data — your on-device history stays authoritative either way.
+- Added a jsdom-based test suite (`npm test`) covering storage corruption/recovery, the schema migration, and multi-device sync conflicts.
+
 ## 1.0.0
 
 Initial release.
