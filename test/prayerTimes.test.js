@@ -17,14 +17,25 @@ function aladhanRes(timings) {
 }
 const SAMPLE_TIMINGS = { Fajr: "04:45 (BST)", Sunrise: "05:50", Dhuhr: "13:02", Asr: "17:10", Sunset: "20:30", Maghrib: "20:30", Isha: "22:10" };
 
-test("with no saved location, prompts to use location and shows no slots", () => {
+test("with no saved location, prompts to use location and shows no countdown", () => {
   const app = loadApp({});
   app.goTo("today");
   assert.match(app.document.getElementById("prayerLocText").textContent, /use my location/i);
-  assert.equal(app.document.getElementById("prayerSlots").children.length, 0);
+  assert.equal(app.document.getElementById("prayerNext").textContent, "");
+  assert.match(app.document.getElementById("prayerLocBtnText").textContent, /use my location/i);
 });
 
-test("clicking 'Use my location' on success saves coordinates and renders colored prayer chips", async () => {
+test("the prayer names are listed once, on the checklist - not repeated underneath it", () => {
+  const app = loadApp({});
+  app.goTo("today");
+  // The old chip row duplicated every prayer name below the tracker.
+  assert.equal(app.document.getElementById("prayerSlots"), null);
+  assert.equal(app.document.querySelectorAll(".prayer-chip").length, 0);
+  const card = app.document.querySelector('.card[data-collapse="prayers"]');
+  assert.equal((card.textContent.match(/Fajr/g) || []).length, 1, "Fajr should appear exactly once in the card");
+});
+
+test("clicking 'Use my location' saves coordinates, shows the countdown, and offers to update it", async () => {
   const app = loadApp({
     geolocation: { lat: 51.5, lon: -0.12 },
     fetchImpl: async (url) => {
@@ -38,10 +49,11 @@ test("clicking 'Use my location' on success saves coordinates and renders colore
   await app.flush(); // one hop for geolocation callback, one for the Aladhan fetch chain
 
   assert.equal(app.state().profile.prayerLoc.lat, 51.5);
-  const chips = Array.from(app.document.getElementById("prayerSlots").children);
-  assert.ok(chips.length >= 5, "expects a chip for each prayer Aladhan returned");
-  assert.match(chips[0].textContent, /Fajr 04:45/);
-  assert.notEqual(chips[0].style.background, "", "each chip should carry its prayer's colour");
+  assert.match(app.document.getElementById("prayerLocText").textContent, /times for your saved location/i);
+  assert.match(app.document.getElementById("prayerNext").textContent, /^Next: \w+ in /);
+  assert.match(app.document.getElementById("prayerLocBtnText").textContent, /update location/i,
+    "once a location is stored the button offers to change it, not to set it again");
+  assert.ok(app.document.querySelector("#prayerLocBtn svg"), "the button uses a drawn pin rather than an emoji");
 });
 
 test("geolocation permission denial shows a clear message, no crash", () => {
@@ -70,7 +82,7 @@ test("prayer times are cached per day+location: a second render does not refetch
   assert.equal(aladhanCalls, 1, "a cached day+location must not be re-fetched");
 });
 
-test("next-prayer highlighting picks the chip with the smallest time-until, wrapping past midnight", async () => {
+test("the next-prayer countdown picks the smallest time-until, wrapping past midnight", async () => {
   const app = loadApp({
     geolocation: { lat: 51.5, lon: -0.12 },
     fetchImpl: async (url) => {
@@ -82,10 +94,9 @@ test("next-prayer highlighting picks the chip with the smallest time-until, wrap
   await app.flush();
   await app.flush();
 
-  // Whatever "now" is on the test machine, exactly one chip should be marked "next".
-  const nextChips = app.document.querySelectorAll("#prayerSlots .prayer-chip.next");
-  assert.equal(nextChips.length, 1);
-  assert.match(app.document.getElementById("prayerNext").textContent, /^Next: \w+ in /);
+  // Whatever "now" is on the test machine, some prayer is always next.
+  const next = app.document.getElementById("prayerNext").textContent;
+  assert.match(next, /^Next: (Fajr|Sunrise|Dhuhr|Asr|Maghrib|Isha) in /);
 });
 
 test("prayer checklist (Today tab tick-box): each row is colored per prayer, with no time shown until a location is saved", () => {
