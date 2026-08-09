@@ -1108,6 +1108,15 @@ function renderBrief(b){
   var refreshBtn=el("button","btn","🔄 "+(b.status==="pending"?"Generate now":"Refresh"));
   refreshBtn.addEventListener("click",function(){refreshBrief();});
   actions.appendChild(refreshBtn);
+  /* A refresh token that predates a scope expansion (e.g. adding calendar
+   * write or Tasks access) keeps working for its original scopes - Google
+   * doesn't invalidate it, so the brief/calendar keep returning "ok" and
+   * reconnect_required never fires on their own. The only way to actually
+   * pick up new scopes is to redo consent, so always offer that here rather
+   * than only in the error states above. */
+  var grantBtn=el("a","btn","🔗 Grant new permissions");
+  grantBtn.href="/api/google/connect";
+  actions.appendChild(grantBtn);
   if(b.status==="ok"&&b.generated_at)meta.textContent="Generated "+fmtClock(b.generated_at);
 }
 
