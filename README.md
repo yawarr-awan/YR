@@ -22,7 +22,9 @@
 
 - **Today's Brief** — an AI summary of your day at the top of the Today tab, generated from every Google calendar you have access to plus your Google Tasks due today, via Gemini, automatically each morning.
 - **Task list** — quick-add a task at the top of the Today tab, with an optional due date; schedule it straight onto your Google Calendar with one tap.
-- **Calendar tab** — a full 24-hour, two-column day view across all your Google calendars, color-coded by calendar, with every hour tinted by whichever prayer's time window it falls in. Swipe left/right (or use the ‹ › buttons) to flip through days; opening the tab jumps straight to the current hour.
+- **Calendar tab** — a full 24-hour day view across all your Google calendars, color-coded by calendar, with every hour tinted by whichever prayer's time window it falls in. Swipe between days (the grid follows your finger and slides across) or use the ‹ › buttons; opening the tab jumps straight to the current hour. It's also the home for your full task list.
+- **Made-up (qada) prayers** — record prayers you've since made up and they come off your outstanding count, without rewriting the history of what you prayed on the day.
+- **Built for a phone** — bottom icon navigation, swipe between tabs, and collapsible cards (each showing its progress in the heading) so the day fits on one screen.
 - **Live prayer times** — opt-in location-based prayer times (Aladhan API) with colored chips and a next-prayer countdown on the Today tab; the same colors also appear on the prayer checklist (with each prayer's actual time shown once you've saved a location) and across the Calendar tab.
 - **Dhikr tracker** — a morning/afternoon/evening checklist alongside your prayers.
 - **In-app reminders** — optional browser notifications (while the app is open) for prayer times, dhikr periods, and scheduled task due times.

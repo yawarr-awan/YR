@@ -1,8 +1,11 @@
 "use strict";
 /*
- * Task list card coverage (Today tab): add/check/delete, and the
- * "Schedule to Calendar" flow that POSTs to /api/google/calendar/events.
- * Real index.html, real DOM, network boundary mocked.
+ * Task list coverage. Adding a task never asks for a time - a task is just
+ * a task until you deliberately schedule it with the 📅 button on its row,
+ * which opens an inline date picker and POSTs to
+ * /api/google/calendar/events. The Today tab shows only the top few; the
+ * Calendar tab holds the full list. Real index.html, real DOM, network
+ * boundary mocked.
  */
 const test = require("node:test");
 const { after } = require("node:test");
@@ -11,57 +14,36 @@ const { loadApp, closeAllApps } = require("./lib.js");
 after(closeAllApps);
 
 function jsonRes(body) { return { ok: true, status: 200, json: async () => body }; }
+const briefIdle = async () => jsonRes({ connected: false, status: "not_connected" });
 
-test("adding a task with no due date shows it with no Schedule button", () => {
-  const app = loadApp({});
-  app.setInput("taskTitleIn", "Water the plants");
-  app.click("taskAddBtn");
+function addTasks(app, titles, inputId = "taskTitleIn", btnId = "taskAddBtn") {
+  titles.forEach((title) => {
+    app.setInput(inputId, title);
+    app.click(btnId);
+  });
+}
 
-  const list = app.document.getElementById("taskList");
-  assert.match(list.textContent, /Water the plants/);
-  assert.equal(list.querySelector("button.btn:not(.danger)"), null, "no due date means nothing to schedule yet");
+function schedButton(app, listId, index = 0) {
+  const rows = app.document.querySelectorAll("#" + listId + " .task-row");
+  return Array.from(rows[index].querySelectorAll("button")).find((b) => b.textContent === "📅");
+}
+
+test("adding a task takes only a title - there is no time field on the add form", () => {
+  const app = loadApp({ fetchImpl: briefIdle });
+  assert.equal(app.document.getElementById("taskWhenIn"), null, "the datetime input must be gone from the add row");
+
+  addTasks(app, ["Water the plants"]);
+  assert.match(app.document.getElementById("taskList").textContent, /Water the plants/);
+  assert.equal(app.state().tasks[0].due, null, "a new task carries no due time");
 });
 
-test("adding a task with a due date shows a Schedule button", () => {
-  const app = loadApp({});
-  app.setInput("taskTitleIn", "Pay rent");
-  app.setInput("taskWhenIn", "2026-08-09T10:00");
-  app.click("taskAddBtn");
-
-  const list = app.document.getElementById("taskList");
-  const schedBtn = Array.from(list.querySelectorAll("button")).find((b) => /schedule/i.test(b.textContent));
-  assert.ok(schedBtn, "expected a Schedule button once a due date is set");
+test("every task row has a calendar button, whether or not it has a time yet", () => {
+  const app = loadApp({ fetchImpl: briefIdle });
+  addTasks(app, ["Pay rent"]);
+  assert.ok(schedButton(app, "taskList"), "expected a 📅 button on the row itself");
 });
 
-test("checking a task marks it done and it survives a reload (persisted to localStorage)", () => {
-  const app = loadApp({});
-  app.setInput("taskTitleIn", "Buy groceries");
-  app.click("taskAddBtn");
-  // app.check() needs an id and this checkbox has none, so toggle it directly.
-  const cb = app.document.getElementById("taskList").querySelector("input[type=checkbox]");
-  cb.checked = true;
-  cb.dispatchEvent(new app.window.Event("change", { bubbles: true }));
-
-  const row = app.document.getElementById("taskList").querySelector(".task-row");
-  assert.ok(row.classList.contains("done"));
-
-  const persisted = app.state().tasks;
-  assert.equal(persisted.length, 1);
-  assert.equal(persisted[0].done, true);
-});
-
-test("deleting a task removes it from the list and from storage", () => {
-  const app = loadApp({});
-  app.setInput("taskTitleIn", "Temporary task");
-  app.click("taskAddBtn");
-  assert.match(app.document.getElementById("taskList").textContent, /Temporary task/);
-
-  app.document.getElementById("taskList").querySelector("button.btn.danger").click();
-  assert.doesNotMatch(app.document.getElementById("taskList").textContent, /Temporary task/);
-  assert.equal(app.state().tasks.length, 0);
-});
-
-test("scheduling a task posts to the write endpoint and marks it scheduled on success", async () => {
+test("the calendar button opens an inline time picker; confirming schedules it and stores the time", async () => {
   let sentBody = null;
   const app = loadApp({
     fetchImpl: async (url, opts) => {
@@ -69,38 +51,87 @@ test("scheduling a task posts to the write endpoint and marks it scheduled on su
         sentBody = JSON.parse(opts.body);
         return jsonRes({ status: "ok", eventId: "evt1" });
       }
-      return jsonRes({ connected: false, status: "not_connected" }); // /api/brief on load
+      return jsonRes({ connected: false, status: "not_connected" });
     },
   });
-  app.setInput("taskTitleIn", "Dentist");
-  app.setInput("taskWhenIn", "2026-08-10T09:00");
-  app.click("taskAddBtn");
+  addTasks(app, ["Dentist"]);
 
-  const schedBtn = Array.from(app.document.getElementById("taskList").querySelectorAll("button")).find((b) => /schedule/i.test(b.textContent));
-  schedBtn.click();
+  assert.equal(app.document.querySelector("#taskList .task-sched"), null, "picker stays closed until asked for");
+  schedButton(app, "taskList").click();
+
+  const panel = app.document.querySelector("#taskList .task-sched");
+  assert.ok(panel, "expected an inline scheduling panel");
+  const when = panel.querySelector("input[type=datetime-local]");
+  assert.ok(when.value, "the picker should be pre-filled with a sensible default time");
+  when.value = "2026-08-10T09:00";
+  Array.from(panel.querySelectorAll("button")).find((b) => /add to calendar/i.test(b.textContent)).click();
   await app.flush();
 
   assert.equal(sentBody.title, "Dentist");
+  assert.equal(new Date(sentBody.start).getTime(), new Date("2026-08-10T09:00").getTime());
   assert.match(app.document.getElementById("taskStatus").textContent, /added to your google calendar/i);
   assert.match(app.document.getElementById("taskList").textContent, /on calendar/i);
   assert.equal(app.state().tasks[0].scheduled, true);
+  assert.ok(app.state().tasks[0].due, "the chosen time is stored on the task");
 });
 
-test("scheduling a task that needs reconnecting surfaces that clearly, not a generic error", async () => {
+test("a schedule attempt that needs reconnecting says so, and leaves the task unscheduled", async () => {
   const app = loadApp({
     fetchImpl: async (url) => {
       if (String(url).includes("/api/google/calendar/events")) return jsonRes({ status: "reconnect_required" });
       return jsonRes({ connected: false, status: "not_connected" });
     },
   });
-  app.setInput("taskTitleIn", "Dentist");
-  app.setInput("taskWhenIn", "2026-08-10T09:00");
-  app.click("taskAddBtn");
-
-  const schedBtn = Array.from(app.document.getElementById("taskList").querySelectorAll("button")).find((b) => /schedule/i.test(b.textContent));
-  schedBtn.click();
+  addTasks(app, ["Dentist"]);
+  schedButton(app, "taskList").click();
+  const panel = app.document.querySelector("#taskList .task-sched");
+  panel.querySelector("input[type=datetime-local]").value = "2026-08-10T09:00";
+  Array.from(panel.querySelectorAll("button")).find((b) => /add to calendar/i.test(b.textContent)).click();
   await app.flush();
 
   assert.match(app.document.getElementById("taskStatus").textContent, /connect google calendar/i);
   assert.equal(app.state().tasks[0].scheduled, false);
+});
+
+test("checking a task marks it done and persists; deleting removes it from storage", () => {
+  const app = loadApp({ fetchImpl: briefIdle });
+  addTasks(app, ["Buy groceries"]);
+
+  const cb = app.document.getElementById("taskList").querySelector("input[type=checkbox]");
+  cb.checked = true;
+  cb.dispatchEvent(new app.window.Event("change", { bubbles: true }));
+  assert.ok(app.document.getElementById("taskList").querySelector(".task-row").classList.contains("done"));
+  assert.equal(app.state().tasks[0].done, true);
+
+  app.document.getElementById("taskList").querySelector("button.icon-btn.danger").click();
+  assert.doesNotMatch(app.document.getElementById("taskList").textContent, /Buy groceries/);
+  assert.equal(app.state().tasks.length, 0);
+});
+
+test("Today shows only the top three tasks and points at the Calendar tab for the rest", () => {
+  const app = loadApp({ fetchImpl: briefIdle });
+  addTasks(app, ["One", "Two", "Three", "Four", "Five"]);
+
+  const todayRows = app.document.querySelectorAll("#taskList .task-row");
+  assert.equal(todayRows.length, 3, "Today is a dashboard, not the whole backlog");
+  assert.match(app.document.getElementById("taskList").textContent, /\+2 more in the Calendar tab/i);
+  assert.equal(app.state().tasks.length, 5, "the other two still exist, they're just not shown here");
+});
+
+test("the Calendar tab is the full task repository, and can add tasks itself", () => {
+  const app = loadApp({
+    fetchImpl: async (url) => {
+      if (String(url).includes("/api/calendar/events")) return jsonRes({ connected: true, status: "ok", day: "x", events: [] });
+      return jsonRes({ connected: false, status: "not_connected" });
+    },
+  });
+  addTasks(app, ["One", "Two", "Three", "Four", "Five"]);
+  app.goTo("calendar");
+
+  assert.equal(app.document.querySelectorAll("#calTaskList .task-row").length, 5, "every task shows here");
+  assert.doesNotMatch(app.document.getElementById("calTaskList").textContent, /more in the Calendar tab/i);
+
+  addTasks(app, ["Sixth"], "calTaskTitleIn", "calTaskAddBtn");
+  assert.equal(app.document.querySelectorAll("#calTaskList .task-row").length, 6);
+  assert.equal(app.state().tasks.length, 6);
 });

@@ -42,13 +42,17 @@
 :root[data-theme="light"]{ color-scheme:light; }
 *{box-sizing:border-box}
 html,body{margin:0;padding:0}
+/* Slightly smaller root size than the 16px browser default - every rem in
+   this file scales with it, so this is one knob for "a bit more compact on
+   a phone" without touching each rule. */
+html{font-size:15px}
 body{
   background:var(--bg); color:var(--ink);
   font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
-  line-height:1.5; -webkit-font-smoothing:antialiased;
+  line-height:1.45; -webkit-font-smoothing:antialiased;
 }
 a{color:var(--brand)}
-.wrap{max-width:1024px; margin:0 auto; padding:0 16px 96px}
+.wrap{max-width:1024px; margin:0 auto; padding:0 14px calc(78px + env(safe-area-inset-bottom,0px))}
 header.top{
   position:sticky; top:0; z-index:20; background:var(--panel);
   border-bottom:1px solid var(--line); box-shadow:var(--shadow);
@@ -69,30 +73,76 @@ header.top{
 .ring::after{content:"";position:absolute;inset:5px;border-radius:50%;background:var(--panel)}
 .ring span{position:relative;z-index:1;font-size:.72rem;font-weight:800}
 .theme-toggle{border:1px solid var(--line);background:var(--panel-2);color:var(--ink);width:40px;height:40px;border-radius:12px;font-size:1.15rem;cursor:pointer;flex:0 0 auto}
-nav.tabs{display:flex;gap:6px;overflow-x:auto;padding:8px 0 2px}
-nav.tabs button{
-  border:1px solid var(--line); background:var(--panel-2); color:var(--muted);
-  padding:8px 14px;border-radius:999px;font-weight:600;font-size:.86rem;cursor:pointer;white-space:nowrap;
+/* Bottom icon bar: thumb-reachable on a phone, and it frees the top of the
+   screen for actual content. env(safe-area-inset-bottom) keeps it clear of
+   the iOS home indicator when installed to the home screen. */
+nav.tabs{
+  position:fixed;left:0;right:0;bottom:0;z-index:30;
+  display:flex;align-items:stretch;
+  background:var(--panel);border-top:1px solid var(--line);
+  padding:4px 2px calc(4px + env(safe-area-inset-bottom,0px));
+  box-shadow:0 -2px 14px rgba(16,24,40,.10);
 }
-nav.tabs button.active{background:var(--brand);border-color:var(--brand);color:#fff}
-.datebar{display:flex;align-items:center;gap:10px;margin:14px 0 6px}
+nav.tabs button{
+  flex:1 1 0;min-width:0;border:none;background:none;color:var(--muted);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
+  padding:6px 2px;border-radius:10px;cursor:pointer;font:inherit;font-weight:700;
+  font-size:.62rem;line-height:1.1;
+}
+nav.tabs button i{font-style:normal;font-size:1.2rem;line-height:1}
+nav.tabs button.active{color:var(--brand)}
+/* Kept on one line at phone width: the label takes the slack and ellipses,
+   the controls stay a fixed size rather than wrapping into a tall stack. */
+.datebar{display:flex;align-items:center;gap:6px;margin:12px 0 6px;flex-wrap:nowrap}
 .datebar button{
   border:1px solid var(--line);background:var(--panel);color:var(--ink);
-  width:38px;height:38px;border-radius:10px;font-size:1.1rem;cursor:pointer;font-weight:700
+  width:34px;height:34px;border-radius:10px;font-size:1.05rem;cursor:pointer;font-weight:700;
+  flex:0 0 auto;padding:0
 }
-.datebar .dlabel{font-weight:700}
-.datebar input[type=date]{border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:10px;padding:8px}
-.today-btn{margin-inline-start:auto;background:var(--brand)!important;color:#fff!important;border-color:var(--brand)!important;width:auto!important;padding:0 14px}
+.datebar .dlabel{
+  font-weight:700;font-size:.84rem;flex:1 1 auto;min-width:0;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis
+}
+.datebar input[type=date]{
+  border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:10px;
+  padding:6px;font:inherit;font-size:.74rem;flex:0 0 auto;width:112px
+}
+.today-btn{background:var(--brand)!important;color:#fff!important;border-color:var(--brand)!important;width:auto!important;padding:0 10px;font-size:.78rem}
 .view{display:none}
-.view.active{display:block}
-.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}
+.view.active{display:block;animation:viewIn .18s ease}
+@keyframes viewIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
 @media(max-width:720px){.grid{grid-template-columns:1fr}}
 .card{
   background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
-  padding:16px;box-shadow:var(--shadow)
+  padding:14px;box-shadow:var(--shadow)
 }
-.card h3{margin:0 0 10px;font-size:.95rem;display:flex;align-items:center;gap:8px}
+.card h3{margin:0 0 10px;font-size:.92rem;display:flex;align-items:center;gap:8px}
 .card h3 .dot{width:9px;height:9px;border-radius:50%}
+/* Collapsible cards: the h3 is the toggle, everything else lives in
+   .card-body. Collapsed state is a UI preference kept out of the synced
+   state object (see COLLAPSE_KEY) - it's per-device, not per-account. */
+.card.collapsible > h3{cursor:pointer;user-select:none;margin-bottom:0}
+.card.collapsible > h3::after{
+  content:"⌄";margin-inline-start:auto;font-size:1rem;line-height:1;color:var(--muted);
+  transition:transform .18s ease;transform:translateY(-2px)
+}
+.card.collapsible.collapsed > h3::after{transform:rotate(-90deg)}
+.card.collapsible > .card-body{margin-top:10px}
+.card.collapsible.collapsed > .card-body{display:none}
+.card h3 .count{margin-inline-start:auto;font-size:.7rem;font-weight:700;color:var(--muted)}
+.card.collapsible > h3 .count{margin-inline-start:auto}
+.card.collapsible > h3 .count + *{margin-inline-start:0}
+.subcard{border:1px solid var(--line);border-radius:12px;margin-bottom:8px;overflow:hidden}
+.subcard > button{
+  width:100%;display:flex;align-items:center;gap:8px;border:none;background:var(--panel-2);
+  color:var(--ink);font:inherit;font-weight:700;font-size:.82rem;padding:9px 11px;cursor:pointer;text-align:start
+}
+.subcard > button .count{margin-inline-start:auto;font-weight:700;font-size:.72rem;color:var(--muted)}
+.subcard > button::after{content:"⌄";font-size:.95rem;line-height:1;color:var(--muted);transition:transform .18s ease}
+.subcard.collapsed > button::after{transform:rotate(-90deg)}
+.subcard > .subcard-body{padding:4px 6px 8px}
+.subcard.collapsed > .subcard-body{display:none}
 .chk{display:flex;align-items:center;gap:12px;padding:10px 8px;border-radius:12px;cursor:pointer;border:1px solid transparent}
 .chk:hover{background:var(--panel-2)}
 .chk input{width:20px;height:20px;accent-color:var(--brand);flex:0 0 auto;cursor:pointer}
@@ -127,25 +177,44 @@ input[type=range]{width:100%;accent-color:var(--accent)}
 .pill-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
 .prayer-chip{font-weight:700}
 .prayer-chip.next{box-shadow:0 0 0 2px var(--ink);font-weight:800}
-.cal-daygrid{display:flex;gap:12px;overflow-x:auto;touch-action:pan-y}
-.cal-col{flex:1 1 0;min-width:210px}
-.cal-col-label{font-size:.7rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px}
+/* Single 24-hour column. The viewport clips it so a day can slide fully out
+   of frame during a swipe without widening the page. */
+.cal-viewport{overflow:hidden}
+.cal-daygrid{touch-action:pan-y;will-change:transform}
 .cal-col-body{border:1px solid var(--line);border-radius:12px;overflow:hidden}
-.cal-hour{position:relative;min-height:44px;border-top:1px solid var(--line);padding:3px 6px 5px;z-index:1}
+.cal-hour{position:relative;min-height:34px;border-top:1px solid var(--line);padding:3px 8px 4px;z-index:1;display:flex;gap:8px}
 .cal-hour:first-child{border-top:none}
 .cal-hour.current-hour{box-shadow:inset 0 0 0 2px var(--brand)}
-.cal-hour-label{font-size:.68rem;font-weight:700;color:var(--muted)}
-.cal-hour-events{display:flex;flex-direction:column;gap:3px;margin-top:2px}
+.cal-hour-label{font-size:.68rem;font-weight:700;color:var(--muted);flex:0 0 38px;padding-top:2px}
+.cal-hour-events{display:flex;flex-direction:column;gap:3px;flex:1;min-width:0}
 .cal-event{border-radius:8px;padding:3px 7px;font-size:.72rem;line-height:1.25;border-inline-start:3px solid var(--brand);background:var(--panel-2)}
 .cal-event-time{font-weight:700;color:var(--muted);margin-inline-end:5px}
 .cal-nowline{position:absolute;inset-inline:0;height:2px;background:var(--bad);z-index:2}
 .cal-nowline i{position:absolute;inset-inline-start:-3px;top:-4px;width:9px;height:9px;border-radius:50%;background:var(--bad);display:block}
-.task-row{display:flex;align-items:center;gap:10px;padding:8px;border-radius:10px}
+.task-row{display:flex;align-items:center;gap:8px;padding:7px 4px;border-radius:10px}
 .task-row:hover{background:var(--panel-2)}
 .task-row input[type=checkbox]{width:18px;height:18px;accent-color:var(--brand);flex:0 0 auto}
-.task-row .task-title{flex:1;font-weight:600}
+.task-row .task-title{flex:1;font-weight:600;min-width:0;overflow-wrap:anywhere}
 .task-row.done .task-title{text-decoration:line-through;color:var(--muted)}
 .task-due{font-size:.72rem;color:var(--muted);white-space:nowrap}
+.icon-btn{
+  border:1px solid var(--line);background:var(--panel-2);color:var(--ink);
+  width:32px;height:32px;border-radius:9px;font-size:.95rem;line-height:1;cursor:pointer;
+  flex:0 0 auto;padding:0;font-family:inherit
+}
+.icon-btn.danger{color:var(--bad);border-color:var(--bad);background:transparent}
+.task-sched{display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding:0 4px 10px}
+.task-sched input[type=datetime-local]{
+  flex:1;min-width:150px;border:1px solid var(--line);background:var(--panel-2);color:var(--ink);
+  border-radius:9px;padding:7px;font:inherit;font-size:.8rem
+}
+.qada-row{display:flex;align-items:center;gap:8px;padding:5px 0}
+.qada-row .qada-name{flex:1;font-weight:700;font-size:.82rem}
+.qada-row .qada-owed{font-size:.72rem;color:var(--muted);white-space:nowrap}
+.qada-row input[type=number]{
+  width:64px;border:1px solid var(--line);background:var(--panel-2);color:var(--ink);
+  border-radius:9px;padding:6px;font:inherit;font-size:.82rem;text-align:center
+}
 .statusbar{display:none;padding:11px 14px;font-size:.86rem;line-height:1.35;font-weight:600;text-align:center}
 .statusbar.show{display:block}
 .statusbar.warn{background:var(--warn);color:#fff}
@@ -202,17 +271,6 @@ footer.foot{text-align:center;color:var(--muted);font-size:.78rem;margin-top:26p
     <span id="savedTag" class="savedtag"></span>
     <button id="themeToggle" class="theme-toggle" aria-label="Switch light or dark theme" title="Switch theme">🌙</button>
   </div>
-  <div class="top-inner" style="padding-top:0">
-    <nav class="tabs" id="tabs">
-      <button data-nav="today" class="active">📋 Today</button>
-      <button data-nav="calendar">🗓️ Calendar</button>
-      <button data-nav="plan">🍽️ Meal Plan</button>
-      <button data-nav="recipes">👨‍🍳 Recipes</button>
-      <button data-nav="exercises">🧘 Exercises</button>
-      <button data-nav="progress">📈 Progress</button>
-      <button data-nav="guide">📖 Guide</button>
-    </nav>
-  </div>
 </header>
 
 <div class="wrap">
@@ -226,15 +284,16 @@ footer.foot{text-align:center;color:var(--muted);font-size:.78rem;margin-top:26p
       <div class="muted" id="briefMeta" style="font-size:.72rem;margin-top:6px"></div>
     </div>
 
-    <div class="card" id="taskCard" style="margin-bottom:14px">
-      <h3>✅ Tasks</h3>
-      <div class="field" style="display:flex;gap:8px;margin:0 0 8px;flex-wrap:wrap">
-        <input type="text" id="taskTitleIn" placeholder="Add a task…" style="flex:1;min-width:160px;border:1px solid var(--line);background:var(--panel-2);color:var(--ink);border-radius:10px;padding:10px">
-        <input type="datetime-local" id="taskWhenIn" style="border:1px solid var(--line);background:var(--panel-2);color:var(--ink);border-radius:10px;padding:10px">
-        <button class="btn primary" id="taskAddBtn">Add</button>
+    <div class="card collapsible" id="taskCard" data-collapse="tasks" style="margin-bottom:12px">
+      <h3>✅ Tasks<span class="count" id="taskCount"></span></h3>
+      <div class="card-body">
+        <div style="display:flex;gap:8px;margin:0 0 8px">
+          <input type="text" id="taskTitleIn" placeholder="Add a task…" style="flex:1;min-width:0;border:1px solid var(--line);background:var(--panel-2);color:var(--ink);border-radius:10px;padding:9px;font:inherit">
+          <button class="btn primary" id="taskAddBtn">Add</button>
+        </div>
+        <div id="taskList"></div>
+        <div class="muted" id="taskStatus" style="font-size:.76rem;margin-top:6px"></div>
       </div>
-      <div id="taskList"></div>
-      <div class="muted" id="taskStatus" style="font-size:.78rem;margin-top:6px"></div>
     </div>
 
     <div class="datebar">
@@ -246,80 +305,87 @@ footer.foot{text-align:center;color:var(--muted);font-size:.78rem;margin-top:26p
 
     <div class="grid">
 
-      <div class="card">
-        <h3><span class="dot" style="background:var(--med)"></span> Medicines</h3>
-        <div id="medsBox"></div>
-        <div class="note">Take your medicines at these three times each day and tick them off. This is a reminder tracker, not medical advice — follow your doctor's instructions.</div>
+      <div class="card collapsible" data-collapse="meds">
+        <h3><span class="dot" style="background:var(--med)"></span> Medicines<span class="count" id="medsCount"></span></h3>
+        <div class="card-body"><div id="medsBox"></div></div>
       </div>
 
-      <div class="card">
-        <h3><span class="dot" style="background:var(--pray)"></span> Prayers (Salah)</h3>
-        <div id="prayBox"></div>
-        <div class="muted" id="prayerLocText" style="font-size:.76rem;margin:8px 0 4px"></div>
-        <div class="pill-row" id="prayerSlots"></div>
-        <div class="muted" id="prayerNext" style="font-size:.82rem;margin-top:8px;font-weight:700"></div>
-        <div class="pill-row" style="margin-top:8px">
-          <button class="btn" id="prayerLocBtn">📍 Use my location</button>
+      <div class="card collapsible" data-collapse="prayers">
+        <h3><span class="dot" style="background:var(--pray)"></span> Prayers (Salah)<span class="count" id="prayCount"></span></h3>
+        <div class="card-body">
+          <div id="prayBox"></div>
+          <div class="muted" id="prayerLocText" style="font-size:.74rem;margin:8px 0 4px"></div>
+          <div class="pill-row" id="prayerSlots"></div>
+          <div class="muted" id="prayerNext" style="font-size:.8rem;margin-top:8px;font-weight:700"></div>
+          <div class="pill-row" style="margin-top:8px">
+            <button class="btn" id="prayerLocBtn">📍 Use my location</button>
+          </div>
         </div>
       </div>
 
-      <div class="card">
-        <h3><span class="dot" style="background:var(--accent)"></span> Dhikr</h3>
-        <div id="dhikrBox"></div>
+      <div class="card collapsible" data-collapse="dhikr">
+        <h3><span class="dot" style="background:var(--accent)"></span> Dhikr<span class="count" id="dhikrCount"></span></h3>
+        <div class="card-body"><div id="dhikrBox"></div></div>
       </div>
 
-      <div class="card">
-        <h3><span class="dot" style="background:var(--brand)"></span> Daily Supplements & Drinks</h3>
-        <div id="extrasBox"></div>
-        <div class="note">Collagen &amp; whey are best in the morning; creatine any time with water; keep the milk tea low-sugar. These add ≈ 370 kcal and ≈ 45 g protein a day.</div>
+      <div class="card collapsible" data-collapse="extras">
+        <h3><span class="dot" style="background:var(--brand)"></span> Supplements &amp; Drinks<span class="count" id="extrasCount"></span></h3>
+        <div class="card-body"><div id="extrasBox"></div></div>
       </div>
 
-      <div class="card" style="grid-column:1/-1">
-        <h3><span class="dot" style="background:var(--food)"></span> Today's Meals <span class="muted" id="mealKcal" style="font-weight:600;font-size:.78rem"></span></h3>
-        <div id="mealsBox"></div>
-        <div class="note">Tap any meal name to open its full recipe — ingredients, steps, calories and why it's good for you.</div>
+      <div class="card collapsible" data-collapse="meals" style="grid-column:1/-1">
+        <h3><span class="dot" style="background:var(--food)"></span> Today's Meals <span class="muted" id="mealKcal" style="font-weight:600;font-size:.74rem"></span><span class="count" id="mealsCount"></span></h3>
+        <div class="card-body"><div id="mealsBox"></div></div>
       </div>
 
-      <div class="card">
-        <h3><span class="dot" style="background:var(--water)"></span> Water</h3>
-        <div class="water-wrap">
-          <button class="water-btn" id="waterMinus">−</button>
-          <div><span class="water-count" id="waterCount">0</span><span class="muted"> / 8 glasses</span></div>
-          <button class="water-btn" id="waterPlus">+</button>
+      <div class="card collapsible" data-collapse="water">
+        <h3><span class="dot" style="background:var(--water)"></span> Water<span class="count" id="waterCountTag"></span></h3>
+        <div class="card-body">
+          <div class="water-wrap">
+            <button class="water-btn" id="waterMinus">−</button>
+            <div><span class="water-count" id="waterCount">0</span><span class="muted"> / 8 glasses</span></div>
+            <button class="water-btn" id="waterPlus">+</button>
+          </div>
+          <div class="glasses" id="glasses" style="margin-top:10px"></div>
         </div>
-        <div class="glasses" id="glasses" style="margin-top:10px"></div>
-        <div class="muted" style="font-size:.76rem;margin-top:6px">Target ≈ 2.5–3 litres a day. Water curbs hunger and helps your joints.</div>
       </div>
 
-      <div class="card">
-        <h3><span class="dot" style="background:var(--move)"></span> Today's Movement</h3>
-        <div id="moveBox"></div>
-        <div class="field"><label for="stepsIn">Steps / minutes of light activity (optional)</label>
-          <input type="number" id="stepsIn" min="0" placeholder="e.g. 4000 steps"></div>
+      <div class="card collapsible" data-collapse="move">
+        <h3><span class="dot" style="background:var(--move)"></span> Movement</h3>
+        <div class="card-body">
+          <div id="moveBox"></div>
+          <div class="field"><label for="stepsIn">Steps / minutes of light activity</label>
+            <input type="number" id="stepsIn" min="0" placeholder="e.g. 4000 steps"></div>
+        </div>
       </div>
 
-      <div class="card">
-        <h3>⚖️ Weight & Sleep</h3>
-        <div class="field"><label for="weightIn">Today's weight (kg)</label>
-          <input type="number" id="weightIn" step="0.1" min="0" placeholder="e.g. 107.5"></div>
-        <div class="field"><label for="sleepIn">Sleep last night (hours)</label>
-          <input type="number" id="sleepIn" step="0.5" min="0" max="24" placeholder="e.g. 7"></div>
-        <div class="muted" style="font-size:.76rem">Weigh yourself once a week, same morning, after the toilet, before eating — daily numbers bounce around and can mislead.</div>
+      <div class="card collapsible" data-collapse="weight">
+        <h3>⚖️ Weight &amp; Sleep</h3>
+        <div class="card-body">
+          <div class="field"><label for="weightIn">Today's weight (kg)</label>
+            <input type="number" id="weightIn" step="0.1" min="0" placeholder="e.g. 107.5"></div>
+          <div class="field"><label for="sleepIn">Sleep last night (hours)</label>
+            <input type="number" id="sleepIn" step="0.5" min="0" max="24" placeholder="e.g. 7"></div>
+        </div>
       </div>
 
-      <div class="card">
-        <h3>🦵 Joint Pain & Energy</h3>
-        <div class="field"><label for="painIn">Joint pain / stiffness today <span class="slider-val" id="painVal">–</span></label>
-          <input type="range" id="painIn" min="0" max="10" step="1" value="0">
-          <div class="muted" style="font-size:.72rem;display:flex;justify-content:space-between"><span>0 none</span><span>10 severe</span></div></div>
-        <div class="field"><label for="energyIn">Energy level today <span class="slider-val" id="energyVal">–</span></label>
-          <input type="range" id="energyIn" min="0" max="10" step="1" value="5">
-          <div class="muted" style="font-size:.72rem;display:flex;justify-content:space-between"><span>0 exhausted</span><span>10 great</span></div></div>
+      <div class="card collapsible collapsed" data-collapse="pain">
+        <h3>🦵 Joint Pain &amp; Energy</h3>
+        <div class="card-body">
+          <div class="field"><label for="painIn">Joint pain / stiffness today <span class="slider-val" id="painVal">–</span></label>
+            <input type="range" id="painIn" min="0" max="10" step="1" value="0">
+            <div class="muted" style="font-size:.7rem;display:flex;justify-content:space-between"><span>0 none</span><span>10 severe</span></div></div>
+          <div class="field"><label for="energyIn">Energy level today <span class="slider-val" id="energyVal">–</span></label>
+            <input type="range" id="energyIn" min="0" max="10" step="1" value="5">
+            <div class="muted" style="font-size:.7rem;display:flex;justify-content:space-between"><span>0 exhausted</span><span>10 great</span></div></div>
+        </div>
       </div>
 
-      <div class="card" style="grid-column:1/-1">
+      <div class="card collapsible collapsed" data-collapse="notes" style="grid-column:1/-1">
         <h3>📝 Notes for the day</h3>
-        <div class="field"><textarea id="notesIn" placeholder="How did today go? Cravings, wins, how your joints felt, anything to remember…"></textarea></div>
+        <div class="card-body">
+          <div class="field"><textarea id="notesIn" placeholder="How did today go? Cravings, wins, how your joints felt, anything to remember…"></textarea></div>
+        </div>
       </div>
 
     </div>
@@ -334,19 +400,26 @@ footer.foot{text-align:center;color:var(--muted);font-size:.78rem;margin-top:26p
       <input type="date" id="calDatePick">
       <button class="today-btn" id="calJumpToday">Today</button>
     </div>
-    <div class="card">
-      <h3>🗓️ Your Day <span class="muted" style="font-weight:600;font-size:.76rem">— swipe left/right to change day</span></h3>
-      <div class="cal-daygrid" id="calGrid">
-        <div class="cal-col">
-          <div class="cal-col-label">00:00 – 11:59</div>
-          <div class="cal-col-body" id="calColAMBody"></div>
+    <div class="card collapsible" data-collapse="caltasks" style="margin-bottom:12px">
+      <h3>✅ All Tasks<span class="count" id="calTaskCount"></span></h3>
+      <div class="card-body">
+        <div style="display:flex;gap:8px;margin:0 0 8px">
+          <input type="text" id="calTaskTitleIn" placeholder="Add a task…" style="flex:1;min-width:0;border:1px solid var(--line);background:var(--panel-2);color:var(--ink);border-radius:10px;padding:9px;font:inherit">
+          <button class="btn primary" id="calTaskAddBtn">Add</button>
         </div>
-        <div class="cal-col">
-          <div class="cal-col-label">12:00 – 23:59</div>
-          <div class="cal-col-body" id="calColPMBody"></div>
+        <div id="calTaskList"></div>
+        <div class="muted" id="calTaskStatus" style="font-size:.76rem;margin-top:6px"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>🗓️ Your Day <span class="muted" style="font-weight:600;font-size:.72rem">— swipe to change day</span></h3>
+      <div class="cal-viewport">
+        <div class="cal-daygrid" id="calGrid">
+          <div class="cal-col-body" id="calHours"></div>
         </div>
       </div>
-      <div class="muted" id="calStatus" style="font-size:.82rem;margin-top:8px"></div>
+      <div class="muted" id="calStatus" style="font-size:.8rem;margin-top:8px"></div>
       <div class="legend" id="calLegend"></div>
     </div>
   </section>
@@ -400,9 +473,17 @@ footer.foot{text-align:center;color:var(--muted);font-size:.78rem;margin-top:26p
       <div class="muted" style="font-size:.78rem">A safe, sustainable pace is about 0.5–1 kg a week. Aiming for ~88 kg keeps you healthy and reachable; you can lower the goal later.</div>
     </div>
 
-    <div class="card" style="margin-top:14px">
+    <div class="card collapsible" data-collapse="praysum" style="margin-top:12px">
       <h3>🕌 Prayer summary</h3>
-      <div id="praySummary"></div>
+      <div class="card-body"><div id="praySummary"></div></div>
+    </div>
+
+    <div class="card collapsible" data-collapse="qada" style="margin-top:12px">
+      <h3>🤲 Made-up (qada) prayers</h3>
+      <div class="card-body">
+        <p class="muted" style="font-size:.8rem;margin-top:0">Log prayers you've since made up. Each one you record here comes off the missed count above.</p>
+        <div id="qadaBox"></div>
+      </div>
     </div>
 
     <div class="card" style="margin-top:14px">
@@ -454,67 +535,18 @@ footer.foot{text-align:center;color:var(--muted);font-size:.78rem;margin-top:26p
     </div>
   </section>
 
-  <!-- ===================== GUIDE ===================== -->
-  <section id="view-guide" class="view guide">
-    <div class="section-title">Your Plan — the full picture</div>
-
-    <div class="warnbox"><b>A quick, honest word on the goal.</b> Even at this aggressive ~1,300–1,400 kcal, losing the full 20 kg in 2 months isn't physically possible safely — that pace needs a bigger daily deficit than your body actually burns. What this plan <b>can</b> realistically deliver is about <b>1–1.3 kg a week ≈ 10–14 kg in these two months</b> (often near the top of that early on from water weight), with the full 20 kg landing around months 3–4. That is genuinely excellent, sustainable progress. Because this deficit is aggressive and you have arthritis and take medication, please have your GP or a dietitian keep an eye on it.</div>
-
-    <h3>1. Your daily targets</h3>
-    <ul>
-      <li><b>Calories:</b> ~950–1,000 kcal from three meals + ~370 kcal from your daily milk, chai, whey and collagen ≈ <b>~1,300–1,400 kcal total</b>. You burn ~2,300–2,400, so this is an aggressive ~1,000 kcal deficit — about as far as it's sensible to push.</li>
-      <li><b>Protein:</b> ~85–110 g from food + ~45 g from your collagen &amp; whey ≈ <b>~140 g a day</b> — kept deliberately high to protect muscle at this low calorie level. Your creatine helps here too — take 5 g daily with water and stay well hydrated.</li>
-      <li><b>Daily supplements &amp; drinks:</b> collagen scoop (morning), 1 whey scoop, 5 g creatine, a glass of milk and a low-sugar milk tea — all on your Today checklist. Have the whey shake mid-afternoon to bridge the gap now that snacks are gone.</li>
-      <li><b>Water:</b> 2.5–3 litres (8+ glasses) — even more important on a low-calorie plan.</li>
-      <li><b>Sleep:</b> aim for 7–8 hours — poor sleep raises hunger hormones and stalls weight loss.</li>
-    </ul>
-    <div class="note"><b>At this low calorie level:</b> take a daily multivitamin, make protein and vegetables the priority in every meal, and if you feel dizzy, very fatigued or unwell, eat a bit more — don't push through. Please have your GP or a dietitian supervise a deficit this aggressive, especially with your arthritis and medication.</div>
-
-    <h3>2. Eight golden rules</h3>
-    <ul>
-      <li><b>Protein at every meal</b> — eggs, chicken, fish, yoghurt, paneer, lentils, chickpeas.</li>
-      <li><b>Fill half your plate with vegetables/salad</b> — volume with almost no calories.</li>
-      <li><b>Cut the "white stuff"</b> — less sugar, white bread, white rice, fried food and sugary drinks. Keep roti/rice to one small portion.</li>
-      <li><b>Cook with 1 tsp olive oil, not ladles of ghee/oil.</b></li>
-      <li><b>Anti-inflammatory heroes</b> for your joints: oily fish (salmon, mackerel), walnuts/flaxseed, olive oil, turmeric, ginger, garlic, berries, leafy greens, green tea.</li>
-      <li><b>Drink water before meals</b> — often stops you overeating.</li>
-      <li><b>Stop eating ~3 hours before bed</b> — helps digestion, sleep and morning stiffness.</li>
-      <li><b>One "off" meal won't undo you</b> — just return to plan at the next meal.</li>
-    </ul>
-
-    <h3>3. How this helps your arthritis</h3>
-    <ul>
-      <li><b>Less weight, less load:</b> ~4 kg comes off each knee for every 1 kg you lose — the single biggest thing you can do for joint pain.</li>
-      <li><b>Anti-inflammatory foods</b> (omega-3, turmeric, ginger, colourful veg) can calm the inflammation that drives arthritis pain.</li>
-      <li><b>Gentle movement</b> keeps joints lubricated and builds the muscle that supports them — but always within a pain-free range.</li>
-    </ul>
-
-    <h3>4. Movement (the ≤15-minute approach)</h3>
-    <p>You don't need the gym. See the <b>Exercises</b> tab for five short, joint-safe sessions. While your joints hurt, start with just morning mobility and a gentle walk, and build up slowly. On painful "flare" days, the <b>Isometric Joint-Savers</b> let you build strength without bending sore joints.</p>
-
-    <h3>5. What's built into your daily tracker</h3>
-    <ul>
-      <li><b>Medicines</b> — pre-breakfast, after breakfast, after dinner.</li>
-      <li><b>Daily supplements & drinks</b> — collagen, whey, creatine, milk and milk tea.</li>
-      <li><b>All 5 prayers</b> — Fajr, Dhuhr, Asr, Maghrib, Isha, with a missed-prayer summary in Progress.</li>
-      <li><b>Meals</b> — each links to its recipe.</li>
-      <li><b>Water, weight, sleep, steps, joint pain & energy, and daily notes.</b></li>
-      <li><b>A completion ring</b> at the top so you can see your whole day at a glance.</li>
-      <li><b>Light / dark theme toggle</b> in the top corner, and each exercise now has a YouTube demo link.</li>
-    </ul>
-
-    <h3>6. Using this file</h3>
-    <ul>
-      <li>Open it any time in your phone or laptop browser. <b>Bookmark it</b> or add it to your home screen for one-tap access.</li>
-      <li>Everything saves <b>automatically on your device</b> and stays there until you clear it.</li>
-      <li>Use the <b>Progress</b> tab to Export a backup occasionally, so you never lose your history.</li>
-    </ul>
-
-    <div class="note"><b>Not medical advice.</b> This plan is general wellbeing guidance. With arthritis and regular medication, please confirm it suits you with your GP, pharmacist or dietitian — particularly if you feel unwell, dizzy or unusually tired.</div>
-  </section>
 
   <footer class="foot">Built for you, Yawar — one small tick at a time. 🌿</footer>
 </div>
+
+<nav class="tabs" id="tabs">
+  <button data-nav="today" class="active"><i>📋</i>Today</button>
+  <button data-nav="calendar"><i>🗓️</i>Calendar</button>
+  <button data-nav="plan"><i>🍽️</i>Meals</button>
+  <button data-nav="recipes"><i>👨‍🍳</i>Recipes</button>
+  <button data-nav="exercises"><i>🧘</i>Move</button>
+  <button data-nav="progress"><i>📈</i>Progress</button>
+</nav>
 
 <!-- ===================== MODAL ===================== -->
 <div class="overlay" id="overlay">
@@ -800,15 +832,55 @@ function todayKey(){return keyOf(new Date());}
 var WEEKDAYS=["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
 var MONTHS=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 function human(d){return WEEKDAYS[d.getDay()]+", "+d.getDate()+" "+MONTHS[d.getMonth()]+" "+d.getFullYear();}
+/* Datebar version: abbreviated, and the year only when it isn't this one -
+   the full form wraps onto several lines at phone width. */
+function humanShort(d){
+  var s=WEEKDAYS[d.getDay()].slice(0,3)+" "+d.getDate()+" "+MONTHS[d.getMonth()];
+  if(d.getFullYear()!==new Date().getFullYear())s+=" "+d.getFullYear();
+  return s;
+}
 
 /* ---------- HELPERS ---------- */
 function el(tag,cls,txt){var e=document.createElement(tag);if(cls)e.className=cls;if(txt!=null)e.textContent=txt;return e;}
 function recipeLink(id){var b=el("button","linklike",RECIPES[id].title);b.setAttribute("data-recipe",id);return b;}
 
+/* ---------- COLLAPSIBLE CARDS ----------
+   Which cards are folded away is a per-device display preference, not part
+   of the user's health record - so it lives in its own localStorage key and
+   is deliberately kept out of `state` (and therefore out of cloud sync). */
+var COLLAPSE_KEY="yawarCollapsed";
+var collapsePrefs=(function(){
+  try{return JSON.parse(localStorage.getItem(COLLAPSE_KEY))||{};}catch(e){return {};}
+})();
+function saveCollapsePrefs(){try{localStorage.setItem(COLLAPSE_KEY,JSON.stringify(collapsePrefs));}catch(e){}}
+function initCollapsibles(){
+  var cards=document.querySelectorAll(".card.collapsible[data-collapse]");
+  Array.prototype.forEach.call(cards,function(card){
+    var key=card.getAttribute("data-collapse");
+    /* A card marked .collapsed in the markup is the default for that key
+       until the user says otherwise; after that the stored value wins. */
+    if(Object.prototype.hasOwnProperty.call(collapsePrefs,key))card.classList.toggle("collapsed",!!collapsePrefs[key]);
+    else collapsePrefs[key]=card.classList.contains("collapsed");
+    var head=card.querySelector("h3");
+    if(!head)return;
+    head.setAttribute("role","button");
+    head.setAttribute("tabindex","0");
+    head.addEventListener("click",function(){
+      var nowCollapsed=!card.classList.contains("collapsed");
+      card.classList.toggle("collapsed",nowCollapsed);
+      collapsePrefs[key]=nowCollapsed;saveCollapsePrefs();
+    });
+    head.addEventListener("keydown",function(e){
+      if(e.key==="Enter"||e.key===" "){e.preventDefault();head.click();}
+    });
+  });
+}
+function setCount(id,txt){var e=document.getElementById(id);if(e)e.textContent=txt||"";}
+
 /* ---------- RENDER: TODAY ---------- */
 function renderToday(){
   var k=keyOf(cur), d=dayData(k);
-  document.getElementById("dateLabel").textContent = (k===todayKey()?"Today · ":"")+human(cur);
+  document.getElementById("dateLabel").textContent = (k===todayKey()?"Today · ":"")+humanShort(cur);
   document.getElementById("datePick").value=k;
 
   // meds
@@ -893,7 +965,22 @@ function renderToday(){
   document.getElementById("energyVal").textContent=(d.energy==null?"–":d.energy);
   document.getElementById("notesIn").value=d.notes;
 
+  renderDayCounts(d);
   updateRing();
+}
+
+/* Each collapsible card shows its own progress in the header, so a folded
+   card still tells you whether it needs attention. */
+function renderDayCounts(d){
+  var doneOf=function(list,bag,idx){var n=0;list.forEach(function(x){if(bag[idx?x[0]:x.id])n++;});return n;};
+  setCount("medsCount",doneOf(MEDS,d.meds,true)+"/"+MEDS.length);
+  setCount("prayCount",doneOf(PRAYERS,d.prayers,true)+"/"+PRAYERS.length);
+  setCount("mealsCount",doneOf(MEALSLOTS,d.meals,true)+"/"+MEALSLOTS.length);
+  setCount("extrasCount",doneOf(DAILY_EXTRAS,d.extras,false)+"/"+DAILY_EXTRAS.length);
+  setCount("waterCountTag",d.water+"/8");
+  var dhikrDone=0,dhikrTotal=DHIKR_PERIODS.length*DHIKR_ITEMS.length;
+  DHIKR_PERIODS.forEach(function(p){DHIKR_ITEMS.forEach(function(i){if(d.dhikr[p[0]][i[0]])dhikrDone++;});});
+  setCount("dhikrCount",dhikrDone+"/"+dhikrTotal);
 }
 
 function renderWater(d){
@@ -901,6 +988,7 @@ function renderWater(d){
   var g=document.getElementById("glasses");g.innerHTML="";
   var n=Math.max(8,d.water);
   for(var i=0;i<n;i++){var x=el("div","glass"+(i<d.water?" full":""));g.appendChild(x);}
+  setCount("waterCountTag",d.water+"/8");
 }
 
 function renderExtras(d){
@@ -914,20 +1002,40 @@ function renderExtras(d){
   });
 }
 
+/* Morning/afternoon/evening are three collapsible sub-cards rather than one
+   21-row list - the whole point is that the Today tab stays short. */
 function renderDhikr(d){
   var box=document.getElementById("dhikrBox");if(!box)return;box.innerHTML="";
   DHIKR_PERIODS.forEach(function(period){
-    box.appendChild(el("div","tag",period[1]));
+    var prefKey="dhikr_"+period[0];
+    var collapsed=Object.prototype.hasOwnProperty.call(collapsePrefs,prefKey)?!!collapsePrefs[prefKey]:true;
+    var card=el("div","subcard"+(collapsed?" collapsed":""));
+    var done=0;
+    DHIKR_ITEMS.forEach(function(i){if(d.dhikr[period[0]][i[0]])done++;});
+
+    var head=el("button",null,period[1]);
+    head.type="button";
+    head.appendChild(el("span","count",done+"/"+DHIKR_ITEMS.length));
+    head.addEventListener("click",function(){
+      var nowCollapsed=!card.classList.contains("collapsed");
+      card.classList.toggle("collapsed",nowCollapsed);
+      collapsePrefs[prefKey]=nowCollapsed;saveCollapsePrefs();
+    });
+    card.appendChild(head);
+
+    var body=el("div","subcard-body");
     DHIKR_ITEMS.forEach(function(item){
       var checked=!!d.dhikr[period[0]][item[0]];
       var row=el("label","chk"+(checked?" done":""));
       var cb=el("input");cb.type="checkbox";cb.checked=checked;
       cb.addEventListener("change",function(){
-        d.dhikr[period[0]][item[0]]=cb.checked;d.updated_at=Date.now();save();renderDhikr(d);
+        d.dhikr[period[0]][item[0]]=cb.checked;d.updated_at=Date.now();save();renderDhikr(d);renderDayCounts(d);
       });
       var txt=el("div");txt.appendChild(el("div","lbl",item[1]));
-      row.appendChild(cb);row.appendChild(txt);box.appendChild(row);
+      row.appendChild(cb);row.appendChild(txt);body.appendChild(row);
     });
+    card.appendChild(body);
+    box.appendChild(card);
   });
 }
 
@@ -1158,19 +1266,35 @@ function refreshBrief(){
   }).then(renderBrief).catch(function(){renderBrief(null);});
 }
 
-/* ---------- TASKS (local; not yet part of cloud sync) ---------- */
+/* ---------- TASKS (local; not yet part of cloud sync) ----------
+   The Today tab shows only the few most pressing tasks; the Calendar tab
+   carries the complete list and is the real home for them. Adding a task
+   never asks for a time - a task is just a task until you deliberately put
+   it on the calendar with the 📅 button on its row. */
+var TASK_TODAY_LIMIT=3;
+var _taskSchedOpenId=null;   /* which task's inline date picker is showing */
+
 function ensureTasks(){if(!Array.isArray(state.tasks))state.tasks=[];return state.tasks;}
 function taskId(){return "t"+Date.now()+"_"+Math.random().toString(36).slice(2,8);}
-
-function renderTasks(){
-  var list=document.getElementById("taskList");
-  if(!list)return;
-  list.innerHTML="";
-  var tasks=ensureTasks().slice().sort(function(a,b){
+function sortedTasks(){
+  return ensureTasks().slice().sort(function(a,b){
     if(!!a.done!==!!b.done)return a.done?1:-1;
-    return String(a.due||"9999").localeCompare(String(b.due||"9999"));
+    var ad=String(a.due||"9999"),bd=String(b.due||"9999");
+    if(ad!==bd)return ad.localeCompare(bd);
+    return (a.created_at||0)-(b.created_at||0);
   });
-  if(!tasks.length){list.appendChild(el("p","muted","No tasks yet — add one above."));return;}
+}
+function localDatetimeValue(d){
+  var p=function(n){return ("0"+n).slice(-2);};
+  return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate())+"T"+p(d.getHours())+":"+p(d.getMinutes());
+}
+
+function renderTaskList(listEl,tasks,statusId,hiddenCount){
+  listEl.innerHTML="";
+  if(!tasks.length){
+    listEl.appendChild(el("p","muted","No tasks yet — add one above."));
+    return;
+  }
   tasks.forEach(function(t){
     var row=el("div","task-row"+(t.done?" done":""));
     var cb=el("input");cb.type="checkbox";cb.checked=!!t.done;
@@ -1179,51 +1303,96 @@ function renderTasks(){
     row.appendChild(el("span","task-title",t.title));
     if(t.due){
       var due=new Date(t.due);
-      row.appendChild(el("span","task-due",due.toLocaleString("en-GB",{weekday:"short",day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"})));
+      row.appendChild(el("span","task-due",due.toLocaleString("en-GB",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"})));
     }
-    if(t.due&&!t.scheduled){
-      var schedBtn=el("button","btn","📅 Schedule");
-      schedBtn.addEventListener("click",function(){scheduleTask(t);});
-      row.appendChild(schedBtn);
-    }else if(t.scheduled){
-      row.appendChild(el("span","tag","On calendar"));
-    }
-    var delBtn=el("button","btn danger","✕");
+    if(t.scheduled)row.appendChild(el("span","tag","On calendar"));
+
+    var schedBtn=el("button","icon-btn","📅");
+    schedBtn.type="button";
+    schedBtn.title=t.scheduled?"Reschedule on Google Calendar":"Schedule on Google Calendar";
+    schedBtn.setAttribute("aria-label",schedBtn.title);
+    schedBtn.addEventListener("click",function(){
+      _taskSchedOpenId=(_taskSchedOpenId===t.id)?null:t.id;
+      renderTasks();
+    });
+    row.appendChild(schedBtn);
+
+    var delBtn=el("button","icon-btn danger","✕");
+    delBtn.type="button";delBtn.setAttribute("aria-label","Delete task");
     delBtn.addEventListener("click",function(){
+      if(_taskSchedOpenId===t.id)_taskSchedOpenId=null;
       state.tasks=ensureTasks().filter(function(x){return x.id!==t.id;});save();renderTasks();
     });
     row.appendChild(delBtn);
-    list.appendChild(row);
+    listEl.appendChild(row);
+
+    if(_taskSchedOpenId===t.id){
+      var panel=el("div","task-sched");
+      var when=el("input");when.type="datetime-local";
+      var seed=t.due?new Date(t.due):new Date(Date.now()+60*60*1000);
+      seed.setSeconds(0,0);
+      when.value=localDatetimeValue(seed);
+      panel.appendChild(when);
+      var go=el("button","btn primary","Add to calendar");
+      go.type="button";
+      go.addEventListener("click",function(){
+        if(!when.value)return;
+        scheduleTaskAt(t,new Date(when.value).toISOString(),statusId);
+      });
+      panel.appendChild(go);
+      listEl.appendChild(panel);
+    }
   });
+  if(hiddenCount>0){
+    listEl.appendChild(el("p","muted","+"+hiddenCount+" more in the Calendar tab."));
+  }
 }
 
-function addTask(){
-  var titleIn=document.getElementById("taskTitleIn"),whenIn=document.getElementById("taskWhenIn");
+function renderTasks(){
+  var all=sortedTasks();
+  var open=all.filter(function(t){return !t.done;}).length;
+
+  var todayList=document.getElementById("taskList");
+  if(todayList){
+    renderTaskList(todayList,all.slice(0,TASK_TODAY_LIMIT),"taskStatus",Math.max(0,all.length-TASK_TODAY_LIMIT));
+    setCount("taskCount",all.length?(open+" open"):"");
+  }
+  var calList=document.getElementById("calTaskList");
+  if(calList){
+    renderTaskList(calList,all,"calTaskStatus",0);
+    setCount("calTaskCount",all.length?(open+" open · "+all.length+" total"):"");
+  }
+}
+
+function addTask(inputId){
+  var titleIn=document.getElementById(inputId);
+  if(!titleIn)return;
   var title=(titleIn.value||"").trim();
   if(!title)return;
-  var due=whenIn.value?new Date(whenIn.value).toISOString():null;
-  ensureTasks().push({id:taskId(),title:title,due:due,done:false,scheduled:false,calendarEventId:null,created_at:Date.now(),updated_at:Date.now()});
-  titleIn.value="";whenIn.value="";
+  ensureTasks().push({id:taskId(),title:title,due:null,done:false,scheduled:false,calendarEventId:null,created_at:Date.now(),updated_at:Date.now()});
+  titleIn.value="";
   save();renderTasks();
 }
 
-/** Turns a local task with a due date into a real Google Calendar event.
- * Requires the calendar.events (write) scope - an older read-only token
- * surfaces as reconnect_required from the server, not a generic error. */
-function scheduleTask(t){
-  var statusEl=document.getElementById("taskStatus");
+/** Puts a task on the real Google Calendar at the chosen time. Requires the
+ * calendar.events (write) scope - an older read-only token surfaces as
+ * reconnect_required from the server, not a generic error. */
+function scheduleTaskAt(t,startIso,statusId){
+  var statusEl=document.getElementById(statusId||"taskStatus");
   if(statusEl)statusEl.textContent="Scheduling…";
   fetch("/api/google/calendar/events",{
     method:"POST",
     credentials:"same-origin",
     headers:{"content-type":"application/json"},
-    body:JSON.stringify({title:t.title,start:t.due,durationMinutes:30}),
+    body:JSON.stringify({title:t.title,start:startIso,durationMinutes:30}),
   }).then(function(res){
     if(!res.ok)throw new Error("http "+res.status);
     return res.json();
   }).then(function(resp){
     if(resp.status==="ok"){
-      t.scheduled=true;t.calendarEventId=resp.eventId||null;t.updated_at=Date.now();save();renderTasks();
+      t.due=startIso;t.scheduled=true;t.calendarEventId=resp.eventId||null;t.updated_at=Date.now();
+      _taskSchedOpenId=null;
+      save();renderTasks();
       if(statusEl)statusEl.textContent="Added to your Google Calendar.";
     }else if(resp.status==="reconnect_required"||resp.status==="not_connected"){
       if(statusEl)statusEl.textContent="Connect Google Calendar (Today's Brief card) to schedule tasks.";
@@ -1338,15 +1507,44 @@ function requestPrayerLocation(){
 
 /* ---------- CALENDAR TAB ---------- */
 var calCur=new Date(); calCur.setHours(0,0,0,0);
+var CAL_ANIM_MS=170;
+var _calAnimating=false;
 
-function calGoDay(delta){
-  calCur.setDate(calCur.getDate()+delta);
-  renderCalendarTab();
+function calGridEl(){return document.getElementById("calGrid");}
+function calSetTransform(x,animate){
+  var g=calGridEl();if(!g)return;
+  g.style.transition=animate?("transform "+CAL_ANIM_MS+"ms ease-out, opacity "+CAL_ANIM_MS+"ms ease-out"):"none";
+  g.style.transform=x?("translateX("+x+")"):"";
+  g.style.opacity=x?"0":"1";
+}
+
+/** Pages a day at a time as a sliding stack: the outgoing day is pushed off
+ * in the direction of travel, then the new day slides in from the opposite
+ * edge. Data for the new day is fetched during the second half, so the
+ * animation never blocks the request. */
+function calGoDay(delta,fromX){
+  if(_calAnimating)return;
+  var g=calGridEl();
+  if(!g){calCur.setDate(calCur.getDate()+delta);renderCalendarTab();return;}
+  _calAnimating=true;
+  if(fromX!=null)calSetTransform(fromX+"px",false);
+  /* Let the browser paint the finger's last position before easing out of
+     it, otherwise the drag and the animation collapse into one jump. */
+  void g.offsetWidth;
+  calSetTransform(delta>0?"-100%":"100%",true);
+  setTimeout(function(){
+    calCur.setDate(calCur.getDate()+delta);
+    renderCalendarTab();
+    calSetTransform(delta>0?"100%":"-100%",false);
+    void g.offsetWidth;
+    calSetTransform(null,true);
+    setTimeout(function(){_calAnimating=false;g.style.transition="";},CAL_ANIM_MS);
+  },CAL_ANIM_MS);
 }
 
 function renderCalendarTab(){
   var k=keyOf(calCur);
-  document.getElementById("calDateLabel").textContent=(k===todayKey()?"Today · ":"")+human(calCur);
+  document.getElementById("calDateLabel").textContent=(k===todayKey()?"Today · ":"")+humanShort(calCur);
   document.getElementById("calDatePick").value=k;
 
   var loc=state.profile&&state.profile.prayerLoc;
@@ -1391,7 +1589,6 @@ function hourWindowName(segs,hour){
 }
 
 function renderDayGridColumn(bodyEl,hourFrom,hourTo,eventsByHour,segs,isToday,nowMinutes){
-  bodyEl.innerHTML="";
   for(var h=hourFrom;h<hourTo;h++){
     var row=el("div","cal-hour");
     var winName=hourWindowName(segs,h);
@@ -1420,9 +1617,10 @@ function renderDayGridColumn(bodyEl,hourFrom,hourTo,eventsByHour,segs,isToday,no
 }
 
 function renderAgenda(data,times,dayKey){
-  var amBody=document.getElementById("calColAMBody"),pmBody=document.getElementById("calColPMBody");
+  var body=document.getElementById("calHours");
   var status=document.getElementById("calStatus"),legend=document.getElementById("calLegend");
-  if(!amBody||!pmBody)return;
+  if(!body)return;
+  body.innerHTML="";
 
   var eventsByHour={};
   (data.events||[]).forEach(function(e){
@@ -1439,8 +1637,7 @@ function renderAgenda(data,times,dayKey){
   var now=new Date();
   var nowMinutes=isToday?(now.getHours()*60+now.getMinutes()):null;
 
-  renderDayGridColumn(amBody,0,12,eventsByHour,segs,isToday,nowMinutes);
-  renderDayGridColumn(pmBody,12,24,eventsByHour,segs,isToday,nowMinutes);
+  renderDayGridColumn(body,0,24,eventsByHour,segs,isToday,nowMinutes);
 
   if(!data.connected)status.textContent="Connect Google Calendar (Today's Brief card, Today tab) to see your schedule here.";
   else if(data.status==="reconnect_required")status.textContent="Google Calendar access has expired — reconnect from the Today's Brief card.";
@@ -1457,34 +1654,82 @@ function renderAgenda(data,times,dayKey){
   });
 
   if(isToday&&nowMinutes!=null){
-    var targetBody=nowMinutes<720?amBody:pmBody;
-    var target=targetBody.children[Math.floor(nowMinutes/60)%12];
+    var target=body.children[Math.floor(nowMinutes/60)];
     if(target&&typeof target.scrollIntoView==="function"){
       try{target.scrollIntoView({block:"center"});}catch(e){}
     }
   }
 }
 
-/** Left/right swipe on the day grid pages to the previous/next day - a
- * quick way to flip through the rest of the week without the datebar. */
+/** Left/right swipe on the day grid pages to the previous/next day. The grid
+ * follows the finger while dragging so it reads as a stack of days being
+ * pushed aside, then either completes the turn or springs back on release.
+ * Touch events are stopped here so the page-level tab swipe never also
+ * fires from a gesture that was meant for the calendar. */
 function attachCalSwipe(){
-  var grid=document.getElementById("calGrid");
+  var grid=calGridEl();
   if(!grid)return;
-  var startX=null,startY=null;
+  var startX=null,startY=null,dragging=false,lastDx=0;
   grid.addEventListener("touchstart",function(e){
+    e.stopPropagation();
+    if(_calAnimating)return;
+    var t=e.touches&&e.touches[0];
+    if(!t)return;
+    startX=t.clientX;startY=t.clientY;dragging=false;lastDx=0;
+  },{passive:true});
+  grid.addEventListener("touchmove",function(e){
+    e.stopPropagation();
+    if(startX==null||_calAnimating)return;
+    var t=e.touches&&e.touches[0];
+    if(!t)return;
+    var dx=t.clientX-startX,dy=t.clientY-startY;
+    if(!dragging&&Math.abs(dx)<Math.abs(dy))return;   /* vertical scroll wins */
+    if(Math.abs(dx)>8)dragging=true;
+    if(!dragging)return;
+    lastDx=dx;
+    grid.style.transition="none";
+    grid.style.transform="translateX("+dx+"px)";
+    grid.style.opacity=String(Math.max(0.35,1-Math.abs(dx)/600));
+  },{passive:true});
+  grid.addEventListener("touchend",function(e){
+    e.stopPropagation();
+    if(startX==null)return;
+    var t=e.changedTouches&&e.changedTouches[0];
+    var sx=startX,sy=startY,wasDragging=dragging,dragDx=lastDx;
+    startX=null;startY=null;dragging=false;lastDx=0;
+    if(!t){if(wasDragging)calSetTransform(null,true);return;}
+    var dx=t.clientX-sx,dy=t.clientY-sy;
+    if(Math.abs(dx)<40||Math.abs(dx)<Math.abs(dy)*1.2){
+      if(wasDragging)calSetTransform(null,true);       /* not far enough - spring back */
+      return;
+    }
+    calGoDay(dx<0?1:-1,wasDragging?dragDx:null);
+  },{passive:true});
+}
+
+/** Horizontal swipe anywhere on the page moves between tabs, in the same
+ * left-to-right order as the bottom bar. */
+function attachTabSwipe(){
+  var wrap=document.querySelector(".wrap");
+  if(!wrap)return;
+  var startX=null,startY=null;
+  wrap.addEventListener("touchstart",function(e){
     var t=e.touches&&e.touches[0];
     if(!t)return;
     startX=t.clientX;startY=t.clientY;
   },{passive:true});
-  grid.addEventListener("touchend",function(e){
+  wrap.addEventListener("touchend",function(e){
     if(startX==null)return;
     var t=e.changedTouches&&e.changedTouches[0];
     var sx=startX,sy=startY;
     startX=null;startY=null;
     if(!t)return;
     var dx=t.clientX-sx,dy=t.clientY-sy;
-    if(Math.abs(dx)<40||Math.abs(dx)<Math.abs(dy)*1.2)return;
-    calGoDay(dx<0?1:-1);
+    if(Math.abs(dx)<60||Math.abs(dx)<Math.abs(dy)*1.5)return;
+    var i=VIEWS.indexOf(currentView);
+    var next=i+(dx<0?1:-1);
+    if(next<0||next>=VIEWS.length)return;              /* no wrap-around at the ends */
+    nav(VIEWS[next]);
   },{passive:true});
 }
 
@@ -1606,29 +1851,92 @@ function renderExercises(){
 }
 
 /* ---------- RENDER: PRAYER SUMMARY ---------- */
+/* Made-up (qada) prayers live on the profile, not on any single day - they
+   pay down a running debt rather than belonging to one date, and they ride
+   the same profile sync as start/target weight. */
+function ensureQada(){
+  if(!state.profile.qada||typeof state.profile.qada!=="object")state.profile.qada={};
+  PRAYERS.forEach(function(p){
+    var v=parseInt(state.profile.qada[p[0]],10);
+    state.profile.qada[p[0]]=isNaN(v)||v<0?0:v;
+  });
+  return state.profile.qada;
+}
+
+/** Missed-per-prayer across every completed day, before qada is applied. */
+function missedByPrayer(){
+  var tk=todayKey();
+  var past=Object.keys(state.days).filter(function(k){return k<tk;}).sort();
+  var perDone={},perMissed={};
+  PRAYERS.forEach(function(p){perDone[p[0]]=0;perMissed[p[0]]=0;});
+  past.forEach(function(k){
+    var d=state.days[k];
+    PRAYERS.forEach(function(p){if(d.prayers&&d.prayers[p[0]])perDone[p[0]]++;else perMissed[p[0]]++;});
+  });
+  return {done:perDone,missed:perMissed,days:past.length};
+}
+
+function renderQada(){
+  var box=document.getElementById("qadaBox");if(!box)return;
+  box.innerHTML="";
+  var qada=ensureQada();
+  var stats=missedByPrayer();
+  PRAYERS.forEach(function(p){
+    var owed=Math.max(0,stats.missed[p[0]]-qada[p[0]]);
+    var row=el("div","qada-row");
+    row.style.borderInlineStart="4px solid var("+(PRAYER_COLOR_VAR[p[1]]||"--pray")+")";
+    row.style.paddingInlineStart="8px";
+    row.appendChild(el("span","qada-name",p[1]));
+    row.appendChild(el("span","qada-owed",owed+" still owed"));
+    var minus=el("button","icon-btn","−");minus.type="button";
+    var input=el("input");input.type="number";input.min="0";input.value=String(qada[p[0]]);
+    var plus=el("button","icon-btn","+");plus.type="button";
+    function commit(v){
+      var n=parseInt(v,10);
+      if(isNaN(n)||n<0)n=0;
+      /* Never let the made-up count exceed what was actually missed - the
+         number is a debt repayment, not a free-standing tally. */
+      if(n>stats.missed[p[0]])n=stats.missed[p[0]];
+      qada[p[0]]=n;
+      state.profile.updated_at=Date.now();
+      save();renderPraySummary();renderQada();
+    }
+    minus.addEventListener("click",function(){commit(qada[p[0]]-1);});
+    plus.addEventListener("click",function(){commit(qada[p[0]]+1);});
+    input.addEventListener("change",function(){commit(this.value);});
+    row.appendChild(minus);row.appendChild(input);row.appendChild(plus);
+    box.appendChild(row);
+  });
+}
+
 function renderPraySummary(){
   var box=document.getElementById("praySummary");box.innerHTML="";
   var tk=todayKey();
   var keys=Object.keys(state.days).filter(function(k){return k<=tk;}).sort();
   if(!keys.length){box.appendChild(el("p","muted","No prayer data yet — tick your prayers on the Today tab and this summary will build up over time."));return;}
+  var qada=ensureQada();
+  var stats=missedByPrayer();
   var past=keys.filter(function(k){return k<tk;});
-  var perDone={},perMissed={};
-  PRAYERS.forEach(function(p){perDone[p[0]]=0;perMissed[p[0]]=0;});
-  past.forEach(function(k){var d=state.days[k];PRAYERS.forEach(function(p){if(d.prayers&&d.prayers[p[0]])perDone[p[0]]++;else perMissed[p[0]]++;});});
+  var perDone=stats.done,perMissed={},totalMadeUp=0;
+  PRAYERS.forEach(function(p){
+    perMissed[p[0]]=Math.max(0,stats.missed[p[0]]-qada[p[0]]);
+    totalMadeUp+=Math.min(qada[p[0]],stats.missed[p[0]]);
+  });
   var totalMissed=0;PRAYERS.forEach(function(p){totalMissed+=perMissed[p[0]];});
   var allFive=past.filter(function(k){var d=state.days[k];return PRAYERS.every(function(p){return d.prayers&&d.prayers[p[0]];});}).length;
 
+  var madeUpNote=totalMadeUp?(" "+totalMadeUp+" made up so far."):"";
   var msg = past.length===0
     ? "Your prayer history starts building from tomorrow — today's prayers show below as they're completed."
     : (totalMissed===0
-        ? ("Masha'Allah — no missed prayers across "+past.length+" completed day(s). Keep it going!")
-        : ("You've missed "+totalMissed+" prayer(s) across "+past.length+" completed day(s); "+allFive+" day(s) had all 5 completed."));
+        ? ("Masha'Allah — nothing outstanding across "+past.length+" completed day(s)."+madeUpNote+" Keep it going!")
+        : ("You have "+totalMissed+" prayer(s) still to make up across "+past.length+" completed day(s); "+allFive+" day(s) had all 5 completed."+madeUpNote));
   box.appendChild(el("div","note",msg));
 
   var pr=el("div","pill-row");
   PRAYERS.forEach(function(p){
-    var tot=perDone[p[0]]+perMissed[p[0]];
-    var chip=el("span","tag",p[1]+": "+perDone[p[0]]+"/"+tot+(perMissed[p[0]]?(" · "+perMissed[p[0]]+" missed"):""));
+    var tot=perDone[p[0]]+stats.missed[p[0]];
+    var chip=el("span","tag",p[1]+": "+perDone[p[0]]+"/"+tot+(perMissed[p[0]]?(" · "+perMissed[p[0]]+" owed"):""));
     if(perMissed[p[0]]>0){chip.style.borderColor="var(--bad)";chip.style.color="var(--bad)";}
     pr.appendChild(chip);
   });
@@ -1659,6 +1967,7 @@ function renderPraySummary(){
 /* ---------- RENDER: PROGRESS ---------- */
 function renderProgress(){
   renderPraySummary();
+  renderQada();
   updateSyncUI();
   updateInstallUI();
   updateNotifyUI();
@@ -1762,24 +2071,37 @@ function showModal(){document.getElementById("overlay").classList.add("open");}
 function hideModal(){document.getElementById("overlay").classList.remove("open");}
 
 /* ---------- NAV ---------- */
+/* Order matters: it's both the bottom bar's left-to-right order and the
+   order swiping moves through. */
+var VIEWS=["today","calendar","plan","recipes","exercises","progress"];
+var currentView="today";
 function nav(view){
+  if(VIEWS.indexOf(view)<0)return;
+  currentView=view;
   var tabs=document.getElementById("tabs").children;
   for(var i=0;i<tabs.length;i++){tabs[i].classList.toggle("active",tabs[i].getAttribute("data-nav")===view);}
-  ["today","calendar","plan","recipes","exercises","progress","guide"].forEach(function(v){
+  VIEWS.forEach(function(v){
     document.getElementById("view-"+v).classList.toggle("active",v===view);
   });
   if(view==="progress")renderProgress();
-  if(view==="calendar")renderCalendarTab();
+  if(view==="calendar"){renderCalendarTab();renderTasks();}
   if(view==="today")renderPrayerClock();
   window.scrollTo(0,0);
 }
 
 /* ---------- EVENTS ---------- */
+/* Match on the nearest ancestor carrying the attribute, not the literal
+   click target: these buttons have child elements (the bottom bar's icons,
+   for one), and a tap landing on a child must still count as a tap on the
+   button it belongs to. */
 document.addEventListener("click",function(ev){
   var t=ev.target;
-  var rec=t.getAttribute&&t.getAttribute("data-recipe");
-  var exc=t.getAttribute&&t.getAttribute("data-exercise");
-  var nv=t.getAttribute&&t.getAttribute("data-nav");
+  if(!t||!t.closest)return;
+  var hit=t.closest("[data-recipe],[data-exercise],[data-nav]");
+  if(!hit)return;
+  var rec=hit.getAttribute("data-recipe");
+  var exc=hit.getAttribute("data-exercise");
+  var nv=hit.getAttribute("data-nav");
   if(rec){ev.preventDefault();openRecipe(rec);}
   else if(exc){ev.preventDefault();openExercise(exc);}
   else if(nv){nav(nv);}
@@ -1846,8 +2168,10 @@ document.getElementById("clearBtn").addEventListener("click",function(){
   }
 });
 
-document.getElementById("taskAddBtn").addEventListener("click",addTask);
-document.getElementById("taskTitleIn").addEventListener("keydown",function(e){if(e.key==="Enter")addTask();});
+document.getElementById("taskAddBtn").addEventListener("click",function(){addTask("taskTitleIn");});
+document.getElementById("taskTitleIn").addEventListener("keydown",function(e){if(e.key==="Enter")addTask("taskTitleIn");});
+document.getElementById("calTaskAddBtn").addEventListener("click",function(){addTask("calTaskTitleIn");});
+document.getElementById("calTaskTitleIn").addEventListener("keydown",function(e){if(e.key==="Enter")addTask("calTaskTitleIn");});
 
 document.getElementById("prayerLocBtn").addEventListener("click",requestPrayerLocation);
 
@@ -1856,6 +2180,7 @@ document.getElementById("calNextDay").addEventListener("click",function(){calGoD
 document.getElementById("calJumpToday").addEventListener("click",function(){calCur=new Date();calCur.setHours(0,0,0,0);renderCalendarTab();});
 document.getElementById("calDatePick").addEventListener("change",function(){var v=this.value.split("-");calCur=new Date(+v[0],+v[1]-1,+v[2]);calCur.setHours(0,0,0,0);renderCalendarTab();});
 attachCalSwipe();
+attachTabSwipe();
 
 document.getElementById("notifyBtn").addEventListener("click",enableNotifications);
 
@@ -1880,6 +2205,7 @@ document.getElementById("themeToggle").addEventListener("click",function(){
 });
 
 /* ---------- INIT ---------- */
+initCollapsibles();
 renderPlan();renderRecipes();renderExercises();renderToday();
 updateInstallUI();
 loadBrief();
