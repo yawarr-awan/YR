@@ -79,11 +79,20 @@ with good backup, BOTH corrupt (must not wipe data, must show an error, must
 leave raw storage untouched), and storage writes blocked (quota/private mode).
 
 ## Git workflow
-Commit to a feature branch and open a PR for review. Do not push directly to
-`main`. This project's only copy of real historical data is the localStorage on
-Yawar's phone and laptop (exported backups exist on both) — a broken direct
-commit to `main` is a worse failure mode here than in most projects, because
-`main` is what auto-deploys.
+Commit to a feature branch and open a PR — still do this for every change, so
+there's always a reviewable diff and a clean revert point. Do not push
+directly to `main`. This project's only copy of real historical data is the
+localStorage on Yawar's phone and laptop (exported backups exist on both) — a
+broken direct commit to `main` is a worse failure mode here than in most
+projects, because `main` is what auto-deploys.
+
+**Merging (as of 2026-08-09, per Yawar):** once tests pass, merge the PR
+directly — don't stop to ask for merge approval on each one. Report what
+shipped after the fact instead. This applies to routine merges for work
+Yawar asked for. It does NOT extend to genuinely risky or ambiguous calls —
+e.g. anything touching the Cloudflare account/Access config, anything that
+could affect the AyahInk boundary, or a change you're not confident is
+correct — those still get flagged before acting, same as always.
 
 ## Known external issue
 Claude Code's web repo picker has an open upstream bug where personal-account
