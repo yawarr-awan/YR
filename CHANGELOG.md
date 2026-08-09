@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.8.0
+
+- **"+N more" on the Today task list is now a button** — tapping it expands the full list in place on the Today tab, and turns into "Show fewer". Expanding stays put while you tick things off. The separate task list has been **removed from the Calendar tab**, which is now just the calendar.
+- **Calendar is a full week view.** Seven day columns share one hour-by-hour grid, with the day in focus given **double the width** of the others so it stays readable on a phone — today by default, and tapping any day heading expands that day instead. Prayer-window colour bands are computed per day, and the current hour is marked (with the now-line) in today's column only.
+  - Swiping and the ‹ › buttons now move **a week at a time**, with the same sliding transition.
+  - The whole week is fetched in **one ranged request** (`GET /api/calendar/events?date=…&end=…`) rather than seven separate ones, so the server lists your calendars once instead of seven times. An absent, malformed or backwards `end` still means a single day, so nothing else changes.
+- **The tab you were on is remembered across a refresh.** Reloading (or reopening the installed app) puts you back where you were instead of always on Today; an unrecognised stored tab falls back to Today.
+
 ## 1.7.0
 
 A mobile-first pass over the whole app: less scrolling, fewer taps, everything reachable with a thumb.

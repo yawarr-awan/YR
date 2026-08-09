@@ -177,20 +177,42 @@ input[type=range]{width:100%;accent-color:var(--accent)}
 .pill-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
 .prayer-chip{font-weight:700}
 .prayer-chip.next{box-shadow:0 0 0 2px var(--ink);font-weight:800}
-/* Single 24-hour column. The viewport clips it so a day can slide fully out
-   of frame during a swipe without widening the page. */
+/* Week grid: an hour-label gutter plus one column per day, laid out as a
+   single CSS grid so every day's 09:00 sits on the same row. The selected
+   day's column is given twice the width of the rest, which is what makes a
+   seven-day view readable on a phone at all. The viewport clips it so a
+   week can slide fully out of frame during a swipe. */
 .cal-viewport{overflow:hidden}
 .cal-daygrid{touch-action:pan-y;will-change:transform}
-.cal-col-body{border:1px solid var(--line);border-radius:12px;overflow:hidden}
-.cal-hour{position:relative;min-height:34px;border-top:1px solid var(--line);padding:3px 8px 4px;z-index:1;display:flex;gap:8px}
-.cal-hour:first-child{border-top:none}
-.cal-hour.current-hour{box-shadow:inset 0 0 0 2px var(--brand)}
-.cal-hour-label{font-size:.68rem;font-weight:700;color:var(--muted);flex:0 0 38px;padding-top:2px}
-.cal-hour-events{display:flex;flex-direction:column;gap:3px;flex:1;min-width:0}
-.cal-event{border-radius:8px;padding:3px 7px;font-size:.72rem;line-height:1.25;border-inline-start:3px solid var(--brand);background:var(--panel-2)}
-.cal-event-time{font-weight:700;color:var(--muted);margin-inline-end:5px}
+.cal-week{display:grid;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.cal-wk-head{
+  padding:5px 2px;text-align:center;font-size:.58rem;font-weight:700;line-height:1.25;
+  color:var(--muted);background:var(--panel-2);border-inline-start:1px solid var(--line);
+  cursor:pointer;overflow:hidden
+}
+.cal-wk-head:first-child,.cal-wk-gutter{border-inline-start:none}
+.cal-wk-head b{display:block;font-size:.72rem;color:var(--ink)}
+.cal-wk-head.is-today b{color:var(--brand)}
+.cal-wk-head.is-sel{background:var(--panel)}
+.cal-wk-gutter{
+  font-size:.55rem;font-weight:700;color:var(--muted);padding:1px 3px 0;
+  border-top:1px solid var(--line);text-align:end;background:var(--panel-2)
+}
+.cal-cell{
+  position:relative;min-height:26px;padding:1px;overflow:hidden;
+  border-top:1px solid var(--line);border-inline-start:1px solid var(--line)
+}
+.cal-cell.current-hour{box-shadow:inset 0 0 0 2px var(--brand)}
+.cal-chip{
+  display:block;border-radius:4px;padding:0 2px;margin-bottom:1px;font-size:.5rem;line-height:1.3;
+  background:var(--panel-2);border-inline-start:3px solid var(--brand);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap
+}
+.cal-cell.wide{min-height:30px;padding:2px}
+.cal-cell.wide .cal-chip{font-size:.62rem;padding:1px 4px;white-space:normal}
+.cal-chip-time{font-weight:700;color:var(--muted);margin-inline-end:4px}
 .cal-nowline{position:absolute;inset-inline:0;height:2px;background:var(--bad);z-index:2}
-.cal-nowline i{position:absolute;inset-inline-start:-3px;top:-4px;width:9px;height:9px;border-radius:50%;background:var(--bad);display:block}
+.cal-nowline i{position:absolute;inset-inline-start:-2px;top:-3px;width:7px;height:7px;border-radius:50%;background:var(--bad);display:block}
 .task-row{display:flex;align-items:center;gap:8px;padding:7px 4px;border-radius:10px}
 .task-row:hover{background:var(--panel-2)}
 .task-row input[type=checkbox]{width:18px;height:18px;accent-color:var(--brand);flex:0 0 auto}
@@ -400,23 +422,11 @@ footer.foot{text-align:center;color:var(--muted);font-size:.78rem;margin-top:26p
       <input type="date" id="calDatePick">
       <button class="today-btn" id="calJumpToday">Today</button>
     </div>
-    <div class="card collapsible" data-collapse="caltasks" style="margin-bottom:12px">
-      <h3>✅ All Tasks<span class="count" id="calTaskCount"></span></h3>
-      <div class="card-body">
-        <div style="display:flex;gap:8px;margin:0 0 8px">
-          <input type="text" id="calTaskTitleIn" placeholder="Add a task…" style="flex:1;min-width:0;border:1px solid var(--line);background:var(--panel-2);color:var(--ink);border-radius:10px;padding:9px;font:inherit">
-          <button class="btn primary" id="calTaskAddBtn">Add</button>
-        </div>
-        <div id="calTaskList"></div>
-        <div class="muted" id="calTaskStatus" style="font-size:.76rem;margin-top:6px"></div>
-      </div>
-    </div>
-
     <div class="card">
-      <h3>🗓️ Your Day <span class="muted" style="font-weight:600;font-size:.72rem">— swipe to change day</span></h3>
+      <h3>🗓️ Your Week <span class="muted" style="font-weight:600;font-size:.72rem">— swipe to change week, tap a day to expand it</span></h3>
       <div class="cal-viewport">
         <div class="cal-daygrid" id="calGrid">
-          <div class="cal-col-body" id="calHours"></div>
+          <div class="cal-week" id="calWeek"></div>
         </div>
       </div>
       <div class="muted" id="calStatus" style="font-size:.8rem;margin-top:8px"></div>
@@ -1267,12 +1277,14 @@ function refreshBrief(){
 }
 
 /* ---------- TASKS (local; not yet part of cloud sync) ----------
-   The Today tab shows only the few most pressing tasks; the Calendar tab
-   carries the complete list and is the real home for them. Adding a task
-   never asks for a time - a task is just a task until you deliberately put
-   it on the calendar with the 📅 button on its row. */
+   The list starts short - the few most pressing tasks - and expands in
+   place to the full list when you tap the "+N more" line, so the Today tab
+   stays a dashboard by default without hiding anything behind another tab.
+   Adding a task never asks for a time: a task is just a task until you
+   deliberately put it on the calendar with the 📅 button on its row. */
 var TASK_TODAY_LIMIT=3;
 var _taskSchedOpenId=null;   /* which task's inline date picker is showing */
+var _tasksExpanded=false;
 
 function ensureTasks(){if(!Array.isArray(state.tasks))state.tasks=[];return state.tasks;}
 function taskId(){return "t"+Date.now()+"_"+Math.random().toString(36).slice(2,8);}
@@ -1343,25 +1355,23 @@ function renderTaskList(listEl,tasks,statusId,hiddenCount){
       listEl.appendChild(panel);
     }
   });
-  if(hiddenCount>0){
-    listEl.appendChild(el("p","muted","+"+hiddenCount+" more in the Calendar tab."));
+  if(hiddenCount>0||(_tasksExpanded&&tasks.length>TASK_TODAY_LIMIT)){
+    var more=el("button","linklike task-more",hiddenCount>0?("+"+hiddenCount+" more — show all"):"Show fewer");
+    more.type="button";
+    more.style.margin="6px 0 0";
+    more.addEventListener("click",function(){_tasksExpanded=!_tasksExpanded;renderTasks();});
+    listEl.appendChild(more);
   }
 }
 
 function renderTasks(){
   var all=sortedTasks();
   var open=all.filter(function(t){return !t.done;}).length;
-
   var todayList=document.getElementById("taskList");
-  if(todayList){
-    renderTaskList(todayList,all.slice(0,TASK_TODAY_LIMIT),"taskStatus",Math.max(0,all.length-TASK_TODAY_LIMIT));
-    setCount("taskCount",all.length?(open+" open"):"");
-  }
-  var calList=document.getElementById("calTaskList");
-  if(calList){
-    renderTaskList(calList,all,"calTaskStatus",0);
-    setCount("calTaskCount",all.length?(open+" open · "+all.length+" total"):"");
-  }
+  if(!todayList)return;
+  var shown=_tasksExpanded?all:all.slice(0,TASK_TODAY_LIMIT);
+  renderTaskList(todayList,shown,"taskStatus",Math.max(0,all.length-shown.length));
+  setCount("taskCount",all.length?(open+" open"):"");
 }
 
 function addTask(inputId){
@@ -1518,10 +1528,10 @@ function calSetTransform(x,animate){
   g.style.opacity=x?"0":"1";
 }
 
-/** Pages a day at a time as a sliding stack: the outgoing day is pushed off
- * in the direction of travel, then the new day slides in from the opposite
- * edge. Data for the new day is fetched during the second half, so the
- * animation never blocks the request. */
+/** Pages the grid as a sliding stack: the outgoing week is pushed off in the
+ * direction of travel, then the new one slides in from the opposite edge.
+ * Data is fetched during the second half, so the animation never blocks the
+ * request. `delta` is in days - the week view moves ±7 at a time. */
 function calGoDay(delta,fromX){
   if(_calAnimating)return;
   var g=calGridEl();
@@ -1542,20 +1552,47 @@ function calGoDay(delta,fromX){
   },CAL_ANIM_MS);
 }
 
+/** Monday-start week containing `d`. */
+function weekStart(d){
+  var x=new Date(d);x.setHours(0,0,0,0);
+  x.setDate(x.getDate()-((x.getDay()+6)%7));
+  return x;
+}
+function addDays(d,n){var x=new Date(d);x.setDate(x.getDate()+n);return x;}
+
+/** Which day column an event belongs in. All-day events carry a bare
+ * "YYYY-MM-DD" and must be used as-is: parsing one as a Date reads it as UTC
+ * midnight, which lands on the wrong day in some zones. */
+function eventDayKey(e){
+  if(e.allDay&&typeof e.start==="string"&&/^\d{4}-\d{2}-\d{2}$/.test(e.start))return e.start;
+  return keyOf(new Date(e.start));
+}
+
 function renderCalendarTab(){
-  var k=keyOf(calCur);
-  document.getElementById("calDateLabel").textContent=(k===todayKey()?"Today · ":"")+humanShort(calCur);
-  document.getElementById("calDatePick").value=k;
+  var ws=weekStart(calCur);
+  var days=[];for(var i=0;i<7;i++)days.push(addDays(ws,i));
+  var firstKey=keyOf(days[0]),lastKey=keyOf(days[6]);
+
+  document.getElementById("calDateLabel").textContent=humanShort(days[0])+" – "+humanShort(days[6]);
+  document.getElementById("calDatePick").value=keyOf(calCur);
 
   var loc=state.profile&&state.profile.prayerLoc;
-  var prayerPromise=loc?fetchPrayerTimes(k,loc.lat,loc.lon).catch(function(){return null;}):Promise.resolve(null);
-  var eventsPromise=fetch("/api/calendar/events?date="+k,{credentials:"same-origin"}).then(function(res){
+  /* Prayer windows shift a little each day, so each column gets its own -
+     fetchPrayerTimes caches per day+location and de-dupes in flight, so a
+     week costs at most seven requests once. */
+  var prayerPromise=Promise.all(days.map(function(d){
+    if(!loc)return Promise.resolve(null);
+    return fetchPrayerTimes(keyOf(d),loc.lat,loc.lon).catch(function(){return null;});
+  }));
+  /* One ranged request for the whole week rather than seven day requests -
+     the server would otherwise re-list every calendar each time. */
+  var eventsPromise=fetch("/api/calendar/events?date="+firstKey+"&end="+lastKey,{credentials:"same-origin"}).then(function(res){
     if(!res.ok)throw new Error("http "+res.status);
     return res.json();
   }).catch(function(){return {connected:false,status:"error",events:[]};});
 
   Promise.all([eventsPromise,prayerPromise]).then(function(results){
-    renderAgenda(results[0],results[1],k);
+    renderWeek(results[0],results[1],days);
   });
 }
 
@@ -1588,61 +1625,92 @@ function hourWindowName(segs,hour){
   return null;
 }
 
-function renderDayGridColumn(bodyEl,hourFrom,hourTo,eventsByHour,segs,isToday,nowMinutes){
-  for(var h=hourFrom;h<hourTo;h++){
-    var row=el("div","cal-hour");
-    var winName=hourWindowName(segs,h);
-    if(winName)row.style.background="color-mix(in srgb, var("+PRAYER_COLOR_VAR[winName]+") 16%, var(--panel))";
-    var isCurrentHour=isToday&&nowMinutes!=null&&Math.floor(nowMinutes/60)===h;
-    if(isCurrentHour)row.classList.add("current-hour");
-    row.appendChild(el("span","cal-hour-label",String(h).padStart(2,"0")+":00"));
-    var evBox=el("div","cal-hour-events");
-    (eventsByHour[h]||[]).forEach(function(e){
-      var chip=el("div","cal-event");
-      chip.style.borderInlineStartColor=e.color||"var(--brand)";
-      chip.title=[e.calendar,e.location].filter(Boolean).join(" · ");
-      chip.appendChild(el("span","cal-event-time",e.timeLabel));
-      chip.appendChild(document.createTextNode(e.title+(e.location?" ("+e.location+")":"")));
-      evBox.appendChild(chip);
-    });
-    row.appendChild(evBox);
-    if(isCurrentHour){
-      var line=el("div","cal-nowline");
-      line.style.top=((nowMinutes%60)/60*100)+"%";
-      line.appendChild(el("i"));
-      row.appendChild(line);
-    }
-    bodyEl.appendChild(row);
-  }
-}
+var WK_LABELS=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
 
-function renderAgenda(data,times,dayKey){
-  var body=document.getElementById("calHours");
+/** Seven day columns plus an hour gutter, as one CSS grid so each row is a
+ * shared hour across the whole week. The selected day gets double width -
+ * without that, seven columns on a phone are too narrow to read. */
+function renderWeek(data,timesByDay,days){
+  var grid=document.getElementById("calWeek");
   var status=document.getElementById("calStatus"),legend=document.getElementById("calLegend");
-  if(!body)return;
-  body.innerHTML="";
+  if(!grid)return;
+  grid.innerHTML="";
 
-  var eventsByHour={};
+  var tk=todayKey(),selKey=keyOf(calCur);
+  var dayKeys=days.map(keyOf);
+  var selIdx=dayKeys.indexOf(selKey);
+  if(selIdx<0)selIdx=0;
+
+  /* minmax(0,…) rather than a bare fr: an `auto` minimum would let a long
+     event title set the column's width, so one busy day would push the
+     others out of shape instead of the chip being clipped. */
+  grid.style.gridTemplateColumns="26px "+dayKeys.map(function(_,i){return i===selIdx?"minmax(0,2fr)":"minmax(0,1fr)";}).join(" ");
+
+  /* events[dayKey][hour] -> chips */
+  var byDay={};
+  dayKeys.forEach(function(k){byDay[k]={};});
   (data.events||[]).forEach(function(e){
+    var dk=eventDayKey(e);
+    if(!byDay[dk])return;                       /* outside the visible week */
     var hour=e.allDay?0:new Date(e.start).getHours();
     var timeLabel=e.allDay?"All day":new Date(e.start).toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"});
-    (eventsByHour[hour]=eventsByHour[hour]||[]).push({title:e.title,color:e.color,timeLabel:timeLabel,location:e.location,calendar:e.calendar});
+    (byDay[dk][hour]=byDay[dk][hour]||[]).push({title:e.title,color:e.color,timeLabel:timeLabel,location:e.location,calendar:e.calendar});
   });
-  Object.keys(eventsByHour).forEach(function(h){
-    eventsByHour[h].sort(function(a,b){return a.timeLabel.localeCompare(b.timeLabel);});
+  dayKeys.forEach(function(k){
+    Object.keys(byDay[k]).forEach(function(h){
+      byDay[k][h].sort(function(a,b){return a.timeLabel.localeCompare(b.timeLabel);});
+    });
   });
 
-  var segs=calWindowsForDay(times);
-  var isToday=dayKey===todayKey();
-  var now=new Date();
-  var nowMinutes=isToday?(now.getHours()*60+now.getMinutes()):null;
+  var segsByDay=days.map(function(_,i){return calWindowsForDay(timesByDay&&timesByDay[i]);});
+  var now=new Date(),nowMinutes=now.getHours()*60+now.getMinutes();
 
-  renderDayGridColumn(body,0,24,eventsByHour,segs,isToday,nowMinutes);
+  /* header row: empty gutter cell, then one tappable day heading each */
+  grid.appendChild(el("div","cal-wk-gutter"));
+  days.forEach(function(d,i){
+    var k=dayKeys[i];
+    var head=el("div","cal-wk-head"+(k===tk?" is-today":"")+(i===selIdx?" is-sel":""));
+    head.appendChild(el("b",null,String(d.getDate())));
+    head.appendChild(document.createTextNode(WK_LABELS[i]));
+    head.addEventListener("click",function(){
+      calCur=new Date(d);calCur.setHours(0,0,0,0);
+      renderCalendarTab();
+    });
+    grid.appendChild(head);
+  });
+
+  /* one row per hour: gutter label, then a cell per day */
+  for(var h=0;h<24;h++){
+    grid.appendChild(el("div","cal-wk-gutter",String(h).padStart(2,"0")));
+    for(var di=0;di<7;di++){
+      var k=dayKeys[di];
+      var cell=el("div","cal-cell"+(di===selIdx?" wide":""));
+      var winName=hourWindowName(segsByDay[di],h);
+      if(winName)cell.style.background="color-mix(in srgb, var("+PRAYER_COLOR_VAR[winName]+") 16%, var(--panel))";
+      var isCurrentHour=(k===tk)&&Math.floor(nowMinutes/60)===h;
+      if(isCurrentHour)cell.classList.add("current-hour");
+      (byDay[k][h]||[]).forEach(function(e){
+        var chip=el("div","cal-chip");
+        chip.style.borderInlineStartColor=e.color||"var(--brand)";
+        chip.title=[e.timeLabel,e.title,e.calendar,e.location].filter(Boolean).join(" · ");
+        if(di===selIdx)chip.appendChild(el("span","cal-chip-time",e.timeLabel));
+        chip.appendChild(document.createTextNode(e.title+(di===selIdx&&e.location?" ("+e.location+")":"")));
+        cell.appendChild(chip);
+      });
+      if(isCurrentHour){
+        var line=el("div","cal-nowline");
+        line.style.top=((nowMinutes%60)/60*100)+"%";
+        line.appendChild(el("i"));
+        cell.appendChild(line);
+      }
+      grid.appendChild(cell);
+    }
+  }
 
   if(!data.connected)status.textContent="Connect Google Calendar (Today's Brief card, Today tab) to see your schedule here.";
   else if(data.status==="reconnect_required")status.textContent="Google Calendar access has expired — reconnect from the Today's Brief card.";
   else if(data.status==="calendar_error")status.textContent="Couldn't load your calendar right now.";
-  else if(!(data.events||[]).length)status.textContent="Nothing scheduled.";
+  else if(!(data.events||[]).length)status.textContent="Nothing scheduled this week.";
   else status.textContent="";
 
   legend.innerHTML="";
@@ -1653,8 +1721,8 @@ function renderAgenda(data,times,dayKey){
     legend.appendChild(chip);
   });
 
-  if(isToday&&nowMinutes!=null){
-    var target=body.children[Math.floor(nowMinutes/60)];
+  if(dayKeys.indexOf(tk)>=0){
+    var target=grid.querySelector(".cal-cell.current-hour");
     if(target&&typeof target.scrollIntoView==="function"){
       try{target.scrollIntoView({block:"center"});}catch(e){}
     }
@@ -1703,7 +1771,7 @@ function attachCalSwipe(){
       if(wasDragging)calSetTransform(null,true);       /* not far enough - spring back */
       return;
     }
-    calGoDay(dx<0?1:-1,wasDragging?dragDx:null);
+    calGoDay(dx<0?7:-7,wasDragging?dragDx:null);
   },{passive:true});
 }
 
@@ -2075,6 +2143,9 @@ function hideModal(){document.getElementById("overlay").classList.remove("open")
    order swiping moves through. */
 var VIEWS=["today","calendar","plan","recipes","exercises","progress"];
 var currentView="today";
+/* Which tab you were on is remembered so a refresh (or reopening the
+   installed app) puts you back where you were, not always on Today. */
+var LASTTAB_KEY="yawarLastTab";
 function nav(view){
   if(VIEWS.indexOf(view)<0)return;
   currentView=view;
@@ -2083,8 +2154,9 @@ function nav(view){
   VIEWS.forEach(function(v){
     document.getElementById("view-"+v).classList.toggle("active",v===view);
   });
+  try{localStorage.setItem(LASTTAB_KEY,view);}catch(e){}
   if(view==="progress")renderProgress();
-  if(view==="calendar"){renderCalendarTab();renderTasks();}
+  if(view==="calendar")renderCalendarTab();
   if(view==="today")renderPrayerClock();
   window.scrollTo(0,0);
 }
@@ -2170,13 +2242,11 @@ document.getElementById("clearBtn").addEventListener("click",function(){
 
 document.getElementById("taskAddBtn").addEventListener("click",function(){addTask("taskTitleIn");});
 document.getElementById("taskTitleIn").addEventListener("keydown",function(e){if(e.key==="Enter")addTask("taskTitleIn");});
-document.getElementById("calTaskAddBtn").addEventListener("click",function(){addTask("calTaskTitleIn");});
-document.getElementById("calTaskTitleIn").addEventListener("keydown",function(e){if(e.key==="Enter")addTask("calTaskTitleIn");});
 
 document.getElementById("prayerLocBtn").addEventListener("click",requestPrayerLocation);
 
-document.getElementById("calPrevDay").addEventListener("click",function(){calGoDay(-1);});
-document.getElementById("calNextDay").addEventListener("click",function(){calGoDay(1);});
+document.getElementById("calPrevDay").addEventListener("click",function(){calGoDay(-7);});
+document.getElementById("calNextDay").addEventListener("click",function(){calGoDay(7);});
 document.getElementById("calJumpToday").addEventListener("click",function(){calCur=new Date();calCur.setHours(0,0,0,0);renderCalendarTab();});
 document.getElementById("calDatePick").addEventListener("change",function(){var v=this.value.split("-");calCur=new Date(+v[0],+v[1]-1,+v[2]);calCur.setHours(0,0,0,0);renderCalendarTab();});
 attachCalSwipe();
@@ -2212,6 +2282,11 @@ loadBrief();
 renderTasks();
 renderPrayerClock();
 updateNotifyUI();
+(function restoreLastTab(){
+  var saved=null;
+  try{saved=localStorage.getItem(LASTTAB_KEY);}catch(e){}
+  if(saved&&saved!=="today"&&VIEWS.indexOf(saved)>=0)nav(saved);
+})();
 flushMsgs();
 if(state.sync&&state.sync.enabled)runSync();
 })();
