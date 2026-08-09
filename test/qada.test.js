@@ -50,6 +50,18 @@ test("with nothing made up, each prayer shows its full outstanding count", () =>
   assert.match(app.document.getElementById("praySummary").textContent, /10 prayer\(s\) still to make up/);
 });
 
+test("the per-prayer breakdown lives only in the qada card, not duplicated above it", () => {
+  const app = loadApp({ fetchImpl: idle, localStorageSeed: seedWithMissedPrayers() });
+  app.goTo("progress");
+
+  // The summary keeps the overall sentence but no longer repeats a chip per prayer.
+  const summary = app.document.getElementById("praySummary");
+  assert.equal(summary.querySelector(".pill-row"), null);
+  assert.equal((summary.textContent.match(/Fajr/g) || []).length, 0);
+  // ...because the card below already says it, and lets you change it.
+  assert.equal((app.document.getElementById("qadaBox").textContent.match(/Fajr/g) || []).length, 1);
+});
+
 test("recording a made-up prayer reduces what's owed without rewriting that day's history", () => {
   const app = loadApp({ fetchImpl: idle, localStorageSeed: seedWithMissedPrayers() });
   app.goTo("progress");

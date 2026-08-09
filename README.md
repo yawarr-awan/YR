@@ -24,7 +24,8 @@
 - **Task list** — quick-add a task at the top of the Today tab. It shows the few most pressing ones and expands to the full list in place; each task has a 📅 button to pick a time and put it straight on your Google Calendar.
 - **Calendar tab** — one day at a time, full width, across all your Google calendars, with every hour tinted by whichever prayer's time window it falls in. Swipe to slide between days (the next day follows your finger into view); a week strip above jumps to any day, and the ‹ › buttons move a week at a time.
 - **Made-up (qada) prayers** — record prayers you've since made up and they come off your outstanding count, without rewriting the history of what you prayed on the day.
-- **Built for a phone** — bottom icon navigation, swipe between tabs, and collapsible cards (each showing its progress in the heading) so the day fits on one screen. It remembers which tab you were on across a refresh.
+- **Built for a phone** — four bottom tabs (Today, Calendar, Others, Progress), swipe between them, and collapsible cards (each showing its progress in the heading) so the day fits on one screen. It remembers which tab you were on across a refresh.
+- **Progress trend** — a daily completion chart showing what percentage of each day you ticked off, with a 7-day average line, alongside the weight trend.
 - **Live prayer times** — opt-in location-based prayer times (Aladhan API) with colored chips and a next-prayer countdown on the Today tab; the same colors also appear on the prayer checklist (with each prayer's actual time shown once you've saved a location) and across the Calendar tab.
 - **Dhikr tracker** — a morning/afternoon/evening checklist alongside your prayers.
 - **In-app reminders** — optional browser notifications (while the app is open) for prayer times, dhikr periods, and scheduled task due times.
@@ -36,7 +37,7 @@
 - **Medicines** — pre-breakfast, after breakfast, after dinner.
 - **Prayer tracker** — all 5 daily prayers, plus a **missed-prayer summary** in Progress.
 - **Body & wellbeing** — water, weight, sleep, steps, and joint-pain & energy sliders.
-- **Progress** — weight-trend chart, prayer summary, history table, and streak-style completion.
+- **Progress** — weight trend, daily completion trend, prayer summary and made-up prayers.
 - **Light / dark theme** toggle.
 - **Backup & restore** — export/import your data as a JSON file.
 - **Installable as a real app** — a service worker caches the app shell for offline loads; the Progress tab has a working "Install app" button on Chrome/Edge/Android, and Share → Add to Home Screen guidance on iOS.

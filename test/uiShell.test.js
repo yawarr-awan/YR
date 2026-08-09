@@ -21,7 +21,7 @@ test("nav sits at the bottom of the page as icons, and the Guide tab is gone", (
   assert.equal(app.document.querySelector("header .tabs"), null, "and no longer in the header");
 
   const labels = Array.from(tabs.querySelectorAll("button")).map((b) => b.getAttribute("data-nav"));
-  assert.deepEqual(labels, ["today", "calendar", "plan", "recipes", "exercises", "progress"]);
+  assert.deepEqual(labels, ["today", "calendar", "others", "progress"]);
   assert.equal(app.document.getElementById("view-guide"), null, "the Guide view is removed too");
   tabs.querySelectorAll("button").forEach((b) => {
     assert.ok(b.querySelector("i"), "each tab renders an icon above its label");
@@ -57,6 +57,48 @@ test("swiping left/right moves through the tabs in bottom-bar order, stopping at
   // A mostly-vertical drag is a scroll, not a tab change.
   app.swipe(".wrap", 30, 200);
   assert.equal(activeView(), "view-today");
+});
+
+test("meals, recipes and movement share one Others tab with its own sub-tabs", () => {
+  const app = loadApp({ fetchImpl: idle });
+  // They are no longer top-level views.
+  ["view-plan", "view-recipes", "view-exercises"].forEach((id) => assert.equal(app.document.getElementById(id), null));
+
+  app.goTo("others");
+  assert.equal(app.document.querySelector(".view.active").id, "view-others");
+
+  const subs = Array.from(app.document.querySelectorAll("#subTabs button"));
+  assert.deepEqual(subs.map((b) => b.getAttribute("data-sub")), ["plan", "recipes", "exercises"]);
+  assert.equal(app.document.querySelector(".subview.active").id, "sub-plan");
+  assert.ok(app.document.getElementById("planBox").textContent.length, "the meal plan still renders");
+
+  subs[2].click();
+  assert.equal(app.document.querySelector(".subview.active").id, "sub-exercises");
+  assert.ok(subs[2].classList.contains("active"));
+  assert.ok(app.document.getElementById("exercisesBox").textContent.length);
+});
+
+test("inside Others a swipe steps through the sub-tabs before leaving the tab", () => {
+  const app = loadApp({ fetchImpl: idle });
+  app.goTo("others");
+  const activeSub = () => app.document.querySelector(".subview.active").id;
+  const activeView = () => app.document.querySelector(".view.active").id;
+
+  app.swipe(".wrap", -120, 0);
+  assert.equal(activeSub(), "sub-recipes");
+  app.swipe(".wrap", -120, 0);
+  assert.equal(activeSub(), "sub-exercises");
+  assert.equal(activeView(), "view-others", "still inside Others");
+
+  // Nowhere further to go inside the tab, so now it moves on.
+  app.swipe(".wrap", -120, 0);
+  assert.equal(activeView(), "view-progress");
+});
+
+test("a tab remembered from when Meals was top-level lands on the right sub-tab", () => {
+  const app = loadApp({ fetchImpl: idle, localStorageSeed: { yawarLastTab: "recipes" } });
+  assert.equal(app.document.querySelector(".view.active").id, "view-others");
+  assert.equal(app.document.querySelector(".subview.active").id, "sub-recipes");
 });
 
 test("a swipe meant for the calendar grid changes the day, never the tab", async () => {
