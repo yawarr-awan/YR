@@ -1,5 +1,28 @@
 # Changelog
 
+## 1.11.0
+
+**Two real sync bugs fixed — this is why the desktop was showing stale data.**
+
+- **Tasks never synced at all.** They lived outside the sync payload, so a task added on the phone could never appear anywhere else. They now ride the synced profile, and a device upgrading from the old layout carries its existing local tasks across.
+- **Progress could silently stop syncing in both directions.** The `since` watermark was set from the *server's* clock but compared against `updated_at` stamped by each *device's* clock. A few seconds of skew was enough for a device's own edits to be silently skipped on push, and another device's edits to be silently skipped on pull — while sync still reported success. Every sync now reconciles the full set (chunked if large), which removes that entire class of bug. The server still applies last-write-wins, so re-sending unchanged days is a no-op.
+
+**New tabs**
+
+- **Prayers** — the Salah checklist, prayer times, Dhikr, the prayer summary and made-up (qada) prayers all moved here, with their own date bar.
+- **Settings** — cloud sync, install as an app, reminders and your data moved out of Progress, joined by two new things below.
+- Progress is now just progress: stats, weight trend, completion trend, and **Your targets moved to the end**.
+
+**Settings additions**
+
+- **Your medicines are editable** — rename or remove any of them, add your own. The Today checklist and the completion maths follow immediately, and past days keep whatever they were ticked with, so removing one never rewrites history.
+- **Today's Brief instructions are editable.** Change what the summary should do; your calendar events and tasks are always appended below, so a custom prompt can change tone or focus but can't detach the brief from real data. Blank means the default. Stored server-side, since the 7am cron generates the brief with no browser involved.
+
+**Other**
+
+- **The brief no longer pulls tasks with no due date** — those are a backlog, not part of today. It mentions how many are sitting there and leaves it at that.
+- Calendar event text is a little larger.
+
 ## 1.10.0
 
 - **Meals, Recipes and Movement are now one "Others" tab**, with three sub-tabs across the top to switch between them. The bottom bar is down to four: Today, Calendar, Others, Progress. Swiping inside Others steps through its sub-tabs first and only then moves on to the next tab. A device that still remembers one of the old tabs lands on the matching sub-tab rather than falling back to Today.

@@ -34,7 +34,7 @@ test("adding a task takes only a title - there is no time field on the add form"
 
   addTasks(app, ["Water the plants"]);
   assert.match(app.document.getElementById("taskList").textContent, /Water the plants/);
-  assert.equal(app.state().tasks[0].due, null, "a new task carries no due time");
+  assert.equal(app.state().profile.tasks[0].due, null, "a new task carries no due time");
 });
 
 test("every task row has a calendar button, whether or not it has a time yet", () => {
@@ -71,8 +71,8 @@ test("the calendar button opens an inline time picker; confirming schedules it a
   assert.equal(new Date(sentBody.start).getTime(), new Date("2026-08-10T09:00").getTime());
   assert.match(app.document.getElementById("taskStatus").textContent, /added to your google calendar/i);
   assert.match(app.document.getElementById("taskList").textContent, /on calendar/i);
-  assert.equal(app.state().tasks[0].scheduled, true);
-  assert.ok(app.state().tasks[0].due, "the chosen time is stored on the task");
+  assert.equal(app.state().profile.tasks[0].scheduled, true);
+  assert.ok(app.state().profile.tasks[0].due, "the chosen time is stored on the task");
 });
 
 test("a schedule attempt that needs reconnecting says so, and leaves the task unscheduled", async () => {
@@ -90,7 +90,7 @@ test("a schedule attempt that needs reconnecting says so, and leaves the task un
   await app.flush();
 
   assert.match(app.document.getElementById("taskStatus").textContent, /connect google calendar/i);
-  assert.equal(app.state().tasks[0].scheduled, false);
+  assert.equal(app.state().profile.tasks[0].scheduled, false);
 });
 
 test("checking a task marks it done and persists; deleting removes it from storage", () => {
@@ -101,11 +101,11 @@ test("checking a task marks it done and persists; deleting removes it from stora
   cb.checked = true;
   cb.dispatchEvent(new app.window.Event("change", { bubbles: true }));
   assert.ok(app.document.getElementById("taskList").querySelector(".task-row").classList.contains("done"));
-  assert.equal(app.state().tasks[0].done, true);
+  assert.equal(app.state().profile.tasks[0].done, true);
 
   app.document.getElementById("taskList").querySelector("button.icon-btn.danger").click();
   assert.doesNotMatch(app.document.getElementById("taskList").textContent, /Buy groceries/);
-  assert.equal(app.state().tasks.length, 0);
+  assert.equal(app.state().profile.tasks.length, 0);
 });
 
 function moreButton(app) {
@@ -118,7 +118,7 @@ test("Today shows only the top three tasks by default", () => {
 
   assert.equal(app.document.querySelectorAll("#taskList .task-row").length, 3, "Today is a dashboard, not the whole backlog");
   assert.match(moreButton(app).textContent, /\+2 more/i);
-  assert.equal(app.state().tasks.length, 5, "the other two still exist, they're just not shown yet");
+  assert.equal(app.state().profile.tasks.length, 5, "the other two still exist, they're just not shown yet");
 });
 
 test("tapping '+N more' expands the full list in place on the Today tab, and folds back again", () => {

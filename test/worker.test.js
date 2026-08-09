@@ -267,7 +267,8 @@ test("generateBrief: the prompt carries every calendar and all three task bucket
   assert.match(prompt, /Family dinner/);
   assert.match(prompt, /Tasks due today:\n- Pay rent/);
   assert.match(prompt, /Overdue tasks:\n- Chase invoice/);
-  assert.match(prompt, /Tasks with no due date:\n- Read that book/);
+  assert.doesNotMatch(prompt, /Read that book/, "a task with no due date stays out of the brief");
+  assert.match(prompt, /1 further task\(s\) have no due date/);
   assert.match(prompt, /Cover ALL of it/);
 });
 
@@ -431,7 +432,7 @@ test("fetchTasks: buckets open tasks into due-today / overdue / undated, droppin
   assert.equal(tasks.error, null);
   assert.deepEqual(tasks.dueToday.map((x) => x.title), ["Pay rent"]);
   assert.deepEqual(tasks.overdue.map((x) => x.title), ["Chase invoice"], "an overdue task is worth surfacing, not filtering away");
-  assert.deepEqual(tasks.undated.map((x) => x.title), ["Read that book"], "most tasks have no due date at all");
+  assert.equal(tasks.undatedCount, 1, "undated tasks are counted, not listed - they aren't part of today");
   assert.equal(tasks.dueToday[0].list, "My Tasks");
 });
 

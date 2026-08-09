@@ -477,7 +477,7 @@ async function fetchEventsForRange(accessToken, calendars, timeMin, timeMax) {
  * most tasks have no due date at all, so a dueMin/dueMax window silently
  * dropped both undated and overdue work - the very things worth surfacing. */
 async function fetchTasks(accessToken, day) {
-  const out = { dueToday: [], overdue: [], undated: [], error: null };
+  const out = { dueToday: [], overdue: [], undatedCount: 0, error: null };
   try {
     const listsRes = await fetch("https://tasks.googleapis.com/tasks/v1/users/@me/lists?maxResults=100", {
       headers: { authorization: `Bearer ${accessToken}` },
@@ -504,7 +504,10 @@ async function fetchTasks(accessToken, day) {
       for (const t of data.items || []) {
         if (t.status === "completed" || t.deleted) continue;
         const entry = { title: (t.title || "").trim() || "(untitled task)", due: t.due || null, list: list.title || null };
-        if (!t.due) { out.undated.push(entry); continue; }
+        /* Undated tasks are deliberately left out of the brief: they are a
+           backlog, not part of today. They are still counted so the summary
+           can mention how many are sitting there. */
+        if (!t.due) { out.undatedCount++; continue; }
         const dueDay = String(t.due).slice(0, 10);
         if (dueDay < day) out.overdue.push(entry);
         else if (dueDay === day) out.dueToday.push(entry);
@@ -517,7 +520,63 @@ async function fetchTasks(accessToken, day) {
   return out;
 }
 
-async function summarizeWithGemini(env, day, events, tasks, now) {
+const DEFAULT_BRIEF_PROMPT =
+  "You are a concise personal daily-briefing assistant. Everything below is what is still " +
+  "outstanding - events that have already finished were removed on purpose, so do not imply " +
+  "the day is just starting.\n\n" +
+  "Cover ALL of it: the calendar events AND the Google Tasks. The events span every calendar " +
+  "the person can see, including shared, family and secondary ones - the bracketed tag names " +
+  "the source calendar or task list. Treat them all as equally real; do not skip a section " +
+  "because it is short.\n\n" +
+  "Write a clear, friendly summary (up to 6 sentences). Say what is left on the schedule, call " +
+  "out any tight back-to-back timings or free stretches, and then say what needs doing - naming " +
+  "overdue tasks first, since those are the ones slipping. Do not open with a time-of-day " +
+  "greeting like \"Good morning\" or \"Good evening\". Do not invent anything not listed below. " +
+  "Plain text, no markdown.";
+
+/* The brief's instructions are user-editable (Settings tab). The data
+   sections are always appended by summarizeWithGemini, so a custom prompt
+   can change the tone or focus but can never detach the summary from the
+   real events and tasks. */
+async function ensureSettingsTable(env) {
+  await env.DB.prepare(
+    `CREATE TABLE IF NOT EXISTS user_settings (
+       user_email TEXT PRIMARY KEY,
+       brief_prompt TEXT,
+       updated_at INTEGER
+     )`
+  ).run();
+}
+
+async function getBriefPrompt(env, email) {
+  try {
+    await ensureSettingsTable(env);
+    const row = await env.DB.prepare(`SELECT brief_prompt FROM user_settings WHERE user_email = ?1`).bind(email).first();
+    const p = row && row.brief_prompt ? String(row.brief_prompt).trim() : "";
+    return p || null;
+  } catch {
+    return null;                       /* never block the brief on settings */
+  }
+}
+
+async function handleGetBriefPrompt(env, email) {
+  return json({ prompt: await getBriefPrompt(env, email), default: DEFAULT_BRIEF_PROMPT });
+}
+
+async function handlePutBriefPrompt(request, env, email) {
+  let body;
+  try { body = await request.json(); } catch { return json({ error: "invalid json" }, 400); }
+  const raw = typeof body.prompt === "string" ? body.prompt.trim() : "";
+  const prompt = raw.slice(0, 4000) || null;
+  await ensureSettingsTable(env);
+  await env.DB.prepare(
+    `INSERT INTO user_settings (user_email, brief_prompt, updated_at) VALUES (?1, ?2, ?3)
+     ON CONFLICT(user_email) DO UPDATE SET brief_prompt = excluded.brief_prompt, updated_at = excluded.updated_at`
+  ).bind(email, prompt, Date.now()).run();
+  return json({ prompt, default: DEFAULT_BRIEF_PROMPT });
+}
+
+async function summarizeWithGemini(env, day, events, tasks, now, instructions) {
   if (!env.GEMINI_API_KEY) throw new Error("Gemini API key not configured");
 
   const nowLabel = (now || new Date()).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: BRIEF_TIMEZONE });
@@ -532,7 +591,7 @@ async function summarizeWithGemini(env, day, events, tasks, now) {
       }).join("\n")
     : "(No calendar events remaining today.)";
 
-  const t = tasks || { dueToday: [], overdue: [], undated: [] };
+  const t = tasks || { dueToday: [], overdue: [], undatedCount: 0 };
   const taskBlock = (label, list, cap) => {
     if (!list || !list.length) return `${label}:\n(none)`;
     const shown = cap ? list.slice(0, cap) : list;
@@ -542,25 +601,12 @@ async function summarizeWithGemini(env, day, events, tasks, now) {
   };
 
   const prompt =
-    `You are a concise personal daily-briefing assistant. It is currently ` +
-    `${nowLabel} on ${day}. Everything below is what is still outstanding - ` +
-    `events that have already finished were removed on purpose, so do not ` +
-    `imply the day is just starting.\n\n` +
-    `Cover ALL of it: the calendar events AND the Google Tasks. The events ` +
-    `span every calendar the person can see, including shared, family and ` +
-    `secondary ones - the bracketed tag names the source calendar or task ` +
-    `list. Treat them all as equally real; do not skip a section because it ` +
-    `is short.\n\n` +
-    `Write a clear, friendly summary (up to 6 sentences). Say what is left ` +
-    `on the schedule, call out any tight back-to-back timings or free ` +
-    `stretches, and then say what needs doing - naming overdue tasks first, ` +
-    `since those are the ones slipping. Do not open with a time-of-day ` +
-    `greeting like "Good morning" or "Good evening". Do not invent anything ` +
-    `not listed below. Plain text, no markdown.\n\n` +
+    `${(instructions || DEFAULT_BRIEF_PROMPT)}\n\n` +
+    `It is currently ${nowLabel} on ${day}.\n\n` +
     `Remaining events today:\n${eventLines}\n\n` +
     `${taskBlock("Tasks due today", t.dueToday)}\n\n` +
-    `${taskBlock("Overdue tasks", t.overdue, 10)}\n\n` +
-    `${taskBlock("Tasks with no due date", t.undated, 10)}`;
+    `${taskBlock("Overdue tasks", t.overdue, 10)}` +
+    (t.undatedCount ? `\n\n(${t.undatedCount} further task(s) have no due date and are not part of today.)` : "");
 
   const res = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${env.GEMINI_API_KEY}`,
@@ -622,7 +668,7 @@ async function generateBrief(env, email, now) {
 
   let summary;
   try {
-    summary = await summarizeWithGemini(env, day, events, tasks, effectiveNow);
+    summary = await summarizeWithGemini(env, day, events, tasks, effectiveNow, await getBriefPrompt(env, email));
   } catch (e) {
     const detail = String(e.message || e);
     await saveBriefStatus(env, email, day, "gemini_error", null, detail);
@@ -806,6 +852,12 @@ export default {
       if (url.pathname === "/api/google/callback" && request.method === "GET") {
         return await handleGoogleCallback(request, env, email);
       }
+      if (url.pathname === "/api/settings/brief-prompt" && request.method === "GET") {
+        return await handleGetBriefPrompt(env, email);
+      }
+      if (url.pathname === "/api/settings/brief-prompt" && request.method === "PUT") {
+        return await handlePutBriefPrompt(request, env, email);
+      }
       if (url.pathname === "/api/brief" && request.method === "GET") {
         return await handleGetBrief(env, email);
       }
@@ -846,6 +898,9 @@ export {
   generateBrief,
   handleGetBrief,
   handleRefreshBrief,
+  handleGetBriefPrompt,
+  handlePutBriefPrompt,
+  DEFAULT_BRIEF_PROMPT,
   handleGetCalendarEvents,
   handleCreateCalendarEvent,
   handleGoogleConnect,

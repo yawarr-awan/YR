@@ -476,6 +476,39 @@ felt built for a desktop.
 - The per-prayer chip row is gone from `renderPraySummary()`; the qada card
   below is the only per-prayer breakdown, and it is editable.
 
+## Sync fixes + Prayers/Settings tabs (1.11.0)
+- **The `since` watermark was a real, silent data bug.** It was set from
+  `resp.now` (the *server's* clock) but compared against `updated_at`
+  stamped by each *device's* clock. Any skew meant `pushableDays()` skipped
+  the device's own edits and the server's `updated_at > since` filter
+  skipped another device's rows - while sync reported success. `runSync()`
+  now pushes **every** day it holds (chunked at `SYNC_CHUNK`=400) and always
+  pulls from `since: 0`; `state.sync.since` stays 0. The server's
+  last-write-wins makes re-sending unchanged days a no-op. Don't reintroduce
+  a client-clock watermark without a server-assigned sequence column.
+- **Tasks moved to `state.profile.tasks`** (schema 2 -> 3) so they ride the
+  profile blob that already syncs. Every task mutation must also stamp
+  `state.profile.updated_at`, or the change won't push. Caveat: the profile
+  is last-write-wins as a whole, so simultaneous task edits on two devices
+  lose one side - acceptable for one user, same as the rest of the profile.
+- **`medsList()`** replaces the old `MEDS` constant: the list lives on the
+  synced profile and is editable in Settings. `dayTotalItems()` is therefore
+  dynamic, so the completion percentage reflects the *current* routine.
+- **`VIEWS` is now six**: today, prayers, calendar, others, progress,
+  settings. Prayers holds the Salah checklist/times, Dhikr, prayer summary
+  and qada; Settings holds sync, install, reminders, data, the medicine
+  editor and the brief-prompt editor.
+- **Editable brief prompt** lives server-side (`user_settings` table,
+  created lazily with `CREATE TABLE IF NOT EXISTS` so no manual DDL was
+  needed) behind `GET`/`PUT /api/settings/brief-prompt`. It replaces only
+  the *instruction* half of the prompt - `summarizeWithGemini` always
+  appends the event/task sections, so a custom prompt cannot detach the
+  summary from real data. `getBriefPrompt` swallows errors and falls back to
+  `DEFAULT_BRIEF_PROMPT` rather than blocking the brief.
+- **Undated Google Tasks are excluded** from the brief now (they're a
+  backlog, not today); `fetchTasks` returns `undatedCount` instead of a
+  list, and the prompt mentions the count.
+
 ## Honest caveat
 The "Client-side sync layer," "Access + hosting," and "Current data state"
 sections above were re-verified live in this session (2026-08-09): read
