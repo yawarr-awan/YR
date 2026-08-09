@@ -509,6 +509,25 @@ felt built for a desktop.
   backlog, not today); `fetchTasks` returns `undatedCount` instead of a
   list, and the prompt mentions the count.
 
+## Editable lists + calendar peek columns (1.12.0)
+- `medsList()`, `extrasList()` and `dhikrItems(period)` all resolve from the
+  synced profile with the hardcoded constants as fallback defaults. All the
+  Settings editors go through `listEditorRow()` and `profileChanged()`
+  (which stamps `profile.updated_at` - forget that and the edit never syncs).
+- **Dhikr is per-period now** (`profile.dhikr = {morning:[], afternoon:[],
+  evening:[]}`), so `renderDhikr`/`renderDayCounts` sum the three lists
+  rather than multiplying one list by three. `dayTotalItems()` follows
+  `extrasList().length`, so the completion percentage tracks the current
+  routine.
+- **Calendar peek columns**: `buildDayPanel()` now returns a `.cal-daygroup`
+  of `buildDayColumn()` (the focused day) plus two `buildPeekColumn()`s for
+  the next two days - a mini agenda each, tappable to jump. `ensureCalWindow`
+  therefore needs `centre+3` loaded (the *next* panel's peeks reach that far).
+- **The day column scrolls inside itself** (`--cal-h`, `.cal-hours{overflow-y:auto}`)
+  rather than down the page. `position:sticky` was tried first and cannot
+  work: the carousel viewport is `overflow:hidden`, which makes it the
+  sticky container and it never scrolls.
+
 ## Honest caveat
 The "Client-side sync layer," "Access + hosting," and "Current data state"
 sections above were re-verified live in this session (2026-08-09): read

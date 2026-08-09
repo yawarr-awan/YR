@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.12.0
+
+- **Settings: supplements & drinks are now editable** — rename, re-cost (the calorie figure feeds the meal totals), remove or add your own. Like the medicine list, it lives on the synced profile and past days keep whatever they were ticked with.
+- **Settings: dhikr is editable per period** — morning, afternoon and evening each have their own list, so they no longer have to be identical. Add or remove whatever you actually recite.
+- **Calendar: the next two days now sit beside today** as narrow "what's coming" columns, so you can see what's ahead without swiping. Tap either to jump to it. Today keeps its full-width hour grid, which now scrolls inside its own box so the peek columns stay on screen as you move through the hours.
+
 ## 1.11.0
 
 **Two real sync bugs fixed — this is why the desktop was showing stale data.**
