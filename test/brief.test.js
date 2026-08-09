@@ -88,6 +88,19 @@ test("network failure loading /api/brief degrades gracefully, no crash", async (
   assert.match(app.document.getElementById("dateLabel").textContent, /\w/);
 });
 
+test("connected with a ready brief: also offers a way to re-grant permissions, since an old refresh token silently keeps working at its original scope", async () => {
+  const app = loadApp({
+    fetchImpl: fetchRouter([["/api/brief", () => jsonRes(briefResponse({
+      connected: true, status: "ok", summary: "A quiet day.", generated_at: 1700000000000,
+    }))]]),
+  });
+  await app.flush();
+
+  const link = app.document.querySelector("#briefActions a");
+  assert.ok(link, "expected a way to redo Google consent even when already connected and working");
+  assert.equal(link.getAttribute("href"), "/api/google/connect");
+});
+
 test("clicking Refresh calls POST /api/brief/refresh and re-renders with the new result", async () => {
   let refreshCalled = false;
   const app = loadApp({

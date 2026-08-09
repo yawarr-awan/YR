@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.5.1
+
+- **Fix:** after the 1.5.0 OAuth scope expansion, there was no way to actually re-grant the new permissions from the UI. A refresh token from before the scope change keeps working for its *original* scopes — Google doesn't invalidate it — so the Today's Brief card kept reporting `ok` and never showed the "Reconnect" button; the only place that button appears is the `not_connected`/`reconnect_required` states. The Today's Brief card now always offers a "🔗 Grant new permissions" link (re-runs Google's consent screen) alongside Refresh/Generate-now, even while already connected and working, so upgrading to newly-added scopes doesn't require waiting for something to fail first.
+
 ## 1.5.0
 
 - **Calendar tab**: a new day-agenda view (`GET /api/calendar/events`) showing every event across all of your Google calendars for the selected day, sorted by time, color-coded by the calendar it came from (e.g. your primary calendar vs. a shared family calendar), with prev/today/date-pick navigation. Live prayer times overlay the agenda as colored rows using the same colors as the Today-tab prayer clock.
