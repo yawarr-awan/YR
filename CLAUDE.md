@@ -413,6 +413,44 @@ felt built for a desktop.
   and times live on the checklist rows only. `renderPrayerClock()` now just
   maintains the location line, the countdown and the button label.
 
+## Calendar as a day carousel + Tasks fixes (1.9.0)
+- **The calendar is one day, full width.** `#calTrack` is a 300%-wide flex
+  track holding `#calDayPrev`/`#calDayCur`/`#calDayNext`, sitting at
+  `translateX(-33.3333%)`. Dragging sets `translateX(calc(-33.3333% + Npx))`
+  so the neighbour is genuinely on screen while you swipe; release animates
+  to `0%`/`-66.6667%`, then `calGoDay()` moves `calCur`, re-renders all three
+  panels and re-centres with the transition off. **Nothing is fetched or
+  rebuilt mid-animation** - that was the source of the stutter in 1.8.x,
+  where the old implementation slid one panel out, swapped its data, then
+  slid it back in.
+- **`ensureCalWindow(centre)`** keeps a plus/minus 7-day window of events in
+  `_calWin.byDay`, so a day change is a pure transform with no round trip.
+  It refetches only when the day either side leaves the window, and guards
+  against out-of-order responses with `_calReqId`.
+- The arrows call `calJumpDays(+/-7)` (a re-render, not a slide - the track
+  only holds adjacent days). `#calStrip` is the compact week strip.
+- **Google Tasks were silently missing, for three separate reasons** - all
+  worth remembering because each looked like "no tasks":
+  1. `dueMin`/`dueMax` filtered server-side, which drops every **undated**
+     task (most of them - Tasks stores `due` as a date, and it's optional)
+     and every **overdue** one.
+  2. `maxResults` defaults to **20** per list.
+  3. Every failure returned `[]`. An unenabled Tasks API in the Cloud
+     project - the same trap the Calendar API sprang earlier - was therefore
+     invisible.
+  `fetchTasks()` now pulls all open tasks, buckets them into
+  `dueToday`/`overdue`/`undated`, and returns an `error` string that
+  `generateBrief` persists into `daily_brief.error` **alongside a successful
+  summary**; the UI shows it under the brief.
+- **`listCalendars()` now passes `showHidden=true`** - a secondary/shared
+  calendar unticked in the Google Calendar UI is "hidden" and was being
+  excluded, so events on it never reached the brief.
+- Test coverage: `test/calendarTab.test.js` rewritten for the carousel
+  (three panels, single padded fetch, finger-tracked drag, spring-back,
+  slide completion, week strip, week arrows); `test/worker.test.js` gained
+  task-bucketing, no-due-date-filtering, error-reporting and
+  prompt-contents tests. See CHANGELOG 1.9.0.
+
 ## Honest caveat
 The "Client-side sync layer," "Access + hosting," and "Current data state"
 sections above were re-verified live in this session (2026-08-09): read

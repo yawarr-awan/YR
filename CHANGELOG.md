@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.9.0
+
+**Calendar rebuilt around a single day.**
+
+- **The day you're on now fills the card** — full-width hour rows with readable event chips (time, title, and the source calendar + location beneath). It is the point of the screen rather than one column among seven.
+- **Swiping is a real carousel.** The previous and next day are rendered either side, so dragging slides them into view following your finger — you see the day you're moving to while you move to it. Releasing completes the slide, then the track re-centres silently.
+- **No more stutter on swipe.** Events are fetched a padded window at a time (a fortnight around the day in view) and kept in memory, so changing day is a pure transform: nothing is re-fetched or rebuilt mid-animation, which is what was causing the lag and the flicker.
+- A compact **week strip** above the day shows where you are and jumps to any day in the week; the **‹ › arrows still move a week at a time**.
+
+**Today's Brief — fixed to actually see everything.**
+
+- **Google Tasks were being dropped.** Three separate causes, all fixed: the request filtered server-side on a due-date window, which silently excluded every task with **no due date** and every **overdue** task; the per-list page size was left at Google's default of 20, truncating longer lists; and every failure was swallowed into an empty list, so a problem was indistinguishable from "you have no tasks". Tasks are now bucketed into **due today / overdue / no due date** and all three go into the summary, overdue first.
+- **Hidden and secondary calendars were being missed.** `calendarList` excludes calendars you've unticked in the Google Calendar UI unless `showHidden` is set — so events on a sub-calendar could silently never reach the brief. Now included, and the per-calendar event cap is raised so a busy day isn't truncated.
+- The prompt now explicitly asks for **all of it** — every calendar and every task bucket — and to lead with overdue work.
+- If Google Tasks specifically fails, the brief still generates but **says so** underneath, with the reason, instead of quietly looking like you have nothing to do.
+
 ## 1.8.1
 
 - **Calendar: the focused day is now much bigger** — four times the width of the other days rather than twice, so it's genuinely readable. The narrow days show a coloured bar per event (enough to see that something's on) and you slide to a day to read it.

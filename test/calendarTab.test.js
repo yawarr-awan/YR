@@ -1,10 +1,9 @@
 "use strict";
 /*
- * Calendar tab coverage: the seven-day week grid fed by a single ranged
- * /api/calendar/events request, the focused day being several times wider
- * than the rest, connect/reconnect/error states, sliding between days
- * within a week, week paging via the arrows (a real slide animation, hence
- * the waits), and the prayer-window colour bands.
+ * Calendar tab coverage: one full-width day at a time, with its two
+ * neighbours rendered either side so a swipe reveals the real adjacent day
+ * and costs no round trip. Also the week strip, the ‹ › week jumps, and the
+ * prayer-window colour bands.
  */
 const test = require("node:test");
 const { after } = require("node:test");
@@ -12,8 +11,7 @@ const assert = require("node:assert/strict");
 const { loadApp, closeAllApps } = require("./lib.js");
 after(closeAllApps);
 
-// The grid slides out and back in; a week change is settled after both halves.
-const PAGE_MS = 500;
+const SLIDE_MS = 600; // the day slide plus its re-render
 
 function jsonRes(body) { return { ok: true, status: 200, json: async () => body }; }
 
@@ -29,133 +27,148 @@ function keyOf(d) {
   return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
 }
 function todayKey() { return keyOf(new Date()); }
-/** Monday-start week containing today, same rule the app uses. */
+function addDays(d, n) { const x = new Date(d); x.setDate(x.getDate() + n); return x; }
 function thisMonday() {
   const d = new Date();
   d.setHours(0, 0, 0, 0);
   d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
   return d;
 }
-function addDays(d, n) { const x = new Date(d); x.setDate(x.getDate() + n); return x; }
-function atHourToday(h) {
+function atToday(h, m) {
   const d = new Date();
-  d.setHours(h, 0, 0, 0);
+  d.setHours(h, m || 0, 0, 0);
   return d.toISOString();
 }
 
-function rangeTracker(events) {
+function windowTracker(events) {
   const seen = [];
   const route = ["/api/calendar/events", (u) => {
     const s = String(u);
-    seen.push({
-      date: (s.match(/date=([^&]+)/) || [])[1],
-      end: (s.match(/end=([^&]+)/) || [])[1],
-    });
-    return jsonRes({ connected: true, status: "ok", day: "x", events: events || [] });
+    seen.push({ date: (s.match(/date=([^&]+)/) || [])[1], end: (s.match(/end=([^&]+)/) || [])[1] });
+    return jsonRes({ connected: true, status: "ok", events: events || [] });
   }];
-  return { seen, route, last: () => seen[seen.length - 1] };
+  return { seen, route, count: () => seen.length, last: () => seen[seen.length - 1] };
 }
 
-test("renders a Monday-start week: an hour gutter plus seven day columns, 24 rows deep", async () => {
-  const app = loadApp({
-    fetchImpl: fetchRouter([["/api/calendar/events", () => jsonRes({ connected: true, status: "ok", day: "x", events: [] })]]),
-  });
+const panels = (app) => ["calDayPrev", "calDayCur", "calDayNext"].map((id) => app.document.getElementById(id));
+const curHours = (app) => app.document.querySelectorAll("#calDayCur .cal-hour");
+const heading = (app) => app.document.getElementById("calDayHeading").textContent;
+
+test("shows one full day at a time, with the previous and next day rendered either side", async () => {
+  const app = loadApp({ fetchImpl: fetchRouter([["/api/calendar/events", () => jsonRes({ connected: true, status: "ok", events: [] })]]) });
   app.goTo("calendar");
   await app.flush();
+  await app.flush();
 
-  const grid = app.document.getElementById("calWeek");
-  assert.equal(grid.querySelectorAll(".cal-wk-head").length, 7, "seven day headings");
-  assert.equal(grid.querySelectorAll(".cal-cell").length, 24 * 7, "24 hours across 7 days");
-  // 1 gutter cell in the header row + one per hour row.
-  assert.equal(grid.querySelectorAll(".cal-wk-gutter").length, 25);
-
-  const heads = Array.from(grid.querySelectorAll(".cal-wk-head"));
-  assert.deepEqual(heads.map((h) => h.textContent.replace(/^\d+/, "")), ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]);
-  const monday = thisMonday();
-  assert.equal(heads[0].querySelector("b").textContent, String(monday.getDate()));
-  assert.equal(heads[6].querySelector("b").textContent, String(addDays(monday, 6).getDate()));
+  const [prev, cur, next] = panels(app);
+  [prev, cur, next].forEach((p) => assert.equal(p.querySelectorAll(".cal-hour").length, 24, "each panel is a whole day"));
+  assert.equal(curHours(app)[0].querySelector(".cal-hour-label").textContent, "00:00");
+  assert.equal(curHours(app)[23].querySelector(".cal-hour-label").textContent, "23:00");
+  assert.match(heading(app), /Today/);
+  // The neighbours exist so a drag reveals a real day, not a blank panel.
+  assert.ok(prev.querySelector(".cal-hour"));
+  assert.ok(next.querySelector(".cal-hour"));
 });
 
-test("fetches the whole week in one ranged request, not seven day requests", async () => {
-  const tracker = rangeTracker();
+test("fetches a padded window once, so moving day costs no round trip", async () => {
+  const tracker = windowTracker();
   const app = loadApp({ fetchImpl: fetchRouter([tracker.route]) });
   app.goTo("calendar");
   await app.flush();
+  await app.flush();
 
-  assert.equal(tracker.seen.length, 1, "one call covers the week");
-  assert.equal(tracker.last().date, keyOf(thisMonday()));
-  assert.equal(tracker.last().end, keyOf(addDays(thisMonday(), 6)));
+  assert.equal(tracker.count(), 1);
+  assert.ok(tracker.last().date < todayKey(), "the window starts before today");
+  assert.ok(tracker.last().end > todayKey(), "and ends after it");
+
+  app.swipe("calGrid", -80, 0);
+  await app.wait(SLIDE_MS);
+  assert.equal(tracker.count(), 1, "the next day was already loaded");
 });
 
-test("today's column is the wide one and is marked, and tapping another day widens that one instead", async () => {
-  const tracker = rangeTracker();
+test("swiping slides one day and the day actually changes", async () => {
+  const tracker = windowTracker();
   const app = loadApp({ fetchImpl: fetchRouter([tracker.route]) });
   app.goTo("calendar");
   await app.flush();
-
-  const grid = () => app.document.getElementById("calWeek");
-  const todayIdx = (new Date().getDay() + 6) % 7;
-  // minmax(0,4fr) / minmax(0,1fr) per day, after the fixed hour-gutter track.
-  const cols = () => (grid().style.gridTemplateColumns.match(/minmax\([^)]*\)/g) || []);
-
-  assert.equal(cols().length, 7);
-  assert.equal(cols()[todayIdx], "minmax(0,4fr)", "the day in focus is several times wider");
-  assert.equal(cols().filter((c) => c === "minmax(0,4fr)").length, 1, "and only that one");
-  assert.ok(grid().querySelectorAll(".cal-wk-head")[todayIdx].classList.contains("is-today"));
-
-  // Pick a different day of the same week.
-  const otherIdx = todayIdx === 0 ? 3 : 0;
-  grid().querySelectorAll(".cal-wk-head")[otherIdx].click();
   await app.flush();
 
-  assert.equal(cols()[otherIdx], "minmax(0,4fr)");
-  assert.equal(cols()[todayIdx], "minmax(0,1fr)");
-  assert.ok(grid().querySelectorAll(".cal-wk-head")[otherIdx].classList.contains("is-sel"));
-  assert.ok(grid().querySelectorAll(".cal-wk-head")[todayIdx].classList.contains("is-today"),
-    "the real today is still flagged even when another day is expanded");
+  const track = app.document.getElementById("calTrack");
+  const tomorrow = keyOf(addDays(new Date(), 1));
+
+  app.swipe("calGrid", -90, 0);
+  // Mid-flight the track is animating toward the next panel, which is
+  // already on screen - nothing is refetched or rebuilt during the slide.
+  assert.match(track.style.transform, /-66\.6667%/);
+
+  await app.wait(SLIDE_MS);
+  assert.equal(app.document.getElementById("calDatePick").value, tomorrow);
+  assert.match(track.style.transform, /-33\.3333%/, "re-centred once the new day is in the middle");
+  assert.doesNotMatch(heading(app), /Today/);
+
+  app.swipe("calGrid", 90, 0);
+  await app.wait(SLIDE_MS);
+  assert.equal(app.document.getElementById("calDatePick").value, todayKey());
+  assert.match(heading(app), /Today/);
 });
 
-test("each event lands in its own day column and hour row, coloured by source calendar", async () => {
-  const monday = thisMonday();
-  const wed = addDays(monday, 2);
+test("dragging moves the track with the finger, and a short drag springs back", async () => {
+  const tracker = windowTracker();
+  const app = loadApp({ fetchImpl: fetchRouter([tracker.route]) });
+  app.goTo("calendar");
+  await app.flush();
+  await app.flush();
+
+  const track = app.document.getElementById("calTrack");
+  const view = app.document.getElementById("calGrid");
+
+  const start = new app.window.Event("touchstart", { bubbles: true });
+  start.touches = [{ clientX: 200, clientY: 300 }];
+  view.dispatchEvent(start);
+  const move = new app.window.Event("touchmove", { bubbles: true });
+  move.touches = [{ clientX: 160, clientY: 302 }];
+  view.dispatchEvent(move);
+  assert.match(track.style.transform, /-40px/, "the track follows the finger, so you see the next day coming");
+
+  const end = new app.window.Event("touchend", { bubbles: true });
+  end.changedTouches = [{ clientX: 175, clientY: 302 }];  // only -25px: not enough
+  view.dispatchEvent(end);
+  await app.wait(SLIDE_MS);
+  assert.equal(app.document.getElementById("calDatePick").value, todayKey(), "a short drag does not change day");
+  assert.match(track.style.transform, /-33\.3333%/);
+});
+
+test("events land in their hour with time, calendar and location", async () => {
   const app = loadApp({
     fetchImpl: fetchRouter([["/api/calendar/events", () => jsonRes({
-      connected: true, status: "ok", day: "x",
+      connected: true, status: "ok",
       events: [
-        { title: "Standup", start: new Date(monday.getFullYear(), monday.getMonth(), monday.getDate(), 9, 0).toISOString(), allDay: false, calendar: "Yawar", color: "#4285f4" },
-        { title: "Physio", start: new Date(wed.getFullYear(), wed.getMonth(), wed.getDate(), 14, 30).toISOString(), allDay: false, location: "Clinic", calendar: "Yawar", color: "#4285f4" },
-        { title: "Mum's birthday", start: keyOf(wed), allDay: true, calendar: "Family", color: "#0b8043" },
+        { title: "Physio", start: atToday(14, 30), allDay: false, location: "Clinic", calendar: "Yawar", color: "#4285f4" },
+        { title: "Mum's birthday", start: todayKey(), allDay: true, calendar: "Family", color: "#0b8043" },
       ],
     })]]),
   });
   app.goTo("calendar");
   await app.flush();
+  await app.flush();
 
-  const cells = app.document.querySelectorAll("#calWeek .cal-cell");
-  const cellAt = (dayIdx, hour) => cells[hour * 7 + dayIdx];
-
-  // Narrow days show a colour bar per event; you slide to a day to read it.
-  assert.equal(cellAt(0, 9).querySelectorAll(".cal-bar").length, 1, "Monday 09:00");
-  assert.equal(cellAt(2, 14).querySelectorAll(".cal-bar").length, 1, "Wednesday 14:00");
-  assert.equal(cellAt(2, 0).querySelectorAll(".cal-bar").length, 1, "an all-day event sits in that day's 00:00 row");
-  assert.equal(cellAt(0, 10).children.length, 0, "hours with nothing on stay empty");
-  assert.equal(cellAt(2, 0).querySelector(".cal-bar").style.background, "rgb(11, 128, 67)");
-  assert.match(cellAt(2, 14).querySelector(".cal-bar").title, /Physio/, "the full detail is still reachable");
-
-  // Focusing Wednesday turns its bars into readable chips.
-  app.document.querySelectorAll("#calWeek .cal-wk-head")[2].click();
-  const chip = cellAt(2, 14).querySelector(".cal-chip");
-  assert.ok(chip, "the focused day renders text, not bars");
+  const hours = curHours(app);
+  const chip = hours[14].querySelector(".cal-chip");
+  assert.ok(chip, "a 14:30 event sits in the 14:00 row");
+  assert.match(chip.textContent, /14:30/);
   assert.match(chip.textContent, /Physio/);
-  assert.match(chip.textContent, /Clinic/);
-  assert.equal(cellAt(2, 14).querySelector(".cal-bar"), null);
+  assert.match(chip.querySelector(".cal-chip-meta").textContent, /Yawar · Clinic/);
+  assert.equal(chip.style.borderInlineStartColor, "rgb(66, 133, 244)");
+
+  assert.match(hours[0].textContent, /All day/);
+  assert.match(hours[0].textContent, /Mum's birthday/);
 });
 
-test("prayer windows tint every hour of every day, with each day using its own times", async () => {
+test("prayer windows tint all 24 hours of the day with no gaps", async () => {
   const app = loadApp({
     geolocation: { lat: 51.5, lon: -0.12 },
     fetchImpl: fetchRouter([
-      ["/api/calendar/events", () => jsonRes({ connected: true, status: "ok", day: "x", events: [] })],
+      ["/api/calendar/events", () => jsonRes({ connected: true, status: "ok", events: [] })],
       ["api.aladhan.com", () => jsonRes({ data: { timings: { Fajr: "04:45", Sunrise: "05:50", Dhuhr: "13:00", Asr: "17:00", Maghrib: "20:30", Isha: "22:00" } } })],
     ]),
   });
@@ -167,147 +180,91 @@ test("prayer windows tint every hour of every day, with each day using its own t
   await app.flush();
   await app.flush();
 
-  const cells = app.document.querySelectorAll("#calWeek .cal-cell");
-  assert.equal(cells.length, 24 * 7);
-  cells.forEach((c) => assert.notEqual(c.style.background, "", "every hour of every day is tinted"));
-
-  const cellAt = (dayIdx, hour) => cells[hour * 7 + dayIdx];
-  assert.match(cellAt(0, 6).style.background, /--sunrise/);
-  assert.match(cellAt(4, 14).style.background, /--dhuhr/);
+  const hours = curHours(app);
+  assert.equal(hours.length, 24);
+  hours.forEach((h) => assert.notEqual(h.style.background, "", "every hour is tinted"));
+  assert.match(hours[6].style.background, /--sunrise/);
+  assert.match(hours[14].style.background, /--dhuhr/);
   // Overnight either side of midnight belongs to Isha's window.
-  assert.match(cellAt(3, 0).style.background, /--isha/);
-  assert.match(cellAt(3, 23).style.background, /--isha/);
+  assert.match(hours[0].style.background, /--isha/);
+  assert.match(hours[23].style.background, /--isha/);
 });
 
-test("the current hour is marked once, in today's column only", async () => {
-  const app = loadApp({
-    fetchImpl: fetchRouter([["/api/calendar/events", () => jsonRes({ connected: true, status: "ok", day: "x", events: [{ title: "Now", start: atHourToday(new Date().getHours()), allDay: false, calendar: "Yawar" }] })]]),
-  });
-  app.goTo("calendar");
-  await app.flush();
-
-  const marked = app.document.querySelectorAll("#calWeek .cal-cell.current-hour");
-  assert.equal(marked.length, 1);
-  const cells = Array.from(app.document.querySelectorAll("#calWeek .cal-cell"));
-  const idx = cells.indexOf(marked[0]);
-  assert.equal(idx % 7, (new Date().getDay() + 6) % 7, "in today's column");
-  assert.equal(Math.floor(idx / 7), new Date().getHours(), "on the current hour's row");
-  assert.ok(marked[0].querySelector(".cal-nowline"), "with a now-line inside it");
-});
-
-test("reconnect_required, calendar_error and an empty week each say something specific", async () => {
-  const reconnect = loadApp({
-    fetchImpl: fetchRouter([["/api/calendar/events", () => jsonRes({ connected: true, status: "reconnect_required", day: todayKey(), events: [] })]]),
-  });
-  reconnect.goTo("calendar");
-  await reconnect.flush();
-  assert.match(reconnect.document.getElementById("calStatus").textContent, /expired/i);
-
-  const errored = loadApp({
-    fetchImpl: fetchRouter([["/api/calendar/events", () => jsonRes({ connected: true, status: "calendar_error", day: todayKey(), events: [] })]]),
-  });
-  errored.goTo("calendar");
-  await errored.flush();
-  assert.match(errored.document.getElementById("calStatus").textContent, /couldn't load/i);
-
-  const empty = loadApp({
-    fetchImpl: fetchRouter([["/api/calendar/events", () => jsonRes({ connected: true, status: "ok", day: todayKey(), events: [] })]]),
-  });
-  empty.goTo("calendar");
-  await empty.flush();
-  assert.match(empty.document.getElementById("calStatus").textContent, /nothing scheduled this week/i);
-
-  const off = loadApp({
-    fetchImpl: fetchRouter([["/api/calendar/events", () => jsonRes({ connected: false, status: "not_connected", day: todayKey(), events: [] })]]),
-  });
-  off.goTo("calendar");
-  await off.flush();
-  assert.match(off.document.getElementById("calStatus").textContent, /connect google calendar/i);
-});
-
-test("the prev/next buttons move a whole week at a time, and Today comes back", async () => {
-  const tracker = rangeTracker();
+test("the current hour is marked, with a now-line, only on today", async () => {
+  const tracker = windowTracker();
   const app = loadApp({ fetchImpl: fetchRouter([tracker.route]) });
   app.goTo("calendar");
   await app.flush();
-  const thisWeek = tracker.last().date;
+  await app.flush();
+
+  const marked = app.document.querySelectorAll("#calDayCur .cal-hour.current-hour");
+  assert.equal(marked.length, 1);
+  assert.equal(marked[0].querySelector(".cal-hour-label").textContent,
+    String(new Date().getHours()).padStart(2, "0") + ":00");
+  assert.ok(marked[0].querySelector(".cal-nowline"));
+
+  app.swipe("calGrid", -90, 0);
+  await app.wait(SLIDE_MS);
+  assert.equal(app.document.querySelectorAll("#calDayCur .cal-hour.current-hour").length, 0,
+    "tomorrow has no 'now'");
+});
+
+test("the week strip shows the surrounding week and jumps to a tapped day", async () => {
+  const tracker = windowTracker();
+  const app = loadApp({ fetchImpl: fetchRouter([tracker.route]) });
+  app.goTo("calendar");
+  await app.flush();
+  await app.flush();
+
+  const buttons = () => app.document.querySelectorAll("#calStrip button");
+  assert.equal(buttons().length, 7);
+  const todayIdx = (new Date().getDay() + 6) % 7;
+  assert.ok(buttons()[todayIdx].classList.contains("is-today"));
+  assert.ok(buttons()[todayIdx].classList.contains("is-sel"));
+
+  const otherIdx = todayIdx === 0 ? 4 : 0;
+  buttons()[otherIdx].click();
+  await app.flush();
+  await app.flush();
+
+  assert.equal(app.document.getElementById("calDatePick").value, keyOf(addDays(thisMonday(), otherIdx)));
+  assert.ok(buttons()[otherIdx].classList.contains("is-sel"));
+  assert.ok(buttons()[todayIdx].classList.contains("is-today"), "today is still flagged");
+});
+
+test("the arrows jump a week, and Today comes back", async () => {
+  const tracker = windowTracker();
+  const app = loadApp({ fetchImpl: fetchRouter([tracker.route]) });
+  app.goTo("calendar");
+  await app.flush();
+  await app.flush();
 
   app.click("calNextDay");
-  await app.wait(PAGE_MS);
-  assert.equal(tracker.last().date, keyOf(addDays(thisMonday(), 7)), "a full week forward");
-
-  app.click("calPrevDay");
-  await app.wait(PAGE_MS);
-  assert.equal(tracker.last().date, thisWeek);
+  await app.flush();
+  await app.flush();
+  assert.equal(app.document.getElementById("calDatePick").value, keyOf(addDays(new Date(), 7)));
 
   app.click("calJumpToday");
   await app.flush();
-  assert.equal(tracker.last().date, thisWeek);
+  await app.flush();
+  assert.equal(app.document.getElementById("calDatePick").value, todayKey());
+  assert.match(heading(app), /Today/);
 });
 
-test("swiping slides between days inside the week, without refetching or paging the week", async () => {
-  const tracker = rangeTracker();
-  const app = loadApp({ fetchImpl: fetchRouter([tracker.route]) });
-  app.goTo("calendar");
-  await app.flush();
-
-  const heads = () => app.document.querySelectorAll("#calWeek .cal-wk-head");
-  const focused = () => Array.from(heads()).findIndex((h) => h.classList.contains("is-sel"));
-  const grid = app.document.getElementById("calGrid");
-
-  // Start from midweek so there's room to slide either way regardless of
-  // which weekday the suite happens to run on.
-  heads()[2].click();
-  assert.equal(focused(), 2);
-  const fetchesSoFar = tracker.seen.length;
-
-  app.swipe("calGrid", -80, 0); // left -> next day
-  assert.equal(focused(), 3);
-
-  app.swipe("calGrid", 80, 0);  // right -> back
-  app.swipe("calGrid", 80, 0);  // right again
-  assert.equal(focused(), 1);
-
-  assert.equal(tracker.seen.length, fetchesSoFar, "the week is already loaded - no refetching to change day");
-  assert.equal(grid.style.transform, "", "the week itself doesn't slide away; only the focus moves");
-
-  // A short / mostly-vertical drag is a scroll, not a slide.
-  app.swipe("calGrid", 10, 60);
-  assert.equal(focused(), 1);
-});
-
-test("swiping past the edge of the week carries on into the next one rather than dead-ending", async () => {
-  const tracker = rangeTracker();
-  const app = loadApp({ fetchImpl: fetchRouter([tracker.route]) });
-  app.goTo("calendar");
-  await app.flush();
-  const thisWeek = tracker.last().date;
-  const grid = app.document.getElementById("calGrid");
-
-  app.document.querySelectorAll("#calWeek .cal-wk-head")[6].click(); // Sunday
-  app.swipe("calGrid", -80, 0);
-
-  // Mid-flight the outgoing week is pushed off and the next one has NOT been
-  // fetched yet - that's what makes it read as a stack, not a jump.
-  assert.match(grid.style.transform, /translateX\(-100%\)/);
-  assert.equal(tracker.last().date, thisWeek);
-
-  await app.wait(PAGE_MS);
-  assert.equal(tracker.last().date, keyOf(addDays(thisMonday(), 7)), "landed in the following week");
-  assert.equal(grid.style.transform, "", "settles back to its resting position");
-  assert.equal(
-    Array.from(app.document.querySelectorAll("#calWeek .cal-wk-head")).findIndex((h) => h.classList.contains("is-sel")),
-    0, "on the Monday just past the edge we swiped over");
-});
-
-test("the Calendar tab no longer carries a task list - it is just the calendar", async () => {
-  const app = loadApp({
-    fetchImpl: fetchRouter([["/api/calendar/events", () => jsonRes({ connected: true, status: "ok", day: "x", events: [] })]]),
-  });
-  app.goTo("calendar");
-  await app.flush();
-
-  assert.equal(app.document.getElementById("calTaskList"), null);
-  assert.equal(app.document.getElementById("calTaskTitleIn"), null);
-  assert.equal(app.document.getElementById("calTaskAddBtn"), null);
+test("connect / reconnect / error / empty each say something specific", async () => {
+  const cases = [
+    [{ connected: false, status: "not_connected" }, /connect google calendar/i],
+    [{ connected: true, status: "reconnect_required" }, /expired/i],
+    [{ connected: true, status: "calendar_error" }, /couldn't load/i],
+    [{ connected: true, status: "ok" }, /nothing scheduled/i],
+  ];
+  for (const [body, expected] of cases) {
+    const app = loadApp({
+      fetchImpl: fetchRouter([["/api/calendar/events", () => jsonRes(Object.assign({ events: [] }, body))]]),
+    });
+    app.goTo("calendar");
+    await app.flush();
+    await app.flush();
+    assert.match(app.document.getElementById("calStatus").textContent, expected);
+  }
 });

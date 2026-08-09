@@ -230,6 +230,69 @@ test("generateBrief: a refresh mid-day only tells Gemini about what's still rema
   assert.match(geminiPrompt, /Do not open with a time-of-day greeting/i);
 });
 
+test("generateBrief: the prompt carries every calendar and all three task buckets", async (t) => {
+  const { generateBrief } = await loadWorker();
+  const d1 = createFakeD1();
+  d1.seedToken(EMAIL, { access_token: "tok", access_token_expires_at: Date.now() + 600000 });
+
+  let prompt = null;
+  let calendarListUrl = null;
+  installFetch(t, async (url, opts) => {
+    const u = String(url);
+    if (u.includes("calendarList")) {
+      calendarListUrl = u;
+      return jsonResponse(200, { items: [
+        { id: "primary", summary: "Yawar", primary: true },
+        { id: "family@group.calendar.google.com", summary: "Family" },
+      ] });
+    }
+    if (u.includes("calendars/primary/events")) return jsonResponse(200, { items: [{ summary: "Standup", start: { dateTime: "2026-08-09T18:00:00+01:00" }, end: { dateTime: "2026-08-09T18:30:00+01:00" } }] });
+    if (u.includes("/events")) return jsonResponse(200, { items: [{ summary: "Family dinner", start: { dateTime: "2026-08-09T19:00:00+01:00" }, end: { dateTime: "2026-08-09T20:00:00+01:00" } }] });
+    if (u.includes("users/@me/lists")) return jsonResponse(200, { items: [{ id: "l1", title: "My Tasks" }] });
+    if (u.includes("/tasks?")) return jsonResponse(200, { items: [
+      { title: "Pay rent", status: "needsAction", due: "2026-08-09T00:00:00.000Z" },
+      { title: "Chase invoice", status: "needsAction", due: "2026-08-01T00:00:00.000Z" },
+      { title: "Read that book", status: "needsAction" },
+    ] });
+    if (u.includes("generativelanguage")) { prompt = JSON.parse(opts.body).contents[0].parts[0].text; return geminiOk("All good."); }
+    throw new Error("unexpected fetch " + u);
+  });
+
+  const result = await generateBrief(d1.env, EMAIL, new Date("2026-08-09T10:00:00Z"));
+  assert.equal(result.status, "ok");
+
+  // Hidden/secondary calendars are exactly the ones that were going missing.
+  assert.match(calendarListUrl, /showHidden=true/);
+  assert.match(prompt, /Standup/);
+  assert.match(prompt, /Family dinner/);
+  assert.match(prompt, /Tasks due today:\n- Pay rent/);
+  assert.match(prompt, /Overdue tasks:\n- Chase invoice/);
+  assert.match(prompt, /Tasks with no due date:\n- Read that book/);
+  assert.match(prompt, /Cover ALL of it/);
+});
+
+test("generateBrief: a Tasks failure is recorded next to a successful summary, not swallowed", async (t) => {
+  const { generateBrief } = await loadWorker();
+  const d1 = createFakeD1();
+  d1.seedToken(EMAIL, { access_token: "tok", access_token_expires_at: Date.now() + 600000 });
+
+  installFetch(t, async (url) => {
+    const u = String(url);
+    if (u.includes("calendarList")) return jsonResponse(200, { items: [{ id: "primary", summary: "Yawar", primary: true }] });
+    if (u.includes("/events")) return jsonResponse(200, { items: [] });
+    if (u.includes("tasks.googleapis.com")) return jsonResponse(403, {}, "Google Tasks API has not been used in project 123 before or it is disabled");
+    if (u.includes("generativelanguage")) return geminiOk("A quiet day.");
+    throw new Error("unexpected fetch " + u);
+  });
+
+  const result = await generateBrief(d1.env, EMAIL, new Date("2026-08-09T10:00:00Z"));
+  assert.equal(result.status, "ok", "the brief still generates - tasks are an enrichment");
+  assert.match(result.error, /HTTP 403/);
+  const saved = d1.dailyBrief.get(`${EMAIL}|2026-08-09`);
+  assert.equal(saved.summary, "A quiet day.");
+  assert.match(saved.error, /has not been used/, "so 'where are my tasks?' is answerable later");
+});
+
 test("handleGetBrief reflects not_connected / pending / ok correctly", async (t) => {
   const { handleGetBrief } = await loadWorker();
   installFetch(t, async () => { throw new Error("handleGetBrief must never touch the network itself"); });
@@ -349,29 +412,63 @@ test("fetchEventsForRange: one unreachable calendar is skipped, the rest still c
   assert.equal(events[0].title, "Still here");
 });
 
-test("fetchTodayTasks: filters out completed tasks and never throws on failure (a bonus, not the critical path)", async (t) => {
-  const { fetchTodayTasks } = await loadWorker();
+test("fetchTasks: buckets open tasks into due-today / overdue / undated, dropping completed ones", async (t) => {
+  const { fetchTasks } = await loadWorker();
   installFetch(t, googleApiMocks({
     taskLists: [{ id: "list1", title: "My Tasks" }],
     tasksByList: {
       list1: [
         { title: "Pay rent", status: "needsAction", due: "2026-08-09T00:00:00.000Z" },
+        { title: "Chase invoice", status: "needsAction", due: "2026-08-04T00:00:00.000Z" },
+        { title: "Read that book", status: "needsAction" },
+        { title: "Next week thing", status: "needsAction", due: "2026-08-20T00:00:00.000Z" },
         { title: "Already done", status: "completed", due: "2026-08-09T00:00:00.000Z" },
       ],
     },
   }));
 
-  const tasks = await fetchTodayTasks("tok", "2026-08-09");
-  assert.equal(tasks.length, 1);
-  assert.equal(tasks[0].title, "Pay rent");
-  assert.equal(tasks[0].list, "My Tasks");
+  const tasks = await fetchTasks("tok", "2026-08-09");
+  assert.equal(tasks.error, null);
+  assert.deepEqual(tasks.dueToday.map((x) => x.title), ["Pay rent"]);
+  assert.deepEqual(tasks.overdue.map((x) => x.title), ["Chase invoice"], "an overdue task is worth surfacing, not filtering away");
+  assert.deepEqual(tasks.undated.map((x) => x.title), ["Read that book"], "most tasks have no due date at all");
+  assert.equal(tasks.dueToday[0].list, "My Tasks");
 });
 
-test("fetchTodayTasks: a network failure returns an empty list, never throws", async (t) => {
-  const { fetchTodayTasks } = await loadWorker();
+test("fetchTasks: asks for every open task rather than filtering server-side on the due date", async (t) => {
+  const { fetchTasks } = await loadWorker();
+  let tasksUrl = null;
+  installFetch(t, async (url) => {
+    const u = String(url);
+    if (u.includes("users/@me/lists")) return jsonResponse(200, { items: [{ id: "list1", title: "My Tasks" }] });
+    tasksUrl = u;
+    return jsonResponse(200, { items: [] });
+  });
+
+  await fetchTasks("tok", "2026-08-09");
+  // A dueMin/dueMax window silently drops undated and overdue work.
+  assert.doesNotMatch(tasksUrl, /dueMin|dueMax/);
+  assert.match(tasksUrl, /showCompleted=false/);
+  assert.match(tasksUrl, /maxResults=100/, "the API default of 20 would truncate a real list");
+});
+
+test("fetchTasks: reports why it is empty instead of silently looking like 'no tasks'", async (t) => {
+  const { fetchTasks } = await loadWorker();
+
+  // This is exactly what an unenabled Tasks API looks like.
+  installFetch(t, async () => jsonResponse(403, {}, "Google Tasks API has not been used in project 123 before or it is disabled"));
+  const denied = await fetchTasks("tok", "2026-08-09");
+  assert.deepEqual(denied.dueToday, []);
+  assert.match(denied.error, /HTTP 403/);
+  assert.match(denied.error, /has not been used/);
+});
+
+test("fetchTasks: a network failure still never throws", async (t) => {
+  const { fetchTasks } = await loadWorker();
   installFetch(t, async () => { throw new TypeError("network down"); });
-  const tasks = await fetchTodayTasks("tok", "2026-08-09");
-  assert.deepEqual(tasks, []);
+  const tasks = await fetchTasks("tok", "2026-08-09");
+  assert.deepEqual(tasks.dueToday, []);
+  assert.match(tasks.error, /network down/);
 });
 
 test("handleGetCalendarEvents: not connected returns an empty agenda, no network call", async (t) => {
