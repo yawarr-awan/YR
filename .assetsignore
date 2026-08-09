@@ -1,0 +1,9 @@
+worker.js
+wrangler.jsonc
+package.json
+package-lock.json
+node_modules
+.assetsignore
+README.md
+CHANGELOG.md
+LICENSE

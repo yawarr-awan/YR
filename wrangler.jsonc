@@ -1,0 +1,32 @@
+{
+  // Worker name MUST match the Worker you create in the Cloudflare dashboard,
+  // or Workers Builds will refuse to deploy.
+  "name": "yr-wellness",
+  "main": "worker.js",
+  "compatibility_date": "2026-06-01",
+
+  // Serve the repo root as static assets. .assetsignore keeps the
+  // build files out of the published site.
+  "assets": {
+    "directory": "./",
+    "binding": "ASSETS",
+    "html_handling": "auto-trailing-slash"
+  },
+
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "yr-wellness-sync",
+      "database_id": "14ede2eb-a05f-4451-8ba8-85bd11ff90ea"
+    }
+  ],
+
+  // Filled in from the Cloudflare dashboard after the Access app exists.
+  // Neither value is a secret.
+  "vars": {
+    "ACCESS_TEAM_DOMAIN": "",
+    "ACCESS_AUD": ""
+  },
+
+  "observability": { "enabled": true }
+}
