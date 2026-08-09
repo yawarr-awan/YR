@@ -634,6 +634,7 @@ function save(){
     return false;
   }
 }
+var state=load();
 /* Console escape hatch: window.__YRdump() returns both raw copies for manual recovery. */
 window.__YRdump=function(){var o={};try{o.main=localStorage.getItem(KEY);}catch(e){o.main="<unreadable>";}try{o.bak=localStorage.getItem(BAKKEY);}catch(e){o.bak="<unreadable>";}return o;};
 function blankDay(){return{meds:{},prayers:{},meals:{},extras:{},water:0,weight:"",sleep:"",steps:"",jointPain:null,energy:null,exercise:false,notes:""};}
@@ -1059,9 +1060,8 @@ document.getElementById("themeToggle").addEventListener("click",function(){
 
 /* ---------- INIT ---------- */
 renderPlan();renderRecipes();renderExercises();renderToday();
+flushMsgs();
 })();
-
-if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",flushMsgs);}else{flushMsgs();}
 </script>
 </body>
 </html>
