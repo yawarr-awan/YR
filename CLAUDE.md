@@ -451,6 +451,31 @@ felt built for a desktop.
   task-bucketing, no-due-date-filtering, error-reporting and
   prompt-contents tests. See CHANGELOG 1.9.0.
 
+## Others tab + Progress rework (1.10.0)
+- **`VIEWS` is now `["today","calendar","others","progress"]`** and
+  `SUBVIEWS` (`plan`/`recipes`/`exercises`) lives inside `#view-others`.
+  Sub-panels are `.subview` divs with `#sub-<name>` ids (the render targets
+  `#planBox`/`#recipesBox`/`#exercisesBox`/`#exWeekBox` are unchanged, so
+  the render functions did not move). `navSub()` mirrors `nav()` and stores
+  `yawarLastSub`.
+- The delegated click handler resolves `data-sub` the same way it resolves
+  `data-nav`, via `closest()`.
+- `attachTabSwipe()` steps through `SUBVIEWS` first while `currentView` is
+  `"others"`, falling through to the next main tab only at the ends - same
+  edge-fallthrough pattern used elsewhere.
+- **Upgrade path:** a stored `yawarLastTab` of `plan`/`recipes`/`exercises`
+  (they were top-level tabs before) is mapped to `others` + that sub-tab.
+- **`dayCompletion(d)`** is the single definition of "how much of a day got
+  done" (the same 18 items the ring counts); `updateRing()` now calls it, so
+  the ring and the Progress chart cannot drift apart.
+- `drawCompletionChart(keys)` replaced the per-day history table and sits
+  directly under the weight chart. It plots every logged day (not a recent
+  window), adds a 7-day rolling average once there are >= 7 days, and writes
+  a summary line into `#completionNote` - which is what the tests assert on,
+  since jsdom has no canvas.
+- The per-prayer chip row is gone from `renderPraySummary()`; the qada card
+  below is the only per-prayer breakdown, and it is editable.
+
 ## Honest caveat
 The "Client-side sync layer," "Access + hosting," and "Current data state"
 sections above were re-verified live in this session (2026-08-09): read

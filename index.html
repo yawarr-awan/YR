@@ -113,6 +113,16 @@ nav.tabs button.active{color:var(--brand)}
 .today-btn{background:var(--brand)!important;color:#fff!important;border-color:var(--brand)!important;width:auto!important;padding:0 10px;font-size:.78rem}
 .view{display:none}
 .view.active{display:block;animation:viewIn .18s ease}
+/* Sub-tabs inside the Others tab (meals / recipes / movement). */
+.subtabs{display:flex;gap:6px;margin:12px 0 4px}
+.subtabs button{
+  flex:1 1 0;min-width:0;border:1px solid var(--line);background:var(--panel-2);color:var(--muted);
+  border-radius:999px;padding:8px 6px;cursor:pointer;font:inherit;font-weight:700;font-size:.74rem;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis
+}
+.subtabs button.active{background:var(--brand);border-color:var(--brand);color:#fff}
+.subview{display:none}
+.subview.active{display:block;animation:viewIn .16s ease}
 @keyframes viewIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
 @media(max-width:720px){.grid{grid-template-columns:1fr}}
@@ -444,22 +454,27 @@ footer.foot{text-align:center;color:var(--muted);font-size:.78rem;margin-top:26p
     </div>
   </section>
 
-  <!-- ===================== MEAL PLAN ===================== -->
-  <section id="view-plan" class="view">
+  <!-- ============ OTHERS (meals / recipes / exercises) ============ -->
+  <section id="view-others" class="view">
+    <nav class="subtabs" id="subTabs">
+      <button data-sub="plan" class="active">🍽️ Meals</button>
+      <button data-sub="recipes">👨‍🍳 Recipes</button>
+      <button data-sub="exercises">🧘 Movement</button>
+    </nav>
+
+    <div id="sub-plan" class="subview active">
     <div class="section-title">Your 7-Day Meal Plan</div>
     <div class="note">A tasty halal rotation — a mix of desi, Mediterranean and simple Western meals, now with <b>no snacks</b> and leaner portions (starchy sides removed). Each day is about <b>950–1,000 kcal</b> from three meals + <b>~370 kcal</b> from your milk, chai, whey and collagen ≈ <b>1,300–1,400 kcal total</b>, kept high in protein to protect muscle. Tap any meal to see its recipe.</div>
     <div id="planBox"></div>
-  </section>
+    </div>
 
-  <!-- ===================== RECIPES ===================== -->
-  <section id="view-recipes" class="view">
+    <div id="sub-recipes" class="subview">
     <div class="section-title">Recipe Library</div>
     <div class="note">Every recipe is quick (mostly 10–20 min), halal, and built for fat loss + healthy joints. Tap a card for the full method.</div>
     <div id="recipesBox"></div>
-  </section>
+    </div>
 
-  <!-- ===================== EXERCISES ===================== -->
-  <section id="view-exercises" class="view">
+    <div id="sub-exercises" class="subview">
     <div class="section-title">Gentle, Joint-Friendly Movement</div>
     <div class="warnbox"><b>Because your joints are hurting right now, start light.</b> For the first 1–2 weeks do just the <b>Morning Joint Mobility</b> and a <b>short gentle walk</b>. Add the strength and isometric work as you feel able. Move only within a comfortable, <b>pain-free</b> range, and stop if you feel sharp or increasing pain. If a joint is hot or swollen, rest it. Please check with your GP or a physiotherapist before starting, especially with your arthritis.</div>
     <div id="exercisesBox"></div>
@@ -470,6 +485,7 @@ footer.foot{text-align:center;color:var(--muted);font-size:.78rem;margin-top:26p
         <tbody id="exWeekBox"></tbody>
       </table>
       <div class="note" style="margin-top:12px">Losing weight is itself powerful for arthritis: research suggests every <b>1 kg</b> you lose takes roughly <b>4 kg</b> of pressure off each knee with every step. So even without hard exercise, the diet alone will ease your joints.</div>
+    </div>
     </div>
   </section>
 
@@ -482,6 +498,12 @@ footer.foot{text-align:center;color:var(--muted);font-size:.78rem;margin-top:26p
       <h3>⚖️ Weight trend</h3>
       <canvas id="weightChart" width="900" height="320"></canvas>
       <div class="muted center" id="chartNote" style="font-size:.78rem;margin-top:8px"></div>
+    </div>
+
+    <div class="card" style="margin-top:14px">
+      <h3>📈 Daily completion</h3>
+      <canvas id="completionChart" width="900" height="320"></canvas>
+      <div class="muted center" id="completionNote" style="font-size:.78rem;margin-top:8px"></div>
     </div>
 
     <div class="card" style="margin-top:14px">
@@ -504,14 +526,6 @@ footer.foot{text-align:center;color:var(--muted);font-size:.78rem;margin-top:26p
         <p class="muted" style="font-size:.8rem;margin-top:0">Log prayers you've since made up. Each one you record here comes off the missed count above.</p>
         <div id="qadaBox"></div>
       </div>
-    </div>
-
-    <div class="card" style="margin-top:14px">
-      <h3>🗓️ Recent history</h3>
-      <div style="overflow-x:auto"><table>
-        <thead><tr><th>Date</th><th>Weight</th><th>Meds</th><th>Prayers</th><th>Meals</th><th>Water</th><th>Move</th><th>Done</th></tr></thead>
-        <tbody id="historyBox"></tbody>
-      </table></div>
     </div>
 
     <div class="card" style="margin-top:14px">
@@ -562,9 +576,7 @@ footer.foot{text-align:center;color:var(--muted);font-size:.78rem;margin-top:26p
 <nav class="tabs" id="tabs">
   <button data-nav="today" class="active"><i>📋</i>Today</button>
   <button data-nav="calendar"><i>🗓️</i>Calendar</button>
-  <button data-nav="plan"><i>🍽️</i>Meals</button>
-  <button data-nav="recipes"><i>👨‍🍳</i>Recipes</button>
-  <button data-nav="exercises"><i>🧘</i>Move</button>
+  <button data-nav="others"><i>🍽️</i>Others</button>
   <button data-nav="progress"><i>📈</i>Progress</button>
 </nav>
 
@@ -1061,14 +1073,9 @@ function renderDhikr(d){
 
 function updateRing(){
   var d=dayData(keyOf(cur));
-  var done=0,total=18;
-  MEDS.forEach(function(m){if(d.meds[m[0]])done++;});
-  PRAYERS.forEach(function(p){if(d.prayers[p[0]])done++;});
-  MEALSLOTS.forEach(function(s){if(d.meals[s[0]])done++;});
-  DAILY_EXTRAS.forEach(function(x){if(d.extras[x.id])done++;});
-  if(d.exercise)done++;
-  if(d.water>=8)done++;
-  var pct=Math.round(done/total*100);
+  /* Same measure the Progress trend chart plots, so the ring and the graph
+     can never disagree about what a day was worth. */
+  var pct=dayCompletion(d);
   var ring=document.getElementById("dayRing");
   ring.style.setProperty("--p",pct);
   document.getElementById("dayRingTxt").textContent=pct+"%";
@@ -1834,8 +1841,15 @@ function attachTabSwipe(){
     if(!t)return;
     var dx=t.clientX-sx,dy=t.clientY-sy;
     if(Math.abs(dx)<60||Math.abs(dx)<Math.abs(dy)*1.5)return;
+    var dir=dx<0?1:-1;
+    /* Inside Others, a swipe steps through its sub-tabs first and only
+       leaves the tab once there's nowhere further to go. */
+    if(currentView==="others"){
+      var s=SUBVIEWS.indexOf(currentSub)+dir;
+      if(s>=0&&s<SUBVIEWS.length){navSub(SUBVIEWS[s]);return;}
+    }
     var i=VIEWS.indexOf(currentView);
-    var next=i+(dx<0?1:-1);
+    var next=i+dir;
     if(next<0||next>=VIEWS.length)return;              /* no wrap-around at the ends */
     nav(VIEWS[next]);
   },{passive:true});
@@ -2040,15 +2054,8 @@ function renderPraySummary(){
         ? ("Masha'Allah — nothing outstanding across "+past.length+" completed day(s)."+madeUpNote+" Keep it going!")
         : ("You have "+totalMissed+" prayer(s) still to make up across "+past.length+" completed day(s); "+allFive+" day(s) had all 5 completed."+madeUpNote));
   box.appendChild(el("div","note",msg));
-
-  var pr=el("div","pill-row");
-  PRAYERS.forEach(function(p){
-    var tot=perDone[p[0]]+stats.missed[p[0]];
-    var chip=el("span","tag",p[1]+": "+perDone[p[0]]+"/"+tot+(perMissed[p[0]]?(" · "+perMissed[p[0]]+" owed"):""));
-    if(perMissed[p[0]]>0){chip.style.borderColor="var(--bad)";chip.style.color="var(--bad)";}
-    pr.appendChild(chip);
-  });
-  box.appendChild(pr);
+  /* No per-prayer breakdown here on purpose: the qada card directly below
+     already shows what each prayer owes, and lets you change it. */
 
   var tbl=el("table");tbl.style.marginTop="12px";
   var thead=el("thead"),htr=el("tr");htr.appendChild(el("th",null,"Date"));
@@ -2100,21 +2107,87 @@ function renderProgress(){
 
   drawChart(weights,start,target);
 
-  // history
-  var hb=document.getElementById("historyBox");hb.innerHTML="";
-  keys.slice().reverse().slice(0,21).forEach(function(k){
-    var d=state.days[k];
-    var meds=Object.keys(d.meds).filter(function(x){return d.meds[x];}).length;
-    var pr=Object.keys(d.prayers).filter(function(x){return d.prayers[x];}).length;
-    var ml=Object.keys(d.meals).filter(function(x){return d.meals[x];}).length;
-    var ex=d.extras?Object.keys(d.extras).filter(function(x){return d.extras[x];}).length:0;
-    var done=meds+pr+ml+ex+(d.exercise?1:0)+(d.water>=8?1:0);
-    var pct=Math.round(done/18*100);
-    var tr=el("tr");
-    [k,(d.weight?d.weight+" kg":"–"),meds+"/3",pr+"/5",ml+"/3",d.water+"/8",(d.exercise?"✓":"–"),pct+"%"].forEach(function(v){tr.appendChild(el("td",null,v));});
-    hb.appendChild(tr);
+  drawCompletionChart(keys);
+}
+
+/* One number for how much of a day got ticked off, on the same 18-item
+   basis as the ring at the top of the app. */
+var DAY_TOTAL_ITEMS=18;
+function dayCompletion(d){
+  var done=0;
+  MEDS.forEach(function(m){if(d.meds&&d.meds[m[0]])done++;});
+  PRAYERS.forEach(function(p){if(d.prayers&&d.prayers[p[0]])done++;});
+  MEALSLOTS.forEach(function(x){if(d.meals&&d.meals[x[0]])done++;});
+  DAILY_EXTRAS.forEach(function(x){if(d.extras&&d.extras[x.id])done++;});
+  if(d.exercise)done++;
+  if(d.water>=8)done++;
+  return Math.round(done/DAY_TOTAL_ITEMS*100);
+}
+
+/** Daily completion as a percentage over time, with a 7-day average once
+ * there's enough history for one to mean anything. Every logged day is a
+ * point, so the line simply grows as the days accumulate. */
+function drawCompletionChart(keys){
+  var c=document.getElementById("completionChart");
+  if(!c)return;
+  var ctx=c.getContext("2d");
+  var W=c.width,H=c.height;ctx.clearRect(0,0,W,H);
+  var note=document.getElementById("completionNote");
+  var css=getComputedStyle(document.body);
+  var muted=css.getPropertyValue("--muted"),brand=css.getPropertyValue("--brand"),
+      line=css.getPropertyValue("--line"),good=css.getPropertyValue("--good"),accent=css.getPropertyValue("--accent");
+
+  var series=keys.map(function(k){return dayCompletion(state.days[k]);});
+  if(series.length<2){
+    if(note)note.textContent="Log a couple of days and your completion trend will build up here.";
+    ctx.fillStyle=muted;ctx.font="16px sans-serif";ctx.textAlign="center";
+    ctx.fillText("Your daily completion trend will appear here.",W/2,H/2);
+    return;
+  }
+
+  var pad=44;
+  function X(i){return pad+(W-pad*2)*(series.length===1?0:i/(series.length-1));}
+  function Y(v){return pad+(H-pad*2)*(1-v/100);}
+
+  ctx.strokeStyle=line;ctx.fillStyle=muted;ctx.font="12px sans-serif";ctx.textAlign="right";
+  [0,25,50,75,100].forEach(function(v){
+    var y=Y(v);
+    ctx.beginPath();ctx.moveTo(pad,y);ctx.lineTo(W-pad,y);ctx.stroke();
+    ctx.fillText(v+"%",pad-6,y+4);
   });
-  if(!keys.length){hb.appendChild(el("tr")).appendChild(el("td",null,"No entries yet — start logging on the Today tab.")).colSpan=8;}
+
+  /* 100% line called out, since that's the thing worth hitting. */
+  ctx.strokeStyle=good;ctx.setLineDash([6,5]);
+  ctx.beginPath();ctx.moveTo(pad,Y(100));ctx.lineTo(W-pad,Y(100));ctx.stroke();ctx.setLineDash([]);
+
+  ctx.strokeStyle=brand;ctx.lineWidth=3;ctx.beginPath();
+  series.forEach(function(v,i){var x=X(i),y=Y(v);if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);});
+  ctx.stroke();
+  ctx.fillStyle=brand;
+  series.forEach(function(v,i){ctx.beginPath();ctx.arc(X(i),Y(v),series.length>60?2:4,0,7);ctx.fill();});
+
+  if(series.length>=7){
+    var avg=series.map(function(_,i){
+      var from=Math.max(0,i-6),win=series.slice(from,i+1);
+      return win.reduce(function(a,b){return a+b;},0)/win.length;
+    });
+    ctx.strokeStyle=accent;ctx.lineWidth=2;ctx.setLineDash([5,4]);ctx.beginPath();
+    avg.forEach(function(v,i){var x=X(i),y=Y(v);if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);});
+    ctx.stroke();ctx.setLineDash([]);
+  }
+
+  ctx.fillStyle=muted;ctx.font="12px sans-serif";ctx.textAlign="left";
+  ctx.fillText(keys[0],pad,H-pad+18);
+  ctx.textAlign="right";
+  ctx.fillText(keys[keys.length-1],W-pad,H-pad+18);
+
+  if(note){
+    var best=Math.max.apply(null,series);
+    var mean=Math.round(series.reduce(function(a,b){return a+b;},0)/series.length);
+    var full=series.filter(function(v){return v>=100;}).length;
+    note.textContent=series.length+" day(s) logged · average "+mean+"% · best "+best+"%"+
+      (full?" · "+full+" full day(s)":"")+(series.length>=7?" · dashed line is the 7-day average":"");
+  }
 }
 
 function drawChart(weights,start,target){
@@ -2181,11 +2254,16 @@ function hideModal(){document.getElementById("overlay").classList.remove("open")
 /* ---------- NAV ---------- */
 /* Order matters: it's both the bottom bar's left-to-right order and the
    order swiping moves through. */
-var VIEWS=["today","calendar","plan","recipes","exercises","progress"];
-var currentView="today";
+var VIEWS=["today","calendar","others","progress"];
+/* Meals, recipes and movement are reference material rather than daily
+   tracking, so they share one tab with their own sub-tabs. */
+var SUBVIEWS=["plan","recipes","exercises"];
+var currentView="today",currentSub="plan";
 /* Which tab you were on is remembered so a refresh (or reopening the
    installed app) puts you back where you were, not always on Today. */
 var LASTTAB_KEY="yawarLastTab";
+var LASTSUB_KEY="yawarLastSub";
+
 function nav(view){
   if(VIEWS.indexOf(view)<0)return;
   currentView=view;
@@ -2201,6 +2279,18 @@ function nav(view){
   window.scrollTo(0,0);
 }
 
+function navSub(sub){
+  if(SUBVIEWS.indexOf(sub)<0)return;
+  currentSub=sub;
+  var tabs=document.getElementById("subTabs").children;
+  for(var i=0;i<tabs.length;i++){tabs[i].classList.toggle("active",tabs[i].getAttribute("data-sub")===sub);}
+  SUBVIEWS.forEach(function(v){
+    document.getElementById("sub-"+v).classList.toggle("active",v===sub);
+  });
+  try{localStorage.setItem(LASTSUB_KEY,sub);}catch(e){}
+  window.scrollTo(0,0);
+}
+
 /* ---------- EVENTS ---------- */
 /* Match on the nearest ancestor carrying the attribute, not the literal
    click target: these buttons have child elements (the bottom bar's icons,
@@ -2209,14 +2299,16 @@ function nav(view){
 document.addEventListener("click",function(ev){
   var t=ev.target;
   if(!t||!t.closest)return;
-  var hit=t.closest("[data-recipe],[data-exercise],[data-nav]");
+  var hit=t.closest("[data-recipe],[data-exercise],[data-nav],[data-sub]");
   if(!hit)return;
   var rec=hit.getAttribute("data-recipe");
   var exc=hit.getAttribute("data-exercise");
   var nv=hit.getAttribute("data-nav");
+  var sub=hit.getAttribute("data-sub");
   if(rec){ev.preventDefault();openRecipe(rec);}
   else if(exc){ev.preventDefault();openExercise(exc);}
   else if(nv){nav(nv);}
+  else if(sub){navSub(sub);}
 });
 document.getElementById("modalClose").addEventListener("click",hideModal);
 document.getElementById("overlay").addEventListener("click",function(e){if(e.target===this)hideModal();});
@@ -2325,8 +2417,12 @@ renderTasks();
 renderPrayerClock();
 updateNotifyUI();
 (function restoreLastTab(){
-  var saved=null;
-  try{saved=localStorage.getItem(LASTTAB_KEY);}catch(e){}
+  var saved=null,savedSub=null;
+  try{saved=localStorage.getItem(LASTTAB_KEY);savedSub=localStorage.getItem(LASTSUB_KEY);}catch(e){}
+  /* Meals/Recipes/Movement used to be top-level tabs; a device that still
+     has one stored should land on the sub-tab it means, not on Today. */
+  if(SUBVIEWS.indexOf(saved)>=0){savedSub=saved;saved="others";}
+  if(SUBVIEWS.indexOf(savedSub)>=0)navSub(savedSub);
   if(saved&&saved!=="today"&&VIEWS.indexOf(saved)>=0)nav(saved);
 })();
 flushMsgs();

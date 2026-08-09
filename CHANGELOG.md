@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.10.0
+
+- **Meals, Recipes and Movement are now one "Others" tab**, with three sub-tabs across the top to switch between them. The bottom bar is down to four: Today, Calendar, Others, Progress. Swiping inside Others steps through its sub-tabs first and only then moves on to the next tab. A device that still remembers one of the old tabs lands on the matching sub-tab rather than falling back to Today.
+- **Progress — prayer summary:** removed the per-prayer chip row above the prayer history. The overall summary sentence stays, but the per-prayer breakdown now lives only in the Made-up (qada) card directly below it, which already shows what each prayer owes *and* lets you adjust it.
+- **Progress — the per-day history table is replaced by a Daily completion trend chart**, moved up to sit directly under the weight trend. It plots each logged day's completion as a percentage (a fully ticked day is 100%), with a dashed 7-day average once there's enough history, and grows to include every day you log. Underneath it reports days logged, average, best, and how many full days you've had.
+- The completion ring at the top of the app and the new chart now share one calculation, so they can't disagree about what a day was worth.
+
 ## 1.9.0
 
 **Calendar rebuilt around a single day.**
