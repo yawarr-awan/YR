@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.3.0
+
+- Real "Install as an app" support: a service worker (`sw.js`) caches the static app shell for offline loads, and never touches `/api/*` — sync and Cloudflare Access always hit the network untouched.
+- New "📲 Install as an app" card in the Progress tab: a working Install button on Chrome/Edge/Android (captures `beforeinstallprompt`), Share → Add to Home Screen guidance on iOS Safari (which has no such prompt), and generic bookmark guidance elsewhere. Hides itself entirely once already running standalone.
+- Test coverage for all of the above in the jsdom suite.
+
 ## 1.2.0
 
 - Client-side sync layer: every day's record and your profile now carry an `updated_at` stamp, set on every edit.

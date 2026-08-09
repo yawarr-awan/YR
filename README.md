@@ -31,6 +31,7 @@
 - **Progress** — weight-trend chart, prayer summary, history table, and streak-style completion.
 - **Light / dark theme** toggle.
 - **Backup & restore** — export/import your data as a JSON file.
+- **Installable as a real app** — a service worker caches the app shell for offline loads; the Progress tab has a working "Install app" button on Chrome/Edge/Android, and Share → Add to Home Screen guidance on iOS.
 
 ## 📦 What's in here
 

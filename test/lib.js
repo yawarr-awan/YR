@@ -9,8 +9,8 @@
  * `window.state` to reach into even if we wanted to — which keeps tests
  * honest black-box checks of behaviour, not internals.
  *
- * Two things are supplied that a real browser has but jsdom does not ship
- * out of the box, and both are environment gaps, not app bugs:
+ * Several things are supplied that a real browser has but jsdom does not
+ * ship out of the box, and all of them are environment gaps, not app bugs:
  *   - Canvas 2D context (jsdom needs the native "canvas" package for this,
  *     which isn't installed here). We stub just enough of the drawing API
  *     as no-ops so drawChart() can run without crashing; we never assert
@@ -19,6 +19,10 @@
  *     itself does). For sync tests we install a controllable fetch mock —
  *     this is deliberately mocking the network boundary, exactly as one
  *     would mock a real backend in any test.
+ *   - navigator.serviceWorker and the beforeinstallprompt/appinstalled
+ *     events (jsdom implements neither at all). For install tests we stub
+ *     navigator.serviceWorker.register so it's observable, and dispatch
+ *     synthetic events shaped like the real browser ones.
  */
 const fs = require("fs");
 const path = require("path");
@@ -54,6 +58,9 @@ function fireEvent(window, el, type) {
  * @param {boolean} [opts.blockStorage] - simulate quota-exceeded / private
  *   mode by making localStorage.setItem throw
  * @param {function} [opts.fetchImpl] - (url, options) => Promise<Response-like>
+ * @param {string} [opts.userAgent] - override navigator.userAgent (e.g. to simulate iOS)
+ * @param {boolean} [opts.standalone] - simulate navigator.standalone (already installed, iOS)
+ * @param {boolean} [opts.stubServiceWorker] - install a fake navigator.serviceWorker.register
  */
 function loadApp(opts = {}) {
   const html = fs.readFileSync(HTML_PATH, "utf8");
@@ -66,6 +73,11 @@ function loadApp(opts = {}) {
     url: "https://yr-wellness.yawar-awan.workers.dev/",
     runScripts: "outside-only",
     virtualConsole,
+    // jsdom 30 moved userAgent under `resources`; passing it top-level is
+    // silently ignored. `resources` must stay undefined otherwise (an
+    // object here also flips on subresource fetching), so only set it
+    // when a custom UA is actually requested.
+    ...(opts.userAgent ? { resources: { userAgent: opts.userAgent } } : {}),
   });
   const window = dom.window;
   stubCanvas(window);
@@ -83,6 +95,14 @@ function loadApp(opts = {}) {
   }
 
   if (opts.fetchImpl) window.fetch = opts.fetchImpl;
+  if (opts.standalone) window.navigator.standalone = true;
+
+  const serviceWorkerCalls = [];
+  if (opts.stubServiceWorker) {
+    window.navigator.serviceWorker = {
+      register: function (url) { serviceWorkerCalls.push(url); return Promise.resolve({}); },
+    };
+  }
 
   // runScripts:"outside-only" means the page's own <script> tag did not
   // auto-execute during parsing; we run its exact, unmodified source now
@@ -108,6 +128,22 @@ function loadApp(opts = {}) {
     setInput: (id, val) => { const el = window.document.getElementById(id); el.value = val; fireEvent(window, el, "input"); },
     pickDate: (dateStr) => { const el = window.document.getElementById("datePick"); el.value = dateStr; fireEvent(window, el, "change"); },
     flush: () => new Promise((resolve) => setTimeout(resolve, 0)),
+    serviceWorkerCalls,
+    installCardVisible: () => window.document.getElementById("installCard").style.display !== "none",
+    installButtonVisible: () => window.document.getElementById("installBtn").style.display !== "none",
+    installText: () => window.document.getElementById("installText").textContent,
+    // Mirrors the shape of a real BeforeInstallPromptEvent: cancelable, plus
+    // a prompt() method and a userChoice promise, neither of which jsdom
+    // implements since it has no concept of this event at all.
+    fireBeforeInstallPrompt: () => {
+      const ev = new window.Event("beforeinstallprompt", { cancelable: true });
+      ev.promptCalled = false;
+      ev.prompt = function () { ev.promptCalled = true; };
+      ev.userChoice = Promise.resolve({ outcome: "accepted" });
+      window.dispatchEvent(ev);
+      return ev;
+    },
+    fireAppInstalled: () => window.dispatchEvent(new window.Event("appinstalled")),
   };
 }
 
