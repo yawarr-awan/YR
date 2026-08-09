@@ -21,12 +21,9 @@
     }
   ],
 
-  // Filled in from the Cloudflare dashboard after the Access app exists.
-  // Neither value is a secret.
-  "vars": {
-    "ACCESS_TEAM_DOMAIN": "",
-    "ACCESS_AUD": ""
-  },
+  // ACCESS_TEAM_DOMAIN and ACCESS_AUD are set as SECRETS in the dashboard,
+  // not vars. Plain vars declared here would overwrite the dashboard values
+  // on every deploy; secrets persist across deploys.
 
   "observability": { "enabled": true }
 }
