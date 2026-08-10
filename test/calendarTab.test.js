@@ -266,7 +266,7 @@ test("the split moves with the times, rather than snapping to the same slot", as
   assert.match(late, /96\.667%/, `20:58 is 58/60 of the way down, got: ${late}`);
 });
 
-test("the prayer window happening now is ringed in the calendar, in its own colour", async () => {
+test("the calendar has no ring around the current prayer window - the tint is enough", async () => {
   const app = loadApp({
     geolocation: { lat: 51.5, lon: -0.12 },
     fetchImpl: fetchRouter([
@@ -281,28 +281,23 @@ test("the prayer window happening now is ringed in the calendar, in its own colo
   await app.flush();
   await app.flush();
 
-  const hours = [...curHours(app)];
-  const inWindow = hours.filter((h) => h.classList.contains("in-prayer"));
-  assert.ok(inWindow.length >= 1, "whatever the hour, today is inside some prayer window");
+  // A border on top of a tint that already says the same thing was noise.
+  assert.equal(app.document.querySelectorAll("#calDayCur .in-prayer").length, 0);
+  assert.equal(app.document.querySelectorAll("#calDayCur .win-first, #calDayCur .win-last").length, 0);
+  const styles = app.document.querySelector("style").textContent;
+  assert.equal(/\.cal-cell\.in-prayer/.test(styles), false, "and the rule is gone, not just unused");
 
-  // A run of consecutive hours, ringed as one box: only the first draws a
-  // top edge and only the last a bottom one.
-  const idx = inWindow.map((h) => hours.indexOf(h));
-  idx.forEach((n, i) => { if (i) assert.equal(n, idx[i - 1] + 1, "the ringed hours are consecutive"); });
-  assert.equal(hours[idx[0]].classList.contains("win-first"), true);
-  assert.equal(hours[idx[idx.length - 1]].classList.contains("win-last"), true);
-  if (idx.length > 2) {
-    assert.equal(hours[idx[1]].classList.contains("win-first"), false, "the middle draws sides only");
-  }
+  // What does still mark the calendar: the tint, the hour it is now, and the
+  // now-line. Only the window ring went.
+  const hours = curHours(app);
+  hours.forEach((h) => assert.notEqual(h.style.background, "", "every hour is still tinted"));
+  assert.equal(app.document.querySelectorAll("#calDayCur .cal-cell.current-hour").length, 1);
+  assert.ok(app.document.querySelector("#calDayCur .cal-nowline"));
 
-  // Its own colour, not the brand's - the same one tinting those hours.
-  const pc = hours[idx[0]].style.getPropertyValue("--pc");
-  assert.match(pc, /--(fajr|sunrise|dhuhr|asr|maghrib|isha)|#/, `a prayer colour, got: ${pc}`);
-  assert.ok(hours[idx[0]].style.background.includes(pc.trim()), "the ring matches the tint");
-
-  // Only today. The neighbouring columns have no "now" to be inside of.
-  const others = app.document.querySelectorAll("#calDayCur .cal-cell:not(.is-main).in-prayer");
-  assert.equal(others.length, 0);
+  // And the window you're in is still called out where it belongs.
+  app.goTo("prayers");
+  await app.flush();
+  assert.ok(app.document.querySelectorAll("#prayBox label.prow.is-now").length <= 1);
 });
 
 test("the current hour is marked, with a now-line, only on today", async () => {

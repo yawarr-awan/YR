@@ -848,10 +848,11 @@ Used by the modal's list, the Prayers checklist and the qada card.
   the render, so crossing a prayer boundary with the tab open moves the ring
   instead of leaving it on the prayer that just ended. It reads `#prayBox`'s
   `data-day` so it can tell it is looking at today without re-deriving it.
-- The **calendar** rings the current window with `.in-prayer` plus
-  `win-first`/`win-last`, so a run of hours draws as one box rather than a
-  stack. `--pc` carries the prayer's colour. `current-hour` had to become an
-  `outline` rather than an inset shadow, or the two would replace each other.
+- The **calendar deliberately has no ring around the current window**
+  (removed 1.21.1 - it existed for one version). The tint already says which
+  window every minute belongs to, so an outline on top of it was noise.
+  `current-hour` keeps its own `outline` - that marks the hour it is now, not
+  a prayer, and is a different thing.
 - **Hour cells are tinted to the minute** (1.21.0). `hourWindowParts()`
   returns every window overlapping an hour as percentages down the cell and
   `calCellBackground()` turns two or more of them into a `linear-gradient`
@@ -859,11 +860,18 @@ Used by the modal's list, the Prayers checklist and the qada card.
   somewhere the prayer doesn't start. One window over the whole hour stays a
   flat colour rather than a pointless gradient. The old midpoint test
   (`hourWindowName`, now gone) moved a boundary by up to half an hour, and by
-  a different amount each day as the times drifted. `inCurWindow` uses the
-  same overlap test so the ring starts where the colour does.
+  a different amount each day as the times drifted. (The ring that once used the same
+  overlap test is gone; the tint is the only prayer marker here now.)
 - The Fajr row ends at **sunrise**, not at Dhuhr - the stretch between is its
   own window (Chasht). Between the two, no checklist row is ringed, because
   Chasht isn't one of the five.
+
+**Every Settings card is collapsible** (1.21.1) - Google, Cloud sync,
+Install, Appearance, Reminders and Your data joined the four editors that
+already were. A card only folds if its content sits in a `.card-body`;
+`initCollapsibles()` needs both that and a `data-collapse` key. None of them
+were given `.collapsed` in the markup, so nothing the user could already see
+disappeared - they fold it themselves and `yawarCollapsed` remembers.
 
 **The Prayers card is only `#prayBox`** (1.20.1). The location line, the
 countdown, a second chip, the location button and the settings cog were all

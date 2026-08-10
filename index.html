@@ -246,17 +246,11 @@ input[type=range]{width:100%;accent-color:var(--accent)}
   min-height:34px;padding:3px 5px 4px;overflow:hidden
 }
 .cal-cell.is-main{border-inline-start:none;display:flex;gap:8px;padding-inline:8px}
-/* An outline rather than an inset shadow, so it can sit on top of the
-   current prayer window's own outline below without one replacing the other. */
+/* The hour it is now. There is deliberately no ring around the current
+   prayer *window* here - the tint already says which window every minute
+   belongs to, and a second border on top of it was noise. The window you're
+   in is ringed on the Prayers checklist and named on the chip instead. */
 .cal-cell.current-hour{outline:2px solid var(--brand);outline-offset:-2px;z-index:1}
-/* The prayer window happening right now is ringed in its own colour, the
-   same way the row for it is ringed in the times modal. Consecutive hours
-   only draw their side edges, so the run reads as one box rather than a
-   stack of them. */
-.cal-cell.in-prayer{box-shadow:inset 2px 0 0 var(--pc), inset -2px 0 0 var(--pc)}
-.cal-cell.in-prayer.win-first{box-shadow:inset 2px 0 0 var(--pc), inset -2px 0 0 var(--pc), inset 0 2px 0 var(--pc)}
-.cal-cell.in-prayer.win-last{box-shadow:inset 2px 0 0 var(--pc), inset -2px 0 0 var(--pc), inset 0 -2px 0 var(--pc)}
-.cal-cell.in-prayer.win-first.win-last{box-shadow:inset 0 0 0 2px var(--pc)}
 /* All-day items and Google Tasks sit here rather than in the 00:00 row,
    which is the one part of a 24-hour grid nobody scrolls back to. */
 .cal-allday{background:var(--panel-2)}
@@ -686,11 +680,13 @@ footer.foot{text-align:center;color:var(--muted);font-size:.78rem;margin-top:26p
   <section id="view-settings" class="view">
     <div class="section-title">Settings</div>
 
-    <div class="card" style="margin-bottom:12px" id="googleCard">
+    <div class="card collapsible" data-collapse="google" style="margin-bottom:12px" id="googleCard">
       <h3>🔗 Google</h3>
-      <p class="muted" id="googleStatus" style="font-size:.85rem;margin-top:0">Checking…</p>
-      <div class="pill-row" id="googleActions"></div>
-      <p class="muted" style="font-size:.75rem;margin:10px 0 0">Connecting lets YR read your calendars and Google Tasks for the Calendar tab and Today's Brief, put scheduled tasks on your calendar, and tick tasks off. Never Gmail, never anything else. Revoke any time at <a href="https://myaccount.google.com/permissions" target="_blank" rel="noopener">myaccount.google.com/permissions</a>.</p>
+      <div class="card-body">
+        <p class="muted" id="googleStatus" style="font-size:.85rem;margin-top:0">Checking…</p>
+        <div class="pill-row" id="googleActions"></div>
+        <p class="muted" style="font-size:.75rem;margin:10px 0 0">Connecting lets YR read your calendars and Google Tasks for the Calendar tab and Today's Brief, put scheduled tasks on your calendar, and tick tasks off. Never Gmail, never anything else. Revoke any time at <a href="https://myaccount.google.com/permissions" target="_blank" rel="noopener">myaccount.google.com/permissions</a>.</p>
+      </div>
     </div>
 
     <div class="card collapsible" data-collapse="meds-edit" style="margin-bottom:12px">
@@ -738,51 +734,61 @@ footer.foot{text-align:center;color:var(--muted);font-size:.78rem;margin-top:26p
       </div>
     </div>
 
-    <div class="card" style="margin-top:14px">
+    <div class="card collapsible" data-collapse="sync" style="margin-top:14px">
       <h3>🔄 Cloud sync <span class="muted" style="font-weight:600;font-size:.78rem">(optional, off by default)</span></h3>
-      <p class="muted" style="font-size:.85rem;margin-top:0">Backs your data up to your own private Cloudflare backend and lets it move between your devices. Your data stays local-only until you turn this on — nothing is sent anywhere unless you enable it.</p>
-      <label class="chk" style="padding-inline-start:0">
-        <input type="checkbox" id="syncEnabled">
-        <div><div class="lbl">Enable cloud sync</div></div>
-      </label>
-      <div class="pill-row">
-        <button class="btn" id="syncNowBtn" disabled>🔄 Sync now</button>
+      <div class="card-body">
+        <p class="muted" style="font-size:.85rem;margin-top:0">Backs your data up to your own private Cloudflare backend and lets it move between your devices. Your data stays local-only until you turn this on — nothing is sent anywhere unless you enable it.</p>
+        <label class="chk" style="padding-inline-start:0">
+          <input type="checkbox" id="syncEnabled">
+          <div><div class="lbl">Enable cloud sync</div></div>
+        </label>
+        <div class="pill-row">
+          <button class="btn" id="syncNowBtn" disabled>🔄 Sync now</button>
+        </div>
+        <div class="muted" id="syncStatus" style="font-size:.8rem;margin-top:8px"></div>
       </div>
-      <div class="muted" id="syncStatus" style="font-size:.8rem;margin-top:8px"></div>
     </div>
 
-    <div class="card" style="margin-top:14px" id="installCard">
+    <div class="card collapsible" data-collapse="install" style="margin-top:14px" id="installCard">
       <h3>📲 Install as an app</h3>
-      <p class="muted" id="installText" style="font-size:.85rem;margin-top:0"></p>
-      <div class="pill-row">
-        <button class="btn primary" id="installBtn" style="display:none">📲 Install app</button>
+      <div class="card-body">
+        <p class="muted" id="installText" style="font-size:.85rem;margin-top:0"></p>
+        <div class="pill-row">
+          <button class="btn primary" id="installBtn" style="display:none">📲 Install app</button>
+        </div>
       </div>
     </div>
 
-    <div class="card" style="margin-top:14px">
+    <div class="card collapsible" data-collapse="appearance" style="margin-top:14px">
       <h3>🎨 Appearance</h3>
-      <p class="muted" style="font-size:.85rem;margin-top:0">Light or dark. It follows your device until you pick one here.</p>
-      <div class="pill-row">
-        <button class="btn" id="themeToggle" type="button">🌙 Switch to dark</button>
+      <div class="card-body">
+        <p class="muted" style="font-size:.85rem;margin-top:0">Light or dark. It follows your device until you pick one here.</p>
+        <div class="pill-row">
+          <button class="btn" id="themeToggle" type="button">🌙 Switch to dark</button>
+        </div>
       </div>
     </div>
 
-    <div class="card" style="margin-top:14px" id="notifyCard">
+    <div class="card collapsible" data-collapse="reminders" style="margin-top:14px" id="notifyCard">
       <h3>🔔 Reminders</h3>
-      <p class="muted" id="notifyText" style="font-size:.85rem;margin-top:0">Get a browser notification for prayer times, task due times, and dhikr reminders — only while this app is open in a tab or installed. Off until you turn it on.</p>
-      <div class="pill-row">
-        <button class="btn primary" id="notifyBtn">🔔 Enable reminders</button>
+      <div class="card-body">
+        <p class="muted" id="notifyText" style="font-size:.85rem;margin-top:0">Get a browser notification for prayer times, task due times, and dhikr reminders — only while this app is open in a tab or installed. Off until you turn it on.</p>
+        <div class="pill-row">
+          <button class="btn primary" id="notifyBtn">🔔 Enable reminders</button>
+        </div>
       </div>
     </div>
 
-    <div class="card" style="margin-top:14px">
+    <div class="card collapsible" data-collapse="data" style="margin-top:14px">
       <h3>💾 Your data</h3>
-      <p class="muted" style="font-size:.85rem;margin-top:0">Everything you log lives <b>only on this device</b>, inside this file's storage. It stays there — even if you close the page — until you clear it. Nothing is sent anywhere. Back it up now and then with Export.</p>
-      <div class="pill-row">
-        <button class="btn primary" id="exportBtn">⬇️ Export backup</button>
-        <button class="btn" id="importBtn">⬆️ Import backup</button>
-        <input type="file" id="importFile" accept="application/json" style="display:none">
-        <button class="btn danger" id="clearBtn">🗑️ Clear all data</button>
+      <div class="card-body">
+        <p class="muted" style="font-size:.85rem;margin-top:0">Everything you log lives <b>only on this device</b>, inside this file's storage. It stays there — even if you close the page — until you clear it. Nothing is sent anywhere. Back it up now and then with Export.</p>
+        <div class="pill-row">
+          <button class="btn primary" id="exportBtn">⬇️ Export backup</button>
+          <button class="btn" id="importBtn">⬆️ Import backup</button>
+          <input type="file" id="importFile" accept="application/json" style="display:none">
+          <button class="btn danger" id="clearBtn">🗑️ Clear all data</button>
+        </div>
       </div>
     </div>
   </section>
@@ -3101,22 +3107,6 @@ function buildDayPanel(dayDate,timesByKey){
   var tk=todayKey();
   var segs=days.map(function(d,i){return calWindowsForDay(timesByKey[keys[i]]);});
   var now=new Date(),nowMinutes=now.getHours()*60+now.getMinutes();
-  /* The prayer window we are in right now, as a segment of today's column.
-     Only today has one: on any other day there is no "now" to be inside of. */
-  var curSeg=null,curCol=-1;
-  days.forEach(function(_,i){
-    if(keys[i]!==tk||!segs[i])return;
-    segs[i].forEach(function(sg){
-      if(nowMinutes>=sg.from&&nowMinutes<sg.to){curSeg=sg;curCol=i;}
-    });
-  });
-  /* An hour is ringed if the current window reaches into it at all - the
-     same overlap the tinting uses, so the ring starts where the colour does
-     rather than at the nearest hour boundary. */
-  var inCurWindow=function(col,h){
-    if(!curSeg||col!==curCol)return false;
-    return Math.min(curSeg.to,h*60+60)>Math.max(curSeg.from,h*60);
-  };
 
   var entries=days.map(function(_,i){return calDayEntries(keys[i]);});
   /* All-day items - all-day events and Google Tasks, which carry a date and
@@ -3175,12 +3165,6 @@ function buildDayPanel(dayDate,timesByKey){
       var cell=el("div","cal-cell"+(isMain?" is-main":""));
       var bg=calCellBackground(segs[i],h);
       if(bg)cell.style.background=bg;
-      if(inCurWindow(i,h)){
-        cell.classList.add("in-prayer");
-        if(!inCurWindow(i,h-1))cell.classList.add("win-first");
-        if(!inCurWindow(i,h+1))cell.classList.add("win-last");
-        cell.style.setProperty("--pc",prayerColorCss(curSeg.name));
-      }
       var isCurrentHour=keys[i]===tk&&Math.floor(nowMinutes/60)===h;
       if(isCurrentHour)cell.classList.add("current-hour");
 
