@@ -136,8 +136,14 @@ test("the calculation method is selectable, stored on the profile, and changes w
     },
   });
   app.goTo("prayers");
+  // The settings live behind a cog beside the location button.
+  const panel = app.document.getElementById("prayerSettings");
+  assert.ok(panel.hasAttribute("hidden"), "tucked away until asked for");
+  app.click("prayerCogBtn");
+  assert.equal(panel.hasAttribute("hidden"), false);
+
   const sel = app.document.getElementById("prayerMethod");
-  assert.ok(sel, "a method picker sits next to the location button");
+  assert.ok(sel, "a method picker inside the cog");
   assert.ok(sel.options.length > 5, "several conventions to choose from");
   assert.equal(sel.value, "3", "Muslim World League by default");
 
@@ -153,4 +159,63 @@ test("the calculation method is selectable, stored on the profile, and changes w
 
   assert.equal(app.state().profile.prayerMethod, 4, "stored on the profile, so it syncs");
   assert.match(urls[urls.length - 1], /method=4/, "and the times are refetched under the new method");
+});
+
+test("the Asr school is selectable, since Hanafi puts Asr about an hour later", async () => {
+  const urls = [];
+  const app = loadApp({
+    geolocation: { lat: 51.5, lon: -0.12 },
+    fetchImpl: async (url) => {
+      if (String(url).includes("api.aladhan.com")) { urls.push(String(url)); return aladhanRes(SAMPLE_TIMINGS); }
+      return { ok: true, status: 200, json: async () => ({ connected: false, status: "not_connected" }) };
+    },
+  });
+  app.goTo("prayers");
+  app.click("prayerCogBtn");
+
+  const school = app.document.getElementById("prayerSchool");
+  assert.ok(school, "the cog carries the school of thought too");
+  assert.equal(school.value, "0", "standard by default");
+
+  app.click("prayerLocBtn");
+  await app.flush();
+  await app.flush();
+  assert.match(urls[urls.length - 1], /school=0/);
+
+  school.value = "1"; // Hanafi
+  school.dispatchEvent(new app.window.Event("change", { bubbles: true }));
+  await app.flush();
+  await app.flush();
+
+  assert.equal(app.state().profile.prayerSchool, 1, "stored on the profile, so it syncs");
+  assert.match(urls[urls.length - 1], /school=1/, "and the times are refetched under it");
+});
+
+test("method and school are cached separately, so switching back is instant and correct", async () => {
+  let calls = 0;
+  const app = loadApp({
+    geolocation: { lat: 51.5, lon: -0.12 },
+    fetchImpl: async (url) => {
+      if (String(url).includes("api.aladhan.com")) { calls++; return aladhanRes(SAMPLE_TIMINGS); }
+      return { ok: true, status: 200, json: async () => ({ connected: false, status: "not_connected" }) };
+    },
+  });
+  app.goTo("prayers");
+  app.click("prayerCogBtn");
+  app.click("prayerLocBtn");
+  await app.flush();
+  await app.flush();
+  assert.equal(calls, 1);
+
+  const school = app.document.getElementById("prayerSchool");
+  const setSchool = async (v) => {
+    school.value = v;
+    school.dispatchEvent(new app.window.Event("change", { bubbles: true }));
+    await app.flush();
+    await app.flush();
+  };
+  await setSchool("1");
+  assert.equal(calls, 2, "a new combination is fetched");
+  await setSchool("0");
+  assert.equal(calls, 2, "and going back reuses what was already cached for it");
 });

@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.13.1
+
+- **Prayer time settings moved behind a cog** next to "Update location", instead of a picker sitting inline on the card.
+- **Asr school of thought is now selectable** — Standard (Shafi'i, Maliki, Hanbali) or Hanafi, which puts Asr roughly an hour later. It's stored on the synced profile and included in the times cache key alongside the calculation method, so changing it refetches rather than showing stale times.
+
 ## 1.13.0
 
 - **Renamed to YR Dashboard**, and the "Others" tab is now **Misc** with a new icon.

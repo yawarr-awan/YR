@@ -246,6 +246,12 @@ input[type=range]{width:100%;accent-color:var(--accent)}
 .cal-strip button.is-sel{background:var(--brand);border-color:var(--brand);color:rgba(255,255,255,.85)}
 .cal-strip button.is-sel b,.cal-strip button.is-sel.is-today b{color:#fff}
 .loc-btn{display:inline-flex;align-items:center;gap:7px;padding:9px 13px}
+.prayer-settings{margin-top:10px;padding:10px;border:1px solid var(--line);border-radius:12px;background:var(--panel-2)}
+.prayer-settings .field span{display:block;font-size:.76rem;color:var(--muted);font-weight:700;margin-bottom:4px}
+.prayer-settings select{
+  width:100%;border:1px solid var(--line);background:var(--panel);color:var(--ink);
+  border-radius:10px;padding:9px;font:inherit;font-size:.82rem
+}
 .loc-btn svg{width:15px;height:15px;flex:0 0 auto;fill:currentColor}
 .task-row{display:flex;align-items:center;gap:8px;padding:7px 4px;border-radius:10px}
 .task-row:hover{background:var(--panel-2)}
@@ -449,7 +455,21 @@ footer.foot{text-align:center;color:var(--muted);font-size:.78rem;margin-top:26p
               <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 2a7 7 0 0 0-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 0 0-7-7Zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5Z"/></svg>
               <span id="prayerLocBtnText">Use my location</span>
             </button>
-            <select class="btn" id="prayerMethod" aria-label="Prayer time calculation method"></select>
+            <button class="btn icon-btn" id="prayerCogBtn" type="button" aria-label="Prayer time settings" aria-expanded="false">⚙</button>
+          </div>
+          <div id="prayerSettings" class="prayer-settings" hidden>
+            <label class="field" style="margin:0">
+              <span>Calculation method</span>
+              <select id="prayerMethod"></select>
+            </label>
+            <label class="field" style="margin:8px 0 0">
+              <span>Asr (school of thought)</span>
+              <select id="prayerSchool">
+                <option value="0">Standard — Shafi'i, Maliki, Hanbali</option>
+                <option value="1">Hanafi — later Asr</option>
+              </select>
+            </label>
+            <p class="muted" style="font-size:.72rem;margin:8px 0 0">The Hanafi position puts Asr roughly an hour later. Everything else is set by the calculation method.</p>
           </div>
         </div>
       </div>
@@ -1622,13 +1642,20 @@ var PRAYER_METHODS=[
   [7,"Institute of Geophysics, Tehran"]
 ];
 var PRAYER_METHOD_DEFAULT=3;
+/* Asr falls at a different time under the Hanafi position, which is the
+   single biggest source of "these times look wrong" after the method. */
+var PRAYER_SCHOOLS=[[0,"Standard — Shafi'i, Maliki, Hanbali"],[1,"Hanafi — later Asr"]];
+function prayerSchool(){
+  var v=parseInt(state.profile&&state.profile.prayerSchool,10);
+  return v===1?1:0;
+}
 function prayerMethod(){
   var m=state.profile&&state.profile.prayerMethod;
   m=parseInt(m,10);
   return isNaN(m)?PRAYER_METHOD_DEFAULT:m;
 }
 
-function prayerCacheKey(day,lat,lon){return day+"|"+lat.toFixed(2)+"|"+lon.toFixed(2)+"|"+prayerMethod();}
+function prayerCacheKey(day,lat,lon){return day+"|"+lat.toFixed(2)+"|"+lon.toFixed(2)+"|"+prayerMethod()+"|"+prayerSchool();}
 
 /** Fetches (and caches per day+location) prayer times from Aladhan.
  * Your coordinates are sent to that third-party API each time a new
@@ -1648,7 +1675,7 @@ function fetchPrayerTimes(day,lat,lon){
   if(_prayerFetchInFlight[key])return _prayerFetchInFlight[key];
   var p=day.split("-");
   var dateParam=p[2]+"-"+p[1]+"-"+p[0]; // Aladhan wants DD-MM-YYYY
-  var url="https://api.aladhan.com/v1/timings/"+dateParam+"?latitude="+lat+"&longitude="+lon+"&method="+prayerMethod();
+  var url="https://api.aladhan.com/v1/timings/"+dateParam+"?latitude="+lat+"&longitude="+lon+"&method="+prayerMethod()+"&school="+prayerSchool();
   var promise=fetch(url).then(function(res){
     if(!res.ok)throw new Error("aladhan http "+res.status);
     return res.json();
@@ -1685,8 +1712,18 @@ function nextPrayerInfo(times,now){
    renderToday), so this only maintains the location line, the "next prayer"
    countdown and the button's label - there is deliberately no second list
    of prayer names underneath the tracker. */
+/* Both settings feed the cache key, so previously fetched days stay valid
+   under their own settings and the new combination is fetched fresh. */
+function applyPrayerSettingChange(){
+  state.profile.updated_at=Date.now();
+  save();
+  renderPrayerClock();renderToday();
+  _calWin=null;
+  if(currentView==="calendar")renderCalendarTab();
+}
+
 function renderMethodSelect(){
-  var sel=document.getElementById("prayerMethod");
+  var sel=document.getElementById("prayerMethod"),school=document.getElementById("prayerSchool");
   if(!sel)return;
   if(!sel.options.length){
     PRAYER_METHODS.forEach(function(m){
@@ -1696,16 +1733,20 @@ function renderMethodSelect(){
     });
     sel.addEventListener("change",function(){
       state.profile.prayerMethod=parseInt(this.value,10);
-      state.profile.updated_at=Date.now();
-      save();
-      /* The cache key includes the method, so previously fetched days stay
-         valid under their own method and the new one is fetched fresh. */
-      renderPrayerClock();renderToday();
-      _calWin=null;
-      if(currentView==="calendar")renderCalendarTab();
+      applyPrayerSettingChange();
     });
   }
   sel.value=String(prayerMethod());
+  if(school){
+    if(!school._wired){
+      school._wired=true;
+      school.addEventListener("change",function(){
+        state.profile.prayerSchool=parseInt(this.value,10);
+        applyPrayerSettingChange();
+      });
+    }
+    school.value=String(prayerSchool());
+  }
 }
 
 function renderPrayerClock(){
@@ -2831,6 +2872,13 @@ document.getElementById("taskAddBtn").addEventListener("click",function(){addTas
 document.getElementById("taskTitleIn").addEventListener("keydown",function(e){if(e.key==="Enter")addTask("taskTitleIn");});
 
 document.getElementById("prayerLocBtn").addEventListener("click",requestPrayerLocation);
+document.getElementById("prayerCogBtn").addEventListener("click",function(){
+  var panel=document.getElementById("prayerSettings");
+  if(!panel)return;
+  var open=panel.hasAttribute("hidden");
+  if(open)panel.removeAttribute("hidden");else panel.setAttribute("hidden","");
+  this.setAttribute("aria-expanded",open?"true":"false");
+});
 
 /* The arrows jump a whole week; the carousel only ever holds the two
    adjacent days, so a week move is a re-render rather than a slide. */
