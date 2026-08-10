@@ -340,8 +340,7 @@ input[type=range]{width:100%;accent-color:var(--accent)}
 .pclock .pc-hand.pc-sec{stroke:var(--brand)}
 .pclock .pc-pip{fill:#fff;stroke:rgba(0,0,0,.35);stroke-width:.6}
 .pclock .pc-now{stroke:var(--ink);stroke-width:1.4;opacity:.75}
-.pclock .pc-label{fill:var(--ink);font-size:9px;font-weight:700;text-anchor:middle}
-.pclock .pc-sub{fill:var(--muted);font-size:7.5px;text-anchor:middle}
+.pclock-now{font-size:.82rem;font-weight:700;text-align:center;margin:0 0 6px}
 .pslot-list{display:grid;gap:6px;margin:10px 0 0}
 .pslot{
   display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:11px;
@@ -358,8 +357,10 @@ input[type=range]{width:100%;accent-color:var(--accent)}
   border-radius:10px;padding:8px 11px;font:inherit;font-size:.8rem;font-weight:700;cursor:pointer
 }
 .pray-seg button.on{background:var(--brand);border-color:var(--brand);color:#fff}
+/* Fixed, not absolute: it is anchored to a row inside the modal, and the
+   modal scrolls independently of the page. */
 .pcolor-menu{
-  position:absolute;z-index:60;background:var(--panel);border:1px solid var(--line);
+  position:fixed;z-index:60;background:var(--panel);border:1px solid var(--line);
   border-radius:12px;box-shadow:var(--shadow);padding:10px;display:grid;gap:8px;width:186px
 }
 .pcolor-swatches{display:grid;grid-template-columns:repeat(6,1fr);gap:6px}
@@ -1882,25 +1883,44 @@ function clearPrayerCache(){
     var kill=[];
     for(var i=0;i<localStorage.length;i++){
       var k=localStorage.key(i);
-      if(k&&k.indexOf("yawarPrayerCache_")===0)kill.push(k);
+      if(k&&(k.indexOf("yawarPrayerCache_")===0||k.indexOf("yawarPrayerMonth_")===0))kill.push(k);
     }
     kill.forEach(function(k){localStorage.removeItem(k);});
   }catch(e){}
   _prayerFetchInFlight={};
+  _prayerMonthInFlight={};
+}
+
+/** Whatever the provider called them, down to "HH:MM" or null. */
+function normalizeTimings(raw){
+  var times={};
+  PRAYER_NAMES.forEach(function(name){
+    var m=String((raw&&raw[name])||"").match(/(\d{1,2}):(\d{2})/);
+    times[name]=m?(("0"+m[1]).slice(-2)+":"+m[2]):null;
+  });
+  return times;
+}
+
+function prayerTz(){
+  try{return Intl.DateTimeFormat().resolvedOptions().timeZone||"";}catch(e){return "";}
+}
+function prayerQuery(lat,lon){
+  var tz=prayerTz();
+  return "lat="+lat+"&lng="+lon+"&method="+prayerMethod()
+    +"&madhab="+encodeURIComponent(prayerMadhab())
+    +(tz?"&timezone="+encodeURIComponent(tz):"");
 }
 
 function fetchPrayerTimes(day,lat,lon){
   var key=prayerCacheKey(day,lat,lon);
   var cached=readPrayerCache(key);
   if(cached)return Promise.resolve(cached);
+  /* A month already pulled for the calendar answers this without a request. */
+  var fromMonth=monthTimesFor(day,lat,lon);
+  if(fromMonth){writePrayerCache(key,fromMonth);return Promise.resolve(fromMonth);}
   if(_prayerFetchInFlight[key])return _prayerFetchInFlight[key];
 
-  var tz="";
-  try{tz=Intl.DateTimeFormat().resolvedOptions().timeZone||"";}catch(e){}
-  var url="/api/prayer?lat="+lat+"&lng="+lon+"&date="+day
-    +"&method="+prayerMethod()+"&madhab="+encodeURIComponent(prayerMadhab())
-    +(tz?"&timezone="+encodeURIComponent(tz):"");
-
+  var url="/api/prayer?"+prayerQuery(lat,lon)+"&date="+day;
   var promise=fetch(url,{credentials:"same-origin"}).then(function(res){
     if(!res.ok)throw new Error("prayer http "+res.status);
     return res.json();
@@ -1908,15 +1928,80 @@ function fetchPrayerTimes(day,lat,lon){
     var raw=data&&data.timings;
     if(!raw||!raw.Fajr)throw new Error("no prayer times in response");
     _prayerSource=data.source||null;
-    var times={};
-    PRAYER_NAMES.forEach(function(name){
-      var m=String(raw[name]||"").match(/(\d{1,2}):(\d{2})/);
-      times[name]=m?(("0"+m[1]).slice(-2)+":"+m[2]):null;
-    });
+    var times=normalizeTimings(raw);
     writePrayerCache(key,times);
     return times;
   }).finally(function(){delete _prayerFetchInFlight[key];});
   _prayerFetchInFlight[key]=promise;
+  return promise;
+}
+
+/* ---------- WHOLE-MONTH PRAYER TIMES ---------- */
+/* The calendar wants five days at once and pages through many more. One
+   month in one request beats five day requests and then one more per page.
+   It is strictly an accelerator: if it fails, or the month is not cached,
+   fetchPrayerTimes falls back to the per-day endpoint and nothing changes
+   for the user. A month's times don't move, so 24 hours is a safe life. */
+var PRAYER_MONTH_MS=24*60*60*1000;
+var _prayerMonthInFlight={};
+
+function prayerMonthKey(y,m,lat,lon){
+  return y+"-"+("0"+m).slice(-2)+"|"+lat.toFixed(2)+"|"+lon.toFixed(2)
+    +"|"+prayerMethod()+"|"+prayerMadhab();
+}
+function readMonthCache(key){
+  try{
+    var raw=localStorage.getItem("yawarPrayerMonth_"+key);
+    if(!raw)return null;
+    var v=JSON.parse(raw);
+    if(!v||!v.at||!v.days)return null;
+    return (Date.now()-v.at)<PRAYER_MONTH_MS?v.days:null;
+  }catch(e){return null;}
+}
+function writeMonthCache(key,days){
+  try{localStorage.setItem("yawarPrayerMonth_"+key,JSON.stringify({at:Date.now(),days:days}));}catch(e){}
+}
+
+/** A day's times out of an already-cached month, or null. Synchronous by
+ * design - it is consulted on the hot path in fetchPrayerTimes. */
+function monthTimesFor(day,lat,lon){
+  var p=String(day).split("-");
+  if(p.length<2)return null;
+  var days=readMonthCache(prayerMonthKey(+p[0],+p[1],lat,lon));
+  var t=days&&days[day];
+  return (t&&t.Fajr)?t:null;
+}
+
+/** Pulls the month containing `day`, if it isn't cached already. Always
+ * resolves - a failure just means the per-day path does the work. */
+function ensurePrayerMonth(day,lat,lon){
+  var p=String(day).split("-");
+  if(p.length<2)return Promise.resolve(null);
+  var y=+p[0],m=+p[1];
+  var key=prayerMonthKey(y,m,lat,lon);
+  var cached=readMonthCache(key);
+  if(cached)return Promise.resolve(cached);
+  if(_prayerMonthInFlight[key])return _prayerMonthInFlight[key];
+
+  var url="/api/prayer/month?"+prayerQuery(lat,lon)+"&year="+y+"&month="+m;
+  var promise=fetch(url,{credentials:"same-origin"}).then(function(res){
+    if(!res.ok)throw new Error("prayer month http "+res.status);
+    return res.json();
+  }).then(function(data){
+    var raw=data&&data.days;
+    if(!raw||typeof raw!=="object")throw new Error("no days in month response");
+    var days={};
+    Object.keys(raw).forEach(function(k){
+      var t=normalizeTimings(raw[k]);
+      if(t.Fajr)days[k]=t;
+    });
+    if(!Object.keys(days).length)throw new Error("empty month");
+    _prayerSource=data.source||_prayerSource;
+    writeMonthCache(key,days);
+    return days;
+  }).catch(function(){return null;})
+    .finally(function(){delete _prayerMonthInFlight[key];});
+  _prayerMonthInFlight[key]=promise;
   return promise;
 }
 
@@ -1940,11 +2025,21 @@ function nextPrayerInfo(times,now){
    of prayer names underneath the tracker. */
 /* Both settings feed the cache key, so previously fetched days stay valid
    under their own settings and the new combination is fetched fresh. */
-function applyPrayerSettingChange(){
+/** Shared by every prayer setting. `cosmetic` marks a change that alters how
+ * things look but not what the times are - a colour pick - which must not
+ * throw away the calendar's cached ±7-day event window and refetch Google. */
+function applyPrayerSettingChange(cosmetic){
   state.profile.updated_at=Date.now();
   save();
-  renderPrayerClock();renderToday();renderPrayerChips();renderPrayerModal();
-  _calWin=null;
+  /* A deliberate action deserves an immediate retry, whatever the last one did. */
+  if(!cosmetic)_pcFailUntil=0;
+  renderPrayerClock();renderToday();renderPrayerModal();
+  /* The modal is rebuilt twice on purpose: once now, so the button you
+     pressed responds, and again once the times for the new setting land -
+     otherwise the listed Asr time would still be the old madhab's while the
+     spiral ticked on to the new one. */
+  renderPrayerChips().then(renderPrayerModal);
+  if(!cosmetic)_calWin=null;
   if(currentView==="calendar")renderCalendarTab();
 }
 
@@ -2012,10 +2107,13 @@ function locLabel(loc){
 
 /* BigDataCloud's client-side endpoint needs no key and sets CORS headers,
    which is what makes it usable straight from the page. It is best-effort:
-   any failure just leaves the coordinates showing. */
+   any failure just leaves the coordinates showing.
+   The coordinates are rounded to 2dp (about a kilometre) before they leave -
+   this is the one third party the app still talks to directly, and a city
+   name does not need the exact spot the phone reported. */
 function reverseGeocode(lat,lon){
   var url="https://api.bigdatacloud.net/data/reverse-geocode-client?latitude="+
-    encodeURIComponent(lat)+"&longitude="+encodeURIComponent(lon)+"&localityLanguage=en";
+    encodeURIComponent(lat.toFixed(2))+"&longitude="+encodeURIComponent(lon.toFixed(2))+"&localityLanguage=en";
   return fetch(url).then(function(res){
     if(!res.ok)throw new Error("geocode http "+res.status);
     return res.json();
@@ -2067,8 +2165,12 @@ function resetPrayerLocation(){
    without any window overlapping another. The analog hands sit inside it. */
 
 var PC_CX=100,PC_CY=100;      /* 200x200 viewBox */
-var PC_R_OUT=93,PC_R_IN=68;   /* the spiral falls inward across the day */
-var PC_ARC_W=9;
+/* The spiral falls inward across the day. The drop has to clear an arc's
+   own width twice over, or the last hour of the day sits on top of the
+   first at the seam where the turn closes. */
+var PC_R_OUT=84,PC_R_IN=56;
+var PC_ARC_W=8;
+var PC_FACE_R=PC_R_IN-6;      /* the analog dial lives inside the spiral */
 var PC_PALETTE=["#818cf8","#60a5fa","#22d3ee","#34d399","#a3e635","#fbbf24",
                 "#fb923c","#f87171","#fb7185","#e879f9","#a78bfa","#94a3b8"];
 /* Mirrors the light-theme custom properties. Only ever used when the engine
@@ -2185,11 +2287,11 @@ function renderPrayerSpiral(svg,slots,now){
   var cur=slotAt(slots,now.getHours()*60+now.getMinutes());
   var norm=function(mins){return (((mins-origin)%1440)+1440)%1440/1440;};
 
-  svg.appendChild(svgEl("circle",{cx:PC_CX,cy:PC_CY,r:PC_R_IN-8,class:"pc-face","stroke-width":1}));
+  svg.appendChild(svgEl("circle",{cx:PC_CX,cy:PC_CY,r:PC_FACE_R,class:"pc-face","stroke-width":1}));
 
   /* Hour ticks for the analog face inside the spiral. */
   for(var t=0;t<12;t++){
-    var a=(t*30-90)*Math.PI/180,r1=PC_R_IN-12,r2=PC_R_IN-(t%3===0?18:15);
+    var a=(t*30-90)*Math.PI/180,r1=PC_FACE_R-4,r2=PC_FACE_R-(t%3===0?11:8);
     svg.appendChild(svgEl("line",{
       x1:(PC_CX+r1*Math.cos(a)).toFixed(2),y1:(PC_CY+r1*Math.sin(a)).toFixed(2),
       x2:(PC_CX+r2*Math.cos(a)).toFixed(2),y2:(PC_CY+r2*Math.sin(a)).toFixed(2),
@@ -2197,6 +2299,14 @@ function renderPrayerSpiral(svg,slots,now){
     }));
   }
 
+  /* Arcs first, then the pips. Drawing each window's pip alongside its own
+     arc let the next window's arc paint over it.
+     There are deliberately no names on the dial: horizontal text at a radial
+     offset collides with the band on the left and right and runs off the
+     viewBox, and text curved along the path reads upside down across the
+     bottom half. The list underneath is the legend - swatch, name and times
+     - and every arc carries the same detail as a tooltip. */
+  var pips=[];
   slots.forEach(function(s){
     var f0=norm(s.start),f1=f0+(s.end-s.start)/1440;
     var isNow=cur&&cur.name===s.name;
@@ -2214,22 +2324,19 @@ function renderPrayerSpiral(svg,slots,now){
         PRAYER_SHORT[s.name]+" "+fmtMin(s.start)+"–"+fmtMin(s.end%1440);
       svg.appendChild(path);
     });
-    var pip=pcPoint(f0);
-    svg.appendChild(svgEl("circle",{cx:pip[0].toFixed(2),cy:pip[1].toFixed(2),r:2.4,class:"pc-pip"}));
-    /* A label only where there is room for one; a two-minute sliver gets a
-       pip and a tooltip instead of overlapping text. */
-    if(f1-f0>0.075&&f1<=1){
-      var mid=pcPoint((f0+Math.min(f1,1))/2);
-      var lab=svgEl("text",{x:mid[0].toFixed(2),y:(mid[1]+3).toFixed(2),class:"pc-label"});
-      lab.textContent=PRAYER_SHORT[s.name];
-      svg.appendChild(lab);
-    }
+    pips.push(pcPoint(f0));
+  });
+  pips.forEach(function(p){
+    svg.appendChild(svgEl("circle",{cx:p[0].toFixed(2),cy:p[1].toFixed(2),r:2.4,class:"pc-pip"}));
   });
 
-  /* A mark on the spiral for this exact moment. */
-  var nf=norm(nowMins),np=pcPoint(nf),ni=pcPoint(Math.min(nf+0.004,1));
-  svg.appendChild(svgEl("line",{x1:np[0].toFixed(2),y1:np[1].toFixed(2),
-    x2:ni[0].toFixed(2),y2:ni[1].toFixed(2),class:"pc-now"}));
+  /* This exact moment, drawn straight across the band so it is findable. */
+  var nf=norm(nowMins),nr=PC_R_OUT-(PC_R_OUT-PC_R_IN)*nf,na=(nf*360-90)*Math.PI/180;
+  svg.appendChild(svgEl("line",{
+    x1:(PC_CX+(nr-PC_ARC_W)*Math.cos(na)).toFixed(2),y1:(PC_CY+(nr-PC_ARC_W)*Math.sin(na)).toFixed(2),
+    x2:(PC_CX+(nr+PC_ARC_W)*Math.cos(na)).toFixed(2),y2:(PC_CY+(nr+PC_ARC_W)*Math.sin(na)).toFixed(2),
+    class:"pc-now"
+  }));
 
   /* Hands: hours, minutes, seconds - the seconds hand is why this redraws
      every second rather than every minute. */
@@ -2242,19 +2349,25 @@ function renderPrayerSpiral(svg,slots,now){
       class:"pc-hand "+cls,"stroke-width":w
     }));
   };
-  hand(hr*30,PC_R_IN-40,"pc-hr",3.2);
-  hand(mn*6,PC_R_IN-24,"pc-min",2.2);
-  hand(now.getSeconds()*6,PC_R_IN-20,"pc-sec",1);
+  hand(hr*30,PC_FACE_R-22,"pc-hr",3.2);
+  hand(mn*6,PC_FACE_R-11,"pc-min",2.2);
+  hand(now.getSeconds()*6,PC_FACE_R-7,"pc-sec",1);
   svg.appendChild(svgEl("circle",{cx:PC_CX,cy:PC_CY,r:2.6,class:"pc-hand",fill:"currentColor"}));
+}
 
-  if(cur){
-    var name=svgEl("text",{x:PC_CX,y:PC_CY+PC_R_IN-30,class:"pc-label"});
-    name.textContent=PRAYER_SHORT[cur.name];
-    svg.appendChild(name);
-    var sub=svgEl("text",{x:PC_CX,y:PC_CY+PC_R_IN-21,class:"pc-sub"});
-    sub.textContent=fmtMin(cur.start)+"–"+fmtMin(cur.end%1440);
-    svg.appendChild(sub);
-  }
+/** The one-line readout under the dial: which window we are in, how long it
+ * runs, and how much of it is left. It is separate from the SVG because
+ * inside the face it collided with the hands. */
+function prayerNowLine(slots,now){
+  var cur=slotAt(slots,now.getHours()*60+now.getMinutes());
+  if(!cur)return "";
+  var mins=now.getHours()*60+now.getMinutes();
+  /* Isha's `end` deliberately runs past 1440 to the next Fajr, so a plain
+     subtraction reads ~28h left during its after-midnight tail. */
+  var left=(((cur.end-mins)%1440)+1440)%1440;
+  var h=Math.floor(left/60),m=left%60;
+  return PRAYER_SHORT[cur.name]+" · "+fmtMin(cur.start)+"–"+fmtMin(cur.end%1440)+
+    " · "+(h?h+"h ":"")+m+"m left";
 }
 
 function fmtMin(mins){
@@ -2266,14 +2379,22 @@ function fmtMin(mins){
    without going anywhere near the network or even localStorage. The key
    guards against the day (or the method) changing underneath it. */
 var _pcTimes=null,_pcTimesKey=null;
+/* The chip reticks every 5 seconds. Without remembering a failure, an
+   offline device (or an unreachable provider) would retry 720 times an hour
+   with nothing on screen to show for it. */
+var _pcFailUntil=0,PC_FAIL_BACKOFF_MS=5*60*1000;
 function ensureTodayTimes(){
   var loc=state.profile&&state.profile.prayerLoc;
   if(!loc){_pcTimes=null;_pcTimesKey=null;return Promise.resolve(null);}
   var key=prayerCacheKey(todayKey(),loc.lat,loc.lon);
   if(_pcTimesKey===key&&_pcTimes)return Promise.resolve(_pcTimes);
+  if(Date.now()<_pcFailUntil)return Promise.resolve(null);
   return fetchPrayerTimes(todayKey(),loc.lat,loc.lon).then(function(t){
-    _pcTimes=t;_pcTimesKey=key;return t;
-  }).catch(function(){return null;});
+    _pcTimes=t;_pcTimesKey=key;_pcFailUntil=0;return t;
+  }).catch(function(){
+    _pcFailUntil=Date.now()+PC_FAIL_BACKOFF_MS;
+    return null;
+  });
 }
 
 /* ---------- PRAYER CHIP ---------- */
@@ -2342,7 +2463,10 @@ function tickPrayerClock(){
   if(!_pcModalOpen)return stopPrayerClock();
   var svg=document.getElementById("prayerClockSvg");
   if(!svg)return;
-  renderPrayerSpiral(svg,prayerSlots(_pcTimes),new Date());
+  var slots=prayerSlots(_pcTimes),now=new Date();
+  renderPrayerSpiral(svg,slots,now);
+  var line=document.getElementById("pmNowLine");
+  if(line)line.textContent=slots?prayerNowLine(slots,now):"";
 }
 
 function pcSeg(parent,options,current,onPick){
@@ -2383,6 +2507,10 @@ function renderPrayerModal(){
   svg.setAttribute("aria-label","Prayer times through the day");
   clockWrap.appendChild(svg);
   wrap.appendChild(clockWrap);
+
+  var nowLine=el("div","pclock-now");
+  nowLine.id="pmNowLine";
+  wrap.appendChild(nowLine);
 
   var loc=state.profile&&state.profile.prayerLoc;
   var locLine=el("div","muted",loc?locLabel(loc):"No location saved yet.");
@@ -2433,7 +2561,6 @@ function renderPrayerModal(){
   sel.style.cssText="width:100%;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:10px;padding:9px;font:inherit;font-size:.82rem";
   sel.addEventListener("change",function(){
     state.profile.prayerMethod=parseInt(this.value,10);
-    clearPrayerCache();_pcTimes=null;_pcTimesKey=null;
     applyPrayerSettingChange();
   });
   wrap.appendChild(sel);
@@ -2452,18 +2579,24 @@ function renderPrayerModal(){
 
   body.appendChild(wrap);
   renderPrayerSpiral(svg,slots,new Date());
+  nowLine.textContent=slots?prayerNowLine(slots,new Date()):"";
   /* If the times aren't in memory yet, fetch and redraw once they are. */
   if(!slots)ensureTodayTimes().then(function(t){if(t&&_pcModalOpen)renderPrayerModal();});
 }
 
 /** Madhab and Asr school are one setting wearing two faces: the cog's
  * <select> and the modal's four buttons. Both write both fields, so
- * whichever the user touches, the other agrees with it. */
+ * whichever the user touches, the other agrees with it.
+ *
+ * Neither this nor the method change wipes the prayer cache: the cache key
+ * already carries the method and the madhab, so an old answer can never be
+ * served for a new combination, and switching back is free. The wholesale
+ * clear is kept for resetting the location, where the key alone is not
+ * enough (it rounds coordinates, so a nearby place shares it). */
 function setPrayerMadhab(m){
   if(MADHABS.indexOf(m)<0)return;
   state.profile.prayerMadhab=m;
   state.profile.prayerSchool=madhabSchool(m);
-  clearPrayerCache();_pcTimes=null;_pcTimesKey=null;
   applyPrayerSettingChange();
 }
 
@@ -2477,9 +2610,7 @@ function setPrayerColor(name,hex){
   if(!state.profile.prayerColors)state.profile.prayerColors={};
   if(hex)state.profile.prayerColors[name]=hex;
   else delete state.profile.prayerColors[name];
-  applyPrayerSettingChange();
-  renderPrayerChips();
-  renderPrayerModal();
+  applyPrayerSettingChange(true);
 }
 function openColorMenu(name,anchor,ev){
   if(ev)ev.stopPropagation();
@@ -2512,8 +2643,14 @@ function openColorMenu(name,anchor,ev){
   _colorMenu=menu;
   try{
     var r=anchor.getBoundingClientRect();
-    menu.style.left=Math.max(8,Math.min(r.left,(window.innerWidth||400)-198))+"px";
-    menu.style.top=(r.bottom+window.scrollY+6)+"px";
+    var vw=window.innerWidth||400,vh=window.innerHeight||800;
+    var h=menu.offsetHeight||160;
+    menu.style.left=Math.max(8,Math.min(r.left,vw-194))+"px";
+    /* Below the row normally, above it when there isn't room - the last
+       prayer in the list sits at the bottom of the screen. */
+    var top=r.bottom+6;
+    if(top+h>vh-8)top=Math.max(8,r.top-h-6);
+    menu.style.top=top+"px";
   }catch(e){}
 }
 
@@ -3135,10 +3272,20 @@ function renderCalPanels(){
      one day before the focused day to three after it. */
   var needed=[];
   for(var n=-1;n<=3;n++)needed.push(keyOf(addDays(calCur,n)));
-  return Promise.all(needed.map(function(k){
-    if(!loc)return Promise.resolve(null);
-    return fetchPrayerTimes(k,loc.lat,loc.lon).catch(function(){return null;});
-  })).then(function(times){
+  /* Pull the whole month(s) first - five days can straddle a month end - so
+     the per-day calls below are answered from cache. Never blocks: a failed
+     month resolves to null and each day is fetched on its own. */
+  var months=loc
+    ? Promise.all([needed[0],needed[needed.length-1]].map(function(k){
+        return ensurePrayerMonth(k,loc.lat,loc.lon);
+      }))
+    : Promise.resolve(null);
+  return months.then(function(){
+    return Promise.all(needed.map(function(k){
+      if(!loc)return Promise.resolve(null);
+      return fetchPrayerTimes(k,loc.lat,loc.lon).catch(function(){return null;});
+    }));
+  }).then(function(times){
     var timesByKey={};
     needed.forEach(function(k,i){timesByKey[k]=times[i];});
     ["calDayPrev","calDayCur","calDayNext"].forEach(function(id,i){
@@ -4244,6 +4391,11 @@ document.addEventListener("click",function(ev){
   if(!panel||panel.hidden)return;
   if(!panel.contains(ev.target))toggleNotifPanel(false);
 });
+/* Same for the colour picker. Both the opening click and the menu's own
+   clicks stop propagating, so neither closes what it just opened. It is
+   position:fixed, so it also has to go when the modal scrolls under it. */
+document.addEventListener("click",closeColorMenu);
+document.getElementById("overlay").addEventListener("scroll",closeColorMenu);
 
 document.getElementById("prayPrevDay").addEventListener("click",function(){cur.setDate(cur.getDate()-1);renderPrayersTab();});
 document.getElementById("prayNextDay").addEventListener("click",function(){cur.setDate(cur.getDate()+1);renderPrayersTab();});

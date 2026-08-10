@@ -1229,6 +1229,15 @@ function asrSchool(madhab) {
   return String(madhab || "").toLowerCase() === "hanafi" || String(madhab) === "1" ? 1 : 0;
 }
 
+/* KNOWN UNVERIFIED ASSUMPTION: `method` is forwarded to UmmahAPI as the same
+ * number Aladhan uses (3 = Muslim World League, 4 = Umm al-Qura, …), because
+ * that is what the client stores. `madhab` is translated per provider by
+ * asrSchool(), but there is no equivalent translation table for methods -
+ * UmmahAPI's domain is unreachable from the build sandbox, so its numbering
+ * could not be checked. If it numbers them differently, times come back
+ * well-formed under the wrong convention, the Aladhan fallback never fires
+ * and nothing warns. Verify against a known city before trusting the method
+ * selector, and add a mapping here if the numbers don't line up. */
 async function ummahDay({ lat, lng, method, madhab, timezone, highLatitudeRule, date }) {
   const params = new URLSearchParams({ lat: String(lat), lng: String(lng) });
   if (method) params.set("method", String(method));
@@ -1308,6 +1317,7 @@ async function handlePrayerMonth(request, env, now) {
   const year = Number(url.searchParams.get("year")) || Number(today.slice(0, 4));
   const method = url.searchParams.get("method");
   const madhab = url.searchParams.get("madhab");
+  const timezone = url.searchParams.get("timezone") || BRIEF_TIMEZONE;
   const mm = String(month).padStart(2, "0");
 
   /* Both providers key a month differently, so each result is folded into
@@ -1346,6 +1356,10 @@ async function handlePrayerMonth(request, env, now) {
     const params = new URLSearchParams({ lat: String(lat), lng: String(lng), month: String(month), year: String(year) });
     if (method) params.set("method", String(method));
     if (madhab) params.set("madhab", String(madhab));
+    /* Same timezone the day endpoint passes. Without it a month's times can
+       disagree with the same day fetched on its own - and the client prefers
+       the month cache, so the disagreement would be what it shows. */
+    if (timezone) params.set("timezone", String(timezone));
     const payload = await fetchJson(`https://ummahapi.com/api/prayer-times/month?${params}`);
     const days = collect(payload);
     if (!Object.keys(days).length) throw new Error(`unrecognised response (${describeShape(payload)})`);

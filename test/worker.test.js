@@ -1114,3 +1114,17 @@ test("handlePrayerMonth: folds either provider's month into one date map", async
   assert.equal(body.days["2026-08-01"].Fajr, "04:00", "DD-MM-YYYY must be flipped, not used as-is");
   assert.equal(body.days["2026-08-02"].Isha, "21:58");
 });
+
+test("handlePrayerMonth: passes the timezone through, same as the day endpoint", async (t) => {
+  const { handlePrayerMonth } = await loadWorker();
+  const seen = [];
+  installFetch(t, async (url) => {
+    seen.push(String(url));
+    return jsonResponse(200, { days: { "2026-08-01": { fajr: "04:00", sunrise: "05:30", dhuhr: "13:00", asr: "17:00", maghrib: "20:30", isha: "22:00" } } });
+  });
+  await handlePrayerMonth(
+    new Request("https://x/api/prayer/month?lat=51.5&lng=-0.12&month=8&year=2026&timezone=Asia%2FKarachi"), {}, new Date("2026-08-10T10:00:00Z"));
+  // Without this a month's times can disagree with the same day fetched on
+  // its own - and the client prefers the month cache.
+  assert.match(seen[0], /timezone=Asia(%2F|\/)Karachi/);
+});

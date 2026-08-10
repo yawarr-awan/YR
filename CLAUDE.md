@@ -752,6 +752,87 @@ Found by checking the whole path in real Chromium rather than only jsdom.
   `DEFAULT_BRIEF_PROMPT` does nothing for a user who has one stored in
   `user_settings`; they have to Reset in Settings.
 
+## Prayer times via the Worker + the spiral clock (1.19.0)
+
+**Provider moved behind the Worker.** The client no longer calls Aladhan (or
+anything else) directly. `GET /api/prayer` and `GET /api/prayer/month` (both
+behind Access) try **UmmahAPI** first and fall back to **Aladhan**
+automatically, returning `{source, ..., timings|days, warning?}`.
+
+- **The response normaliser is deliberately shape-tolerant.** UmmahAPI's
+  contract could not be verified from the build sandbox - its domain is
+  blocked by the egress proxy, `curl` gets a 403 CONNECT and WebFetch is
+  `EGRESS_BLOCKED` - so rather than guess, `findTimings()` walks the payload
+  for anything that looks like a timings object (`PRAYER_ALIASES` +
+  `norm()`), needing **≥4 of the 6** names to accept it. `toHHMM()` handles
+  ISO strings (read textually, never parsed as a Date), 12-hour am/pm and
+  Aladhan's `"(BST)"` suffix. When nothing parses, `describeShape()` reports
+  the payload's **real keys** in the error - a diagnostic, not a shrug.
+- **`dayTimings()` exists because `findTimings()` is recursive.** A month
+  payload is a map of 30 days; the recursive search matched its *first day*
+  and folded the whole month into one entry. The month path therefore only
+  accepts a child *named* like timings (`TIMINGS_CHILD_KEYS`).
+- **`readCoords()` rejects null/"" explicitly.** `Number(null) === 0`, so a
+  missing `lat`/`lng` read as the Gulf of Guinea instead of a 400.
+- **Open risk, flagged in the code at `ummahDay()`:** `method` is forwarded
+  to UmmahAPI as the *Aladhan* number (3 = MWL, 4 = Umm al-Qura, …), because
+  that is what the client stores. `madhab` is translated per provider by
+  `asrSchool()`; there is no equivalent table for methods, since UmmahAPI's
+  numbering couldn't be checked from here. If it differs, times come back
+  well-formed under the wrong convention, the fallback never fires and
+  nothing warns. **Verify against a known city before trusting the method
+  selector.**
+
+**Client caching.** `prayerCacheKey()` is
+`day|lat(2dp)|lon(2dp)|method|madhab`, TTL 30 min. **Nothing wipes the cache
+on a method/madhab change** - the key already carries both, so an old answer
+can never be served for a new combination and switching back is free.
+`clearPrayerCache()` is kept for resetting the *location*, where the key
+alone is not enough (it rounds coordinates). `ensurePrayerMonth()` pulls a
+whole month (24 h TTL) and `fetchPrayerTimes()` consults it before going to
+the network; the calendar needs five days at a time and pages through many
+more, so this is one request instead of five plus one per page. It is
+**strictly an accelerator** - a failed month resolves to null and the per-day
+path takes over.
+
+**The spiral clock** (`renderPrayerSpiral`, 200×200 viewBox). The whole day
+is one turn: angle carries time of day, radius falls `PC_R_OUT`→`PC_R_IN`
+across it. Things learned the hard way:
+- **The radial drop has to clear an arc's width twice over** (84→56 with an
+  8-wide stroke), or the last hour of the day paints on top of the first at
+  the seam where the turn closes.
+- **Arcs, then pips, then hands** - drawing each window's pip alongside its
+  own arc let the *next* window's arc paint over it.
+- **No names on the dial.** Horizontal text at a radial offset collides with
+  the band at the left and right and runs off the viewBox; text curved along
+  the path reads upside down across the bottom half. The slot list underneath
+  is the legend and every arc carries a tooltip.
+- The current-window readout is HTML **under** the SVG, not inside the face,
+  where it collided with the hands.
+- One window straddles the origin and is drawn as its **two visible pieces**
+  (`[[f0,1],[0,f1-1]]`), so no minute goes blank. With `dayStart:"fajr"`
+  nothing straddles it and there are exactly 6 arcs.
+- SVG `stroke` is an attribute and **cannot resolve `var(--fajr)`**.
+  `prayerColorCss()` (custom hex, else `var(...)`) is for DOM styling;
+  `prayerColorValue()` resolves via `getComputedStyle` with
+  `PRAYER_FALLBACK_COLOR` behind it, and is what the SVG gets.
+
+**Settings.** `profile.prayerMadhab` (4 schools) and `profile.prayerSchool`
+(0/1) are **one setting with two faces** - the cog's `<select>` and the
+modal's four buttons both write both, via `setPrayerMadhab()`.
+`profile.prayerDayStart` is `"now"|"fajr"`. `profile.prayerColors` is a
+per-prayer hex map. All ride the synced profile.
+
+**Reverse geocoding** is client-side and best-effort: BigDataCloud's keyless
+`reverse-geocode-client` endpoint (CORS-enabled, no key), stored as
+`prayerLoc.name`. It runs *after* the location is saved and rendered, so it
+can never delay the times, and the coordinates are a valid label on their own.
+
+Test coverage: `test/prayerClock.test.js` (chips, dial coverage, the current
+window, day-start, madhab, colours, location reset, the tick not outliving
+the modal); `test/prayerTimes.test.js` extended for the month endpoint and
+its fallback; `test/worker.test.js` for both endpoints. See CHANGELOG 1.19.0.
+
 ## Honest caveat
 The "Client-side sync layer," "Access + hosting," and "Current data state"
 sections above were re-verified live in this session (2026-08-09): read

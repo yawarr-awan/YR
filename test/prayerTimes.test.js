@@ -53,7 +53,9 @@ test("clicking 'Use my location' saves coordinates, shows the countdown, and off
   await app.flush(); // one hop for geolocation callback, one for the prayer fetch chain
 
   assert.equal(app.state().profile.prayerLoc.lat, 51.5);
-  assert.match(app.document.getElementById("prayerLocText").textContent, /times for your saved location/i);
+  // No reverse-geocode answer here, so the coordinates are the label - that is
+  // a valid answer, not a failure state.
+  assert.match(app.document.getElementById("prayerLocText").textContent, /times for 51\.500, -0\.120/i);
   assert.match(app.document.getElementById("prayerNext").textContent, /^Next: \w+ in /);
   assert.match(app.document.getElementById("prayerLocBtnText").textContent, /update location/i,
     "once a location is stored the button offers to change it, not to set it again");
@@ -222,4 +224,74 @@ test("method and school are cached separately, so switching back is instant and 
   assert.equal(calls, 2, "a new combination is fetched");
   await setSchool("0");
   assert.equal(calls, 2, "and going back reuses what was already cached for it");
+});
+
+/*
+ * The calendar needs five days at a time and pages through many more, so it
+ * asks for a whole month in one request. That is only ever an accelerator:
+ * these two tests pin both halves of it - that it is used, and that losing
+ * it costs nothing but requests.
+ */
+function seedWithLoc() {
+  return JSON.stringify({
+    schema: 3,
+    profile: { startWeight: "", targetWeight: "", updated_at: 1, tasks: [], prayerLoc: { lat: 51.5, lon: -0.12 } },
+    days: {},
+  });
+}
+/** Every day of the month around `d`, so any five-day window is covered. */
+function monthDays(d) {
+  const y = d.getFullYear(), m = d.getMonth();
+  const out = {};
+  for (let day = 1; day <= 31; day++) {
+    const x = new Date(y, m, day);
+    if (x.getMonth() !== m) break;
+    out[`${y}-${String(m + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`] =
+      { Fajr: "04:45", Sunrise: "05:50", Dhuhr: "13:02", Asr: "17:10", Maghrib: "20:30", Isha: "22:10" };
+  }
+  return out;
+}
+function calBackend(calls, monthOk) {
+  return async (url) => {
+    const u = String(url);
+    if (u.includes("/api/prayer/month")) {
+      calls.push("month");
+      if (!monthOk) return { ok: false, status: 500, json: async () => ({ error: "nope" }) };
+      const now = new Date();
+      return { ok: true, status: 200, json: async () => ({ source: "ummahapi", year: now.getFullYear(), month: now.getMonth() + 1, days: monthDays(now) }) };
+    }
+    if (u.includes("/api/prayer")) { calls.push("day"); return prayerRes(SAMPLE_TIMINGS); }
+    if (u.includes("/api/calendar/events")) return { ok: true, status: 200, json: async () => ({ events: [], tasks: [] }) };
+    return { ok: true, status: 200, json: async () => ({ connected: false, status: "not_connected" }) };
+  };
+}
+
+test("the calendar takes a whole month in one request instead of a day at a time", async () => {
+  const calls = [];
+  const app = loadApp({ localStorageSeed: { yawarWellness_v1: seedWithLoc() }, fetchImpl: calBackend(calls, true) });
+  await app.flush();
+  await app.flush();
+  const dayCallsBefore = calls.filter((c) => c === "day").length;
+
+  app.goTo("calendar");
+  await app.wait(300);
+
+  assert.ok(calls.includes("month"), "the month endpoint is what the calendar reaches for");
+  assert.equal(calls.filter((c) => c === "day").length, dayCallsBefore,
+    "and the five days it needs all come out of that one response");
+  assert.ok(app.document.querySelectorAll("#calDayCur .cal-cell").length > 0, "the day still renders");
+});
+
+test("losing the month endpoint costs requests, not the calendar", async () => {
+  const calls = [];
+  const app = loadApp({ localStorageSeed: { yawarWellness_v1: seedWithLoc() }, fetchImpl: calBackend(calls, false) });
+  await app.flush();
+  await app.flush();
+
+  app.goTo("calendar");
+  await app.wait(300);
+
+  assert.ok(calls.includes("month"), "it still tries");
+  assert.ok(calls.filter((c) => c === "day").length > 0, "then falls back to fetching each day");
+  assert.ok(app.document.querySelectorAll("#calDayCur .cal-cell").length > 0, "and the day renders regardless");
 });
