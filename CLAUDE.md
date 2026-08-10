@@ -852,6 +852,15 @@ Used by the modal's list, the Prayers checklist and the qada card.
   `win-first`/`win-last`, so a run of hours draws as one box rather than a
   stack. `--pc` carries the prayer's colour. `current-hour` had to become an
   `outline` rather than an inset shadow, or the two would replace each other.
+- **Hour cells are tinted to the minute** (1.21.0). `hourWindowParts()`
+  returns every window overlapping an hour as percentages down the cell and
+  `calCellBackground()` turns two or more of them into a `linear-gradient`
+  with **hard stops** - a soft blend would put the apparent boundary
+  somewhere the prayer doesn't start. One window over the whole hour stays a
+  flat colour rather than a pointless gradient. The old midpoint test
+  (`hourWindowName`, now gone) moved a boundary by up to half an hour, and by
+  a different amount each day as the times drifted. `inCurWindow` uses the
+  same overlap test so the ring starts where the colour does.
 - The Fajr row ends at **sunrise**, not at Dhuhr - the stretch between is its
   own window (Chasht). Between the two, no checklist row is ringed, because
   Chasht isn't one of the five.
@@ -873,6 +882,17 @@ every display site routes through one of the three. This is **display only**:
 times are still held and compared as minutes of the day, and both prayer
 providers still speak 24-hour - don't "convert" a fixture or an API value.
 Watch midnight and noon, where a naive `h%12` prints `0:00`.
+
+**The calendar paints before the network** (1.21.0). It used to await
+`ensureCalWindow` (Google events), then `ensurePrayerMonth`, then five
+`fetchPrayerTimes` calls, before drawing anything - three serialised round
+trips, ~3.9s to first paint on a slow connection. `renderCalPanels()` now
+calls `paintCalPanels()` immediately with `cachedTimesFor()` (synchronous:
+the per-day cache, then the month cache), and only repaints if the fetches
+**gain** a day it didn't already have - a repaint tears the panels down and
+would interrupt a swipe. `renderCalendarTab()` paints once before awaiting
+the events too. Measured in Chromium with every response delayed 1200ms:
+3901ms -> 111ms. **Don't put an await back in front of the first paint.**
 
 **Header** (1.20.0): logo (deliberately larger than the 40px controls), a
 spacer, the prayer chip, the completion square, the bell. The completion

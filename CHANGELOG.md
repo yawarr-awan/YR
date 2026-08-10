@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.21.0
+
+- **Prayer colours change at the exact minute in the calendar.** A window starting at 8:34 PM now changes the colour 34 minutes down the 8 PM cell, instead of tinting the whole hour with whichever prayer happened to own the half-past mark. As the times drift through the year the boundary drifts with them, minute by minute, rather than jumping an hour at a time. The ring around the window you're in follows the same edges.
+- **The Calendar tab opens straight away.** It was sitting blank for seconds on the first visit because it waited for Google's events, then a month of prayer times, then each day's — three round trips in a row — before drawing anything. The grid needs none of that to exist, so it's drawn immediately from what's already stored and fills in as the answers arrive. On a slow connection: **3.9 seconds to first paint, now 0.1**.
+
 ## 1.20.5
 
 - **Every time in the app is 12-hour now** — prayer windows, the countdown, the calendar's hour column and its event chips, task due dates, reminders, and the last-saved and last-synced lines in Settings. `1:09 PM`, not `13:09`. Midnight reads `12:00 AM` and noon `12:00 PM`, not `0:00`.

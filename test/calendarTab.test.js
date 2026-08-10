@@ -203,6 +203,69 @@ test("prayer windows tint all 24 hours of the day with no gaps", async () => {
   assert.match(hours[23].style.background, /--isha/);
 });
 
+test("a prayer window changes the colour at its exact minute, not at the hour", async () => {
+  // Maghrib at 20:34 and Isha at 21:38: both start mid-hour, so both hours
+  // have to carry two colours split at the right point.
+  const app = loadApp({
+    geolocation: { lat: 51.5, lon: -0.12 },
+    fetchImpl: fetchRouter([
+      ["/api/calendar/events", () => jsonRes({ connected: true, status: "ok", events: [] })],
+      ["/api/prayer", () => jsonRes({ source: "ummahapi", timings: { Fajr: "03:52", Sunrise: "05:36", Dhuhr: "13:09", Asr: "18:11", Maghrib: "20:34", Isha: "21:38" } })],
+    ]),
+  });
+  useMyLocation(app);
+  await app.flush();
+  await app.flush();
+  app.goTo("calendar");
+  await app.flush();
+  await app.flush();
+
+  const hours = curHours(app);
+
+  // 20:00-20:34 is Asr, 20:34-21:00 is Maghrib. 34/60 = 56.667%.
+  const eight = hours[20].style.background;
+  assert.match(eight, /^linear-gradient/, "an hour a window starts in carries both colours");
+  assert.match(eight, /--asr/);
+  assert.match(eight, /--maghrib/);
+  assert.match(eight, /56\.667%/, `the split lands on the minute, got: ${eight}`);
+
+  // 21:38 -> 38/60 = 63.333%.
+  const nine = hours[21].style.background;
+  assert.match(nine, /--maghrib/);
+  assert.match(nine, /--isha/);
+  assert.match(nine, /63\.333%/, `got: ${nine}`);
+
+  // An hour wholly inside one window stays a flat colour - no pointless gradient.
+  assert.doesNotMatch(hours[15].style.background, /linear-gradient/);
+  assert.match(hours[15].style.background, /--dhuhr/);
+});
+
+test("the split moves with the times, rather than snapping to the same slot", async () => {
+  const at = (maghrib) => loadApp({
+    geolocation: { lat: 51.5, lon: -0.12 },
+    fetchImpl: fetchRouter([
+      ["/api/calendar/events", () => jsonRes({ connected: true, status: "ok", events: [] })],
+      ["/api/prayer", () => jsonRes({ source: "ummahapi", timings: { Fajr: "03:52", Sunrise: "05:36", Dhuhr: "13:09", Asr: "18:11", Maghrib: maghrib, Isha: "21:38" } })],
+    ]),
+  });
+  const read = async (app) => {
+    useMyLocation(app);
+    await app.flush();
+    await app.flush();
+    app.goTo("calendar");
+    await app.flush();
+    await app.flush();
+    return curHours(app)[20].style.background;
+  };
+
+  // A minute's drift in the times has to be a minute's drift in the colour;
+  // both of these used to tint the whole 20:00 hour identically.
+  const early = await read(at("20:02"));
+  const late = await read(at("20:58"));
+  assert.match(early, /3\.333%/, `20:02 is 2/60 of the way down, got: ${early}`);
+  assert.match(late, /96\.667%/, `20:58 is 58/60 of the way down, got: ${late}`);
+});
+
 test("the prayer window happening now is ringed in the calendar, in its own colour", async () => {
   const app = loadApp({
     geolocation: { lat: 51.5, lon: -0.12 },
@@ -397,4 +460,36 @@ test("the date bar and week strip stay pinned while the day scrolls past", async
   assert.ok(sticky.querySelector("#calStrip"), "and so is the week strip");
   // The day itself must not scroll internally - the page scrolls instead.
   assert.equal(app.document.querySelector(".cal-hours"), null);
+});
+
+test("the grid is on screen before the network answers, not after", async () => {
+  // Nothing here ever resolves: the calendar must not be waiting on it. The
+  // hours, the layout and the prayer tints are all local - only the events
+  // come from Google, and they arrive into a grid that is already drawn.
+  let asked = 0;
+  const app = loadApp({
+    localStorageSeed: {
+      yawarWellness_v1: JSON.stringify({
+        schema: 3,
+        profile: { startWeight: "", targetWeight: "", updated_at: 1, tasks: [], prayerLoc: { lat: 51.5, lon: -0.12 } },
+        days: {},
+      }),
+      // A prayer day already in cache, so the tints are there on the first
+      // frame too - which is the point of consulting the cache first.
+      [`yawarPrayerCache_${todayKey()}|51.50|-0.12|3|shafii`]: JSON.stringify({
+        at: Date.now(),
+        times: { Fajr: "04:45", Sunrise: "05:50", Dhuhr: "13:00", Asr: "17:00", Maghrib: "20:30", Isha: "22:00" },
+      }),
+    },
+    fetchImpl: () => { asked++; return new Promise(() => {}); },
+  });
+
+  app.goTo("calendar");
+  await app.flush();
+
+  const hours = curHours(app);
+  assert.equal(hours.length, 24, "the whole day is drawn with every request still in flight");
+  assert.match(hours[14].style.background, /--dhuhr/,
+    "and a cached day is tinted straight away rather than after a round trip");
+  assert.ok(asked > 0, "the fetches did go out - they just aren't blocking the paint");
 });
