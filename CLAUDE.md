@@ -656,11 +656,8 @@ Found by checking the whole path in real Chromium rather than only jsdom.
   device saw. Fixed with skipWaiting + claim **and** network-first for the
   shell (cache is for offline, not speed). If identity ever looks stale
   again, look here first, not at the manifest.
-- **Logo** is now a monoline YR monogram drawn as SVG paths (see
-  `icons/logo.svg`, the committed source of truth) and rasterised per size
-  via Chromium - rendering vector at 16/32/180/192/512 beats downscaling one
-  big raster. The generation script lives in scratch; the SVG + PNGs are the
-  artefact.
+- **Logo** (superseded in 1.16.1): the monoline SVG monogram was replaced by
+  the user's own artwork - see the 1.16.1 note below.
 - **OAuth scope widened** `tasks.readonly` -> `tasks`. Google keeps issuing
   the old refresh token with its original scopes, so **an existing connection
   must re-consent once**; that surfaces as the usual `reconnect_required`.
@@ -682,6 +679,25 @@ Found by checking the whole path in real Chromium rather than only jsdom.
   rather than reloaded stayed silent forever after the first open.
 - The theme toggle now lives in Settings -> Appearance; the header holds the
   bell in its place.
+
+## Logo from supplied artwork (1.16.1)
+- The icon is the user's own mark: a rounded white tile with black YR,
+  supplied as a flattened screenshot with a transparency checkerboard baked
+  in. Pipeline: crop the tile, fit a **rounded-rect** mask (the artwork is
+  one, so a fitted shape gives cleaner corners than any per-pixel cut) inset
+  ~60px to trim the baked drop shadow, then recolour by luminance - lum >=240
+  is the white field, <=25 is the glyph, and the ramp between is its own
+  antialiasing, so the letters keep their edges exactly.
+- **Black letters on navy are unreadable**, so the letters were inverted to
+  white. That was a necessary consequence of "make the background navy", not
+  a free choice - three options were shown first and the user picked white.
+- Detecting the tile in the source needs care: the checkerboard's *white*
+  squares are the same colour as the tile, so bounds come from blurring wider
+  than the checker period (GaussianBlur 28) and thresholding for white. A
+  naive per-row scan includes checker squares and clips the corners.
+- `icons/logo.svg` is gone - there is no vector source for this mark, and a
+  stale one would be a lie about where the icons come from. The PNGs are the
+  artefact.
 
 ## Honest caveat
 The "Client-side sync layer," "Access + hosting," and "Current data state"
