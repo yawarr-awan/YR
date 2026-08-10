@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.20.2
+
+- **Medicines moved below Today's Meals** on the Today tab. They're taken around the food — pre-breakfast, after-breakfast, after-dinner — so the card now follows the meals rather than sitting above them.
+
 ## 1.20.1
 
 - **The Prayers card is just the checklist now.** The location line, the "Next: … in …" countdown, the second prayer chip, the "Update location" button and the settings cog are gone from it — every one of them was already behind the chip in the header, so the card was saying the same thing three times.
