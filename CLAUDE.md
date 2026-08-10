@@ -828,6 +828,16 @@ Used by the modal's list, the Prayers checklist and the qada card.
   own window (Chasht). Between the two, no checklist row is ringed, because
   Chasht isn't one of the five.
 
+**The Prayers card is only `#prayBox`** (1.20.1). The location line, the
+countdown, a second chip, the location button and the settings cog were all
+removed from it - each one already existed behind the header chip, so the
+card said the same thing three times. `renderPrayerClock()` and
+`renderMethodSelect()` are gone with the elements they maintained;
+`requestPrayerLocation()` reports progress and failures through
+`prayerLocStatus()` into `#pmLocText`. **The chip must never hide itself**:
+it is the only route to the modal, and the modal is where a location gets
+set - with no times it renders as an `.is-idle` "Prayer times" instead.
+
 **Header** (1.20.0): logo (deliberately larger than the 40px controls), a
 spacer, the prayer chip, the completion square, the bell. The completion
 indicator is a rounded square, not a circle - same size and radius as the
