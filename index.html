@@ -2600,11 +2600,40 @@ function calWindowsForDay(times){
   return segs.filter(function(s){return s.to>s.from;});
 }
 
-function hourWindowName(segs,hour){
-  if(!segs)return null;
-  var mid=hour*60+30;
-  for(var i=0;i<segs.length;i++)if(mid>=segs[i].from&&mid<segs[i].to)return segs[i].name;
-  return null;
+/** Every prayer window overlapping one hour cell, as {name, from, to} in
+ * percentages down the cell. Usually one; two when a prayer begins inside
+ * the hour, and occasionally three around sunset in high summer. */
+function hourWindowParts(segs,hour){
+  if(!segs)return [];
+  var from=hour*60,to=from+60,out=[];
+  segs.forEach(function(s){
+    var a=Math.max(s.from,from),b=Math.min(s.to,to);
+    if(b<=a)return;
+    out.push({name:s.name,from:(a-from)/0.6,to:(b-from)/0.6});   /* minutes -> % of the hour */
+  });
+  return out;
+}
+
+function calTintFor(name){
+  return "color-mix(in srgb, "+prayerColorCss(name)+" var(--cal-tint), var(--panel))";
+}
+
+/** The background for one hour cell. A prayer starting at 8:34 changes the
+ * colour 34 minutes down the cell, not at the hour boundary - snapping to
+ * the nearest hour moved a window's edge by up to half an hour, and moved it
+ * by a different amount each day as the times drift.
+ *
+ * Hard stops, not a blend: the boundary is a moment, and a soft gradient
+ * would put the apparent edge somewhere it isn't. */
+function calCellBackground(segs,hour){
+  var parts=hourWindowParts(segs,hour);
+  if(!parts.length)return null;
+  if(parts.length===1)return calTintFor(parts[0].name);
+  var stops=parts.map(function(p){
+    var c=calTintFor(p.name);
+    return c+" "+p.from.toFixed(3)+"%, "+c+" "+p.to.toFixed(3)+"%";
+  }).join(", ");
+  return "linear-gradient(to bottom, "+stops+")";
 }
 
 /** Monday-start week containing `d`. */
@@ -2692,7 +2721,12 @@ function renderCalendarTab(){
   if(heading)heading.textContent="🗓️ "+(isToday?"Today":humanShort(calCur));
   renderCalStrip();
 
-  return ensureCalWindow(calCur).then(function(){return renderCalPanels();});
+  /* Draw straight away with whatever is held, then again when the events
+     land. The grid, the hours and the prayer tints do not depend on Google
+     at all, so none of them should wait for it. */
+  var painted=renderCalPanels();
+  return ensureCalWindow(calCur).then(function(){return renderCalPanels();})
+    .then(function(){return painted;});
 }
 
 /* ---------- CALENDAR ENTRIES (events + scheduled tasks) ---------- */
@@ -3076,10 +3110,12 @@ function buildDayPanel(dayDate,timesByKey){
       if(nowMinutes>=sg.from&&nowMinutes<sg.to){curSeg=sg;curCol=i;}
     });
   });
-  /* An hour belongs to that window if its middle does - the same test the
-     tinting uses, so the ring can never disagree with the colour. */
+  /* An hour is ringed if the current window reaches into it at all - the
+     same overlap the tinting uses, so the ring starts where the colour does
+     rather than at the nearest hour boundary. */
   var inCurWindow=function(col,h){
-    return curSeg&&col===curCol&&(h*60+30)>=curSeg.from&&(h*60+30)<curSeg.to;
+    if(!curSeg||col!==curCol)return false;
+    return Math.min(curSeg.to,h*60+60)>Math.max(curSeg.from,h*60);
   };
 
   var entries=days.map(function(_,i){return calDayEntries(keys[i]);});
@@ -3137,8 +3173,8 @@ function buildDayPanel(dayDate,timesByKey){
     for(var i=0;i<3;i++){
       var isMain=i===0;
       var cell=el("div","cal-cell"+(isMain?" is-main":""));
-      var win=hourWindowName(segs[i],h);
-      if(win)cell.style.background="color-mix(in srgb, "+prayerColorCss(win)+" var(--cal-tint), var(--panel))";
+      var bg=calCellBackground(segs[i],h);
+      if(bg)cell.style.background=bg;
       if(inCurWindow(i,h)){
         cell.classList.add("in-prayer");
         if(!inCurWindow(i,h-1))cell.classList.add("win-first");
@@ -3184,7 +3220,62 @@ function buildDayPanel(dayDate,timesByKey){
   return group;
 }
 
-/** Rebuilds the three panels around calCur and re-centres the track. */
+/** Times for the five days the carousel needs, from what is already held -
+ * no network, no promises. This is what lets the grid paint on the first
+ * frame instead of after a round trip. */
+function cachedTimesFor(keys){
+  var loc=state.profile&&state.profile.prayerLoc,out={};
+  keys.forEach(function(k){
+    out[k]=loc?(readPrayerCache(prayerCacheKey(k,loc.lat,loc.lon))||monthTimesFor(k,loc.lat,loc.lon)):null;
+  });
+  return out;
+}
+
+/** Draws the three panels and everything around them. */
+function paintCalPanels(days,timesByKey){
+  ["calDayPrev","calDayCur","calDayNext"].forEach(function(id,i){
+    var host=document.getElementById(id);
+    if(!host)return;
+    host.innerHTML="";
+    host.appendChild(buildDayPanel(days[i],timesByKey));
+  });
+  calSetTrack(0,false);
+
+  var status=document.getElementById("calStatus"),legend=document.getElementById("calLegend");
+  var win=_calWin||{};
+  var todaysEntries=calDayEntries(keyOf(calCur));
+  if(!win.connected)status.textContent="Connect Google Calendar (Today's Brief card, Today tab) to see your schedule here.";
+  else if(win.status==="reconnect_required")status.textContent="Google Calendar access has expired — reconnect from the Today's Brief card.";
+  else if(win.status==="calendar_error")status.textContent="Couldn't load your calendar right now.";
+  else if(!todaysEntries.length)status.textContent="Nothing scheduled.";
+  else status.textContent="";
+  /* A Tasks failure never costs the agenda, but it shouldn't be invisible
+     either - that's how an unenabled Tasks API hid itself once before. */
+  if(win.tasksError)status.textContent=(status.textContent?status.textContent+" ":"")+"Google Tasks couldn't be read.";
+
+  legend.innerHTML="";
+  PRAYER_NAMES.forEach(function(name){
+    var chip=el("span",null," "+name);
+    var dot=el("i");dot.style.background=prayerColorCss(name);
+    chip.insertBefore(dot,chip.firstChild);
+    legend.appendChild(chip);
+  });
+
+  if(keyOf(calCur)===todayKey()){
+    var target=document.getElementById("calDayCur").querySelector(".cal-cell.is-main.current-hour");
+    if(target&&typeof target.scrollIntoView==="function"){
+      try{target.scrollIntoView({block:"center"});}catch(e){}
+    }
+  }
+}
+
+/** Rebuilds the three panels around calCur and re-centres the track.
+ *
+ * Paints first from what is already cached, then fetches only what is
+ * missing and repaints if that added anything. Waiting for the network
+ * before drawing anything is what made the first visit to this tab sit
+ * blank for seconds - the grid itself needs no data to exist, only its
+ * prayer tints do. */
 function renderCalPanels(){
   var loc=state.profile&&state.profile.prayerLoc;
   var days=[addDays(calCur,-1),calCur,addDays(calCur,1)];
@@ -3192,56 +3283,30 @@ function renderCalPanels(){
      one day before the focused day to three after it. */
   var needed=[];
   for(var n=-1;n<=3;n++)needed.push(keyOf(addDays(calCur,n)));
+
+  var cached=cachedTimesFor(needed);
+  paintCalPanels(days,cached);
+
+  if(!loc)return Promise.resolve();
+  var missing=needed.filter(function(k){return !cached[k];});
+  if(!missing.length)return Promise.resolve();
+
   /* Pull the whole month(s) first - five days can straddle a month end - so
      the per-day calls below are answered from cache. Never blocks: a failed
      month resolves to null and each day is fetched on its own. */
-  var months=loc
-    ? Promise.all([needed[0],needed[needed.length-1]].map(function(k){
-        return ensurePrayerMonth(k,loc.lat,loc.lon);
-      }))
-    : Promise.resolve(null);
-  return months.then(function(){
+  return Promise.all([needed[0],needed[needed.length-1]].map(function(k){
+    return ensurePrayerMonth(k,loc.lat,loc.lon);
+  })).then(function(){
     return Promise.all(needed.map(function(k){
-      if(!loc)return Promise.resolve(null);
       return fetchPrayerTimes(k,loc.lat,loc.lon).catch(function(){return null;});
     }));
   }).then(function(times){
-    var timesByKey={};
-    needed.forEach(function(k,i){timesByKey[k]=times[i];});
-    ["calDayPrev","calDayCur","calDayNext"].forEach(function(id,i){
-      var host=document.getElementById(id);
-      if(!host)return;
-      host.innerHTML="";
-      host.appendChild(buildDayPanel(days[i],timesByKey));
-    });
-    calSetTrack(0,false);
-
-    var status=document.getElementById("calStatus"),legend=document.getElementById("calLegend");
-    var win=_calWin||{};
-    var todaysEntries=calDayEntries(keyOf(calCur));
-    if(!win.connected)status.textContent="Connect Google Calendar (Today's Brief card, Today tab) to see your schedule here.";
-    else if(win.status==="reconnect_required")status.textContent="Google Calendar access has expired — reconnect from the Today's Brief card.";
-    else if(win.status==="calendar_error")status.textContent="Couldn't load your calendar right now.";
-    else if(!todaysEntries.length)status.textContent="Nothing scheduled.";
-    else status.textContent="";
-    /* A Tasks failure never costs the agenda, but it shouldn't be invisible
-       either - that's how an unenabled Tasks API hid itself once before. */
-    if(win.tasksError)status.textContent=(status.textContent?status.textContent+" ":"")+"Google Tasks couldn't be read.";
-
-    legend.innerHTML="";
-    PRAYER_NAMES.forEach(function(name){
-      var chip=el("span",null," "+name);
-      var dot=el("i");dot.style.background=prayerColorCss(name);
-      chip.insertBefore(dot,chip.firstChild);
-      legend.appendChild(chip);
-    });
-
-    if(keyOf(calCur)===todayKey()){
-      var target=document.getElementById("calDayCur").querySelector(".cal-cell.is-main.current-hour");
-      if(target&&typeof target.scrollIntoView==="function"){
-        try{target.scrollIntoView({block:"center"});}catch(e){}
-      }
-    }
+    var byKey={};
+    needed.forEach(function(k,i){byKey[k]=times[i];});
+    /* Only repaint if the answers actually added something. A repaint tears
+       the panels down and rebuilds them, which would interrupt a swipe. */
+    var gained=needed.some(function(k){return byKey[k]&&!cached[k];});
+    if(gained)paintCalPanels(days,byKey);
   });
 }
 
