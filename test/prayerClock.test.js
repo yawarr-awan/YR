@@ -284,6 +284,34 @@ test("the modal names which provider answered, so a silent fallback is visible",
   assert.match(app.document.getElementById("pmSource").textContent, /UmmahAPI/);
 });
 
+test("the modal names the convention the provider was asked for, in its own spelling", async () => {
+  const app = loadApp({
+    localStorageSeed: { yawarWellness_v1: seed({ prayerMethod: 15 }) },
+    fetchImpl: async (url) => String(url).includes("/api/prayer")
+      ? { ok: true, status: 200, json: async () => ({ source: "ummahapi", method: "MoonsightingCommittee", madhab: "Shafi", timings: TIMINGS }) }
+      : { ok: true, status: 200, json: async () => ({ connected: false, status: "not_connected" }) },
+  });
+  await app.flush();
+  await app.flush();
+  app.click("headerChip");
+
+  // Two apps on the same coordinates can differ by minutes purely because
+  // they are on different conventions; this line is what makes that
+  // checkable against someone else's screen.
+  const line = app.document.getElementById("pmSource").textContent;
+  assert.match(line, /MoonsightingCommittee/);
+  assert.match(line, /Shafi/);
+
+  // And the picker calls it what the provider calls it, not what Aladhan does.
+  const opts = [...app.document.querySelectorAll("#pmMethod option")].map((o) => o.textContent);
+  assert.ok(opts.includes("Moonsighting Committee"), `got: ${opts.join(", ")}`);
+  assert.equal(opts.includes("Moonsighting Committee Worldwide"), false);
+  // The handful with no equivalent at the primary are grouped, not hidden.
+  const group = app.document.querySelector("#pmMethod optgroup");
+  assert.match(group.label, /Aladhan/);
+  assert.match(group.textContent, /Gulf Region/);
+});
+
 test("closing the modal stops its tick - the countdown must not outlive it", async () => {
   const app = await booted();
   app.click("headerChip");

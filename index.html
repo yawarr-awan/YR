@@ -1797,23 +1797,32 @@ var PRAYER_COLOR_VAR={Fajr:"--fajr",Sunrise:"--sunrise",Dhuhr:"--dhuhr",Asr:"--a
 /* Which convention the times are calculated with matters far more than
    which service computes them - the same method and coordinates give the
    same answer. Selectable, and stored on the synced profile. */
+/* Labelled the way the provider names them, not the way Aladhan does - the
+   two disagree (Aladhan's "Moonsighting Committee Worldwide" is the
+   provider's "Moonsighting Committee"), and the point of this list is to be
+   able to pick the same convention another app is on. The stored value is
+   still Aladhan's number, which is what both providers are addressed by.
+   The second group has no equivalent at the primary provider, so those are
+   always answered by the Aladhan fallback. */
 var PRAYER_METHODS=[
   [3,"Muslim World League"],
-  [2,"ISNA (North America)"],
-  [1,"Karachi (Univ. of Islamic Sciences)"],
+  [2,"North America (ISNA)"],
+  [1,"Karachi"],
   [4,"Umm al-Qura (Makkah)"],
-  [5,"Egyptian General Authority"],
-  [8,"Gulf Region"],
+  [5,"Egyptian"],
+  [15,"Moonsighting Committee"],
+  [16,"Dubai"],
   [9,"Kuwait"],
   [10,"Qatar"],
   [11,"Singapore"],
-  [12,"Union des Organisations Islamiques de France"],
-  [13,"Diyanet (Turkey)"],
-  [14,"Spiritual Administration of Muslims of Russia"],
-  [15,"Moonsighting Committee Worldwide"],
-  [16,"Dubai"],
-  [0,"Shia Ithna-Ashari (Jafari)"],
-  [7,"Institute of Geophysics, Tehran"]
+  [13,"Turkey (Diyanet)"],
+  [7,"Tehran"]
+];
+var PRAYER_METHODS_FALLBACK=[
+  [8,"Gulf Region"],
+  [12,"France (UOIF)"],
+  [14,"Russia"],
+  [0,"Shia Ithna-Ashari (Jafari)"]
 ];
 var PRAYER_METHOD_DEFAULT=3;
 /* The four schools, in the order the toggle shows them. Only Hanafi changes
@@ -1862,6 +1871,11 @@ var PRAYER_CACHE_MS=30*60*1000;
    whether every request has been quietly served by the Aladhan fallback -
    which is exactly the question that turned up a real bug. */
 var _prayerSource=null;
+/* The method and madhab the provider was actually asked for, in its own
+   spelling. Two apps on the same coordinates can differ by minutes purely
+   because they're on different conventions, and without this there is
+   nothing to compare against another app to tell which. */
+var _prayerUsed=null;
 var PRAYER_SOURCE_LABEL={ummahapi:"UmmahAPI",aladhan:"Aladhan"};
 
 function readPrayerCache(key){
@@ -1930,6 +1944,7 @@ function fetchPrayerTimes(day,lat,lon){
     var raw=data&&data.timings;
     if(!raw||!raw.Fajr)throw new Error("no prayer times in response");
     _prayerSource=data.source||null;
+    _prayerUsed=data.method?(data.method+(data.madhab?" · "+data.madhab:"")):null;
     var times=normalizeTimings(raw);
     writePrayerCache(key,times);
     return times;
@@ -2410,9 +2425,18 @@ function renderPrayerModal(){
   pcSection(wrap,"Calculation method");
   var sel=el("select");
   sel.id="pmMethod";
-  PRAYER_METHODS.forEach(function(m){
-    var o=el("option",null,m[1]);o.value=String(m[0]);sel.appendChild(o);
-  });
+  var addMethods=function(parent,list){
+    list.forEach(function(m){
+      var o=el("option",null,m[1]);o.value=String(m[0]);parent.appendChild(o);
+    });
+  };
+  addMethods(sel,PRAYER_METHODS);
+  /* Grouped rather than hidden: they still work, they are just served by the
+     other provider, and it should be obvious which ones those are. */
+  var og=document.createElement("optgroup");
+  og.label="Aladhan only";
+  addMethods(og,PRAYER_METHODS_FALLBACK);
+  sel.appendChild(og);
   sel.value=String(prayerMethod());
   sel.style.cssText="width:100%;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:10px;padding:9px;font:inherit;font-size:.82rem";
   sel.addEventListener("change",function(){
@@ -2428,7 +2452,8 @@ function renderPrayerModal(){
     .style.cssText="font-size:.72rem;margin:6px 0 0";
 
   if(_prayerSource){
-    var src=el("p","muted","Times from "+(PRAYER_SOURCE_LABEL[_prayerSource]||_prayerSource)+".");
+    var src=el("p","muted","Times from "+(PRAYER_SOURCE_LABEL[_prayerSource]||_prayerSource)+
+      (_prayerUsed?" · "+_prayerUsed:"")+".");
     src.id="pmSource";
     src.style.cssText="font-size:.72rem;margin:14px 0 0;text-align:center";
     wrap.appendChild(src);
