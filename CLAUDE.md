@@ -615,6 +615,38 @@ Found by checking the whole path in real Chromium rather than only jsdom.
   path ran. `test/lib.js` gained `serviceWorkerNotifications` for the jsdom
   equivalent.
 
+## Icon, name, Google Tasks on the calendar (1.15.0)
+- **The app is "YR"** - `<title>`, header, manifest `name`/`short_name`.
+- **Icons** are generated from the user's supplied artwork (a navy rounded
+  tile with a gold YR). The source arrived as a flattened screenshot with a
+  transparency *checkerboard baked in as real pixels*, so the pipeline was:
+  crop to the tile, rebuild the background where the letters sat (per-row
+  median of non-glyph pixels), recentre + scale the wordmark by 1.10, brighten
+  the gold (HSV hue 0.115, V x1.30), then cut the silhouette by per-row
+  extents of non-checkerboard pixels. The generation script is scratch-only -
+  the committed PNGs are the artefact.
+- `icons/icon-maskable-512.png` is a **separate** icon: the wordmark on a flat
+  navy field at 60% width, because Android's circular crop would otherwise
+  slice the tile's own rounded corners and the letters with them.
+- The header badge is an inline base64 84px PNG (quantised to 64 colours,
+  ~6KB) so a file-opened `index.html` still shows it.
+- **Google Tasks now reach the Calendar tab**, not just the brief:
+  `fetchTasksInRange()` in worker.js filters open dated tasks to the window
+  **client-side on the date prefix**, not with `dueMin`/`dueMax` - those
+  compare full timestamps to what is really a date, which is how tasks went
+  missing from the brief once already. `handleGetCalendarEvents` returns
+  `tasks`/`tasksError` beside `events`; a Tasks failure never costs the
+  agenda but is surfaced in `#calStatus`.
+- Client: entries of `kind:"gtask"` are read-only (the OAuth scope is
+  `tasks.readonly`, so there is nothing to save back) and always all-day.
+- **All-day items have their own grid row** under the headings
+  (`.cal-allday`), rather than bucketing into hour 0 - the top of a 24-hour
+  grid is exactly where nobody scrolls. Tests that mean "hour cells" must
+  select `.cal-cell.is-main:not(.cal-allday)`.
+- The palette was briefly changed to navy/gold to match the icon and the user
+  asked for the original back; it is reverted byte-for-byte. Don't re-theme
+  without being asked.
+
 ## Honest caveat
 The "Client-side sync layer," "Access + hosting," and "Current data state"
 sections above were re-verified live in this session (2026-08-09): read

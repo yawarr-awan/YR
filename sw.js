@@ -1,5 +1,5 @@
 /**
- * YR Wellness Tracker - Service Worker
+ * YR - Service Worker
  *
  * Exists so the app satisfies install criteria and keeps working offline
  * once installed. Deliberately narrow scope: it only ever caches static
@@ -18,13 +18,15 @@
  *     must run as a normal top-level browser navigation, not a fetch()
  *     mediated by this worker.
  */
-var CACHE_NAME = "yr-wellness-shell-v2";
+var CACHE_NAME = "yr-wellness-shell-v3";
 var SHELL_ASSETS = [
   "./manifest.webmanifest",
   "./favicon.ico",
   "./icons/icon-192.png",
   "./icons/icon-512.png",
   "./icons/apple-touch-icon.png",
+  "./icons/icon-maskable-512.png",
+  "./icons/favicon-32.png",
 ];
 
 self.addEventListener("install", function (event) {

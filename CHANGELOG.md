@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.15.0
+
+- **New app icon and name.** The app is now just **YR**, with your logo as the icon everywhere — home screen, browser tab, install prompt and the header. The wordmark was recentred (it sat about 6% low) and enlarged slightly so it holds up at favicon size, and the gold was brightened from a muddy ochre so it reads properly against the navy. Android gets a dedicated maskable icon so its circular crop doesn't slice the letters.
+- **Google Tasks now show in the Calendar tab.** Previously they only ever fed Today's Brief — the calendar showed your events and your own scheduled tasks, but nothing from Google Tasks. Anything with a due date now appears on that day, marked as a Google Task with the list it came from. They're read-only here, since the app only asks Google for permission to read them.
+- **All-day items get their own row** at the top of the day, under the date headings, instead of being buried in the 00:00 slot at the top of a 24-hour grid nobody scrolls back to. All-day events and Google Tasks both live there.
+- If Google Tasks can't be read, the calendar says so rather than just looking empty — the same trap that once hid an unenabled Tasks API. Your agenda still loads either way.
+
 ## 1.14.1
 
 - **The prayer settings cog is the right size.** It was a fixed 32px square sitting next to a 44px-tall button; it now matches that button's height, is square, has a larger glyph, and highlights while the panel is open.

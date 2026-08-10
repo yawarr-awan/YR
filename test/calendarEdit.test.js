@@ -46,7 +46,7 @@ async function openCalendar(app) {
   await app.flush();
 }
 
-const mainCells = (app) => app.document.querySelectorAll("#calDayCur .cal-cell.is-main");
+const mainCells = (app) => app.document.querySelectorAll("#calDayCur .cal-cell.is-main:not(.cal-allday)");
 const chips = (app) => app.document.querySelectorAll("#calDayCur .cal-chip");
 const editorOpen = (app) => app.document.getElementById("overlay").classList.contains("open");
 const editorField = (app, label) => {
@@ -331,4 +331,71 @@ test("a read-only event's fields are disabled, not merely unsaveable", async () 
   chips(app)[0].click();
   assert.equal(editorField(app, "Title").disabled, true);
   assert.equal(editorField(app, "Location").disabled, true);
+});
+
+/* ---------- Google Tasks on the grid ---------- */
+
+function backendWithTasks(tasks, opts) {
+  const events = (opts && opts.events) || [];
+  const tasksError = (opts && opts.tasksError) || null;
+  return async (url) => {
+    const u = String(url);
+    if (u.includes("/api/calendar/events")) {
+      return jsonRes({ connected: true, status: "ok", events, tasks, tasksError });
+    }
+    return jsonRes({ connected: false, status: "not_connected" });
+  };
+}
+
+test("a Google Task due that day shows on the calendar as an all-day entry", async () => {
+  const today = keyOf(new Date());
+  const app = loadApp({
+    fetchImpl: backendWithTasks([{ id: "gt1", title: "Renew passport", due: today, list: "My Tasks", notes: "form C1" }]),
+  });
+  await openCalendar(app);
+
+  const gchips = app.document.querySelectorAll("#calDayCur .cal-chip.is-gtask");
+  assert.equal(gchips.length, 1);
+  assert.match(gchips[0].textContent, /Renew passport/);
+  assert.match(gchips[0].textContent, /Google Task/);
+  assert.match(gchips[0].textContent, /My Tasks/, "the list it came from is worth knowing");
+  assert.match(gchips[0].textContent, /All day/, "Google Tasks carry a date, not a time");
+});
+
+test("a Google Task due another day does not appear on this one", async () => {
+  const other = keyOf(new Date(Date.now() + 3 * 86400000));
+  const app = loadApp({ fetchImpl: backendWithTasks([{ id: "gt1", title: "Renew passport", due: other, list: "My Tasks" }]) });
+  await openCalendar(app);
+  assert.equal(app.document.querySelectorAll("#calDayCur .cal-chip.is-gtask").length, 0);
+});
+
+test("tapping a Google Task shows it read-only — the app can only read them", async () => {
+  const today = keyOf(new Date());
+  const app = loadApp({
+    fetchImpl: backendWithTasks([{ id: "gt1", title: "Renew passport", due: today, list: "My Tasks", notes: "form C1" }]),
+  });
+  await openCalendar(app);
+
+  app.document.querySelector("#calDayCur .cal-chip.is-gtask").click();
+  assert.ok(editorOpen(app));
+  assert.match(app.document.querySelector("#modalBody h2").textContent, /Google Task/);
+  assert.equal(editorField(app, "Title").value, "Renew passport");
+  assert.equal(editorField(app, "Title").disabled, true);
+  assert.equal(editorField(app, "Notes").value, "form C1");
+  assert.equal(editorButton(app, "Save"), undefined, "there is nothing it could save back");
+  assert.equal(editorButton(app, "Delete"), undefined);
+  assert.match(app.document.querySelector("#modalBody").textContent, /only has permission to read/i);
+});
+
+test("a Google Tasks failure is reported without breaking the agenda", async () => {
+  const app = loadApp({
+    fetchImpl: backendWithTasks([], {
+      events: [{ id: "e1", calendarId: "primary", writable: true, title: "Lunch", start: atToday(12, 0), calendar: "Yawar" }],
+      tasksError: "task lists unavailable: HTTP 403",
+    }),
+  });
+  await openCalendar(app);
+
+  assert.equal(chips(app).length, 1, "the calendar still renders");
+  assert.match(app.document.getElementById("calStatus").textContent, /Google Tasks couldn't be read/);
 });

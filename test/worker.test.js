@@ -547,7 +547,9 @@ test("handleGetCalendarEvents: a malformed or backwards `end` falls back to a si
   installFetch(t, async (url) => {
     const u = String(url);
     if (u.includes("calendarList")) return jsonResponse(200, { items: [{ id: "primary", summary: "Yawar", primary: true }] });
-    urls.push(decodeURIComponent(u));
+    // The handler also asks Google Tasks now; only the events requests carry
+    // the time range this test is about.
+    if (u.includes("/events?")) urls.push(decodeURIComponent(u));
     return jsonResponse(200, { items: [] });
   });
   const now = new Date("2026-08-09T10:00:00Z");
@@ -740,4 +742,74 @@ test("calendar writes: an old read-only token surfaces as reconnect_required on 
   const del = await (await handleDeleteCalendarEvent(
     { url: "https://x/api/google/calendar/events?eventId=evt1" }, d1.env, EMAIL)).json();
   assert.equal(del.status, "reconnect_required");
+});
+
+test("fetchTasksInRange: returns dated open tasks inside the window, bucketed by their due date", async (t) => {
+  const { fetchTasksInRange } = await loadWorker();
+  installFetch(t, googleApiMocks({
+    taskLists: [{ id: "list1", title: "My Tasks" }],
+    tasksByList: {
+      list1: [
+        { id: "t1", title: "Renew passport", due: "2026-08-10T00:00:00.000Z" },
+        { id: "t2", title: "Too early", due: "2026-08-01T00:00:00.000Z" },
+        { id: "t3", title: "Too late", due: "2026-08-30T00:00:00.000Z" },
+        { id: "t4", title: "No due date at all" },
+        { id: "t5", title: "Already done", due: "2026-08-11T00:00:00.000Z", status: "completed" },
+        { id: "t6", title: "Deleted", due: "2026-08-11T00:00:00.000Z", deleted: true },
+      ],
+    },
+  }));
+
+  const out = await fetchTasksInRange("tok", "2026-08-05", "2026-08-15");
+  assert.equal(out.error, null);
+  assert.deepEqual(out.tasks.map((x) => x.title), ["Renew passport"]);
+  assert.equal(out.tasks[0].due, "2026-08-10", "the bare date is what buckets it onto a day");
+  assert.equal(out.tasks[0].list, "My Tasks");
+});
+
+test("fetchTasksInRange: reports a failure instead of looking like an empty task list", async (t) => {
+  const { fetchTasksInRange } = await loadWorker();
+  installFetch(t, async () => jsonResponse(403, {}, "Tasks API has not been used in project"));
+  const out = await fetchTasksInRange("tok", "2026-08-05", "2026-08-15");
+  assert.deepEqual(out.tasks, []);
+  assert.match(out.error, /403/);
+});
+
+test("handleGetCalendarEvents: returns Google Tasks alongside the events", async (t) => {
+  const { handleGetCalendarEvents } = await loadWorker();
+  const d1 = createFakeD1();
+  d1.seedToken(EMAIL, { access_token: "tok", access_token_expires_at: Date.now() + 600000 });
+  installFetch(t, googleApiMocks({
+    calendars: [{ id: "primary", summary: "Yawar", primary: true, accessRole: "owner" }],
+    eventsByCalendar: { primary: [{ id: "e1", summary: "Lunch", start: { dateTime: "2026-08-09T12:00:00+01:00" } }] },
+    taskLists: [{ id: "list1", title: "My Tasks" }],
+    tasksByList: { list1: [{ id: "t1", title: "Renew passport", due: "2026-08-09T00:00:00.000Z" }] },
+  }));
+
+  const body = await (await handleGetCalendarEvents(
+    new Request("https://x/api/calendar/events?date=2026-08-09"), d1.env, EMAIL, new Date("2026-08-09T10:00:00Z"))).json();
+  assert.equal(body.status, "ok");
+  assert.equal(body.events.length, 1);
+  assert.equal(body.tasks.length, 1);
+  assert.equal(body.tasks[0].title, "Renew passport");
+  assert.equal(body.tasksError, null);
+});
+
+test("handleGetCalendarEvents: a Tasks failure never costs the user their agenda", async (t) => {
+  const { handleGetCalendarEvents } = await loadWorker();
+  const d1 = createFakeD1();
+  d1.seedToken(EMAIL, { access_token: "tok", access_token_expires_at: Date.now() + 600000 });
+  installFetch(t, async (url) => {
+    const u = String(url);
+    if (u.includes("tasks.googleapis.com")) return jsonResponse(403, {}, "Tasks API disabled");
+    if (u.includes("calendarList")) return jsonResponse(200, { items: [{ id: "primary", summary: "Yawar", accessRole: "owner" }] });
+    return jsonResponse(200, { items: [{ id: "e1", summary: "Lunch", start: { dateTime: "2026-08-09T12:00:00+01:00" } }] });
+  });
+
+  const body = await (await handleGetCalendarEvents(
+    new Request("https://x/api/calendar/events?date=2026-08-09"), d1.env, EMAIL, new Date("2026-08-09T10:00:00Z"))).json();
+  assert.equal(body.status, "ok", "the calendar still loaded");
+  assert.equal(body.events.length, 1);
+  assert.deepEqual(body.tasks, []);
+  assert.match(body.tasksError, /403/, "but the reason is reported rather than swallowed");
 });

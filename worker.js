@@ -724,6 +724,61 @@ async function handleRefreshBrief(env, email, now) {
   });
 }
 
+/** Open Google Tasks whose due date falls inside [fromDay, toDay], for the
+ * Calendar tab. Google Tasks stores `due` as a date (the time part is
+ * meaningless), so these are all-day items.
+ *
+ * The filtering is done here rather than with dueMin/dueMax: those compare
+ * full RFC3339 timestamps against a field that is really only a date, which
+ * is how tasks went missing from the brief once already. Everything open is
+ * fetched and matched on the date prefix instead.
+ *
+ * Like the brief's task fetch, this never throws - the agenda is worth
+ * showing without them - but it does report why it came back empty. */
+async function fetchTasksInRange(accessToken, fromDay, toDay) {
+  const out = { tasks: [], error: null };
+  try {
+    const listsRes = await fetch("https://tasks.googleapis.com/tasks/v1/users/@me/lists?maxResults=100", {
+      headers: { authorization: `Bearer ${accessToken}` },
+    });
+    if (!listsRes.ok) {
+      const detail = await listsRes.text().catch(() => "");
+      out.error = `task lists unavailable: HTTP ${listsRes.status} ${detail.slice(0, 300)}`;
+      return out;
+    }
+    const listsData = await listsRes.json();
+
+    for (const list of listsData.items || []) {
+      const params = new URLSearchParams({ showCompleted: "false", showHidden: "true", maxResults: "100" });
+      const res = await fetch(
+        `https://tasks.googleapis.com/tasks/v1/lists/${encodeURIComponent(list.id)}/tasks?${params}`,
+        { headers: { authorization: `Bearer ${accessToken}` } }
+      );
+      if (!res.ok) {
+        if (!out.error) out.error = `task list "${list.title || list.id}" unavailable: HTTP ${res.status}`;
+        continue;
+      }
+      const data = await res.json();
+      for (const t of data.items || []) {
+        if (t.status === "completed" || t.deleted || !t.due) continue;
+        const dueDay = String(t.due).slice(0, 10);
+        if (dueDay < fromDay || dueDay > toDay) continue;
+        out.tasks.push({
+          id: t.id,
+          title: (t.title || "").trim() || "(untitled task)",
+          due: dueDay,
+          notes: t.notes || null,
+          listId: list.id,
+          list: list.title || null,
+        });
+      }
+    }
+  } catch (e) {
+    out.error = String(e.message || e);
+  }
+  return out;
+}
+
 /**
  * GET /api/calendar/events?date=YYYY-MM-DD[&end=YYYY-MM-DD] - raw
  * (non-summarized) events across every calendar the user can read, for the
@@ -744,12 +799,19 @@ async function handleGetCalendarEvents(request, env, email, now) {
   const tokenResult = await getGoogleAccessToken(env, email);
   if (tokenResult.error) return json({ connected: false, status: tokenResult.error, day, end, events: [] });
 
+  /* Tasks are fetched alongside, not instead: a Tasks failure must not cost
+     the user their agenda, so it comes back as a note beside the events. */
+  const taskResult = await fetchTasksInRange(tokenResult.accessToken, day, end);
+
   try {
     const calendars = await listCalendars(tokenResult.accessToken);
     const events = await fetchEventsForRange(tokenResult.accessToken, calendars, timeMin, timeMax);
-    return json({ connected: true, status: "ok", day, end, events });
+    return json({ connected: true, status: "ok", day, end, events, tasks: taskResult.tasks, tasksError: taskResult.error });
   } catch (e) {
-    return json({ connected: true, status: "calendar_error", day, end, events: [], error: String(e.message || e) });
+    return json({
+      connected: true, status: "calendar_error", day, end, events: [],
+      tasks: taskResult.tasks, tasksError: taskResult.error, error: String(e.message || e),
+    });
   }
 }
 
@@ -998,6 +1060,7 @@ export {
   listCalendars,
   fetchEventsForRange,
   fetchTasks,
+  fetchTasksInRange,
   generateBrief,
   handleGetBrief,
   handleRefreshBrief,
