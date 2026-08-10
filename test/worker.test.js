@@ -355,17 +355,19 @@ test("listCalendars: maps calendarList items, defaulting missing color/name sens
   const { listCalendars } = await loadWorker();
   installFetch(t, googleApiMocks({
     calendars: [
-      { id: "primary", summary: "Yawar", backgroundColor: "#4285F4", primary: true },
-      { id: "family@group.calendar.google.com", summaryOverride: "Family (shared)" },
-      { id: "no-color@group.calendar.google.com", summary: "No Color Cal" },
+      { id: "primary", summary: "Yawar", backgroundColor: "#4285F4", primary: true, accessRole: "owner" },
+      { id: "family@group.calendar.google.com", summaryOverride: "Family (shared)", accessRole: "writer" },
+      { id: "no-color@group.calendar.google.com", summary: "No Color Cal", accessRole: "reader" },
     ],
   }));
 
   const calendars = await listCalendars("tok");
   assert.equal(calendars.length, 3);
-  assert.deepEqual(calendars[0], { id: "primary", name: "Yawar", color: "#4285F4", primary: true });
+  assert.deepEqual(calendars[0], { id: "primary", name: "Yawar", color: "#4285F4", primary: true, writable: true });
   assert.equal(calendars[1].name, "Family (shared)", "summaryOverride wins over summary when both are present");
+  assert.equal(calendars[1].writable, true, "a writer calendar can be edited");
   assert.equal(calendars[2].color, "#4285F4", "a calendar with no backgroundColor falls back to a sane default");
+  assert.equal(calendars[2].writable, false, "a read-only calendar must not offer editing");
 });
 
 test("listCalendars: a non-OK response throws (this is on the critical path, unlike tasks)", async (t) => {
@@ -599,4 +601,143 @@ test("handleCreateCalendarEvent: an old read-only token surfaces as reconnect_re
   const req = { json: async () => ({ title: "Pay rent", start: "2026-08-09T10:00:00.000Z" }) };
   const resp = await (await handleCreateCalendarEvent(req, d1.env, EMAIL)).json();
   assert.equal(resp.status, "reconnect_required");
+});
+
+test("fetchEventsForRange: carries the ids and writability an editor needs", async (t) => {
+  const { fetchEventsForRange } = await loadWorker();
+  installFetch(t, googleApiMocks({
+    eventsByCalendar: {
+      primary: [{ id: "evt1", summary: "Lunch", start: { dateTime: "2026-08-09T12:00:00+01:00" }, end: { dateTime: "2026-08-09T13:00:00+01:00" }, description: "with Sam" }],
+      "shared@group.calendar.google.com": [{ id: "evt2", summary: "Team sync", start: { dateTime: "2026-08-09T14:00:00+01:00" } }],
+    },
+  }));
+  const events = await fetchEventsForRange("tok", [
+    { id: "primary", name: "Yawar", color: "#4285F4", writable: true },
+    { id: "shared@group.calendar.google.com", name: "Shared", color: "#0B8043", writable: false },
+  ], "2026-08-09T00:00:00+01:00", "2026-08-09T23:59:59+01:00");
+
+  assert.equal(events[0].id, "evt1");
+  assert.equal(events[0].calendarId, "primary");
+  assert.equal(events[0].writable, true);
+  assert.equal(events[0].notes, "with Sam");
+  assert.equal(events[0].end, "2026-08-09T13:00:00+01:00", "the end is what gives the editor its duration");
+  assert.equal(events[1].writable, false, "a read-only calendar's events must say so");
+});
+
+test("handleCreateCalendarEvent: honours an explicit calendarId and location", async (t) => {
+  const { handleCreateCalendarEvent } = await loadWorker();
+  const d1 = createFakeD1();
+  d1.seedToken(EMAIL, { access_token: "tok", access_token_expires_at: Date.now() + 10 * 60 * 1000 });
+  let seenUrl = null, sentBody = null;
+  installFetch(t, async (url, opts) => {
+    seenUrl = String(url);
+    sentBody = JSON.parse(opts.body);
+    return jsonResponse(200, { id: "evt9" });
+  });
+
+  const req = { json: async () => ({ title: "Gym", start: "2026-08-09T18:00:00.000Z", calendarId: "other@group.calendar.google.com", location: "Leisure centre" }) };
+  const resp = await (await handleCreateCalendarEvent(req, d1.env, EMAIL)).json();
+  assert.equal(resp.status, "ok");
+  assert.equal(resp.calendarId, "other@group.calendar.google.com");
+  assert.match(seenUrl, /calendars\/other%40group\.calendar\.google\.com\/events/);
+  assert.equal(sentBody.location, "Leisure centre");
+});
+
+test("handleUpdateCalendarEvent: sends only the fields given, so a rename can't disturb the time", async (t) => {
+  const { handleUpdateCalendarEvent } = await loadWorker();
+  const d1 = createFakeD1();
+  d1.seedToken(EMAIL, { access_token: "tok", access_token_expires_at: Date.now() + 10 * 60 * 1000 });
+  let method = null, sentBody = null, seenUrl = null;
+  installFetch(t, async (url, opts) => {
+    seenUrl = String(url); method = opts.method; sentBody = JSON.parse(opts.body);
+    return jsonResponse(200, { id: "evt1" });
+  });
+
+  const req = { json: async () => ({ calendarId: "primary", eventId: "evt1", title: "Lunch with Sam" }) };
+  const resp = await (await handleUpdateCalendarEvent(req, d1.env, EMAIL)).json();
+  assert.equal(resp.status, "ok");
+  assert.equal(method, "PATCH");
+  assert.match(seenUrl, /calendars\/primary\/events\/evt1/);
+  assert.deepEqual(sentBody, { summary: "Lunch with Sam" }, "no start/end means the event keeps its time");
+});
+
+test("handleUpdateCalendarEvent: moving an event rewrites both ends from the duration", async (t) => {
+  const { handleUpdateCalendarEvent } = await loadWorker();
+  const d1 = createFakeD1();
+  d1.seedToken(EMAIL, { access_token: "tok", access_token_expires_at: Date.now() + 10 * 60 * 1000 });
+  let sentBody = null;
+  installFetch(t, async (url, opts) => { sentBody = JSON.parse(opts.body); return jsonResponse(200, { id: "evt1" }); });
+
+  const req = { json: async () => ({ calendarId: "primary", eventId: "evt1", start: "2026-08-09T15:00:00.000Z", durationMinutes: 90 }) };
+  await handleUpdateCalendarEvent(req, d1.env, EMAIL);
+  assert.equal(sentBody.start.dateTime, "2026-08-09T15:00:00.000Z");
+  assert.equal(sentBody.end.dateTime, "2026-08-09T16:30:00.000Z");
+});
+
+test("handleUpdateCalendarEvent: rejects a missing eventId or an empty patch before the network", async (t) => {
+  const { handleUpdateCalendarEvent } = await loadWorker();
+  const d1 = createFakeD1();
+  installFetch(t, async () => { throw new Error("must not touch the network on a validation failure"); });
+
+  const noId = await (await handleUpdateCalendarEvent({ json: async () => ({ title: "x" }) }, d1.env, EMAIL)).json();
+  assert.match(noId.error, /eventId/i);
+
+  const empty = await (await handleUpdateCalendarEvent({ json: async () => ({ eventId: "evt1" }) }, d1.env, EMAIL)).json();
+  assert.match(empty.error, /nothing to update/i);
+});
+
+test("handleUpdateCalendarEvent: a 404 says so rather than reading as a generic failure", async (t) => {
+  const { handleUpdateCalendarEvent } = await loadWorker();
+  const d1 = createFakeD1();
+  d1.seedToken(EMAIL, { access_token: "tok", access_token_expires_at: Date.now() + 10 * 60 * 1000 });
+  installFetch(t, async () => jsonResponse(404, {}, "Not Found"));
+
+  const req = { json: async () => ({ eventId: "gone", title: "x" }) };
+  const resp = await (await handleUpdateCalendarEvent(req, d1.env, EMAIL)).json();
+  assert.equal(resp.status, "not_found");
+});
+
+test("handleDeleteCalendarEvent: deletes by calendar + event id, and 410 counts as gone", async (t) => {
+  const { handleDeleteCalendarEvent } = await loadWorker();
+  const d1 = createFakeD1();
+  d1.seedToken(EMAIL, { access_token: "tok", access_token_expires_at: Date.now() + 10 * 60 * 1000 });
+  let method = null, seenUrl = null;
+  installFetch(t, async (url, opts) => {
+    seenUrl = String(url); method = opts.method;
+    return new Response(null, { status: 204 });
+  });
+
+  const ok = await (await handleDeleteCalendarEvent(
+    { url: "https://x/api/google/calendar/events?calendarId=primary&eventId=evt1" }, d1.env, EMAIL)).json();
+  assert.equal(ok.status, "ok");
+  assert.equal(method, "DELETE");
+  assert.match(seenUrl, /calendars\/primary\/events\/evt1/);
+
+  installFetch(t, async () => new Response(null, { status: 410 }));
+  const gone = await (await handleDeleteCalendarEvent(
+    { url: "https://x/api/google/calendar/events?calendarId=primary&eventId=evt1" }, d1.env, EMAIL)).json();
+  assert.equal(gone.status, "ok", "already deleted is the same outcome as deleting it");
+});
+
+test("handleDeleteCalendarEvent: requires an eventId", async (t) => {
+  const { handleDeleteCalendarEvent } = await loadWorker();
+  const d1 = createFakeD1();
+  installFetch(t, async () => { throw new Error("must not touch the network on a validation failure"); });
+  const resp = await (await handleDeleteCalendarEvent(
+    { url: "https://x/api/google/calendar/events?calendarId=primary" }, d1.env, EMAIL)).json();
+  assert.match(resp.error, /eventId/i);
+});
+
+test("calendar writes: an old read-only token surfaces as reconnect_required on update and delete too", async (t) => {
+  const { handleUpdateCalendarEvent, handleDeleteCalendarEvent } = await loadWorker();
+  const d1 = createFakeD1();
+  d1.seedToken(EMAIL, { access_token: "tok", access_token_expires_at: Date.now() + 10 * 60 * 1000 });
+  installFetch(t, async () => jsonResponse(403, {}, JSON.stringify({ error: { message: "Insufficient Permission" } })));
+
+  const upd = await (await handleUpdateCalendarEvent({ json: async () => ({ eventId: "evt1", title: "x" }) }, d1.env, EMAIL)).json();
+  assert.equal(upd.status, "reconnect_required");
+
+  const del = await (await handleDeleteCalendarEvent(
+    { url: "https://x/api/google/calendar/events?eventId=evt1" }, d1.env, EMAIL)).json();
+  assert.equal(del.status, "reconnect_required");
 });

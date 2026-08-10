@@ -429,6 +429,10 @@ async function listCalendars(accessToken) {
     name: c.summaryOverride || c.summary || c.id,
     color: c.backgroundColor || "#4285F4",
     primary: Boolean(c.primary),
+    /* Only writer/owner calendars can be edited. A shared calendar you can
+       merely read must not offer a Save button, so this travels with every
+       event the UI renders. */
+    writable: c.accessRole === "writer" || c.accessRole === "owner",
   }));
 }
 
@@ -451,11 +455,17 @@ async function fetchEventsForRange(accessToken, calendars, timeMin, timeMax) {
     const data = await res.json();
     for (const e of data.items || []) {
       all.push({
+        /* id + calendarId are what make an event editable from the UI -
+           Google needs both to address it. */
+        id: e.id,
+        calendarId: cal.id,
+        writable: Boolean(cal.writable),
         title: e.summary || "(no title)",
         start: e.start?.dateTime || e.start?.date,
         end: e.end?.dateTime || e.end?.date,
         allDay: !e.start?.dateTime,
         location: e.location || null,
+        notes: e.description || null,
         calendar: cal.name,
         color: cal.color,
       });
@@ -743,12 +753,26 @@ async function handleGetCalendarEvents(request, env, email, now) {
   }
 }
 
+/** Shared failure mapping for the three write paths below. An old
+ * read-only-scope token (pre-reconnect) can't write at all, and Google
+ * surfaces that as 403 insufficientPermissions - mapped to
+ * reconnect_required so the UI can prompt exactly that rather than showing
+ * a generic error. A 403 on a calendar the user only reads is a different
+ * thing entirely and stays an error. */
+async function googleWriteFailure(res) {
+  const detail = await res.text().catch(() => "");
+  if (res.status === 403 && /insufficient/i.test(detail)) return json({ status: "reconnect_required" });
+  if (res.status === 404) return json({ status: "not_found" });
+  return json({ status: "error", error: `HTTP ${res.status} ${detail.slice(0, 200)}` });
+}
+
 /**
- * POST /api/google/calendar/events - creates a real event on the user's
- * primary calendar, e.g. when scheduling a local task. Requires the
- * calendar.events (write) scope; a token granted only the older
- * read-only scope surfaces as reconnect_required, not a generic error.
- * body: { title, start (ISO datetime), durationMinutes?, notes? }
+ * POST /api/google/calendar/events - creates a real event, e.g. when
+ * scheduling a local task or tapping an empty slot in the Calendar tab.
+ * Defaults to the primary calendar. Requires the calendar.events (write)
+ * scope.
+ * body: { title, start (ISO datetime), durationMinutes?, notes?, location?,
+ *         calendarId? }
  */
 async function handleCreateCalendarEvent(request, env, email) {
   let body;
@@ -769,30 +793,103 @@ async function handleCreateCalendarEvent(request, env, email) {
 
   const durationMinutes = Number.isFinite(body.durationMinutes) && body.durationMinutes > 0 ? body.durationMinutes : 30;
   const endDate = new Date(startDate.getTime() + durationMinutes * 60000);
+  const calendarId = typeof body.calendarId === "string" && body.calendarId ? body.calendarId : "primary";
 
-  const res = await fetch("https://www.googleapis.com/calendar/v3/calendars/primary/events", {
-    method: "POST",
-    headers: { authorization: `Bearer ${tokenResult.accessToken}`, "content-type": "application/json" },
-    body: JSON.stringify({
-      summary: title,
-      description: typeof body.notes === "string" ? body.notes : undefined,
-      start: { dateTime: startDate.toISOString() },
-      end: { dateTime: endDate.toISOString() },
-    }),
-  });
-
-  if (!res.ok) {
-    const detail = await res.text().catch(() => "");
-    // An old read-only-scope token (pre-reconnect) can't create events -
-    // Google surfaces that as 403 insufficientPermissions. Map it to
-    // reconnect_required so the UI can prompt exactly that.
-    if (res.status === 403 && /insufficient/i.test(detail)) {
-      return json({ status: "reconnect_required" });
+  const res = await fetch(
+    `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events`,
+    {
+      method: "POST",
+      headers: { authorization: `Bearer ${tokenResult.accessToken}`, "content-type": "application/json" },
+      body: JSON.stringify({
+        summary: title,
+        description: typeof body.notes === "string" ? body.notes : undefined,
+        location: typeof body.location === "string" ? body.location : undefined,
+        start: { dateTime: startDate.toISOString() },
+        end: { dateTime: endDate.toISOString() },
+      }),
     }
-    return json({ status: "error", error: `HTTP ${res.status} ${detail.slice(0, 200)}` });
-  }
+  );
+
+  if (!res.ok) return await googleWriteFailure(res);
   const created = await res.json();
-  return json({ status: "ok", eventId: created.id, htmlLink: created.htmlLink || null });
+  return json({ status: "ok", eventId: created.id, calendarId, htmlLink: created.htmlLink || null });
+}
+
+/**
+ * PATCH /api/google/calendar/events - edits an existing event in place.
+ * Only the fields present in the body are sent on, so a rename doesn't
+ * disturb the time and vice versa. `start` moves the event, keeping its
+ * length unless `durationMinutes` says otherwise.
+ * body: { calendarId, eventId, title?, start?, durationMinutes?, location?,
+ *         notes? }
+ */
+async function handleUpdateCalendarEvent(request, env, email) {
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return json({ error: "invalid json" }, 400);
+  }
+
+  const calendarId = typeof body.calendarId === "string" && body.calendarId ? body.calendarId : "primary";
+  const eventId = typeof body.eventId === "string" ? body.eventId.trim() : "";
+  if (!eventId) return json({ error: "eventId is required" }, 400);
+
+  const patch = {};
+  if (typeof body.title === "string") {
+    if (!body.title.trim()) return json({ error: "title cannot be blank" }, 400);
+    patch.summary = body.title.trim();
+  }
+  if (typeof body.notes === "string") patch.description = body.notes;
+  if (typeof body.location === "string") patch.location = body.location;
+  if (typeof body.start === "string") {
+    const startDate = new Date(body.start);
+    if (Number.isNaN(startDate.getTime())) return json({ error: "invalid start" }, 400);
+    const durationMinutes =
+      Number.isFinite(body.durationMinutes) && body.durationMinutes > 0 ? body.durationMinutes : 30;
+    patch.start = { dateTime: startDate.toISOString() };
+    patch.end = { dateTime: new Date(startDate.getTime() + durationMinutes * 60000).toISOString() };
+  }
+  if (!Object.keys(patch).length) return json({ error: "nothing to update" }, 400);
+
+  const tokenResult = await getGoogleAccessToken(env, email);
+  if (tokenResult.error) return json({ status: tokenResult.error });
+
+  const res = await fetch(
+    `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}`,
+    {
+      method: "PATCH",
+      headers: { authorization: `Bearer ${tokenResult.accessToken}`, "content-type": "application/json" },
+      body: JSON.stringify(patch),
+    }
+  );
+
+  if (!res.ok) return await googleWriteFailure(res);
+  const updated = await res.json();
+  return json({ status: "ok", eventId: updated.id, calendarId, htmlLink: updated.htmlLink || null });
+}
+
+/**
+ * DELETE /api/google/calendar/events?calendarId=&eventId= - removes an
+ * event. Google answers 204 with no body on success, and 410 if it was
+ * already gone, which is the same outcome from here.
+ */
+async function handleDeleteCalendarEvent(request, env, email) {
+  const url = new URL(request.url);
+  const calendarId = url.searchParams.get("calendarId") || "primary";
+  const eventId = (url.searchParams.get("eventId") || "").trim();
+  if (!eventId) return json({ error: "eventId is required" }, 400);
+
+  const tokenResult = await getGoogleAccessToken(env, email);
+  if (tokenResult.error) return json({ status: tokenResult.error });
+
+  const res = await fetch(
+    `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}`,
+    { method: "DELETE", headers: { authorization: `Bearer ${tokenResult.accessToken}` } }
+  );
+
+  if (res.ok || res.status === 410) return json({ status: "ok" });
+  return await googleWriteFailure(res);
 }
 
 /** Cron entry point. Runs hourly (see wrangler.jsonc) but only actually
@@ -870,6 +967,12 @@ export default {
       if (url.pathname === "/api/google/calendar/events" && request.method === "POST") {
         return await handleCreateCalendarEvent(request, env, email);
       }
+      if (url.pathname === "/api/google/calendar/events" && request.method === "PATCH") {
+        return await handleUpdateCalendarEvent(request, env, email);
+      }
+      if (url.pathname === "/api/google/calendar/events" && request.method === "DELETE") {
+        return await handleDeleteCalendarEvent(request, env, email);
+      }
     } catch (e) {
       return json({ error: "server error", detail: String(e.message || e) }, 500);
     }
@@ -903,6 +1006,8 @@ export {
   DEFAULT_BRIEF_PROMPT,
   handleGetCalendarEvents,
   handleCreateCalendarEvent,
+  handleUpdateCalendarEvent,
+  handleDeleteCalendarEvent,
   handleGoogleConnect,
   handleGoogleCallback,
   handleScheduled,

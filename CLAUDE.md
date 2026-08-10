@@ -556,6 +556,39 @@ felt built for a desktop.
   the shared handler: stamp `profile.updated_at`, save, re-render the clock
   and Today, drop `_calWin` and re-render the calendar if it's showing.
 
+## Scheduling from the calendar + opening reminders (1.14.0)
+- **Worker**: `listCalendars()` now carries `writable` (accessRole
+  writer/owner), and `fetchEventsForRange()` carries `id`, `calendarId`,
+  `writable` and `notes` - without those an event can't be addressed for
+  editing. `POST /api/google/calendar/events` takes an optional
+  `calendarId`/`location`; `PATCH` (edit) and `DELETE` (remove, by query
+  params) were added on the same path. All three share
+  `googleWriteFailure()`, which maps 403-insufficient to
+  `reconnect_required` and 404 to `not_found`. PATCH sends **only** the
+  fields present in the body, so a rename can't disturb the time.
+- **Client**: `calDayEntries(dayKey)` is the single source of what belongs on
+  a day - Google events plus `profile.tasks` with a `due` - merged on
+  `calendarEventId` so a task and the event it created are one chip. Chips
+  are buttons; an empty stretch of an hour cell opens `openCalSlot()`.
+  `openCalEditor()` covers all three cases (new / event / task) and a
+  read-only calendar disables its fields rather than offering a doomed Save.
+- **`_calDragged`** exists because a swipe ends by firing a click on whatever
+  was under the finger - without it, every page-the-day gesture also opened
+  the editor. It's set in `touchmove` and cleared in a `setTimeout(...,0)`
+  after `touchend`, i.e. after that click has been and gone.
+- **`openingReminders()`** runs at init and on `visibilitychange` (an
+  installed app is resumed, not reloaded). It nudges about
+  `currentPrayerWindow()` if that prayer isn't ticked - before Fajr that's
+  *yesterday's* Isha, checked against yesterday's record - and about due,
+  timed, open tasks as one notification. All-day items are excluded on
+  purpose: they aren't due at a moment, so they'd nag on every open.
+  `notifyOnce` keys per prayer/day and per task+due, so re-opening inside
+  the same window is silent.
+- Test gotcha: prayer times in `test/openReminders.test.js` are built
+  *relative to the real clock* rather than hardcoded, since the app reads
+  the real `Date`. The pre-Fajr scenario can't exist after 23:00 and returns
+  early there, which is stated in the test.
+
 ## Honest caveat
 The "Client-side sync layer," "Access + hosting," and "Current data state"
 sections above were re-verified live in this session (2026-08-09): read

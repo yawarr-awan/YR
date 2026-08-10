@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.14.0
+
+**Schedule straight from the calendar.**
+
+- **Tap any empty hour** on the Calendar tab and an editor opens on that slot, prefilled with the day and time. Give it a title, pick a length, and it goes onto your Google Calendar.
+- **Tap anything already there** to see it in full and change it — rename it, move it, adjust how long it runs, edit the location or notes — or delete it. An event on a calendar you can only read opens read-only, with its fields disabled and no Save button, rather than a form whose save would always fail.
+- **Your scheduled tasks now appear on the calendar** alongside real events, marked as tasks. A task scheduled from this app is also a real calendar event, so the two are shown as one entry rather than duplicated; a task whose event never made it to Google still shows from the local record. Editing one from the calendar renames the task too, and "Remove from calendar" unschedules it without deleting the task itself. You can tick it done straight from there.
+- A swipe that pages the day no longer counts as a tap on whatever was under your finger.
+
+**Reminders when you open the app.**
+
+- Opening the app (or coming back to it) now nudges you about **the prayer whose window you're currently in, if it isn't ticked yet** — and before Fajr that's still last night's Isha, checked against yesterday, which is the one most likely to be sitting unmarked.
+- It also raises **scheduled tasks that are due and still open**, as one notification rather than a pile of them.
+- **All-day items are deliberately left out.** They aren't due at any particular moment, so treating them as overdue would mean a notification every single time. Nothing fires at all unless you've granted notification permission, and returning to the app inside the same prayer window stays quiet.
+
 ## 1.13.1
 
 - **Prayer time settings moved behind a cog** next to "Update location", instead of a picker sitting inline on the card.
