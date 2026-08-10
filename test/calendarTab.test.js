@@ -196,6 +196,45 @@ test("prayer windows tint all 24 hours of the day with no gaps", async () => {
   assert.match(hours[23].style.background, /--isha/);
 });
 
+test("the prayer window happening now is ringed in the calendar, in its own colour", async () => {
+  const app = loadApp({
+    geolocation: { lat: 51.5, lon: -0.12 },
+    fetchImpl: fetchRouter([
+      ["/api/calendar/events", () => jsonRes({ connected: true, status: "ok", events: [] })],
+      ["/api/prayer", () => jsonRes({ source: "ummahapi", timings: { Fajr: "04:45", Sunrise: "05:50", Dhuhr: "13:00", Asr: "17:00", Maghrib: "20:30", Isha: "22:00" } })],
+    ]),
+  });
+  app.click("prayerLocBtn");
+  await app.flush();
+  await app.flush();
+  app.goTo("calendar");
+  await app.flush();
+  await app.flush();
+
+  const hours = [...curHours(app)];
+  const inWindow = hours.filter((h) => h.classList.contains("in-prayer"));
+  assert.ok(inWindow.length >= 1, "whatever the hour, today is inside some prayer window");
+
+  // A run of consecutive hours, ringed as one box: only the first draws a
+  // top edge and only the last a bottom one.
+  const idx = inWindow.map((h) => hours.indexOf(h));
+  idx.forEach((n, i) => { if (i) assert.equal(n, idx[i - 1] + 1, "the ringed hours are consecutive"); });
+  assert.equal(hours[idx[0]].classList.contains("win-first"), true);
+  assert.equal(hours[idx[idx.length - 1]].classList.contains("win-last"), true);
+  if (idx.length > 2) {
+    assert.equal(hours[idx[1]].classList.contains("win-first"), false, "the middle draws sides only");
+  }
+
+  // Its own colour, not the brand's - the same one tinting those hours.
+  const pc = hours[idx[0]].style.getPropertyValue("--pc");
+  assert.match(pc, /--(fajr|sunrise|dhuhr|asr|maghrib|isha)|#/, `a prayer colour, got: ${pc}`);
+  assert.ok(hours[idx[0]].style.background.includes(pc.trim()), "the ring matches the tint");
+
+  // Only today. The neighbouring columns have no "now" to be inside of.
+  const others = app.document.querySelectorAll("#calDayCur .cal-cell:not(.is-main).in-prayer");
+  assert.equal(others.length, 0);
+});
+
 test("the current hour is marked, with a now-line, only on today", async () => {
   const tracker = windowTracker();
   const app = loadApp({ fetchImpl: fetchRouter([tracker.route]) });

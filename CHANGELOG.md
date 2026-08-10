@@ -1,13 +1,27 @@
 # Changelog
 
+## 1.20.0
+
+**One look for a prayer, everywhere it appears.**
+
+- **The prayer times screen is a countdown and a list.** The spiral dial is gone — tapping the chip now gives you the window you're in and how long is left, then every window with its colour and its start and end. The "dial starts at now / Fajr" setting went with the dial it configured; the method, madhab, location and colours are all still there.
+- **The Prayers checklist matches it**: a colour bar, the prayer, and its window's start and end — with a ring around whichever one you're in, which moves on its own as the day goes by rather than being fixed at whatever it was when the tab opened.
+- **The made-up (qada) card matches it too**, same colour bar and same shape.
+- **The calendar rings the prayer window you're in**, in that prayer's own colour, as one box around the run of hours rather than a mark on each — with the current hour still outlined inside it.
+
+**A tidier header.**
+
+- **The completion indicator is a rounded square** beside the bell, not a circle floating in the middle. It still fills round as the day gets ticked off.
+- **The logo is larger**, so the mark reads as the app rather than as another button.
+- **The "Saved HH:MM" tag is gone.** Settings → Sync now says when the last save landed, whether or not cloud sync is on, so the header can stay on the prayer countdown.
+
 ## 1.19.0
 
 **A prayer clock, and prayer times that no longer depend on one provider.**
 
 - **Prayer times now come from the app's own Worker**, which asks UmmahAPI first and falls back to Aladhan by itself. The app neither knows nor cares which one answered, so one provider having a bad day no longer shows up as "couldn't load prayer times". Your coordinates go to the Worker, and on to whichever provider answers — same as before, one hop further back.
 - **A prayer chip in the header and on the Prayers tab**: which window you're in, and how long is left of it. Both are drawn by the same code, so they can't disagree, and they retick every few seconds.
-- **Tap either chip for the clock.** The whole day is one turn of a spiral — angle carries the time, radius carries how far through the day you are — so all six windows fit round one dial without overlapping. The window you're in is drawn thicker and at full strength, each prayer's start is marked, and an analog face with a running second hand sits inside it. Under it: the current window, its span, and how long is left.
-- **The dial can start at now or at Fajr.** "Now" reads as the next 24 hours; "Fajr" reads as the Islamic day, with no window split across the start.
+- **Tap either chip** for the current window, its span, how long is left, and every window of the day with its colour and times. (This shipped as a spiral dial with an analog face; it was replaced in 1.20.0 by the list that is there now.)
 - **Your madhab, in full.** Hanafi, Maliki, Shafi'i or Hanbali — the same setting as the Asr selector in the prayer cog, which now says the same thing. (Only the Hanafi position actually moves Asr; the other three are the same calculation.)
 - **Every prayer's colour is yours to change.** Tap a prayer in the clock and pick one; it follows through to the checklist, the calendar's hour tints and the chip. "Use the default colour" hands it back to the theme. The choice rides your profile, so it syncs.
 - **Your location is named, not numbered** — "London, United Kingdom" rather than a pair of coordinates — looked up in the background so it never delays the times, with the coordinates shown if the lookup doesn't answer. There's a Reset if you want to clear it and start again.

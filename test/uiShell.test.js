@@ -265,17 +265,32 @@ test("switching the theme still works from its new home", () => {
   assert.ok(after === "dark" || after === "light");
 });
 
-test("the header is only the logo, the ring, the saved time and the bell", () => {
+test("the header is the logo, the prayer countdown, the completion square and the bell", () => {
   const app = loadApp({});
   const header = app.document.querySelector("header.top");
   assert.ok(header.querySelector(".brand-badge"), "the logo stays");
-  assert.ok(header.querySelector("#dayRing"), "so does the completion ring");
-  assert.ok(header.querySelector("#savedTag"), "and the saved time");
+  assert.ok(header.querySelector("#headerChip"), "the prayer countdown");
+  assert.ok(header.querySelector("#dayRing"), "the completion square");
   assert.ok(header.querySelector("#notifyBell"), "and the bell");
 
+  assert.equal(header.querySelector("#savedTag"), null,
+    "the saved time is gone - Settings -> Sync already says when it last saved");
   assert.equal(header.querySelector(".brand-title"), null, "the wordmark is gone");
   assert.equal(header.querySelector(".brand-sub"), null, "so is the strapline");
-  assert.equal(/Diet|Movement|Medicine/.test(header.textContent), false, "no leftover strapline text");
+  assert.equal(/Saved \d/.test(header.textContent), false, "and no leftover timestamp");
+});
+
+test("the completion indicator sits beside the bell, and is a rounded square like it", () => {
+  const app = loadApp({});
+  const kids = Array.from(app.document.querySelector(".top-inner").children);
+  assert.equal(kids[kids.length - 1].id, "notifyBell");
+  assert.equal(kids[kids.length - 2].id, "dayRing", "right next to the bell");
+
+  const styles = app.document.querySelector("style").textContent;
+  const ring = styles.match(/\.ring\{[^}]*\}/)[0];
+  assert.doesNotMatch(ring, /border-radius:50%/, "not a circle any more");
+  assert.match(ring, /border-radius:12px/, "the same rounded square as the bell");
+  assert.match(ring, /conic-gradient/, "and it still carries the percentage");
 });
 
 test("the header is the same surface as the page, in either theme", () => {

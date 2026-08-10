@@ -46,7 +46,7 @@ test("with nothing made up, each prayer shows its full outstanding count", () =>
   const rows = qadaRows(app);
   assert.equal(rows.length, 5, "one row per prayer");
   assert.match(rows[0].textContent, /Fajr/);
-  rows.forEach((r) => assert.match(r.querySelector(".qada-owed").textContent, /^2 still owed/));
+  rows.forEach((r) => assert.match(r.querySelector(".qada-owed").textContent, /^2 owed/));
   assert.match(app.document.getElementById("praySummary").textContent, /10 prayer\(s\) still to make up/);
 });
 
@@ -69,7 +69,7 @@ test("recording a made-up prayer reduces what's owed without rewriting that day'
   const fajr = qadaRows(app)[0];
   Array.from(fajr.querySelectorAll("button")).find((b) => b.textContent === "+").click();
 
-  assert.match(qadaRows(app)[0].querySelector(".qada-owed").textContent, /^1 still owed/);
+  assert.match(qadaRows(app)[0].querySelector(".qada-owed").textContent, /^1 owed/);
   assert.match(app.document.getElementById("praySummary").textContent, /9 prayer\(s\) still to make up/);
   assert.match(app.document.getElementById("praySummary").textContent, /1 made up so far/);
 
@@ -88,7 +88,7 @@ test("the made-up count is a debt repayment: it cannot exceed what was actually 
   plus().click(); // one more than the 2 that were ever missed
 
   assert.equal(app.state().profile.qada.fajr, 2, "clamped at the number missed");
-  assert.match(qadaRows(app)[0].querySelector(".qada-owed").textContent, /^0 still owed/);
+  assert.match(qadaRows(app)[0].querySelector(".qada-owed").textContent, /^0 owed/);
 });
 
 test("the minus button and direct entry both work, and never go negative", () => {
