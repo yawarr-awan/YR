@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.17.1
+
+- **The header is white in both themes**, and so is Android's status bar above it. The header carries its own ink, chip and ring-track colours so everything in it stays readable when the rest of the app is dark.
+- **The "Notes for the day" card is gone from Today.** Anything you'd already written is untouched — the field is still in each day's record, so old notes are intact in your data and in exports.
+
 ## 1.17.0
 
 - **The next two days are schedulable too.** Tapping an empty hour in either narrow column now opens the editor for *that* day and hour, exactly as the focused day already did. Tapping something already there still opens it instead.

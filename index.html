@@ -9,7 +9,7 @@
 <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="manifest" href="manifest.webmanifest">
-<meta name="theme-color" content="#0f766e">
+<meta name="theme-color" content="#ffffff">
 <style>
 :root{
   --bg:#f4f6fb; --panel:#ffffff; --panel-2:#f0f3f9; --ink:#1c2434; --muted:#5b6678;
@@ -20,6 +20,12 @@
   --cal-tint:30%;
   --shadow:0 1px 2px rgba(16,24,40,.06),0 6px 20px rgba(16,24,40,.06);
   --radius:16px;
+  /* The header band is white in both themes, and so is the Android status
+     bar above it (see theme-color). It therefore needs its own ink, chip and
+     ring-track colours - the themed ones are near-white in dark mode and
+     would vanish. These are deliberately NOT redefined in the dark blocks. */
+  --hdr-bg:#ffffff; --hdr-ink:#16233a; --hdr-sub:#5b6678;
+  --hdr-line:#e3e8f0; --hdr-chip:#f2f5fa; --hdr-track:#e6ebf4;
 }
 @media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]){
@@ -58,23 +64,23 @@ body{
 a{color:var(--brand)}
 .wrap{max-width:1024px; margin:0 auto; padding:0 14px calc(78px + env(safe-area-inset-bottom,0px))}
 header.top{
-  position:sticky; top:0; z-index:20; background:var(--panel);
-  border-bottom:1px solid var(--line); box-shadow:var(--shadow);
+  position:sticky; top:0; z-index:20; background:var(--hdr-bg); color:var(--hdr-ink);
+  border-bottom:1px solid var(--hdr-line); box-shadow:var(--shadow);
 }
 .top-inner{max-width:1024px; margin:0 auto; padding:10px 16px; display:flex; align-items:center; gap:12px; flex-wrap:nowrap}
 .brand-badge{width:42px;height:42px;flex:0 0 auto;display:block}
 .ring{
   --p:0; width:48px;height:48px;border-radius:50%;flex:0 0 auto; margin-inline-start:auto;
-  background:conic-gradient(var(--brand) calc(var(--p)*1%), var(--panel-2) 0);
+  background:conic-gradient(var(--brand) calc(var(--p)*1%), var(--hdr-track) 0);
   display:flex;align-items:center;justify-content:center; position:relative;
 }
-.ring::after{content:"";position:absolute;inset:5px;border-radius:50%;background:var(--panel)}
-.ring span{position:relative;z-index:1;font-size:.72rem;font-weight:800}
-.theme-toggle{border:1px solid var(--line);background:var(--panel-2);color:var(--ink);width:40px;height:40px;border-radius:12px;font-size:1.15rem;cursor:pointer;flex:0 0 auto}
+.ring::after{content:"";position:absolute;inset:5px;border-radius:50%;background:var(--hdr-bg)}
+.ring span{position:relative;z-index:1;font-size:.72rem;font-weight:800;color:var(--hdr-ink)}
+.bell-btn{border:1px solid var(--hdr-line);background:var(--hdr-chip);color:var(--hdr-ink);width:40px;height:40px;border-radius:12px;font-size:1.15rem;cursor:pointer;flex:0 0 auto}
 .bell-btn{position:relative}
 .bell-dot{
   position:absolute;top:6px;inset-inline-end:6px;width:9px;height:9px;border-radius:50%;
-  background:var(--bad);box-shadow:0 0 0 2px var(--panel)
+  background:var(--bad);box-shadow:0 0 0 2px var(--hdr-bg)
 }
 /* Anchored to the header, which is the sticky element, so it travels with it. */
 .notif-panel{
@@ -338,7 +344,7 @@ input[type=range]{width:100%;accent-color:var(--accent)}
 .statusbar.warn{background:var(--warn);color:#fff}
 .statusbar.bad{background:var(--bad);color:#fff}
 .statusbar.good{background:var(--good);color:#fff}
-.savedtag{font-size:.68rem;color:var(--muted);white-space:nowrap;margin-left:6px}
+.savedtag{font-size:.68rem;color:var(--hdr-sub);white-space:nowrap;margin-left:6px}
 .stat{display:flex;flex-direction:column;gap:2px;background:var(--panel-2);border:1px solid var(--line);border-radius:12px;padding:12px}
 .stat b{font-size:1.5rem}
 .stat span{font-size:.75rem;color:var(--muted)}
@@ -384,7 +390,7 @@ footer.foot{text-align:center;color:var(--muted);font-size:.78rem;margin-top:26p
     <img class="brand-badge" src="data:image/png;base64,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" alt="YR logo" width="42" height="42">
     <div class="ring" id="dayRing"><span id="dayRingTxt">0%</span></div>
     <span id="savedTag" class="savedtag"></span>
-    <button id="notifyBell" class="theme-toggle bell-btn" aria-label="Notifications" aria-expanded="false" title="Notifications">🔔<span class="bell-dot" id="bellDot" hidden></span></button>
+    <button id="notifyBell" class="bell-btn" aria-label="Notifications" aria-expanded="false" title="Notifications">🔔<span class="bell-dot" id="bellDot" hidden></span></button>
   </div>
   <div class="notif-panel" id="notifPanel" hidden>
     <div class="notif-head">
@@ -482,13 +488,6 @@ footer.foot{text-align:center;color:var(--muted);font-size:.78rem;margin-top:26p
           <div class="field"><label for="energyIn">Energy level today <span class="slider-val" id="energyVal">–</span></label>
             <input type="range" id="energyIn" min="0" max="10" step="1" value="5">
             <div class="muted" style="font-size:.7rem;display:flex;justify-content:space-between"><span>0 exhausted</span><span>10 great</span></div></div>
-        </div>
-      </div>
-
-      <div class="card collapsible collapsed" data-collapse="notes" style="grid-column:1/-1">
-        <h3>📝 Notes for the day</h3>
-        <div class="card-body">
-          <div class="field"><textarea id="notesIn" placeholder="How did today go? Cravings, wins, how your joints felt, anything to remember…"></textarea></div>
         </div>
       </div>
 
@@ -1211,7 +1210,6 @@ function renderToday(){
   document.getElementById("painVal").textContent=(d.jointPain==null?"–":d.jointPain);
   var en=document.getElementById("energyIn");en.value=(d.energy==null?5:d.energy);
   document.getElementById("energyVal").textContent=(d.energy==null?"–":d.energy);
-  document.getElementById("notesIn").value=d.notes;
 
   renderDayCounts(d);
   updateRing();
@@ -3524,7 +3522,6 @@ function bindInput(id,prop,num){
 bindInput("weightIn","weight",true);
 bindInput("sleepIn","sleep",true);
 bindInput("stepsIn","steps",true);
-bindInput("notesIn","notes",false);
 document.getElementById("painIn").addEventListener("input",function(){var d=dayData(keyOf(cur));d.jointPain=+this.value;d.updated_at=Date.now();document.getElementById("painVal").textContent=this.value;save();});
 document.getElementById("energyIn").addEventListener("input",function(){var d=dayData(keyOf(cur));d.energy=+this.value;d.updated_at=Date.now();document.getElementById("energyVal").textContent=this.value;save();});
 
