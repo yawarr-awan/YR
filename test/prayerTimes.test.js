@@ -105,17 +105,19 @@ test("the next-prayer countdown picks the smallest time-until, wrapping past mid
   assert.match(next, /^Next: (Fajr|Sunrise|Dhuhr|Asr|Maghrib|Isha) in /);
 });
 
-test("prayer checklist (Today tab tick-box): each row is colored per prayer, with no time shown until a location is saved", () => {
+test("prayer checklist: the same row shape as the times modal, with no times until a location is saved", () => {
   const app = loadApp({});
   const box = app.document.getElementById("prayBox");
-  const rows = box.querySelectorAll("label.chk");
+  const rows = box.querySelectorAll("label.prow");
   assert.equal(rows.length, 5, "Fajr, Dhuhr, Asr, Maghrib, Isha");
-  assert.match(rows[0].querySelector(".lbl").textContent, /^Fajr$/, "no time yet - no saved location");
-  assert.match(rows[0].style.borderInlineStart, /--fajr/);
-  assert.match(rows[3].style.borderInlineStart, /--maghrib/);
+  assert.ok(rows[0].querySelector("input[type=checkbox]"), "still a tick-box");
+  assert.equal(rows[0].querySelector(".psn").textContent, "Fajr");
+  assert.equal(rows[0].querySelector(".pst").textContent, "—", "no time yet - no saved location");
+  assert.match(rows[0].querySelector(".psw").style.background, /--fajr/, "a colour bar, as in the modal");
+  assert.match(rows[3].querySelector(".psw").style.background, /--maghrib/);
 });
 
-test("prayer checklist: once a location is saved, each row's label gains its actual time", async () => {
+test("prayer checklist: once a location is saved, each row gains its window's start and end", async () => {
   const app = loadApp({
     geolocation: { lat: 51.5, lon: -0.12 },
     fetchImpl: async (url) => {
@@ -127,9 +129,18 @@ test("prayer checklist: once a location is saved, each row's label gains its act
   await app.flush();
   await app.flush();
 
-  const box = app.document.getElementById("prayBox");
-  const fajrLbl = box.querySelectorAll("label.chk .lbl")[0];
-  assert.match(fajrLbl.textContent, /Fajr.*04:45/);
+  const rows = app.document.querySelectorAll("#prayBox label.prow");
+  // Not just the start: each row carries its window, and they are the same
+  // spans the modal lists - Fajr ends at sunrise, not at Dhuhr, because the
+  // stretch between the two is its own window (Chasht).
+  assert.equal(rows[0].querySelector(".pst").textContent, "04:45 – 05:50", "Fajr, up to sunrise");
+  assert.equal(rows[4].querySelector(".pst").textContent, "22:10 – 04:45", "Isha, through midnight");
+
+  // Exactly one row is ringed, whatever time the suite runs at - and only
+  // when the window we're in is one the checklist actually lists (Chasht
+  // isn't, so between sunrise and Dhuhr none is).
+  const ringed = app.document.querySelectorAll("#prayBox label.prow.is-now");
+  assert.ok(ringed.length <= 1, "never more than one current prayer");
 });
 
 test("the calculation method is selectable, stored on the profile, and changes what is fetched", async () => {

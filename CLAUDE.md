@@ -795,43 +795,65 @@ more, so this is one request instead of five plus one per page. It is
 **strictly an accelerator** - a failed month resolves to null and the per-day
 path takes over.
 
-**The spiral clock** (`renderPrayerSpiral`, 200×200 viewBox). The whole day
-is one turn: angle carries time of day, radius falls `PC_R_OUT`→`PC_R_IN`
-across it. Things learned the hard way:
-- **The radial drop has to clear an arc's width twice over** (84→56 with an
-  8-wide stroke), or the last hour of the day paints on top of the first at
-  the seam where the turn closes.
-- **Arcs, then pips, then hands** - drawing each window's pip alongside its
-  own arc let the *next* window's arc paint over it.
-- **No names on the dial.** Horizontal text at a radial offset collides with
-  the band at the left and right and runs off the viewBox; text curved along
-  the path reads upside down across the bottom half. The slot list underneath
-  is the legend and every arc carries a tooltip.
-- The current-window readout is HTML **under** the SVG, not inside the face,
-  where it collided with the hands.
-- One window straddles the origin and is drawn as its **two visible pieces**
-  (`[[f0,1],[0,f1-1]]`), so no minute goes blank. With `dayStart:"fajr"`
-  nothing straddles it and there are exactly 6 arcs.
-- SVG `stroke` is an attribute and **cannot resolve `var(--fajr)`**.
-  `prayerColorCss()` (custom hex, else `var(...)`) is for DOM styling;
-  `prayerColorValue()` resolves via `getComputedStyle` with
-  `PRAYER_FALLBACK_COLOR` behind it, and is what the SVG gets.
+**The spiral clock is gone (removed in 1.20.0).** It was a genuine spiral -
+one turn for the whole day, angle for time and radius for how far through it
+you were - and it worked, but the user asked for the countdown without the
+dial. The lessons are recorded here because they apply to any radial
+rendering, not because the code still exists: the radial drop had to clear an
+arc's width **twice over** or the last hour painted over the first at the
+seam; **arcs, then pips, then hands** (drawing each window's pip beside its
+own arc let the *next* window's arc paint over it); and **names could not go
+on the dial at all** - horizontal text at a radial offset collides with the
+band at the left and right and runs off the viewBox, and text curved along
+the path reads upside down across the bottom half.
+
+**What the times modal is now** (1.20.0): `prayerNowLine()` at the top -
+window, span, time left - then `#pmSlots`, then method/madhab/location/
+colours. It reticks every `PC_TICK_MS` (5s) and the tick **updates only what
+moves** (the countdown text and which row carries `.is-now`); a full rebuild
+would close the colour menu out from under a tap.
+
+**One row shape for a prayer everywhere** (`.prow` / `.pslot`): colour bar,
+name, the window's start and end, and `.is-now` for the window you are in.
+Used by the modal's list, the Prayers checklist and the qada card.
+- `markCurrentPrayerRows()` is called from the **chip tick**, not only from
+  the render, so crossing a prayer boundary with the tab open moves the ring
+  instead of leaving it on the prayer that just ended. It reads `#prayBox`'s
+  `data-day` so it can tell it is looking at today without re-deriving it.
+- The **calendar** rings the current window with `.in-prayer` plus
+  `win-first`/`win-last`, so a run of hours draws as one box rather than a
+  stack. `--pc` carries the prayer's colour. `current-hour` had to become an
+  `outline` rather than an inset shadow, or the two would replace each other.
+- The Fajr row ends at **sunrise**, not at Dhuhr - the stretch between is its
+  own window (Chasht). Between the two, no checklist row is ringed, because
+  Chasht isn't one of the five.
+
+**Header** (1.20.0): logo (deliberately larger than the 40px controls), a
+spacer, the prayer chip, the completion square, the bell. The completion
+indicator is a rounded square, not a circle - same size and radius as the
+bell so they read as a pair. The `Saved HH:MM` tag is gone; `showSaved()`
+now refreshes the **Settings -> Sync** status line instead, which reports the
+last local save whether or not cloud sync is on. That line is the only
+confirmation a write landed, so don't drop it from `updateSyncUI()`.
 
 **Settings.** `profile.prayerMadhab` (4 schools) and `profile.prayerSchool`
 (0/1) are **one setting with two faces** - the cog's `<select>` and the
 modal's four buttons both write both, via `setPrayerMadhab()`.
-`profile.prayerDayStart` is `"now"|"fajr"`. `profile.prayerColors` is a
-per-prayer hex map. All ride the synced profile.
+`profile.prayerColors` is a per-prayer hex map. Both ride the synced profile.
+(`profile.prayerDayStart` was written by the dial's day-start toggle and is
+ignored since 1.20.0 - harmless in an existing profile.)
 
 **Reverse geocoding** is client-side and best-effort: BigDataCloud's keyless
 `reverse-geocode-client` endpoint (CORS-enabled, no key), stored as
 `prayerLoc.name`. It runs *after* the location is saved and rendered, so it
 can never delay the times, and the coordinates are a valid label on their own.
 
-Test coverage: `test/prayerClock.test.js` (chips, dial coverage, the current
-window, day-start, madhab, colours, location reset, the tick not outliving
-the modal); `test/prayerTimes.test.js` extended for the month endpoint and
-its fallback; `test/worker.test.js` for both endpoints. See CHANGELOG 1.19.0.
+Test coverage: `test/prayerClock.test.js` (chips, the modal's countdown and
+list, the ring following the clock, madhab, colours reaching the checklist
+and qada card, location reset, the failure backoff, the tick not outliving
+the modal); `test/prayerTimes.test.js` for the checklist rows and the month
+endpoint; `test/calendarTab.test.js` for the current-window ring;
+`test/worker.test.js` for both endpoints. See CHANGELOG 1.19.0 and 1.20.0.
 
 ## Honest caveat
 The "Client-side sync layer," "Access + hosting," and "Current data state"
