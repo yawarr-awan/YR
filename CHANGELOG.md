@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.21.1
+
+- **The border around the current prayer window is gone from the calendar.** The tint already says which window every minute belongs to, so a second outline on top of it was just noise. The window you're in is still ringed on the Prayers checklist and named on the chip.
+
+Still on the calendar: the coloured hours, the outline on the hour it is now, and the red now-line — only the prayer-window border went.
+
+- **Every card in Settings folds now**, not just the four editors. Google, Cloud sync, Install, Appearance, Reminders and Your data all collapse from their heading, so the tab can be a short index instead of a long scroll. What's folded is remembered per device and, like the other display preferences, never touches your synced record.
+
 ## 1.21.0
 
 - **Prayer colours change at the exact minute in the calendar.** A window starting at 8:34 PM now changes the colour 34 minutes down the 8 PM cell, instead of tinting the whole hour with whichever prayer happened to own the half-past mark. As the times drift through the year the boundary drifts with them, minute by minute, rather than jumping an hour at a time. The ring around the window you're in follows the same edges.

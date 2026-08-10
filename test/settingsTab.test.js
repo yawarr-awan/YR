@@ -204,3 +204,31 @@ test("the Google card offers a reconnect once connected, and says so when the gr
   stale.goTo("settings");
   assert.match(stale.document.getElementById("googleStatus").textContent, /expired|permission/i);
 });
+
+test("every card in Settings folds away, and remembers that it was folded", () => {
+  const app = loadApp({});
+  app.goTo("settings");
+
+  const cards = Array.from(app.document.querySelectorAll("#view-settings .card"));
+  assert.ok(cards.length >= 9, `expected the whole tab, got ${cards.length}`);
+  cards.forEach((c) => {
+    const key = c.getAttribute("data-collapse");
+    assert.ok(c.classList.contains("collapsible") && key,
+      `a Settings card with no collapse key: ${c.querySelector("h3").textContent}`);
+    assert.ok(c.querySelector(".card-body"), `${key} needs its content in a .card-body to fold`);
+  });
+
+  // Google reports connection state, so it is expanded to begin with - and it
+  // has to fold like the rest.
+  const google = app.document.getElementById("googleCard");
+  assert.equal(google.classList.contains("collapsed"), false);
+  google.querySelector("h3").click();
+  assert.ok(google.classList.contains("collapsed"));
+
+  // The preference is per device and must never reach the synced record.
+  const reopened = loadApp({ localStorageSeed: { yawarCollapsed: app.window.localStorage.getItem("yawarCollapsed") } });
+  reopened.goTo("settings");
+  assert.ok(reopened.document.getElementById("googleCard").classList.contains("collapsed"));
+  assert.equal(/collapsed|google/.test(JSON.stringify(reopened.state() || {})), false,
+    "a display preference must not ride the sync payload");
+});
