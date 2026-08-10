@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.17.2
+
+- **The header is the same colour as the rest of the screen** — navy in dark, light in light — instead of a white band. Android's status bar above it matches, and now follows the theme when you switch it rather than sitting at one fixed colour.
+
 ## 1.17.1
 
 - **The header is white in both themes**, and so is Android's status bar above it. The header carries its own ink, chip and ring-track colours so everything in it stays readable when the rest of the app is dark.

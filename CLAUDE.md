@@ -715,15 +715,19 @@ Found by checking the whole path in real Chromium rather than only jsdom.
   detail now says so, with the raw value Google sent in the element's
   `title`. Don't "fix" it by inventing a time.
 
-## White header + status bar (1.17.1)
-- The header band is white in **both** themes, so it needs its own tokens:
-  `--hdr-bg/--hdr-ink/--hdr-sub/--hdr-line/--hdr-chip/--hdr-track`, defined
-  once in `:root` and **deliberately never redefined in the dark blocks** -
-  `--ink`/`--panel-2` are near-white in dark mode and would disappear on it.
-  A test asserts no dark block reintroduces `--hdr-bg`.
-- Android takes the status bar colour from `<meta name="theme-color">` and
-  the manifest's `theme_color`; both are `#ffffff`. An installed copy may
-  keep the old colour until Chrome re-reads the manifest.
+## Header colour (1.17.1 -> 1.17.2)
+- 1.17.1 made the header a white band with its own `--hdr-*` palette; the
+  user rejected it. The header is now `var(--bg)` - the same surface as the
+  page - so it needs no palette of its own, and the `--hdr-*` tokens are
+  gone. Don't reintroduce a separate header colour without being asked.
+- Android takes the status bar colour from `<meta name="theme-color">`.
+  `applyThemeColor()` rewrites that tag from the computed `--bg` whenever the
+  theme changes, so the status bar tracks the theme instead of being pinned
+  to one value. `THEME_BG` is only a fallback for engines that don't expose
+  custom properties to `getComputedStyle`.
+- The manifest's `theme_color`/`background_color` are the dark navy. An
+  installed copy may keep the previous colour until Chrome re-reads the
+  manifest.
 - The Today "Notes for the day" card was removed on request. The `notes`
   field stays in every day record and in `blankDay()` - dropping it would
   destroy what was already written and break round-tripping of old exports.
