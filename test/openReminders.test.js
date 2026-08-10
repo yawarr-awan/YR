@@ -228,3 +228,59 @@ test("coming back into view counts as opening, but the same prayer isn't repeate
   await app.flush();
   assert.equal(prayerNotes(app).length, 1, "re-opening inside the same window stays quiet");
 });
+
+/* ---------- how a notification actually gets delivered ---------- */
+
+test("with a service worker registration, notifications go through showNotification", async () => {
+  /* Chrome on Android throws "Illegal constructor" on `new Notification()`,
+     so the reminder silently never appeared there. */
+  const app = loadApp({
+    notificationPermission: "granted",
+    serviceWorkerNotifications: true,
+    localStorageSeed: { yawarWellness_v1: seedWith() },
+    fetchImpl: backend(timingsAllPast()),
+  });
+  await app.flush();
+  await app.flush();
+  await app.flush();
+
+  assert.equal(app.notifications.length, 0, "the constructor path must not be used when a registration exists");
+  const notes = app.swNotifications.filter((n) => /not marked yet/.test(n.title));
+  assert.equal(notes.length, 1);
+  assert.match(notes[0].title, /^Isha/);
+});
+
+test("without a service worker it still falls back to the Notification constructor", async () => {
+  const app = loadApp({
+    notificationPermission: "granted",
+    localStorageSeed: { yawarWellness_v1: seedWith() },
+    fetchImpl: backend(timingsAllPast()),
+  });
+  await app.flush();
+  await app.flush();
+
+  assert.equal(prayerNotes(app).length, 1);
+});
+
+test("granting permission later still gets you the current nudge, not silence", async () => {
+  /* notifyOnce used to burn its key even when it wasn't allowed to send, so
+     enabling reminders mid-session left everything already "seen" suppressed
+     until the next reload. */
+  const app = loadApp({
+    notificationPermission: "default",
+    localStorageSeed: { yawarWellness_v1: seedWith() },
+    fetchImpl: backend(timingsAllPast()),
+  });
+  await app.flush();
+  await app.flush();
+  assert.equal(app.notifications.length, 0, "nothing may fire before permission is given");
+
+  app.goTo("settings");
+  app.click("notifyBtn");
+  await app.flush();
+  await app.flush();
+  await app.flush();
+
+  assert.equal(prayerNotes(app).length, 1, "the nudge should arrive once reminders are enabled");
+  assert.match(app.document.getElementById("notifyBtn").textContent, /enabled/i);
+});

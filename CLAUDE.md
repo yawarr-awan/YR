@@ -589,6 +589,32 @@ felt built for a desktop.
   the real `Date`. The pre-Fajr scenario can't exist after 23:00 and returns
   early there, which is stated in the test.
 
+## Notification delivery — three real bugs (1.14.1)
+Found by checking the whole path in real Chromium rather than only jsdom.
+- **`new Notification()` is an illegal constructor on Chrome for Android** -
+  it throws, and the old `try{}catch{}` swallowed it, so reminders were
+  silently dead on that platform. `notifyOnce()` now prefers
+  `navigator.serviceWorker.ready -> reg.showNotification()` (the supported
+  path everywhere) and falls back to the constructor only when there's no
+  registration.
+- **Exact-minute matching dropped reminders.** `checkReminders` fired only
+  when `minutesOfDay(time) === nowMins`; a throttled background tab can skip
+  a minute entirely, so the reminder was never sent. Now `justPassed()` with
+  `REMINDER_GRACE_MINS` (5) - `notifyOnce` still keeps it to one.
+- **`notifyOnce` marked its key before checking permission**, so enabling
+  reminders mid-session left every key it had already passed over
+  suppressed. It now returns without marking, and `enableNotifications()`
+  re-runs `openingReminders()` once permission lands.
+- The on-open nudge also marks the interval's `prayer-<day>-<Name>` key, so
+  opening just after a prayer began doesn't say it twice.
+- **Testing note:** headless Chromium always reports
+  `Notification.permission === "denied"` (even though
+  `navigator.permissions.query` says granted), so a real-browser check has
+  to stub `window.Notification` and wrap
+  `ServiceWorkerRegistration.prototype.showNotification` to observe which
+  path ran. `test/lib.js` gained `serviceWorkerNotifications` for the jsdom
+  equivalent.
+
 ## Honest caveat
 The "Client-side sync layer," "Access + hosting," and "Current data state"
 sections above were re-verified live in this session (2026-08-09): read

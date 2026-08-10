@@ -274,6 +274,13 @@ input[type=range]{width:100%;accent-color:var(--accent)}
 .cal-strip button.is-sel{background:var(--brand);border-color:var(--brand);color:rgba(255,255,255,.85)}
 .cal-strip button.is-sel b,.cal-strip button.is-sel.is-today b{color:#fff}
 .loc-btn{display:inline-flex;align-items:center;gap:7px;padding:9px 13px}
+/* Square, and the same height as the button beside it - a fixed 32px box
+   next to a 44px pill reads as an afterthought. */
+.cog-btn{
+  align-self:stretch;width:44px;padding:0;display:inline-flex;align-items:center;
+  justify-content:center;font-size:1.15rem;line-height:1;flex:0 0 auto
+}
+.cog-btn[aria-expanded="true"]{background:var(--brand);border-color:var(--brand);color:#fff}
 .prayer-settings{margin-top:10px;padding:10px;border:1px solid var(--line);border-radius:12px;background:var(--panel-2)}
 .prayer-settings .field span{display:block;font-size:.76rem;color:var(--muted);font-weight:700;margin-bottom:4px}
 .prayer-settings select{
@@ -483,7 +490,7 @@ footer.foot{text-align:center;color:var(--muted);font-size:.78rem;margin-top:26p
               <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 2a7 7 0 0 0-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 0 0-7-7Zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5Z"/></svg>
               <span id="prayerLocBtnText">Use my location</span>
             </button>
-            <button class="btn icon-btn" id="prayerCogBtn" type="button" aria-label="Prayer time settings" aria-expanded="false">⚙</button>
+            <button class="btn cog-btn" id="prayerCogBtn" type="button" aria-label="Prayer time settings" aria-expanded="false">⚙</button>
           </div>
           <div id="prayerSettings" class="prayer-settings" hidden>
             <label class="field" style="margin:0">
@@ -2486,17 +2493,54 @@ function updateNotifyUI(){
 
 function enableNotifications(){
   if(!("Notification" in window))return;
-  Notification.requestPermission().then(function(){updateNotifyUI();});
+  /* Safari once took a callback here and returned undefined; every current
+     browser returns a promise. Handle both rather than throwing on the old
+     shape. */
+  var res;
+  try{res=Notification.requestPermission(function(){updateNotifyUI();});}catch(e){}
+  if(res&&typeof res.then==="function"){
+    res.then(function(){
+      updateNotifyUI();
+      /* Permission usually arrives after the on-open check has already run
+         and found nothing it was allowed to say. Run it again now. */
+      openingReminders();
+    });
+  }
 }
 
 var _notifiedKeys={};
+
+/** Fires a notification once per key.
+ *
+ * Chrome on Android refuses `new Notification()` outright - it throws
+ * "Illegal constructor", and the reminder silently never appears - so where
+ * a service worker registration is available its showNotification() is used
+ * instead. That's the supported path on every platform; the constructor is
+ * the fallback for browsers with no service worker. */
 function notifyOnce(key,title,body){
   if(_notifiedKeys[key])return;
+  if(!("Notification" in window)||Notification.permission!=="granted")return;
   _notifiedKeys[key]=true;
-  if("Notification" in window&&Notification.permission==="granted"){
-    try{new Notification(title,{body:body,tag:key});}catch(e){}
+  var opts={body:body,tag:key,icon:"icons/icon-192.png"};
+  if(navigator.serviceWorker&&navigator.serviceWorker.ready){
+    navigator.serviceWorker.ready.then(function(reg){
+      if(reg&&reg.showNotification)return reg.showNotification(title,opts);
+      throw new Error("no showNotification");
+    }).catch(function(){
+      try{new Notification(title,opts);}catch(e){}
+    });
+    return;
   }
+  try{new Notification(title,opts);}catch(e){}
 }
+
+/* How late a reminder may still fire. The interval below asks every minute,
+   but a browser throttles timers in a backgrounded tab - a tick can easily
+   land two or three minutes after the one it was meant to catch. Matching
+   the minute exactly meant those reminders were silently never sent at all.
+   notifyOnce keys per day/task, so a grace window still means one. */
+var REMINDER_GRACE_MINS=5;
+function justPassed(mins,nowMins){return nowMins>=mins&&nowMins-mins<=REMINDER_GRACE_MINS;}
 
 /** Runs every minute while the app is open: prayer-time, dhikr-period,
  * and task-due reminders. Never fires anything unless the user explicitly
@@ -2511,12 +2555,12 @@ function checkReminders(){
     fetchPrayerTimes(todayStr,loc.lat,loc.lon).then(function(times){
       PRAYER_NAMES.forEach(function(name){
         if(!times[name])return;
-        if(minutesOfDay(times[name])===nowMins)notifyOnce("prayer-"+todayStr+"-"+name,name+" time",name+" is now — "+times[name]);
+        if(justPassed(minutesOfDay(times[name]),nowMins))notifyOnce("prayer-"+todayStr+"-"+name,name+" time",name+" is now — "+times[name]);
       });
       var dhikrAnchor={Fajr:"morning",Dhuhr:"afternoon",Maghrib:"evening"};
       Object.keys(dhikrAnchor).forEach(function(prayerName){
         if(!times[prayerName])return;
-        if(minutesOfDay(times[prayerName])===nowMins){
+        if(justPassed(minutesOfDay(times[prayerName]),nowMins)){
           notifyOnce("dhikr-"+todayStr+"-"+dhikrAnchor[prayerName],"Dhikr reminder","Time for your "+dhikrAnchor[prayerName]+" dhikr.");
         }
       });
@@ -2525,8 +2569,10 @@ function checkReminders(){
 
   ensureTasks().forEach(function(t){
     if(t.done||!t.due)return;
-    var diffMs=new Date(t.due).getTime()-now.getTime();
-    if(diffMs<=0&&diffMs>-60000)notifyOnce("task-"+t.id,"Task due",t.title);
+    if(/^\d{4}-\d{2}-\d{2}$/.test(t.due))return;        /* all-day: not due at a moment */
+    var lateMs=now.getTime()-new Date(t.due).getTime();
+    /* Keyed on the time too, so rescheduling a task can notify again. */
+    if(lateMs>=0&&lateMs<=REMINDER_GRACE_MINS*60000)notifyOnce("task-"+t.id+"-"+t.due,"Task due",t.title);
   });
 }
 setInterval(checkReminders,60000);
@@ -2584,6 +2630,10 @@ function openingReminders(){
     if(rec&&rec.prayers&&rec.prayers[cur.key])return;
     notifyOnce("open-prayer-"+cur.day+"-"+cur.key,cur.name+" not marked yet",
       cur.name+(cur.at?" began at "+cur.at:"")+" — mark it once you've prayed.");
+    /* Opening a couple of minutes after a prayer began would otherwise say
+       the same thing twice: this nudge, then the minute-tick's "X time".
+       Having said it once, don't. */
+    _notifiedKeys["prayer-"+cur.day+"-"+cur.name]=true;
   }).catch(function(){});
 }
 
