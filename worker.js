@@ -235,7 +235,11 @@ async function handleStats(env, email) {
 const GOOGLE_SCOPE = [
   "https://www.googleapis.com/auth/calendar.readonly",
   "https://www.googleapis.com/auth/calendar.events", // write - lets scheduled tasks create real events
-  "https://www.googleapis.com/auth/tasks.readonly", // Google Tasks, for the brief only
+  // Write, so a Google Task can be ticked off from the Calendar tab. Google
+  // does not revoke a refresh token when the app later asks for more, but the
+  // existing one keeps its original scopes - so an established connection has
+  // to be re-consented once, which surfaces as reconnect_required.
+  "https://www.googleapis.com/auth/tasks",
 ].join(" ");
 const BRIEF_TIMEZONE = "Europe/London";
 const GEMINI_MODEL = "gemini-flash-latest"; // Google-maintained alias for their current default Flash model
@@ -735,6 +739,15 @@ async function handleRefreshBrief(env, email, now) {
  *
  * Like the brief's task fetch, this never throws - the agenda is worth
  * showing without them - but it does report why it came back empty. */
+/** Google sends a date-only Google Task as exact midnight UTC; anything else
+ * carries a real time of day. (A task genuinely due at 00:00 UTC is
+ * indistinguishable from a dateless one here - it reads as all-day, which is
+ * the harmless way round.) */
+function isDateOnlyDue(due) {
+  const t = String(due || "").slice(11, 19);
+  return t === "" || t === "00:00:00";
+}
+
 async function fetchTasksInRange(accessToken, fromDay, toDay) {
   const out = { tasks: [], error: null };
   try {
@@ -766,7 +779,13 @@ async function fetchTasksInRange(accessToken, fromDay, toDay) {
         out.tasks.push({
           id: t.id,
           title: (t.title || "").trim() || "(untitled task)",
-          due: dueDay,
+          /* The full timestamp, not just the date: a task given a time of
+             day is a 1pm thing, not an all-day thing, and truncating it to
+             its date prefix is what made every task look all-day. Google
+             sends midnight UTC for a date-only task, which is how the two
+             are told apart. */
+          due: t.due,
+          allDay: isDateOnlyDue(t.due),
           notes: t.notes || null,
           listId: list.id,
           list: list.title || null,
@@ -932,6 +951,46 @@ async function handleUpdateCalendarEvent(request, env, email) {
 }
 
 /**
+ * PATCH /api/google/tasks - ticks a Google Task off, or puts it back.
+ * body: { listId, taskId, completed: boolean }
+ *
+ * Needs the full `tasks` scope; a token issued when the app only asked for
+ * tasks.readonly comes back as reconnect_required, exactly like the calendar
+ * write paths.
+ */
+async function handleUpdateGoogleTask(request, env, email) {
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return json({ error: "invalid json" }, 400);
+  }
+  const listId = typeof body.listId === "string" ? body.listId.trim() : "";
+  const taskId = typeof body.taskId === "string" ? body.taskId.trim() : "";
+  if (!listId || !taskId) return json({ error: "listId and taskId are required" }, 400);
+
+  const tokenResult = await getGoogleAccessToken(env, email);
+  if (tokenResult.error) return json({ status: tokenResult.error });
+
+  /* Reopening a task must clear `completed` as well as the status - leaving
+     the completion timestamp behind keeps it hidden in Google's own UI. */
+  const patch = body.completed
+    ? { status: "completed" }
+    : { status: "needsAction", completed: null };
+
+  const res = await fetch(
+    `https://tasks.googleapis.com/tasks/v1/lists/${encodeURIComponent(listId)}/tasks/${encodeURIComponent(taskId)}`,
+    {
+      method: "PATCH",
+      headers: { authorization: `Bearer ${tokenResult.accessToken}`, "content-type": "application/json" },
+      body: JSON.stringify(patch),
+    }
+  );
+  if (!res.ok) return await googleWriteFailure(res);
+  return json({ status: "ok" });
+}
+
+/**
  * DELETE /api/google/calendar/events?calendarId=&eventId= - removes an
  * event. Google answers 204 with no body on success, and 410 if it was
  * already gone, which is the same outcome from here.
@@ -1035,6 +1094,9 @@ export default {
       if (url.pathname === "/api/google/calendar/events" && request.method === "DELETE") {
         return await handleDeleteCalendarEvent(request, env, email);
       }
+      if (url.pathname === "/api/google/tasks" && request.method === "PATCH") {
+        return await handleUpdateGoogleTask(request, env, email);
+      }
     } catch (e) {
       return json({ error: "server error", detail: String(e.message || e) }, 500);
     }
@@ -1071,6 +1133,8 @@ export {
   handleCreateCalendarEvent,
   handleUpdateCalendarEvent,
   handleDeleteCalendarEvent,
+  handleUpdateGoogleTask,
+  isDateOnlyDue,
   handleGoogleConnect,
   handleGoogleCallback,
   handleScheduled,

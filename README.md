@@ -22,7 +22,7 @@
 
 - **Today's Brief** — an AI summary of your day at the top of the Today tab, generated from every Google calendar you have access to plus your Google Tasks due today, via Gemini, automatically each morning.
 - **Task list** — quick-add a task at the top of the Today tab. It shows the few most pressing ones and expands to the full list in place; each task has a 📅 button to pick a time and put it straight on your Google Calendar.
-- **Google Tasks on the calendar** — anything in Google Tasks with a due date shows on that day, alongside your events and your own scheduled tasks (read-only, since the app only has permission to read them).
+- **Google Tasks on the calendar** — anything in Google Tasks with a due date shows on that day, alongside your events and your own scheduled tasks. A task with a time sits at that time; one with only a date sits in the all-day row. Tap it to mark it complete, and it completes in Google Tasks itself.
 - **Calendar tab** — one day at a time, full width, across all your Google calendars, with every hour tinted by whichever prayer's time window it falls in. Swipe to slide between days (the next day follows your finger into view); a week strip above jumps to any day, and the ‹ › buttons move a week at a time.
 - **Schedule from the calendar** — tap an empty hour to add something at that time, or tap anything already there to change it, move it, or delete it. Your scheduled tasks show up on the grid too, marked as tasks, and can be edited or ticked off from there. Events on calendars you can only read open read-only.
 - **Opening reminders** — when you open the app it nudges you about the prayer you're currently in if it isn't ticked yet, and about any scheduled task that's due and still open (all-day items excluded, since they aren't due at a moment).
@@ -31,7 +31,7 @@
 - **Progress trend** — a daily completion chart showing what percentage of each day you ticked off, with a 7-day average line, alongside the weight trend.
 - **Live prayer times** — opt-in location-based prayer times (Aladhan API) with colored chips and a next-prayer countdown on the Today tab; the same colors also appear on the prayer checklist (with each prayer's actual time shown once you've saved a location) and across the Calendar tab.
 - **Dhikr tracker** — a morning/afternoon/evening checklist alongside your prayers.
-- **In-app reminders** — optional browser notifications (while the app is open) for prayer times, dhikr periods, and scheduled task due times.
+- **In-app reminders** — optional browser notifications (while the app is open) for prayer times, dhikr periods, and scheduled task due times, plus a notification bell in the header keeping a log of them all — including when the browser won't let the app raise a real one.
 - **Today dashboard** — one screen for your whole day, with a completion ring.
 - **Diet plan** — a tasty 7-day halal rotation (~1,300–1,400 kcal/day incl. supplements), high-protein and anti-inflammatory. Each meal name links to its full recipe.
 - **Recipe library** — 20+ quick recipes (10–20 min) with ingredients, method, calories and protein.

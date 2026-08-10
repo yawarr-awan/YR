@@ -284,3 +284,104 @@ test("granting permission later still gets you the current nudge, not silence", 
   assert.equal(prayerNotes(app).length, 1, "the nudge should arrive once reminders are enabled");
   assert.match(app.document.getElementById("notifyBtn").textContent, /enabled/i);
 });
+
+/* ---------- the in-app notification centre ---------- */
+
+const bellPanel = (app) => app.document.getElementById("notifPanel");
+const bellItems = (app) => app.document.querySelectorAll("#notifList .notif-item");
+
+test("the bell records reminders even when the browser won't let us raise one", async () => {
+  /* Exactly when there's no OS notification is when having somewhere to look
+     matters most. */
+  const due = new Date(Date.now() - 3600000).toISOString();
+  const app = loadApp({
+    notificationPermission: "denied",
+    localStorageSeed: {
+      yawarWellness_v1: withProfile({ tasks: [{ id: "t1", title: "Call the GP", due, done: false, scheduled: true, calendarEventId: null, updated_at: 1 }] }),
+    },
+    fetchImpl: backend(timingsAllPast()),
+  });
+  await app.flush();
+  await app.flush();
+
+  assert.equal(app.notifications.length, 0, "nothing may reach the OS");
+  app.click("notifyBell");
+  const items = bellItems(app);
+  assert.ok(items.length >= 1, "but the bell should still have it");
+  assert.match(app.document.getElementById("notifList").textContent, /Call the GP/);
+});
+
+test("the bell shows an unread dot until it's opened, and Clear empties it", async () => {
+  const app = loadApp({
+    notificationPermission: "granted",
+    localStorageSeed: { yawarWellness_v1: seedWith() },
+    fetchImpl: backend(timingsAllPast()),
+  });
+  await app.flush();
+  await app.flush();
+
+  assert.equal(app.document.getElementById("bellDot").hidden, false, "an unread reminder shows a dot");
+  app.click("notifyBell");
+  assert.equal(bellPanel(app).hidden, false);
+  assert.equal(app.document.getElementById("bellDot").hidden, true, "opening it clears the dot");
+
+  app.click("notifClear");
+  assert.equal(bellItems(app).length, 0);
+  assert.match(app.document.getElementById("notifList").textContent, /Nothing yet/);
+});
+
+test("the notification log is per device — it never enters the synced state", async () => {
+  const app = loadApp({
+    notificationPermission: "granted",
+    localStorageSeed: { yawarWellness_v1: seedWith() },
+    fetchImpl: backend(timingsAllPast()),
+  });
+  await app.flush();
+  await app.flush();
+
+  const stored = app.state();
+  assert.equal(stored.notifs, undefined, "reminders are not health data and must not sync");
+  assert.ok(app.window.localStorage.getItem("yawarNotifs"), "they live in their own key");
+});
+
+test("coming back from the bfcache re-raises the current prayer instead of staying silent", async () => {
+  /* The in-memory "already said that" marks made every resume silent, so
+     reminders only ever appeared after a manual refresh. A bfcache restore
+     re-runs no scripts at all, so it is always treated as a fresh open. */
+  const app = loadApp({
+    notificationPermission: "granted",
+    localStorageSeed: { yawarWellness_v1: seedWith() },
+    fetchImpl: backend(timingsAllPast()),
+  });
+  await app.flush();
+  await app.flush();
+  assert.equal(prayerNotes(app).length, 1);
+
+  const ev = new app.window.Event("pageshow");
+  Object.defineProperty(ev, "persisted", { value: true });
+  app.window.dispatchEvent(ev);
+  await app.flush();
+  await app.flush();
+
+  assert.equal(prayerNotes(app).length, 2, "the nudge speaks again on a resume");
+});
+
+test("a quick flick away and back stays quiet", async () => {
+  const app = loadApp({
+    notificationPermission: "granted",
+    localStorageSeed: { yawarWellness_v1: seedWith() },
+    fetchImpl: backend(timingsAllPast()),
+  });
+  await app.flush();
+  await app.flush();
+  assert.equal(prayerNotes(app).length, 1);
+
+  Object.defineProperty(app.document, "hidden", { value: true, configurable: true });
+  app.document.dispatchEvent(new app.window.Event("visibilitychange"));
+  Object.defineProperty(app.document, "hidden", { value: false, configurable: true });
+  app.document.dispatchEvent(new app.window.Event("visibilitychange"));
+  await app.flush();
+  await app.flush();
+
+  assert.equal(prayerNotes(app).length, 1, "a glance away is not a fresh open");
+});

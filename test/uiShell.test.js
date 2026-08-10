@@ -225,3 +225,42 @@ test("dhikr is three collapsible sub-cards, each with its own count, collapsed b
   assert.equal(morning.classList.contains("collapsed"), false, "ticking an item must not re-fold the card");
   assert.equal(app.document.getElementById("dhikrCount").textContent, "1/21");
 });
+
+test("the theme toggle lives in Settings, not the header", () => {
+  const app = loadApp({});
+  const btn = app.document.getElementById("themeToggle");
+  assert.ok(btn, "the toggle still exists");
+  assert.equal(btn.closest("header.top"), null, "but not in the header any more");
+  assert.ok(btn.closest("#view-settings"), "it belongs in Settings");
+  assert.match(btn.textContent, /switch to/i, "and it says what it does, rather than being a bare glyph");
+});
+
+test("the header carries a notification bell that opens a panel", () => {
+  const app = loadApp({});
+  const bell = app.document.getElementById("notifyBell");
+  assert.ok(bell, "expected a bell in the header");
+  assert.ok(bell.closest("header.top"));
+  assert.equal(app.document.getElementById("notifPanel").hidden, true, "closed until asked for");
+
+  app.click("notifyBell");
+  assert.equal(app.document.getElementById("notifPanel").hidden, false);
+  assert.equal(bell.getAttribute("aria-expanded"), "true");
+});
+
+test("clicking away closes the notification panel", () => {
+  const app = loadApp({});
+  app.click("notifyBell");
+  assert.equal(app.document.getElementById("notifPanel").hidden, false);
+
+  app.document.body.dispatchEvent(new app.window.MouseEvent("click", { bubbles: true }));
+  assert.equal(app.document.getElementById("notifPanel").hidden, true);
+});
+
+test("switching the theme still works from its new home", () => {
+  const app = loadApp({});
+  const before = app.document.documentElement.getAttribute("data-theme");
+  app.click("themeToggle");
+  const after = app.document.documentElement.getAttribute("data-theme");
+  assert.notEqual(after, before);
+  assert.ok(after === "dark" || after === "light");
+});

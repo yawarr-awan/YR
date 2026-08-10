@@ -647,6 +647,42 @@ Found by checking the whole path in real Chromium rather than only jsdom.
   asked for the original back; it is reverted byte-for-byte. Don't re-theme
   without being asked.
 
+## Identity, Google Tasks writes, notification centre (1.16.0)
+- **Why the rename/re-icon appeared to do nothing** (and reinstalling didn't
+  help): `sw.js` had no `skipWaiting`/`clients.claim`, so a new worker stayed
+  in *waiting* while the old one kept control - uninstalling a PWA does not
+  unregister its service worker or clear Cache Storage. Compounded by
+  cache-first shell serving, the old manifest name and icons were what the
+  device saw. Fixed with skipWaiting + claim **and** network-first for the
+  shell (cache is for offline, not speed). If identity ever looks stale
+  again, look here first, not at the manifest.
+- **Logo** is now a monoline YR monogram drawn as SVG paths (see
+  `icons/logo.svg`, the committed source of truth) and rasterised per size
+  via Chromium - rendering vector at 16/32/180/192/512 beats downscaling one
+  big raster. The generation script lives in scratch; the SVG + PNGs are the
+  artefact.
+- **OAuth scope widened** `tasks.readonly` -> `tasks`. Google keeps issuing
+  the old refresh token with its original scopes, so **an existing connection
+  must re-consent once**; that surfaces as the usual `reconnect_required`.
+- `isDateOnlyDue()` is how a dated Google Task is told from a timed one:
+  Google spells date-only as exact midnight UTC. Truncating `due` to its date
+  prefix is what made a 1pm task render all-day - don't reintroduce it.
+- `PATCH /api/google/tasks` completes/reopens a task. Reopening must send
+  `completed: null` as well as `status: "needsAction"`, or Google's own UI
+  keeps it hidden.
+- **The bell** (`yawarNotifs`, its own localStorage key - never in `state`,
+  same reasoning as the collapse prefs) logs every reminder regardless of
+  notification permission. `notifyOnce` therefore keeps *two* marks:
+  `_loggedKeys` (bell) and `_notifiedKeys` (OS). `checkReminders` and
+  `openingReminders` are no longer gated on permission at all - only delivery
+  is.
+- **Resume**: `visibilitychange` + `pageshow(persisted)` call `onResume()`,
+  which clears the `open-*` marks when away >= `RESUME_FRESH_MS` (60s) so the
+  nudges can speak again. Without that, an installed app that is resumed
+  rather than reloaded stayed silent forever after the first open.
+- The theme toggle now lives in Settings -> Appearance; the header holds the
+  bell in its place.
+
 ## Honest caveat
 The "Client-side sync layer," "Access + hosting," and "Current data state"
 sections above were re-verified live in this session (2026-08-09): read

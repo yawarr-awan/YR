@@ -73,6 +73,23 @@ header.top{
 .ring::after{content:"";position:absolute;inset:5px;border-radius:50%;background:var(--panel)}
 .ring span{position:relative;z-index:1;font-size:.72rem;font-weight:800}
 .theme-toggle{border:1px solid var(--line);background:var(--panel-2);color:var(--ink);width:40px;height:40px;border-radius:12px;font-size:1.15rem;cursor:pointer;flex:0 0 auto}
+.bell-btn{position:relative}
+.bell-dot{
+  position:absolute;top:6px;inset-inline-end:6px;width:9px;height:9px;border-radius:50%;
+  background:var(--bad);box-shadow:0 0 0 2px var(--panel)
+}
+/* Anchored to the header, which is the sticky element, so it travels with it. */
+.notif-panel{
+  position:absolute;inset-inline-end:12px;top:100%;z-index:40;width:min(340px,calc(100vw - 24px));
+  background:var(--panel);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);
+  padding:10px 12px;max-height:60vh;overflow-y:auto
+}
+.notif-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+.notif-item{padding:8px 0;border-top:1px solid var(--line)}
+.notif-item:first-of-type{border-top:none}
+.notif-item .t{font-weight:700;font-size:.86rem}
+.notif-item .b{font-size:.8rem;color:var(--muted)}
+.notif-item .w{font-size:.7rem;color:var(--muted);opacity:.8}
 /* Bottom icon bar: thumb-reachable on a phone, and it frees the top of the
    screen for actual content. env(safe-area-inset-bottom) keeps it clear of
    the iOS home indicator when installed to the home screen. */
@@ -366,14 +383,21 @@ footer.foot{text-align:center;color:var(--muted);font-size:.78rem;margin-top:26p
 <div id="statusBar" class="statusbar" role="status" aria-live="polite"></div>
 <header class="top">
   <div class="top-inner">
-    <img class="brand-badge" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAFQAAABUCAYAAAAcaxDBAAASaUlEQVR42u2dfWwb533Hv8+98eV4lEjqjZYlq44cRWne/DYnXtouidMuDYwt8Oa06YR4brv8sQTDMhRBi2QD1mBtMGBoEXSFk8XN5rUL3DjOixO3mGfXi+04sWO7c2Qljh3bkmxJFl8kHl+Pd3z2B32nI3nHF5GS5cA/4EDy7rm75z73/b08z5ESQRU2MLDZvW3b1qT++ZFvb+lg3dF1wc6Oh30B31diCUUs3sfjdhIAiCfTtHidbvq24vW1WjyZph63kzAkFweAHGU8Vscu1xd9u5ZOvCNw5HA2mX7zub9/7KT5mn/10mPjlfpCaoE58MSP/8Itig+lsnRdZ1fQo7e5ODIWl5OKhDkwyS3Ic3Vsq3N1dgU9HreTxJNpenFkLE6V5F9j6vRr27ZtTQYGvtsU3vbi9KyAmnd+6C9/8HXJ3/FfANDZFfR8/MkFMnFhSJWzLi6TTtoe3OF0YyFapT5LfEptX9LPSW5B1tfLkfFv7vzFP71j5bEVgeo7UEqZr/75kz/ztHY+BgC8/BGGJjxIxi6DFTwLHly9sB1ON/rb43C2r5DlpCLFJy9u6XBN/922bVuTdlCJHcyBgc3uj8e5Xf233bJSTirSmTPnkYxdBoACmNeCIutRrqbE4fa2ob89jqx0CyYuDKk3BGizHVRiB/PA6cz5YMDZvNivcScuMNCUuC3Iax1ouRCgQwWAlcvy1zc04cGljowvvO3F6WKoBtCWlg3NodCOKR2mx+trAVBRlZ8XhVaCqoNtD0gqAEyEZW7qxiZfeNuL0+Z8w+iN6QN+SrdvZw8Ojm+9DtPaWMGDibDMyVkX5/a2wXs6+enAwGY32R0xhMmYM/oNP375l1k4H64Vpt4pffk8wjRD1dkEA87mg4PjW3XPBgCiwwwMfLfJ8eH5qEvyWR6kVrtWFFstUD2Ompk4nG4kY5fhddKvH9//698MDGx2c7pcmwYvbiGSD6zgKdlZ/zwbsJ8HZRbzMNZdEc1UWvgPun17kGzcmCR6QqLesUhz6+KapH+tqrRemFbW7NIe+vB3O95gACDHn3rB4RRr6pSmxI3FfGJzBxZiPK2mRCq+tmqEFY2lvgkAZGBgs/vNfSfiojcAq/hZi2LLhYaFoNZq683Z2NTkKEgs6GfD09o3crz7IcnXXldnqaYY7xlWKNnOcfyCHAVRTTGWeiydjMHJjZ9iUkp2faM7b+UuV9P97WA22lJKdj2jZdP3zNWFzEWnF2q/HE4RWjZ9DwOnLzAfF3E1Y6jD6Z6X83PeYICbDzWwgqfE7a4W4Ln0GlVJg9PlWmxKViUAIPAcbRTUa2FoWbdK7TaUA5mSo4Ulk1Mi5fa1gplJJ6tWabVPBeayLKobqJUpWZUIPEfvXtFZUjWZP4xGWHUiLHOVFFoN1P728hCGJiqHkUw6iVRiilQjloYAzaQTRlGvQyu30zrnLrL6njXg4udn4oenx3h/LiTw3/sVT+t1+/72OJ750hFiPrbZjux7Hx/G7qWs4MEdS3L4/gOTlo90zoXydfErR5roaIRVR8aj/FyBLYmh5U4i8BxVsip5/mAH/tF/ADf0tIGwAqimgJ0+bbTr5YH7WlJk17l+ah59WY2kdDe1Utemvr2EVWPIjIxA8BYOPM6ev4x/O9ENt68NydhlbOo7TNhph2W/e3mAsAKe+RKI6unhz4UEvHKkib53KkYaDZUpUFEqUfGxssBzNEyC9IUDogHTyh5/0IW7V3Qaya2WOBmPRUP97XEs73VCJa0lMAFg96CEKddqmkknsXKZG4sDjoojOVa9CMfUQfTyH+GnDx4iP32UFiTghgNVVIVqqQTRF7udXJIPH4z30PeOTJQ9+Ka+vaSaiZVisKuX8S1Prz1IJqPW4jl8LIr3PmtGVsmEWiSiPr32YFVAVNIKlbQCACajFHe1DWLno8fJXTd7aXGirQtoJp0ohMo5oHHl77i7uYO8fdKFbv8w+pdq6PYPo9VHjNdWH8HyXifuutlLa1XAOucuo32rj6B/qWa8cnQSR8ec6OvOgkG2ZdOiN3i9XfFCLOYUzBaK5ecXnl57kNTiTWUniZze4D8wLAen6IWqpPPuoSqgqgLe4bLfkWVwQfagNRshK/tScDgEiI6k8epyC3C7crjZM0pePdlJlaxKWJaxdEV9MiWdjIdWLmXcj/xBPrm0+ghafGr+Brpy4NwEB48k8cGYHwDQ2bUUf/O1EBFdBB2dGjxeWrC0tapob6MIeHIgYCG6CJLpgpPnoVMNX+4aIa+e7Kw5nqbkKHiHC6qSRjaTmgFKc5pl5c/kciSTToDJ5QhVs4ThZ+4673Dh7UEet3WkSW+wMJZSxnlFYRRi+GOy75yf2t0gY3ZKS7t//qcnCGi+L0sWzfSJcxMMnQzjPw9JcDl5jMiL8CftB0h0OgbRkUTocsp2aW3KQGpxwOOdgZvK5kHq52r1EbQmTpE9Z5vLCknPNVTNEqpmCcuwhOEFA2jFOlRRFaq/CpxAtFSCsC6RpuQoXJIPDqeILbso1i5LQJJmqgVGmzLer7+vBXvSnSiXVVOJKfLMiv8F1fJVQf/Swhuck6PYul9ARBUBFRhJt9HnD3aQpd5p8M32tayfS8ArKrjRO427l6tYdoMfbd4QXCSBS+EZcNEIcOeKVqwdGSaHRkArzQ3rPBRVoZCVUpfnOKHyEDKnwXxHVCUNl+QzXH9Fv7XHiI4k+r0hW9fXNBpac5O7wNXdrlyBOt/47wTevdAKv5vi0OQd+STi7cati8LExQN2C1geY3EXzsbc2HWUQtKm0dfDwOEQ4GCTkFP5OJqUc3AIKfDJDH43EjRUqmRVouVyBEqKUDVLMukEWIYlWk6DZvLqTDqBnKbWBlSHqippCJxAWIYlVM0SLafh5DDImmAUwXbGcr+WgMPW9Qly7h+sfZd43XmH+UJ72AgZACBPXsTP9/jgYrI4ccmDSIKDS/JhefPviavcvLWSBLQsXEwWLiePJkHFvtM8PDRTAHXiMnslhBHkHB4c+0wlkQQH3uGCkpwGVRWYAWpF4VHgBKIoaeQ0Fcxss5miKpR1iZR1idQl+RAmQfrDnU2Q5YR1nNSmsP4+f0ltqmRV8tSte8nigAOEFdDtHy4IGYw2hWdfa0JEFRFRRYwmOygABLQhAgCRJLFfVBEQ3PlFSQKCG6IkYfegZPRTkkS4JcZQaRs/he6AUjOLWY3lrYKzOZ4ekW+iz76WIc89qlq2b/OGsKlvL/nw0zupeZh75wofAQBWvVgQhzk3we79HgyOqujyJfA/obUUiELgBHJZ6cboiFI2K7skHwLhIZIHJMKPBPwcEFFFHPqUwddW5OvgRYEUzsj5MtEtMfBziVlNMKtKevYK1e+MklUJ65SIXhj/4mgvfXO/ZrvP2mUTuK/lEEnJUQg8R5+6dS/h6CSU2AT6egq7M31pFK8fzkGUJJyY8EG/cbpnVFPSjCY76KGRbnp86nYaUWdu1uiFmZGZWaV5H659rlav5esCmq90ZKqlZaorwuEU8fJ+r63rS5KIxx90wSX5cN+iE+SBNREk5Rx6ezIlbbfvmfni8miygxZPE7okn7GwTonoi3mdGe5wWDBgnY4VXvqiQMpw+1WBiOU0Zc1Dz3otJUfBOiVyRL6JmmEUW7d/GP/8SJY8fj/FRNgDt8QUuDoAfHI+h52n8ony+NTttNzETfEIR8mqRF9nhjqa7KCRZOXBUDHsqwZUVywAfH/vjfS3xzy2Kr2rbbBEHWb7yTseiJKEiCoarm4FcrbDxRu9uZI+6RZLCAsHqDlIb9lFbV2/zRuCEptAeyBeos6XdjIYieYv+NBIN60HpJaWqR4KAOTdHsDdy60TZyYB49wLCiiAK1m/yXZ7b08GixY1W7q6KEnGxZsnv2tRpO4tWlqmrDoTo/1uWpIAdRscEzAa9S9MoADw25NtKOf6xbZ1v4AuH2PEvNko0pwo9cLbXBU8fn9pKDZ70qWMly5YoGESpM/vVm1d32xv7tcwOMohooo4OtaLWgGaIRaXdyk5ip6ebnXL33bji0vCtv15+6QLtX5xbtYP6WZrH4z30O17FPLth+xjkywnsHuwFaIkYjgsGKOPK+5urxi+/CRGe0BSF/s17hurp8ky52H+5uYxyHJ+Isc8WgKAY2cEfBZrquLncFcZqMMp4vmDHVjRO4zlt1qfcvseCSPRHERpxtUB4Klb95LV96zBuZCAL7TU/oUudvq4MdrvahoGIJaEGllOYHDQgbdPuhAmwbqeMc0LUD0ujUQIWV6m9hM01sjqrFMiRlIZeRftCUBLlRmpWHjw5Uxeal1+it6ejGXMzgPN4t+PteLAZBd1OOu7znkDCgCTER6yLNteWLG76cO5/LDQOly4JSY/9SaWrvddqXHz5+NK4qbu9j98fRF2DHVTq9iZSSdqiqmc1Xi0nqBcyWQ5C0myT2DFJU+rP4u+HrZC/iy3TbRMQDrMZ19rqgqmmY2+3ooXV26gXxwH642jxXGrWKnl1GBuX5xUzICqCj9hFz45puGFAwF8MN5TtTLNEM2MzO+5chAbqV6r4xdn2crqTtjeEKvPdvaTdzyGKh3OUnhW0KphZABVlTQ4wVkTmHoUW3yx+c9NNR/npZ2MaTKjCbGEcOX5UQ4b19mHnFXBNHYMVafEeUtK8xFv9cfa5WaFBkfNl5ADohzy0y4SNq6TC4eVgw4Mjklo9Wfxo3tPk+/9ppuK3kDV6puXkVImnTCWqtSpeOtWtK60wVEOo1E/wkqgYOnyMdh5SsChTwu/wtPdHTeqjRW9Ch5eHSeJWLihImjo0LMaqEk515BzyYoXgsZiWBbo2YhEPxnn6dmIREeTHfTERH709PrhnPGoOF9d5EHqo6In/phHX0f+SeaCBFqs2EZ2tKTsEWL5mHUl9uuvmXQCZyMSFTQWI9Ectu4XCqD29mQMqO8dmcB37hhbuAqdrWpnq9ByMfzAZBcFgMFRDgeOc5AkvgBqqz8Lvc7dcHuIVIrXCwao2Y6OOQtioCxnS5KQ3Q3Q2+qvVqHDDNfhFI15zZ2nBJw57yiA2reEGPH0gWUTuP+LiYZAnVeg5UDZDQAmI7xt289iTcY+5hGM7hmXMl4aVvJZ/JVjzpmbonghCTHD9ScjPL51+zj6OrJ1Q2XsyhXzMtduL8tZ4znObEKEOV4X7382Ihmuv/t9f0HIaA/EDdefjPD4zh1jVdfjNQE1B/p6TzDXsbeadh+M91Dd9Y9+KhkJTVa8WLWssFbd0D9cl0ptXb7RIFUljYkQQSZR6rqVIMly1khCsuI19h+eTISqPb8eT184IGIiXPhIxvzAblUwjT/qnKwZqt5+3mOoQ4SRHGYmNsr/UtlIJleg6p+7W8WWWuZjzfFUEmKGUs3xFAA2fSWGbkkxoFYDVxcgU8tQrxE2EiE4c96BibDHWMzf07SbHUrKOWM5c96BTKI2hVrFU1nxGn0oToRP/OF4SY1bjZGmxStyc+nqZlvkiBEAWOyLQFcLAATZKYxpzcYFm+0Gv0wCQrigfTGgWvswPJkI9fV4StQdEMIYjfoxLAu0W1JILU8/dTGWAC2GWqzaeoDrs1p2nmB17HJeU0tfqvU+/Zh6e7s+Fa832jdyJqjcBVaCWes0Ys3TahXOXdwHu35UOgZX790sdyfnK5Q0Gmo1POyOY+nys+noXKut3uNVu3+9iZlDOhqu9686zKZmq3Rx5hDRiAHGbF245sKe5Z375kKhVkPY2Qxl61Wl3XmrDVW1GKulXmVcAv9WI9yxnou1Wl/NvrVst6pcGq1Ol8C/xdz75VU7rnayqATXTmlmMNV6gJ1SG2GS2/URAQB/sH+7xrr+DNegzTZzN9zS0fDUvz7XwehSRToavhaBLgiYADyi9CTZuFFjAGD0/O9/ietWlzrX9vh2AgDT0rKhmRCSC7a2ffVaVelCUOev9++Pt7RsaC74aqk/2L9dy6bvma+/NvZ5MFZLvRoZG9po1KHmjQ+uu2vTdUS1uXpbs/dHBUPP4jYtLRuas85zkeu0KltQ4ld+PPT+8YKRUnGjUGjHVFDiV17HVV6ZHlZ9tBimJdCWlg3NHw+9fzwo8SuvJykbmKL05MUL/7fNanPZ3zsMDGx2v73nvZevJ6o8SJZ37mOyN/9VKLRjyq5ZVT8g6Vxy20A8If9Lo6CWeyJQabKlEdvt2tgOEiqosmagAEApZRb33P6tlJJd/7lXrCnUeUTpyXu/vGqH3f9PmjVQs93Uv2a5nEzdklKy6405gAbMq9penN1xZ7utQl3pEvi3JLfrI6ukU8n+H37otkxx1VnAAAAAAElFTkSuQmCC" alt="YR logo" width="42" height="42">
+    <img class="brand-badge" src="data:image/png;base64,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" alt="YR logo" width="42" height="42">
     <div>
       <div class="brand-title">YR</div>
       <div class="brand-sub">Diet · Movement · Medicine · Prayers · Progress</div>
     </div>
     <div class="ring" id="dayRing"><span id="dayRingTxt">0%</span></div>
     <span id="savedTag" class="savedtag"></span>
-    <button id="themeToggle" class="theme-toggle" aria-label="Switch light or dark theme" title="Switch theme">🌙</button>
+    <button id="notifyBell" class="theme-toggle bell-btn" aria-label="Notifications" aria-expanded="false" title="Notifications">🔔<span class="bell-dot" id="bellDot" hidden></span></button>
+  </div>
+  <div class="notif-panel" id="notifPanel" hidden>
+    <div class="notif-head">
+      <b>Notifications</b>
+      <button class="linklike" id="notifClear" type="button">Clear</button>
+    </div>
+    <div id="notifList"></div>
   </div>
 </header>
 
@@ -694,6 +718,14 @@ footer.foot{text-align:center;color:var(--muted);font-size:.78rem;margin-top:26p
       <p class="muted" id="installText" style="font-size:.85rem;margin-top:0"></p>
       <div class="pill-row">
         <button class="btn primary" id="installBtn" style="display:none">📲 Install app</button>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:14px">
+      <h3>🎨 Appearance</h3>
+      <p class="muted" style="font-size:.85rem;margin-top:0">Light or dark. It follows your device until you pick one here.</p>
+      <div class="pill-row">
+        <button class="btn" id="themeToggle" type="button">🌙 Switch to dark</button>
       </div>
     </div>
 
@@ -1926,7 +1958,10 @@ function ensureCalWindow(centre){
     var gtByDay={};
     (data.tasks||[]).forEach(function(t){
       if(!t.due)return;
-      (gtByDay[t.due]=gtByDay[t.due]||[]).push(t);
+      /* A dated task buckets on its bare date; a timed one has to be read in
+         local time, or a 1pm task lands on the wrong day either side of UTC. */
+      var k=t.allDay?String(t.due).slice(0,10):keyOf(new Date(t.due));
+      (gtByDay[k]=gtByDay[k]||[]).push(t);
     });
     _calWin={from:from,to:to,byDay:byDay,gtByDay:gtByDay,connected:!!data.connected,
              status:data.status,tasksError:data.tasksError||null};
@@ -1994,10 +2029,10 @@ function calDayEntries(dayKey){
     out.push({kind:"task",event:null,task:t,title:t.title,start:t.due,allDay:allDay,color:null});
   });
 
-  /* Google Tasks due that day. Read-only here - the app only asks Google for
-     the tasks.readonly scope, so there is nothing to save back. */
+  /* Google Tasks due that day. A task given a time of day belongs at that
+     time, not in the all-day row - the server says which it is. */
   ((_calWin&&_calWin.gtByDay&&_calWin.gtByDay[dayKey])||[]).forEach(function(gt){
-    out.push({kind:"gtask",event:null,task:null,gtask:gt,title:gt.title,start:gt.due,allDay:true,color:null});
+    out.push({kind:"gtask",event:null,task:null,gtask:gt,title:gt.title,start:gt.due,allDay:!!gt.allDay,color:null});
   });
 
   out.sort(function(a,b){
@@ -2132,8 +2167,15 @@ function openCalEditor(o){
   calEditField(wrap,"Notes",notesIn);
 
   if(gtask){
-    wrap.appendChild(el("p","muted","From Google Tasks"+(gtask.list?" · "+gtask.list:"")+
-      " — tick it off in Google Tasks; this app only has permission to read them."));
+    wrap.appendChild(el("p","muted","From Google Tasks"+(gtask.list?" · "+gtask.list:"")));
+    /* Its title and time still belong to Google Tasks - what this offers is
+       the one thing worth doing from here: ticking it off, for real. */
+    var gRow=el("label","chk");
+    var gCb=el("input");gCb.type="checkbox";gCb.id="calGtaskDone";
+    var gTxt=el("div");gTxt.appendChild(el("div","lbl","Mark complete in Google Tasks"));
+    gRow.appendChild(gCb);gRow.appendChild(gTxt);
+    gCb.addEventListener("change",function(){completeGoogleTask(gtask,gCb.checked,gCb);});
+    wrap.appendChild(gRow);
   }
 
   if(ev&&ev.calendar)wrap.appendChild(el("p","muted","On "+ev.calendar+(readOnly?" — you can only read this calendar, so it can't be edited here.":"")));
@@ -2155,8 +2197,13 @@ function openCalEditor(o){
     wrap.appendChild(doneWrap);
   }
 
-  /* No Save button means the fields shouldn't look typeable either. */
-  if(readOnly)Array.prototype.forEach.call(wrap.querySelectorAll("input,select,textarea"),function(n){n.disabled=true;});
+  /* No Save button means the fields shouldn't look typeable either - except
+     the Google Task tick, which is the one thing that *can* be changed. */
+  if(readOnly){
+    Array.prototype.forEach.call(wrap.querySelectorAll("input,select,textarea"),function(n){
+      if(n.id!=="calGtaskDone")n.disabled=true;
+    });
+  }
 
   var actions=el("div","actions");
   if(!readOnly){
@@ -2271,6 +2318,30 @@ function calEditorDelete(entry,btn){
   }).catch(function(){
     if(status)status.textContent="Couldn't reach the server.";
     if(btn)btn.disabled=false;
+  });
+}
+
+/** Ticks a Google Task off (or puts it back) in Google Tasks itself. A
+ * refused write leaves the checkbox where it was rather than pretending. */
+function completeGoogleTask(gt,done,cb){
+  var status=document.getElementById("calEditStatus");
+  if(cb)cb.disabled=true;
+  if(status)status.textContent=done?"Completing…":"Reopening…";
+  return calApi("PATCH","/api/google/tasks",{listId:gt.listId,taskId:gt.id,completed:!!done}).then(function(resp){
+    if(!calWriteOk(resp,status)){
+      if(cb){cb.checked=!done;cb.disabled=false;}
+      if(resp&&resp.status==="reconnect_required"&&status){
+        status.textContent="Reconnect Google (Today's Brief card) to tick tasks off — the app needs permission to change them.";
+      }
+      return;
+    }
+    if(status)status.textContent=done?"Marked complete.":"Reopened.";
+    hideModal();
+    _calWin=null;                                  /* it leaves the open list */
+    renderCalendarTab();
+  }).catch(function(){
+    if(cb){cb.checked=!done;cb.disabled=false;}
+    if(status)status.textContent="Couldn't reach the server.";
   });
 }
 
@@ -2577,7 +2648,70 @@ function enableNotifications(){
   }
 }
 
-var _notifiedKeys={};
+var _notifiedKeys={};                 /* delivered to the OS */
+var _loggedKeys={};                   /* recorded in the in-app bell */
+
+/* ---------- IN-APP NOTIFICATION CENTRE ---------- */
+/* The bell records every reminder whether or not the browser let us raise an
+   OS notification, so there is always somewhere to see what was missed. It's
+   a per-device log: it lives in its own localStorage key, never in `state`,
+   so it can't ride the sync protocol into the health record. */
+var NOTIFKEY="yawarNotifs";
+var NOTIF_MAX=40;
+var _notifs=[],_notifUnread=0;
+
+function loadNotifs(){
+  try{
+    var raw=localStorage.getItem(NOTIFKEY);
+    var parsed=raw?JSON.parse(raw):null;
+    if(parsed&&Array.isArray(parsed.items)){
+      _notifs=parsed.items.slice(0,NOTIF_MAX);
+      _notifUnread=Math.min(parsed.unread||0,_notifs.length);
+    }
+  }catch(e){_notifs=[];_notifUnread=0;}
+}
+function saveNotifs(){
+  try{localStorage.setItem(NOTIFKEY,JSON.stringify({items:_notifs,unread:_notifUnread}));}catch(e){}
+}
+function pushNotif(title,body){
+  _notifs.unshift({title:title,body:body||"",at:Date.now()});
+  if(_notifs.length>NOTIF_MAX)_notifs.length=NOTIF_MAX;
+  _notifUnread++;
+  saveNotifs();renderNotifs();
+}
+function agoText(ms){
+  var m=Math.round((Date.now()-ms)/60000);
+  if(m<1)return "just now";
+  if(m<60)return m+"m ago";
+  var h=Math.round(m/60);
+  if(h<24)return h+"h ago";
+  return Math.round(h/24)+"d ago";
+}
+function renderNotifs(){
+  var dot=document.getElementById("bellDot"),list=document.getElementById("notifList");
+  if(dot)dot.hidden=_notifUnread<1;
+  if(!list)return;
+  list.innerHTML="";
+  if(!_notifs.length){
+    list.appendChild(el("p","muted","Nothing yet. Prayer times, due tasks and dhikr reminders show up here."));
+    return;
+  }
+  _notifs.forEach(function(n){
+    var row=el("div","notif-item");
+    row.appendChild(el("div","t",n.title));
+    if(n.body)row.appendChild(el("div","b",n.body));
+    row.appendChild(el("div","w",agoText(n.at)));
+    list.appendChild(row);
+  });
+}
+function toggleNotifPanel(open){
+  var panel=document.getElementById("notifPanel"),bell=document.getElementById("notifyBell");
+  if(!panel)return;
+  var show=open===undefined?panel.hidden:open;
+  panel.hidden=!show;
+  if(bell)bell.setAttribute("aria-expanded",show?"true":"false");
+  if(show){_notifUnread=0;saveNotifs();renderNotifs();}
+}
 
 /** Fires a notification once per key.
  *
@@ -2587,6 +2721,9 @@ var _notifiedKeys={};
  * instead. That's the supported path on every platform; the constructor is
  * the fallback for browsers with no service worker. */
 function notifyOnce(key,title,body){
+  /* The bell logs it either way - an unpermitted browser is exactly when
+     having somewhere to look matters. */
+  if(!_loggedKeys[key]){_loggedKeys[key]=true;pushNotif(title,body);}
   if(_notifiedKeys[key])return;
   if(!("Notification" in window)||Notification.permission!=="granted")return;
   _notifiedKeys[key]=true;
@@ -2616,7 +2753,9 @@ function justPassed(mins,nowMins){return nowMins>=mins&&nowMins-mins<=REMINDER_G
  * granted browser notification permission - checked fresh every call, not
  * cached, so revoking permission elsewhere takes effect immediately. */
 function checkReminders(){
-  if(!("Notification" in window)||Notification.permission!=="granted")return;
+  /* Deliberately not gated on notification permission: the in-app bell logs
+     every reminder either way, and notifyOnce is what decides whether one
+     also reaches the OS. */
   var now=new Date(),todayStr=todayKey(),nowMins=now.getHours()*60+now.getMinutes();
 
   var loc=state.profile&&state.profile.prayerLoc;
@@ -2673,7 +2812,6 @@ function currentPrayerWindow(times,now){
  * `notifyOnce` keys on the prayer/task, so returning to the app repeatedly
  * inside the same window stays silent. */
 function openingReminders(){
-  if(!("Notification" in window)||Notification.permission!=="granted")return Promise.resolve();
   var now=new Date();
 
   var due=ensureTasks().filter(function(t){
@@ -2707,10 +2845,34 @@ function openingReminders(){
 }
 
 /* An installed app is usually resumed rather than reloaded, so coming back
-   into view counts as opening it. */
+   into view counts as opening it - and it has to count as a *fresh* open,
+   or the in-memory "already said that" marks make every resume silent and
+   reminders appear only after a manual refresh. Anything longer than a
+   glance away clears the opening marks so the nudges can speak again; a
+   quick flick to another app and straight back stays quiet. */
+var RESUME_FRESH_MS=60000;
+var _hiddenAt=null;
+
+function forgetOpeningReminders(){
+  Object.keys(_notifiedKeys).forEach(function(k){if(k.indexOf("open-")===0)delete _notifiedKeys[k];});
+  Object.keys(_loggedKeys).forEach(function(k){if(k.indexOf("open-")===0)delete _loggedKeys[k];});
+}
+
+function onResume(away){
+  if(away>=RESUME_FRESH_MS)forgetOpeningReminders();
+  openingReminders();
+  checkReminders();          /* the minute tick may have been throttled off */
+}
+
 document.addEventListener("visibilitychange",function(){
-  if(!document.hidden)openingReminders();
+  if(document.hidden){_hiddenAt=Date.now();return;}
+  var away=_hiddenAt?Date.now()-_hiddenAt:RESUME_FRESH_MS;
+  _hiddenAt=null;
+  onResume(away);
 });
+/* Restored from the back/forward cache: no scripts re-run, so this is the
+   only signal that the app is on screen again. */
+window.addEventListener("pageshow",function(e){if(e.persisted)onResume(RESUME_FRESH_MS);});
 
 /* ---------- RENDER: MEAL PLAN ---------- */
 function renderPlan(){
@@ -3392,6 +3554,21 @@ attachTabSwipe();
 
 document.getElementById("notifyBtn").addEventListener("click",enableNotifications);
 
+document.getElementById("notifyBell").addEventListener("click",function(ev){
+  ev.stopPropagation();
+  toggleNotifPanel();
+});
+document.getElementById("notifClear").addEventListener("click",function(ev){
+  ev.stopPropagation();
+  _notifs=[];_notifUnread=0;saveNotifs();renderNotifs();
+});
+/* Anywhere else closes it, the way a menu should. */
+document.addEventListener("click",function(ev){
+  var panel=document.getElementById("notifPanel");
+  if(!panel||panel.hidden)return;
+  if(!panel.contains(ev.target))toggleNotifPanel(false);
+});
+
 document.getElementById("prayPrevDay").addEventListener("click",function(){cur.setDate(cur.getDate()-1);renderPrayersTab();});
 document.getElementById("prayNextDay").addEventListener("click",function(){cur.setDate(cur.getDate()+1);renderPrayersTab();});
 document.getElementById("prayJumpToday").addEventListener("click",function(){cur=new Date();cur.setHours(0,0,0,0);renderPrayersTab();});
@@ -3418,7 +3595,9 @@ function currentTheme(){
 function applyTheme(t){
   if(t==="dark"||t==="light")document.documentElement.setAttribute("data-theme",t);
   var btn=document.getElementById("themeToggle");
-  if(btn)btn.textContent=(currentTheme()==="dark")?"☀️":"🌙";
+  /* It lives in Settings now, where there's room to say what it does rather
+     than leaving an unlabelled glyph in the header. */
+  if(btn)btn.textContent=(currentTheme()==="dark")?"☀️ Switch to light":"🌙 Switch to dark";
 }
 try{var savedTheme=localStorage.getItem(THEMEKEY);applyTheme(savedTheme||undefined);}catch(e){applyTheme();}
 document.getElementById("themeToggle").addEventListener("click",function(){
@@ -3437,6 +3616,7 @@ loadBrief();
 renderTasks();
 renderPrayerClock();
 updateNotifyUI();
+loadNotifs();renderNotifs();
 openingReminders();
 (function restoreLastTab(){
   var saved=null,savedSub=null;
