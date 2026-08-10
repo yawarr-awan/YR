@@ -1086,6 +1086,301 @@ async function handleScheduled(env, now) {
   }
 }
 
+/* ---------- prayer times ---------- */
+
+/* The provider is UmmahAPI, with Aladhan as an automatic fallback. Two
+ * things make that worth the indirection: prayer times matter enough that a
+ * single provider outage should not leave the app blank, and going through
+ * the Worker means the client never has to know which one answered.
+ *
+ * The normaliser below is deliberately shape-tolerant. UmmahAPI's exact
+ * response body could not be inspected while this was written, so rather
+ * than hard-coding a guess it searches the payload for an object that
+ * carries the six prayer names and pulls the times out of that. When it
+ * genuinely cannot find them it reports the payload's real keys, so the
+ * shape can be fixed from one look at the error instead of a guessing game. */
+
+const PRAYER_ALIASES = {
+  Fajr: ["fajr", "fajir"],
+  Sunrise: ["sunrise", "shurooq", "shuruq", "shuruk", "ishraq", "chasht"],
+  Dhuhr: ["dhuhr", "zuhr", "duhr", "dhuhur", "zohr", "noon"],
+  Asr: ["asr", "asar"],
+  Maghrib: ["maghrib", "magrib", "maghreb"],
+  Isha: ["isha", "ishaa", "esha"],
+};
+const PRAYER_ORDER = Object.keys(PRAYER_ALIASES);
+
+const norm = (k) => String(k).toLowerCase().replace(/[^a-z]/g, "");
+
+/** "HH:MM" in 24h, from whatever the provider used: a bare time, a time with
+ * a suffix ("05:12 (BST)"), a 12-hour time, or an ISO timestamp. An ISO
+ * string is read textually rather than through Date - parsing it would
+ * convert to UTC and shift the time the provider meant. */
+function toHHMM(value) {
+  if (value == null) return null;
+  const s = String(value).trim();
+  if (!s) return null;
+
+  const iso = s.match(/^\d{4}-\d{2}-\d{2}[T ](\d{2}):(\d{2})/);
+  if (iso) return `${iso[1]}:${iso[2]}`;
+
+  const m = s.match(/(\d{1,2}):(\d{2})/);
+  if (!m) return null;
+  let h = parseInt(m[1], 10);
+  const min = parseInt(m[2], 10);
+  if (!Number.isFinite(h) || !Number.isFinite(min) || min > 59) return null;
+  const ampm = s.match(/\b([ap])\.?m\.?\b/i);
+  if (ampm) {
+    const pm = ampm[1].toLowerCase() === "p";
+    if (pm && h < 12) h += 12;
+    if (!pm && h === 12) h = 0;
+  }
+  if (h > 23) return null;
+  return `${String(h).padStart(2, "0")}:${String(min).padStart(2, "0")}`;
+}
+
+/** Pulls the six times out of one object, if it looks like it holds them. */
+function timingsFromObject(obj) {
+  if (!obj || typeof obj !== "object" || Array.isArray(obj)) return null;
+  const byNorm = {};
+  for (const k of Object.keys(obj)) byNorm[norm(k)] = obj[k];
+
+  const out = {};
+  let found = 0;
+  for (const name of PRAYER_ORDER) {
+    for (const alias of PRAYER_ALIASES[name]) {
+      if (byNorm[alias] === undefined) continue;
+      const t = toHHMM(typeof byNorm[alias] === "object" ? (byNorm[alias].time ?? byNorm[alias].start) : byNorm[alias]);
+      if (t) { out[name] = t; found++; }
+      break;
+    }
+  }
+  // Four of six is enough to call it a prayer-times object; anything less is
+  // some other part of the payload that happens to mention a prayer.
+  return found >= 4 ? out : null;
+}
+
+/** The timings for a single day entry: either the object itself, or one
+ * level in (Aladhan wraps them as `{ timings: {...}, date: {...} }`). This is
+ * deliberately NOT the recursive finder - run over a map of thirty days, that
+ * would match the first day and collapse the month into one entry. */
+const TIMINGS_CHILD_KEYS = ["timings", "times", "prayers", "salah", "prayertimes"];
+function dayTimings(value) {
+  const direct = timingsFromObject(value);
+  if (direct) return direct;
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  /* Only a child *named* like a timings block counts. Accepting any matching
+     child would make a map of thirty dates look like a single day, since its
+     first entry is itself a timings object. */
+  for (const k of Object.keys(value)) {
+    if (TIMINGS_CHILD_KEYS.indexOf(norm(k)) < 0) continue;
+    const hit = timingsFromObject(value[k]);
+    if (hit) return hit;
+  }
+  return null;
+}
+
+/** Depth-first search for the timings object, wherever the provider nested it. */
+function findTimings(payload, depth = 0) {
+  if (!payload || typeof payload !== "object" || depth > 6) return null;
+  const direct = timingsFromObject(payload);
+  if (direct) return direct;
+  const values = Array.isArray(payload) ? payload : Object.values(payload);
+  for (const v of values) {
+    const hit = findTimings(v, depth + 1);
+    if (hit) return hit;
+  }
+  return null;
+}
+
+/** What the payload actually contained, for an error worth reading. */
+function describeShape(payload) {
+  if (payload == null) return "empty body";
+  if (typeof payload !== "object") return typeof payload;
+  if (Array.isArray(payload)) return `array(${payload.length})`;
+  const keys = Object.keys(payload).slice(0, 12);
+  return `object keys: ${keys.join(", ") || "(none)"}`;
+}
+
+/** Coordinates from the query, or null. Number("") and Number(null) are both
+ * 0, so a missing parameter would otherwise read as a valid 0,0. */
+function readCoords(url) {
+  const rawLat = url.searchParams.get("lat");
+  const rawLng = url.searchParams.get("lng");
+  if (rawLat === null || rawLng === null || rawLat === "" || rawLng === "") return null;
+  const lat = Number(rawLat), lng = Number(rawLng);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  if (Math.abs(lat) > 90 || Math.abs(lng) > 180) return null;
+  return { lat, lng };
+}
+
+async function fetchJson(url) {
+  const res = await fetch(url, { headers: { accept: "application/json" } });
+  if (!res.ok) {
+    const detail = await res.text().catch(() => "");
+    throw new Error(`HTTP ${res.status} ${detail.slice(0, 160)}`);
+  }
+  return res.json();
+}
+
+/** Aladhan's `school` is the Asr rule: 0 standard, 1 Hanafi. Of the four
+ * madhabs only Hanafi differs on Asr, so the other three all map to 0. */
+function asrSchool(madhab) {
+  return String(madhab || "").toLowerCase() === "hanafi" || String(madhab) === "1" ? 1 : 0;
+}
+
+/* KNOWN UNVERIFIED ASSUMPTION: `method` is forwarded to UmmahAPI as the same
+ * number Aladhan uses (3 = Muslim World League, 4 = Umm al-Qura, …), because
+ * that is what the client stores. `madhab` is translated per provider by
+ * asrSchool(), but there is no equivalent translation table for methods -
+ * UmmahAPI's domain is unreachable from the build sandbox, so its numbering
+ * could not be checked. If it numbers them differently, times come back
+ * well-formed under the wrong convention, the Aladhan fallback never fires
+ * and nothing warns. Verify against a known city before trusting the method
+ * selector, and add a mapping here if the numbers don't line up. */
+async function ummahDay({ lat, lng, method, madhab, timezone, highLatitudeRule, date }) {
+  const params = new URLSearchParams({ lat: String(lat), lng: String(lng) });
+  if (method) params.set("method", String(method));
+  if (madhab) params.set("madhab", String(madhab));
+  if (timezone) params.set("timezone", String(timezone));
+  if (highLatitudeRule) params.set("highLatitudeRule", String(highLatitudeRule));
+  if (date) params.set("date", String(date));
+  const payload = await fetchJson(`https://ummahapi.com/api/prayer-times?${params}`);
+  const timings = findTimings(payload);
+  if (!timings) throw new Error(`unrecognised response (${describeShape(payload)})`);
+  return timings;
+}
+
+async function aladhanDay({ lat, lng, method, madhab, day }) {
+  const [y, m, d] = day.split("-");
+  const params = new URLSearchParams({
+    latitude: String(lat), longitude: String(lng),
+    method: String(method || 3), school: String(asrSchool(madhab)),
+  });
+  const payload = await fetchJson(`https://api.aladhan.com/v1/timings/${d}-${m}-${y}?${params}`);
+  const timings = findTimings(payload);
+  if (!timings) throw new Error(`unrecognised response (${describeShape(payload)})`);
+  return timings;
+}
+
+/**
+ * GET /api/prayer?lat&lng[&method&madhab&timezone&highLatitudeRule&date]
+ * -> { source, day, timings: {Fajr..Isha}, warning? }
+ *
+ * `warning` is set when the primary provider failed and the fallback
+ * answered, so a silent downgrade is still visible.
+ */
+async function handlePrayerDay(request, env, now) {
+  const url = new URL(request.url);
+  const coords = readCoords(url);
+  if (!coords) return json({ error: "lat and lng are required" }, 400);
+  const { lat, lng } = coords;
+
+  const timezone = url.searchParams.get("timezone") || BRIEF_TIMEZONE;
+  const dateParam = url.searchParams.get("date");
+  const day = dateParam && DAY_RE.test(dateParam) ? dateParam : localDayBounds(timezone, now || new Date()).day;
+  const opts = {
+    lat, lng, day, date: day, timezone,
+    method: url.searchParams.get("method"),
+    madhab: url.searchParams.get("madhab"),
+    highLatitudeRule: url.searchParams.get("highLatitudeRule"),
+  };
+
+  let warning = null;
+  try {
+    return json({ source: "ummahapi", day, timings: await ummahDay(opts) });
+  } catch (e) {
+    warning = `ummahapi: ${String(e.message || e)}`;
+  }
+  try {
+    return json({ source: "aladhan", day, timings: await aladhanDay(opts), warning });
+  } catch (e) {
+    return json({ error: "prayer_unavailable", day, warning, detail: String(e.message || e) }, 502);
+  }
+}
+
+/**
+ * GET /api/prayer/month?lat&lng&month&year[&method&madhab]
+ * -> { source, month, year, days: { "YYYY-MM-DD": {Fajr..Isha} }, warning? }
+ *
+ * One call for a whole month, which is what the calendar wants rather than
+ * thirty separate day requests.
+ */
+async function handlePrayerMonth(request, env, now) {
+  const url = new URL(request.url);
+  const coords = readCoords(url);
+  if (!coords) return json({ error: "lat and lng are required" }, 400);
+  const { lat, lng } = coords;
+
+  const today = localDayBounds(BRIEF_TIMEZONE, now || new Date()).day;
+  const month = Number(url.searchParams.get("month")) || Number(today.slice(5, 7));
+  const year = Number(url.searchParams.get("year")) || Number(today.slice(0, 4));
+  const method = url.searchParams.get("method");
+  const madhab = url.searchParams.get("madhab");
+  const timezone = url.searchParams.get("timezone") || BRIEF_TIMEZONE;
+  const mm = String(month).padStart(2, "0");
+
+  /* Both providers key a month differently, so each result is folded into
+     one date -> timings map and the client never sees the difference. */
+  const collect = (payload) => {
+    const days = {};
+    const walk = (node, depth) => {
+      if (!node || typeof node !== "object" || depth > 6) return;
+      const list = Array.isArray(node) ? node : Object.entries(node);
+      for (const item of list) {
+        const [key, value] = Array.isArray(node) ? [null, item] : item;
+        const timings = dayTimings(value);
+        if (timings) {
+          let d = null;
+          if (key && DAY_RE.test(key)) d = key;
+          else if (value && typeof value === "object") {
+            const stamp = JSON.stringify(value).match(/(\d{4}-\d{2}-\d{2})/);
+            const gregorian = value?.date?.gregorian?.date;      // Aladhan: DD-MM-YYYY
+            if (gregorian && /^\d{2}-\d{2}-\d{4}$/.test(gregorian)) {
+              const [dd, mo, yy] = gregorian.split("-");
+              d = `${yy}-${mo}-${dd}`;
+            } else if (stamp) d = stamp[1];
+          }
+          if (d) days[d] = timings;
+          continue;
+        }
+        walk(value, depth + 1);
+      }
+    };
+    walk(payload, 0);
+    return days;
+  };
+
+  let warning = null;
+  try {
+    const params = new URLSearchParams({ lat: String(lat), lng: String(lng), month: String(month), year: String(year) });
+    if (method) params.set("method", String(method));
+    if (madhab) params.set("madhab", String(madhab));
+    /* Same timezone the day endpoint passes. Without it a month's times can
+       disagree with the same day fetched on its own - and the client prefers
+       the month cache, so the disagreement would be what it shows. */
+    if (timezone) params.set("timezone", String(timezone));
+    const payload = await fetchJson(`https://ummahapi.com/api/prayer-times/month?${params}`);
+    const days = collect(payload);
+    if (!Object.keys(days).length) throw new Error(`unrecognised response (${describeShape(payload)})`);
+    return json({ source: "ummahapi", month, year, days });
+  } catch (e) {
+    warning = `ummahapi: ${String(e.message || e)}`;
+  }
+  try {
+    const params = new URLSearchParams({
+      latitude: String(lat), longitude: String(lng),
+      method: String(method || 3), school: String(asrSchool(madhab)),
+    });
+    const payload = await fetchJson(`https://api.aladhan.com/v1/calendar/${year}/${month}?${params}`);
+    const days = collect(payload);
+    if (!Object.keys(days).length) throw new Error(`unrecognised response (${describeShape(payload)})`);
+    return json({ source: "aladhan", month, year, days, warning, mm });
+  } catch (e) {
+    return json({ error: "prayer_unavailable", month, year, warning, detail: String(e.message || e) }, 502);
+  }
+}
+
 /* ---------- router ---------- */
 
 export default {
@@ -1131,6 +1426,12 @@ export default {
       }
       if (url.pathname === "/api/brief/refresh" && request.method === "POST") {
         return await handleRefreshBrief(env, email);
+      }
+      if (url.pathname === "/api/prayer" && request.method === "GET") {
+        return await handlePrayerDay(request, env);
+      }
+      if (url.pathname === "/api/prayer/month" && request.method === "GET") {
+        return await handlePrayerMonth(request, env);
       }
       if (url.pathname === "/api/calendar/events" && request.method === "GET") {
         return await handleGetCalendarEvents(request, env, email);
@@ -1186,6 +1487,13 @@ export {
   handleUpdateCalendarEvent,
   handleDeleteCalendarEvent,
   handleUpdateGoogleTask,
+  handlePrayerDay,
+  handlePrayerMonth,
+  toHHMM,
+  findTimings,
+  dayTimings,
+  readCoords,
+  asrSchool,
   isDateOnlyDue,
   handleGoogleConnect,
   handleGoogleCallback,

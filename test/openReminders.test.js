@@ -46,7 +46,7 @@ function timingsAllFuture() {
 function backend(timings) {
   return async (url) => {
     const u = String(url);
-    if (u.includes("api.aladhan.com")) return { ok: true, status: 200, json: async () => ({ data: { timings } }) };
+    if (u.includes("/api/prayer")) return { ok: true, status: 200, json: async () => ({ source: "ummahapi", timings }) };
     return { ok: true, status: 200, json: async () => ({ connected: false, status: "not_connected" }) };
   };
 }
@@ -127,12 +127,12 @@ test("before Fajr the window we're in is still last night's Isha, and it's check
 });
 
 test("no location means no prayer nudge and no attempt to fetch times", async () => {
-  let aladhanCalls = 0;
+  let prayerCalls = 0;
   const app = loadApp({
     notificationPermission: "granted",
     localStorageSeed: { yawarWellness_v1: JSON.stringify({ schema: 3, profile: { startWeight: "", targetWeight: "", updated_at: 1, tasks: [] }, days: {} }) },
     fetchImpl: async (url) => {
-      if (String(url).includes("api.aladhan.com")) aladhanCalls++;
+      if (String(url).includes("/api/prayer")) prayerCalls++;
       return { ok: true, status: 200, json: async () => ({ connected: false, status: "not_connected" }) };
     },
   });
@@ -140,7 +140,7 @@ test("no location means no prayer nudge and no attempt to fetch times", async ()
   await app.flush();
 
   assert.equal(prayerNotes(app).length, 0);
-  assert.equal(aladhanCalls, 0);
+  assert.equal(prayerCalls, 0);
 });
 
 test("a scheduled task that's due and not done is raised on open", async () => {

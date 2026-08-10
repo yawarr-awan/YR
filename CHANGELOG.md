@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.19.0
+
+**A prayer clock, and prayer times that no longer depend on one provider.**
+
+- **Prayer times now come from the app's own Worker**, which asks UmmahAPI first and falls back to Aladhan by itself. The app neither knows nor cares which one answered, so one provider having a bad day no longer shows up as "couldn't load prayer times". Your coordinates go to the Worker, and on to whichever provider answers — same as before, one hop further back.
+- **A prayer chip in the header and on the Prayers tab**: which window you're in, and how long is left of it. Both are drawn by the same code, so they can't disagree, and they retick every few seconds.
+- **Tap either chip for the clock.** The whole day is one turn of a spiral — angle carries the time, radius carries how far through the day you are — so all six windows fit round one dial without overlapping. The window you're in is drawn thicker and at full strength, each prayer's start is marked, and an analog face with a running second hand sits inside it. Under it: the current window, its span, and how long is left.
+- **The dial can start at now or at Fajr.** "Now" reads as the next 24 hours; "Fajr" reads as the Islamic day, with no window split across the start.
+- **Your madhab, in full.** Hanafi, Maliki, Shafi'i or Hanbali — the same setting as the Asr selector in the prayer cog, which now says the same thing. (Only the Hanafi position actually moves Asr; the other three are the same calculation.)
+- **Every prayer's colour is yours to change.** Tap a prayer in the clock and pick one; it follows through to the checklist, the calendar's hour tints and the chip. "Use the default colour" hands it back to the theme. The choice rides your profile, so it syncs.
+- **Your location is named, not numbered** — "London, United Kingdom" rather than a pair of coordinates — looked up in the background so it never delays the times, with the coordinates shown if the lookup doesn't answer. There's a Reset if you want to clear it and start again.
+- **The calendar takes a whole month of prayer times in one request** instead of one per day. If that fails it quietly goes back to fetching each day, so it costs requests, never the calendar.
+
 ## 1.18.0
 
 **Today's Brief is a schedule, not a paragraph.**

@@ -175,7 +175,7 @@ test("prayer windows tint all 24 hours of the day with no gaps", async () => {
     geolocation: { lat: 51.5, lon: -0.12 },
     fetchImpl: fetchRouter([
       ["/api/calendar/events", () => jsonRes({ connected: true, status: "ok", events: [] })],
-      ["api.aladhan.com", () => jsonRes({ data: { timings: { Fajr: "04:45", Sunrise: "05:50", Dhuhr: "13:00", Asr: "17:00", Maghrib: "20:30", Isha: "22:00" } } })],
+      ["/api/prayer", () => jsonRes({ source: "ummahapi", timings: { Fajr: "04:45", Sunrise: "05:50", Dhuhr: "13:00", Asr: "17:00", Maghrib: "20:30", Isha: "22:00" } })],
     ]),
   });
   app.click("prayerLocBtn");
@@ -318,7 +318,7 @@ test("the narrow columns get the same prayer-window colours as the focused day",
     geolocation: { lat: 51.5, lon: -0.12 },
     fetchImpl: fetchRouter([
       ["/api/calendar/events", () => jsonRes({ connected: true, status: "ok", events: [] })],
-      ["api.aladhan.com", () => jsonRes({ data: { timings: { Fajr: "04:45", Sunrise: "05:50", Dhuhr: "13:00", Asr: "17:00", Maghrib: "20:30", Isha: "22:00" } } })],
+      ["/api/prayer", () => jsonRes({ source: "ummahapi", timings: { Fajr: "04:45", Sunrise: "05:50", Dhuhr: "13:00", Asr: "17:00", Maghrib: "20:30", Isha: "22:00" } })],
     ]),
   });
   app.click("prayerLocBtn");
