@@ -227,7 +227,7 @@ test("generateBrief: a refresh mid-day only tells Gemini about what's still rema
   assert.doesNotMatch(geminiPrompt, /Morning standup/, "an already-finished event must not be sent to Gemini");
   assert.match(geminiPrompt, /Afternoon call/);
   assert.match(geminiPrompt, /currently 12:00/, "London is BST (+1) in August, so 11:00Z is 12:00 local");
-  assert.match(geminiPrompt, /Do not open with a time-of-day greeting/i);
+  assert.match(geminiPrompt, /no greeting/i, "the format rules still ban a time-of-day greeting");
 });
 
 test("generateBrief: the prompt carries every calendar and all three task buckets", async (t) => {
@@ -269,7 +269,7 @@ test("generateBrief: the prompt carries every calendar and all three task bucket
   assert.match(prompt, /Overdue tasks:\n- Chase invoice/);
   assert.doesNotMatch(prompt, /Read that book/, "a task with no due date stays out of the brief");
   assert.match(prompt, /1 further task\(s\) have no due date/);
-  assert.match(prompt, /Cover ALL of it/);
+  assert.match(prompt, /Cover every calendar and task list/);
 });
 
 test("generateBrief: a Tasks failure is recorded next to a successful summary, not swallowed", async (t) => {
@@ -878,4 +878,95 @@ test("handleGetCalendarEvents: a Tasks failure never costs the user their agenda
   assert.equal(body.events.length, 1);
   assert.deepEqual(body.tasks, []);
   assert.match(body.tasksError, /403/, "but the reason is reported rather than swallowed");
+});
+
+test("nextDay / localDayOf: the day after, and which local day something falls on", async () => {
+  const { nextDay, localDayOf } = await loadWorker();
+  assert.equal(nextDay("2026-08-09"), "2026-08-10");
+  assert.equal(nextDay("2026-08-31"), "2026-09-01", "month ends must not break it");
+  assert.equal(nextDay("2026-12-31"), "2027-01-01");
+
+  assert.equal(localDayOf("Europe/London", "2026-08-09T23:30:00+01:00"), "2026-08-09");
+  assert.equal(localDayOf("Europe/London", "2026-08-09T23:30:00Z"), "2026-08-10", "00:30 BST is the next day");
+  assert.equal(localDayOf("Europe/London", "2026-08-09"), "2026-08-09", "an all-day date is used as-is");
+});
+
+test("generateBrief: tomorrow's events and tasks reach the prompt, in their own section", async (t) => {
+  const { generateBrief } = await loadWorker();
+  const d1 = createFakeD1();
+  d1.seedToken(EMAIL, { access_token: "tok", access_token_expires_at: Date.now() + 600000 });
+
+  let prompt = null, eventsUrl = null, calendarListCalls = 0;
+  installFetch(t, async (url, opts) => {
+    const u = String(url);
+    if (u.includes("calendarList")) { calendarListCalls++; return jsonResponse(200, { items: [{ id: "primary", summary: "Yawar", primary: true }] }); }
+    if (u.includes("/events")) {
+      eventsUrl = decodeURIComponent(u);
+      return jsonResponse(200, { items: [
+        { summary: "Afternoon call", start: { dateTime: "2026-08-09T15:00:00+01:00" }, end: { dateTime: "2026-08-09T15:30:00+01:00" } },
+        { summary: "Dentist", start: { dateTime: "2026-08-10T11:00:00+01:00" }, end: { dateTime: "2026-08-10T11:30:00+01:00" } },
+      ] });
+    }
+    if (u.includes("users/@me/lists")) return jsonResponse(200, { items: [{ id: "l1", title: "My Tasks" }] });
+    if (u.includes("/tasks?")) return jsonResponse(200, { items: [
+      { title: "Pay rent", status: "needsAction", due: "2026-08-09T00:00:00.000Z" },
+      { title: "Renew passport", status: "needsAction", due: "2026-08-10T00:00:00.000Z" },
+      { title: "Next week thing", status: "needsAction", due: "2026-08-20T00:00:00.000Z" },
+    ] });
+    if (u.includes("generativelanguage")) { prompt = JSON.parse(opts.body).contents[0].parts[0].text; return geminiOk("Today\n- 15:00 Afternoon call"); }
+    throw new Error("unexpected fetch " + u);
+  });
+
+  const result = await generateBrief(d1.env, EMAIL, new Date("2026-08-09T10:00:00Z"));
+  assert.equal(result.status, "ok");
+
+  // One ranged fetch covering both days, and the calendars listed only once.
+  assert.equal(calendarListCalls, 1);
+  assert.match(eventsUrl, /timeMin=2026-08-09T00:00:00/);
+  assert.match(eventsUrl, /timeMax=2026-08-10T23:59:59/, "the range must reach the end of tomorrow");
+
+  assert.match(prompt, /TODAY \(2026-08-09\)/);
+  assert.match(prompt, /TOMORROW \(2026-08-10\)/);
+  // Each event under the right heading.
+  const todayPart = prompt.slice(prompt.indexOf("TODAY"), prompt.indexOf("TOMORROW"));
+  const tomorrowPart = prompt.slice(prompt.indexOf("TOMORROW"));
+  assert.match(todayPart, /Afternoon call/);
+  assert.doesNotMatch(todayPart, /Dentist/, "tomorrow's event must not be listed under today");
+  assert.match(tomorrowPart, /Dentist/);
+  assert.match(todayPart, /Pay rent/);
+  assert.match(tomorrowPart, /Renew passport/);
+  assert.doesNotMatch(prompt, /Next week thing/, "the brief covers two days, not the whole month");
+});
+
+test("generateBrief: tomorrow is never filtered by the current time", async (t) => {
+  // Today's already-finished events are dropped; tomorrow's must survive even
+  // though their clock time is earlier than now.
+  const { generateBrief } = await loadWorker();
+  const d1 = createFakeD1();
+  d1.seedToken(EMAIL, { access_token: "tok", access_token_expires_at: Date.now() + 600000 });
+
+  let prompt = null;
+  installFetch(t, async (url, opts) => {
+    const u = String(url);
+    if (u.includes("calendarList")) return jsonResponse(200, { items: [{ id: "primary", summary: "Yawar", primary: true }] });
+    if (u.includes("/events")) return jsonResponse(200, { items: [
+      { summary: "This morning", start: { dateTime: "2026-08-09T09:00:00+01:00" }, end: { dateTime: "2026-08-09T09:30:00+01:00" } },
+      { summary: "Early tomorrow", start: { dateTime: "2026-08-10T08:00:00+01:00" }, end: { dateTime: "2026-08-10T08:30:00+01:00" } },
+    ] });
+    if (u.includes("tasks.googleapis.com")) return jsonResponse(200, { items: [] });
+    if (u.includes("generativelanguage")) { prompt = JSON.parse(opts.body).contents[0].parts[0].text; return geminiOk("ok"); }
+    throw new Error("unexpected fetch " + u);
+  });
+
+  await generateBrief(d1.env, EMAIL, new Date("2026-08-09T18:00:00Z"));
+  assert.doesNotMatch(prompt, /This morning/, "today's finished event is dropped");
+  assert.match(prompt, /Early tomorrow/, "tomorrow has not happened yet, whatever the clock says");
+});
+
+test("the default prompt asks for a bulleted Today/Tomorrow list and nothing else", async () => {
+  const { DEFAULT_BRIEF_PROMPT } = await loadWorker();
+  assert.match(DEFAULT_BRIEF_PROMPT, /Today/);
+  assert.match(DEFAULT_BRIEF_PROMPT, /Tomorrow/);
+  assert.match(DEFAULT_BRIEF_PROMPT, /No sentences/i);
+  assert.match(DEFAULT_BRIEF_PROMPT, /Nothing scheduled/i, "an empty section still needs a bullet");
 });

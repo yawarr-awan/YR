@@ -180,6 +180,12 @@ nav.tabs button.active{color:var(--brand)}
 .meal-row:hover{background:var(--panel-2)}
 .meal-row input{width:20px;height:20px;accent-color:var(--move);margin-top:2px;cursor:pointer}
 .meal-meta{font-size:.76rem;color:var(--muted)}
+.brief-body{font-size:.9rem}
+.brief-head{margin:10px 0 4px;font-size:.82rem;font-weight:800;color:var(--ink);letter-spacing:.02em;text-transform:uppercase}
+.brief-head:first-child{margin-top:0}
+.brief-list{margin:0;padding-inline-start:18px}
+.brief-list li{margin:3px 0;line-height:1.4}
+.brief-para{margin:0 0 6px}
 .linklike{
   background:none;border:none;padding:0;margin:0;color:var(--brand);font:inherit;font-weight:700;
   cursor:pointer;text-align:start;text-decoration:underline;text-underline-offset:2px
@@ -403,7 +409,7 @@ footer.foot{text-align:center;color:var(--muted);font-size:.78rem;margin-top:26p
   <section id="view-today" class="view active">
     <div class="card" id="briefCard" style="margin-bottom:14px">
       <h3>✨ Today's Brief</h3>
-      <p class="muted" id="briefText" style="margin:0 0 8px">Loading…</p>
+      <div class="muted brief-body" id="briefText" style="margin:0 0 8px">Loading…</div>
       <div class="pill-row" id="briefActions"></div>
       <div class="muted" id="briefMeta" style="font-size:.72rem;margin-top:6px"></div>
     </div>
@@ -686,7 +692,7 @@ footer.foot{text-align:center;color:var(--muted);font-size:.78rem;margin-top:26p
     <div class="card collapsible collapsed" data-collapse="briefprompt" style="margin-bottom:12px">
       <h3>✨ Today's Brief instructions</h3>
       <div class="card-body">
-        <p class="muted" style="font-size:.8rem;margin-top:0">What you want the summary to do. Your calendar events and tasks are always appended below this, so it can't be broken by editing here. Leave blank for the default.</p>
+        <p class="muted" style="font-size:.8rem;margin-top:0">What you want the brief to do. <b>Today's and tomorrow's</b> events and tasks are always appended below this, so it can't be broken by editing here. Leave blank — or hit Reset — for the default, which is a plain Today/Tomorrow list with a bullet per item.</p>
         <div class="field"><textarea id="briefPromptIn" style="min-height:130px" placeholder="Loading…"></textarea></div>
         <div class="pill-row">
           <button class="btn primary" id="briefPromptSave" type="button">Save</button>
@@ -1517,11 +1523,36 @@ function renderGoogleSettings(b){
   actions.appendChild(btn);
 }
 
+/** The brief comes back as a schedule list - "Today", bullets, "Tomorrow",
+ * bullets - so it is rendered as headings and lists rather than dumped in as
+ * one block of text. Anything that is neither reads as a plain line, which
+ * covers the status messages and any stray prose. */
+function renderBriefBody(host,text){
+  host.innerHTML="";
+  var lines=String(text||"").split("\n");
+  var list=null;
+  lines.forEach(function(raw){
+    var line=raw.trim();
+    if(!line){list=null;return;}
+    var bullet=/^[-*\u2022]\s+/.test(line);
+    if(bullet){
+      if(!list){list=el("ul","brief-list");host.appendChild(list);}
+      list.appendChild(el("li",null,line.replace(/^[-*\u2022]\s+/,"")));
+      return;
+    }
+    list=null;
+    /* A short line with no bullet under it is a section heading. */
+    if(line.length<=24&&!/[.!?]$/.test(line))host.appendChild(el("h4","brief-head",line.replace(/:$/,"")));
+    else host.appendChild(el("p","brief-para",line));
+  });
+  if(!host.childNodes.length)host.appendChild(el("p","brief-para",String(text||"")));
+}
+
 function renderBrief(b){
   renderGoogleSettings(b);
   var body=document.getElementById("briefText"),actions=document.getElementById("briefActions"),meta=document.getElementById("briefMeta");
   if(!body)return;
-  body.textContent=briefStatusText(b);
+  renderBriefBody(body,b&&b.status==="ok"&&b.summary?b.summary:briefStatusText(b));
   actions.innerHTML="";
   meta.textContent="";
 

@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.18.0
+
+**Today's Brief is a schedule, not a paragraph.**
+
+- **It now covers tomorrow as well as today.** Both days' events and tasks are fetched (one ranged call, so the calendars are still only listed once) and given to the summary separately. Today's already-finished events are dropped as before; tomorrow's are never filtered, whatever the time is.
+- **The default format is a plain list**: a `Today` heading, one bullet per event and task with its time, then a `Tomorrow` heading and the same. No sentences, no greeting, no commentary. Overdue tasks come first under Today, marked as overdue. An empty day still gets its heading, with "Nothing scheduled".
+- The card renders that as real headings and bullet lists rather than one block of text.
+
+**If you've saved your own instructions**, they still win — including the note you added about refreshing after 7pm, which is no longer needed now that tomorrow is always included. Hit **Reset to default** in Settings → Today's Brief instructions to take the new format.
+
 ## 1.17.2
 
 - **The header is the same colour as the rest of the screen** — navy in dark, light in light — instead of a white band. Android's status bar above it matches, and now follows the theme when you switch it rather than sitting at one fixed colour.
