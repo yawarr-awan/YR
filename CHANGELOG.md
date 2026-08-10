@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.16.1
+
+- **Your own logo is now the app icon**, on navy: the artwork you supplied, with the white field replaced by a navy gradient and the letters inverted to white — black letters on navy would have been unreadable. The letterforms, their size and position, and the corner radius are all exactly as you drew them; only the colours changed. The drop shadow baked into the source was trimmed off the edge so it sits cleanly on any background.
+- Android's maskable icon is the wordmark on a flat navy field, since its circular crop would otherwise slice the tile's own corners.
+
 ## 1.16.0
 
 **The app name and icon really do change now.** They hadn't, and reinstalling couldn't fix it: the service worker never handed over. A new worker sits in "waiting" until every client of the old one is gone, and uninstalling a PWA doesn't unregister its worker or clear its cache — so the old one kept control and kept serving the old manifest and icons. It now takes over immediately, and the app shell is fetched network-first (the cache is there for offline, not for speed), so an identity change lands on the next load instead of whenever the worker happens to turn over.
