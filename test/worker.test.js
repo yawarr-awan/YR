@@ -1037,8 +1037,52 @@ test("handlePrayerDay: UmmahAPI answers and is reported as the source", async (t
   assert.equal(body.day, "2026-08-10");
   assert.equal(body.timings.Fajr, "04:05");
   assert.match(seen, /ummahapi\.com/);
-  assert.match(seen, /madhab=hanafi/);
+  // UmmahAPI names its methods and spells the Asr rules "Hanafi"/"Shafi";
+  // the client stores Aladhan's numbers and our own lowercase madhabs.
+  assert.match(seen, /method=MuslimWorldLeague/);
+  assert.match(seen, /madhab=Hanafi/);
   assert.equal(body.warning, undefined, "nothing to warn about when the primary worked");
+});
+
+test("handlePrayerDay: a method UmmahAPI doesn't know goes straight to Aladhan", async (t) => {
+  const { handlePrayerDay } = await loadWorker();
+  const hits = [];
+  installFetch(t, async (url) => {
+    hits.push(String(url));
+    return jsonResponse(200, { data: { timings: { Fajr: "04:10", Sunrise: "05:40", Dhuhr: "13:10", Asr: "17:10", Maghrib: "20:40", Isha: "22:10" } } });
+  });
+
+  // 13 is Diyanet, which UmmahAPI has no documented equivalent for. Asking
+  // it anyway would get the parameter ignored and Muslim World League times
+  // back under Diyanet's name - right-looking and wrong, with no fallback.
+  const body = await (await handlePrayerDay(
+    new Request("https://x/api/prayer?lat=41&lng=29&method=13"), {}, new Date("2026-08-10T10:00:00Z"))).json();
+
+  assert.equal(body.source, "aladhan");
+  assert.equal(hits.length, 1, "UmmahAPI is not asked at all");
+  assert.match(hits[0], /aladhan/);
+  assert.match(hits[0], /method=13/, "and Aladhan gets the number it defined");
+  assert.match(body.warning, /no UmmahAPI equivalent/);
+});
+
+test("ummahMethod/ummahMadhab: the numbers the client stores become names the provider knows", async () => {
+  const { ummahMethod, ummahMadhab } = await loadWorker();
+  assert.equal(ummahMethod(3), "MuslimWorldLeague");
+  assert.equal(ummahMethod("4"), "UmmAlQura");
+  assert.equal(ummahMethod(2), "NorthAmerica");
+  assert.equal(ummahMethod(1), "Karachi");
+  assert.equal(ummahMethod(5), "Egyptian");
+  assert.equal(ummahMethod(15), "MoonsightingCommittee");
+  assert.equal(ummahMethod(null), "MuslimWorldLeague", "no method asked for is the provider's own default");
+  // Everything the client offers that UmmahAPI does not document.
+  [8, 9, 10, 11, 12, 13, 14, 16, 0, 7].forEach((m) => {
+    assert.equal(ummahMethod(m), null, `method ${m} must not be guessed at`);
+  });
+
+  assert.equal(ummahMadhab("hanafi"), "Hanafi");
+  ["shafii", "maliki", "hanbali", null, undefined].forEach((m) => {
+    assert.equal(ummahMadhab(m), "Shafi", `${m} uses the standard Asr rule`);
+  });
 });
 
 test("handlePrayerDay: falls back to Aladhan, and says why", async (t) => {

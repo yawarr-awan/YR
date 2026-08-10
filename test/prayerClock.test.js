@@ -275,6 +275,15 @@ test("the checklist ring follows the clock, not the moment it was rendered", asy
   assert.equal(ringed(), "Isha", "the tick moves the ring back where it belongs");
 });
 
+test("the modal names which provider answered, so a silent fallback is visible", async () => {
+  const app = await booted();
+  app.click("headerChip");
+  // The whole point of the primary/fallback pair is that the app keeps
+  // working either way - which also means nothing on screen would otherwise
+  // say whether the primary is being used at all.
+  assert.match(app.document.getElementById("pmSource").textContent, /UmmahAPI/);
+});
+
 test("closing the modal stops its tick - the countdown must not outlive it", async () => {
   const app = await booted();
   app.click("headerChip");

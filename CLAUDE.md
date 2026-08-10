@@ -774,14 +774,30 @@ automatically, returning `{source, ..., timings|days, warning?}`.
   accepts a child *named* like timings (`TIMINGS_CHILD_KEYS`).
 - **`readCoords()` rejects null/"" explicitly.** `Number(null) === 0`, so a
   missing `lat`/`lng` read as the Gulf of Guinea instead of a 400.
-- **Open risk, flagged in the code at `ummahDay()`:** `method` is forwarded
-  to UmmahAPI as the *Aladhan* number (3 = MWL, 4 = Umm al-Qura, …), because
-  that is what the client stores. `madhab` is translated per provider by
-  `asrSchool()`; there is no equivalent table for methods, since UmmahAPI's
-  numbering couldn't be checked from here. If it differs, times come back
-  well-formed under the wrong convention, the fallback never fires and
-  nothing warns. **Verify against a known city before trusting the method
-  selector.**
+- **This risk was real, and is fixed (1.20.3).** `method` used to be
+  forwarded to UmmahAPI as the *Aladhan* number, because that is what the
+  client stores. UmmahAPI names its methods (`MuslimWorldLeague`,
+  `UmmAlQura`, …) and spells the Asr rules `Hanafi`/`Shafi`. A number where a
+  name is expected is **ignored, not rejected**, so the provider silently
+  used its own default - Muslim World League - which happens to be Aladhan's
+  method 3. The default therefore looked correct and every other method
+  returned MWL times under the wrong name, with no fallback and no warning.
+  `UMMAH_METHODS`/`ummahMethod()`/`ummahMadhab()` now translate, and a method
+  UmmahAPI does not document (Gulf, Kuwait, Qatar, Singapore, France,
+  Diyanet, Russia, Dubai, Tehran, Jafari) **skips the provider entirely** so
+  Aladhan - which defined those numbers - answers instead. Falling back is a
+  correct answer; asking for a method the provider doesn't know is a wrong
+  one that looks right. **Don't "simplify" this back into passing the number
+  through.**
+- **The modal names the answering provider** (`#pmSource`, from the response's
+  `source`). A primary/fallback pair works either way by design, which also
+  means nothing on screen would otherwise reveal that the primary had never
+  once succeeded. Keep it.
+- UmmahAPI's domain is still blocked by this sandbox's egress proxy
+  (`curl` gets a 403 CONNECT, WebFetch is `EGRESS_BLOCKED`), so the endpoint
+  has never been exercised for real from here - the contract above comes from
+  its public docs via WebSearch. The `source` line in the modal is how to
+  check it on a device that can reach it.
 
 **Client caching.** `prayerCacheKey()` is
 `day|lat(2dp)|lon(2dp)|method|madhab`, TTL 30 min. **Nothing wipes the cache

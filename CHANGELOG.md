@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.20.3
+
+**A real bug in how prayer times were requested.** UmmahAPI identifies calculation methods by **name** (`MuslimWorldLeague`, `UmmAlQura`, …); the app was sending Aladhan's **numbers**. A number where a name is expected isn't rejected — it's ignored, and you get the provider's default, Muslim World League. Since that happens to be Aladhan's method 3, the default looked perfectly right and **every other method was quietly giving Muslim World League times under the wrong name**. The Asr rule had the same problem: UmmahAPI spells it `Hanafi`/`Shafi`, the app was sending its own lowercase spellings.
+
+- Methods and madhabs are now translated for each provider.
+- A method UmmahAPI doesn't support — Gulf, Kuwait, Qatar, Singapore, France, Diyanet, Russia, Dubai, Tehran, Jafari — now **skips UmmahAPI entirely** and goes to Aladhan, which defined those numbers. Falling back is a correct answer; asking for a method the provider doesn't know is a wrong one that looks right.
+- **The prayer times screen now says which provider answered**, at the foot. Without it there was no way to tell from the app whether UmmahAPI was being used at all, or whether everything had quietly been served by the fallback — which is exactly the question that turned this up.
+
 ## 1.20.2
 
 - **Medicines moved below Today's Meals** on the Today tab. They're taken around the food — pre-breakfast, after-breakfast, after-dinner — so the card now follows the meals rather than sitting above them.
