@@ -546,6 +546,16 @@ felt built for a desktop.
   Aladhan is still the provider: accuracy is governed by the method and
   coordinates, not by which service applies them.
 
+## Prayer settings cog (1.13.1)
+- The method `<select>` no longer sits inline on the card. `#prayerCogBtn`
+  toggles `#prayerSettings`, which holds both the calculation method and a
+  new **Asr school** selector (`profile.prayerSchool`, `0` standard / `1`
+  Hanafi -> later Asr). `school` goes into the Aladhan request **and** into
+  `prayerCacheKey()`, so a method/school change refetches instead of serving
+  the previous combination's cached times. `applyPrayerSettingChange()` is
+  the shared handler: stamp `profile.updated_at`, save, re-render the clock
+  and Today, drop `_calWin` and re-render the calendar if it's showing.
+
 ## Honest caveat
 The "Client-side sync layer," "Access + hosting," and "Current data state"
 sections above were re-verified live in this session (2026-08-09): read
