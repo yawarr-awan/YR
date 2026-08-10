@@ -1857,7 +1857,12 @@ function prayerCacheKey(day,lat,lon){
  * lets them share one call instead of firing one each. */
 var _prayerFetchInFlight={};
 var PRAYER_CACHE_MS=30*60*1000;
-var _prayerSource=null;                 /* which provider last answered */
+/* Which provider last answered, shown in the times modal. Without it there
+   is no way to tell from the app whether UmmahAPI is being used at all or
+   whether every request has been quietly served by the Aladhan fallback -
+   which is exactly the question that turned up a real bug. */
+var _prayerSource=null;
+var PRAYER_SOURCE_LABEL={ummahapi:"UmmahAPI",aladhan:"Aladhan"};
 
 function readPrayerCache(key){
   try{
@@ -2421,6 +2426,13 @@ function renderPrayerModal(){
     .id="pmMadhab";
   wrap.appendChild(el("p","muted","Only the Hanafi position moves Asr — about an hour later. The rest are the same calculation."))
     .style.cssText="font-size:.72rem;margin:6px 0 0";
+
+  if(_prayerSource){
+    var src=el("p","muted","Times from "+(PRAYER_SOURCE_LABEL[_prayerSource]||_prayerSource)+".");
+    src.id="pmSource";
+    src.style.cssText="font-size:.72rem;margin:14px 0 0;text-align:center";
+    wrap.appendChild(src);
+  }
 
   body.appendChild(wrap);
   nowLine.textContent=slots?prayerNowLine(slots,new Date()):"";

@@ -1229,19 +1229,48 @@ function asrSchool(madhab) {
   return String(madhab || "").toLowerCase() === "hanafi" || String(madhab) === "1" ? 1 : 0;
 }
 
-/* KNOWN UNVERIFIED ASSUMPTION: `method` is forwarded to UmmahAPI as the same
- * number Aladhan uses (3 = Muslim World League, 4 = Umm al-Qura, …), because
- * that is what the client stores. `madhab` is translated per provider by
- * asrSchool(), but there is no equivalent translation table for methods -
- * UmmahAPI's domain is unreachable from the build sandbox, so its numbering
- * could not be checked. If it numbers them differently, times come back
- * well-formed under the wrong convention, the Aladhan fallback never fires
- * and nothing warns. Verify against a known city before trusting the method
- * selector, and add a mapping here if the numbers don't line up. */
+/* UmmahAPI names its calculation methods; the client stores Aladhan's
+ * numbers. Sending a number where a name is expected does NOT fail loudly -
+ * the parameter is simply ignored and you silently get the provider's
+ * default (Muslim World League). Since that happens to be Aladhan's method
+ * 3, the default looked correct and every other method was quietly wrong.
+ * That is why this table exists.
+ *
+ * Only the methods UmmahAPI is documented to support are listed. Anything
+ * absent - Gulf, Kuwait, Qatar, Singapore, France, Turkey, Russia, Dubai,
+ * Tehran, Jafari - deliberately maps to nothing, and unsupportedByUmmah()
+ * sends those straight to Aladhan instead. Falling back is a correct answer;
+ * asking UmmahAPI for a method it doesn't know is a wrong one that looks
+ * right. */
+const UMMAH_METHODS = {
+  1: "Karachi",
+  2: "NorthAmerica",
+  3: "MuslimWorldLeague",
+  4: "UmmAlQura",
+  5: "Egyptian",
+  15: "MoonsightingCommittee",
+};
+function ummahMethod(method) {
+  if (method === null || method === undefined || method === "") return "MuslimWorldLeague";
+  return UMMAH_METHODS[String(parseInt(method, 10))] || null;
+}
+/** True when the requested method has no UmmahAPI equivalent, so the whole
+ * provider has to be skipped rather than asked the wrong question. */
+function unsupportedByUmmah(method) {
+  return ummahMethod(method) === null;
+}
+/** UmmahAPI spells the two Asr rules "Hanafi" and "Shafi". Our four madhabs
+ * collapse to those two the same way asrSchool() collapses them for Aladhan. */
+function ummahMadhab(madhab) {
+  return asrSchool(madhab) === 1 ? "Hanafi" : "Shafi";
+}
+
 async function ummahDay({ lat, lng, method, madhab, timezone, highLatitudeRule, date }) {
+  const named = ummahMethod(method);
+  if (!named) throw new Error(`method ${method} has no UmmahAPI equivalent`);
   const params = new URLSearchParams({ lat: String(lat), lng: String(lng) });
-  if (method) params.set("method", String(method));
-  if (madhab) params.set("madhab", String(madhab));
+  params.set("method", named);
+  params.set("madhab", ummahMadhab(madhab));
   if (timezone) params.set("timezone", String(timezone));
   if (highLatitudeRule) params.set("highLatitudeRule", String(highLatitudeRule));
   if (date) params.set("date", String(date));
@@ -1353,9 +1382,13 @@ async function handlePrayerMonth(request, env, now) {
 
   let warning = null;
   try {
+    /* Same named-method rule as the day endpoint: a method UmmahAPI doesn't
+       know must skip the provider, not be asked for under a wrong name. */
+    const named = ummahMethod(method);
+    if (!named) throw new Error(`method ${method} has no UmmahAPI equivalent`);
     const params = new URLSearchParams({ lat: String(lat), lng: String(lng), month: String(month), year: String(year) });
-    if (method) params.set("method", String(method));
-    if (madhab) params.set("madhab", String(madhab));
+    params.set("method", named);
+    params.set("madhab", ummahMadhab(madhab));
     /* Same timezone the day endpoint passes. Without it a month's times can
        disagree with the same day fetched on its own - and the client prefers
        the month cache, so the disagreement would be what it shows. */
@@ -1489,6 +1522,8 @@ export {
   handleUpdateGoogleTask,
   handlePrayerDay,
   handlePrayerMonth,
+  ummahMethod,
+  ummahMadhab,
   toHHMM,
   findTimings,
   dayTimings,
