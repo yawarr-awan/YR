@@ -51,7 +51,8 @@ function windowTracker(events) {
 }
 
 const panels = (app) => ["calDayPrev", "calDayCur", "calDayNext"].map((id) => app.document.getElementById(id));
-const curHours = (app) => app.document.querySelectorAll("#calDayCur .cal-cell.is-main");
+// The all-day row is also an `is-main` cell, so "hours" excludes it.
+const curHours = (app) => app.document.querySelectorAll("#calDayCur .cal-cell.is-main:not(.cal-allday)");
 const heading = (app) => app.document.getElementById("calDayHeading").textContent;
 
 test("shows one full day at a time, with the previous and next day rendered either side", async () => {
@@ -160,8 +161,13 @@ test("events land in their hour with time, calendar and location", async () => {
   assert.match(chip.querySelector(".cal-chip-meta").textContent, /Yawar · Clinic/);
   assert.equal(chip.style.borderInlineStartColor, "rgb(66, 133, 244)");
 
-  assert.match(hours[0].textContent, /All day/);
-  assert.match(hours[0].textContent, /Mum's birthday/);
+  // All-day items get their own row above the hours rather than being
+  // buried in 00:00, which is the part of the grid nobody scrolls back to.
+  const allDay = app.document.querySelector("#calDayCur .cal-cell.is-main.cal-allday");
+  assert.ok(allDay, "an all-day event gives the day an all-day row");
+  assert.match(allDay.textContent, /All day/);
+  assert.match(allDay.textContent, /Mum's birthday/);
+  assert.equal(hours[0].textContent.includes("Mum's birthday"), false, "and it is not also in 00:00");
 });
 
 test("prayer windows tint all 24 hours of the day with no gaps", async () => {

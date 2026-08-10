@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="icons/logo.png" width="120" alt="Wellness Tracker logo">
+  <img src="icons/logo.png" width="120" alt="YR logo">
 </p>
 
-<h1 align="center">YR Dashboard</h1>
+<h1 align="center">YR</h1>
 
 <p align="center">
   A private, offline-first daily wellness tracker — diet plan, quick halal recipes,
@@ -22,6 +22,7 @@
 
 - **Today's Brief** — an AI summary of your day at the top of the Today tab, generated from every Google calendar you have access to plus your Google Tasks due today, via Gemini, automatically each morning.
 - **Task list** — quick-add a task at the top of the Today tab. It shows the few most pressing ones and expands to the full list in place; each task has a 📅 button to pick a time and put it straight on your Google Calendar.
+- **Google Tasks on the calendar** — anything in Google Tasks with a due date shows on that day, alongside your events and your own scheduled tasks (read-only, since the app only has permission to read them).
 - **Calendar tab** — one day at a time, full width, across all your Google calendars, with every hour tinted by whichever prayer's time window it falls in. Swipe to slide between days (the next day follows your finger into view); a week strip above jumps to any day, and the ‹ › buttons move a week at a time.
 - **Schedule from the calendar** — tap an empty hour to add something at that time, or tap anything already there to change it, move it, or delete it. Your scheduled tasks show up on the grid too, marked as tasks, and can be edited or ticked off from there. Events on calendars you can only read open read-only.
 - **Opening reminders** — when you open the app it nudges you about the prayer you're currently in if it isn't ticked yet, and about any scheduled task that's due and still open (all-day items excluded, since they aren't due at a moment).

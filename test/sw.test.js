@@ -83,11 +83,16 @@ test("install pre-caches only static sub-resources, never the navigable HTML she
 });
 
 test("activate cleans up caches from older versions of the worker", async () => {
-  const sw = loadServiceWorker({ staleCacheNames: ["yr-wellness-shell-v1", "yr-wellness-shell-v2"] });
+  // Read the live cache name rather than pinning one, so bumping the shell
+  // version in sw.js doesn't fail a test about deleting *other* versions.
+  const current = require("fs")
+    .readFileSync(require("path").join(__dirname, "..", "sw.js"), "utf8")
+    .match(/CACHE_NAME\s*=\s*"([^"]+)"/)[1];
+  const sw = loadServiceWorker({ staleCacheNames: ["yr-wellness-shell-v0", current] });
   let waited;
   sw.dispatch("activate", { waitUntil: (p) => { waited = p; } });
   await waited;
-  assert.deepEqual(sw.deletedCaches.sort(), ["yr-wellness-shell-v1"]);
+  assert.deepEqual(sw.deletedCaches.sort(), ["yr-wellness-shell-v0"], "only the stale one goes");
 });
 
 test("navigation requests are never intercepted — fetch() is never called with them", () => {
