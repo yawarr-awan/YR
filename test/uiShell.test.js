@@ -277,3 +277,36 @@ test("the header is only the logo, the ring, the saved time and the bell", () =>
   assert.equal(header.querySelector(".brand-sub"), null, "so is the strapline");
   assert.equal(/Diet|Movement|Medicine/.test(header.textContent), false, "no leftover strapline text");
 });
+
+test("the header band is white in both themes, and so is the declared status-bar colour", () => {
+  const app = loadApp({});
+  const styles = app.document.querySelector("style").textContent;
+  // The header carries its own tokens precisely so it stays white while the
+  // rest of the app follows the theme.
+  assert.match(styles, /--hdr-bg:#ffffff/i);
+  assert.match(styles, /header\.top\{[^}]*background:var\(--hdr-bg\)/);
+  // And nothing may redefine them in a dark block.
+  const darkBlocks = styles.match(/prefers-color-scheme: dark\)\{[\s\S]*?\n\s*\}\n\}/g) || [];
+  darkBlocks.forEach((b) => assert.equal(/--hdr-bg/.test(b), false, "the header must not be re-themed dark"));
+
+  const meta = app.document.querySelector('meta[name="theme-color"]');
+  assert.equal(meta.getAttribute("content"), "#ffffff", "Android takes the status bar colour from this");
+});
+
+test("the notes-for-the-day card is gone from Today, and past notes are left untouched", () => {
+  const seed = {
+    schema: 3,
+    profile: { startWeight: "", targetWeight: "", updated_at: 1, tasks: [] },
+    days: {},
+  };
+  const today = new Date();
+  const key = today.getFullYear() + "-" + String(today.getMonth() + 1).padStart(2, "0") + "-" + String(today.getDate()).padStart(2, "0");
+  seed.days[key] = { meds: {}, prayers: {}, meals: {}, extras: {}, dhikr: { morning: {}, afternoon: {}, evening: {} },
+    water: 0, weight: "", sleep: "", steps: "", jointPain: null, energy: null, exercise: false, notes: "felt okay", updated_at: 1 };
+
+  const app = loadApp({ localStorageSeed: { yawarWellness_v1: JSON.stringify(seed) } });
+  assert.equal(app.document.getElementById("notesIn"), null, "the card is gone");
+  assert.equal(app.document.querySelector('[data-collapse="notes"]'), null);
+  // Removing a card must not quietly delete what was written in it.
+  assert.equal(app.state().days[key].notes, "felt okay", "the stored note survives");
+});

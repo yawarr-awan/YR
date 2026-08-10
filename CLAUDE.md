@@ -715,6 +715,19 @@ Found by checking the whole path in real Chromium rather than only jsdom.
   detail now says so, with the raw value Google sent in the element's
   `title`. Don't "fix" it by inventing a time.
 
+## White header + status bar (1.17.1)
+- The header band is white in **both** themes, so it needs its own tokens:
+  `--hdr-bg/--hdr-ink/--hdr-sub/--hdr-line/--hdr-chip/--hdr-track`, defined
+  once in `:root` and **deliberately never redefined in the dark blocks** -
+  `--ink`/`--panel-2` are near-white in dark mode and would disappear on it.
+  A test asserts no dark block reintroduces `--hdr-bg`.
+- Android takes the status bar colour from `<meta name="theme-color">` and
+  the manifest's `theme_color`; both are `#ffffff`. An installed copy may
+  keep the old colour until Chrome re-reads the manifest.
+- The Today "Notes for the day" card was removed on request. The `notes`
+  field stays in every day record and in `blankDay()` - dropping it would
+  destroy what was already written and break round-tripping of old exports.
+
 ## Honest caveat
 The "Client-side sync layer," "Access + hosting," and "Current data state"
 sections above were re-verified live in this session (2026-08-09): read
