@@ -866,6 +866,14 @@ card said the same thing three times. `renderPrayerClock()` and
 it is the only route to the modal, and the modal is where a location gets
 set - with no times it renders as an `.is-idle` "Prayer times" instead.
 
+**All clock times are 12-hour** (1.20.5), through `fmtHM(h,m)` -> "1:09 PM"
+and `fmtHour(h)` -> "1 PM" for the calendar's narrow hour gutter. `fmtMin()`
+(minutes of day) and `fmtClock()` (a timestamp) both go through `fmtHM`, and
+every display site routes through one of the three. This is **display only**:
+times are still held and compared as minutes of the day, and both prayer
+providers still speak 24-hour - don't "convert" a fixture or an API value.
+Watch midnight and noon, where a naive `h%12` prints `0:00`.
+
 **Header** (1.20.0): logo (deliberately larger than the 40px controls), a
 spacer, the prayer chip, the completion square, the bell. The completion
 indicator is a rounded square, not a circle - same size and radius as the

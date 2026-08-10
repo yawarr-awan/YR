@@ -1352,9 +1352,26 @@ function updateRing(){
 /* ---------- SYNC ---------- */
 var SYNC_URL="/api/sync";
 
+/* Every clock time in the app is written the same way, by one function, so
+   the prayer windows, the calendar, the task list and the reminders can
+   never disagree about the format. 12-hour with minutes always shown -
+   "1:09 PM", never "1 PM" - because these are prayer and appointment times,
+   where the minute is the whole point.
+   Note this is display only: times are still held and compared as minutes
+   of the day, and the API still speaks 24-hour. */
+function fmtHM(h,m){
+  var hr=h%12; if(hr===0)hr=12;
+  return hr+":"+("0"+m).slice(-2)+" "+(h<12?"AM":"PM");
+}
+/** The hour gutter in the calendar, where the minutes are always :00 and
+ * the column is narrow. */
+function fmtHour(h){
+  var hr=h%12; if(hr===0)hr=12;
+  return hr+" "+(h<12?"AM":"PM");
+}
 function fmtClock(ts){
   var t=new Date(ts);
-  return ("0"+t.getHours()).slice(-2)+":"+("0"+t.getMinutes()).slice(-2);
+  return fmtHM(t.getHours(),t.getMinutes());
 }
 
 /* Every day we hold, in chunks the server will accept.
@@ -1689,7 +1706,8 @@ function renderTaskList(listEl,tasks,statusId,hiddenCount){
     row.appendChild(el("span","task-title",t.title));
     if(t.due){
       var due=new Date(t.due);
-      row.appendChild(el("span","task-due",due.toLocaleString("en-GB",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"})));
+      row.appendChild(el("span","task-due",
+        due.toLocaleDateString("en-GB",{day:"numeric",month:"short"})+", "+fmtHM(due.getHours(),due.getMinutes())));
     }
     if(t.scheduled)row.appendChild(el("span","tag","On calendar"));
 
@@ -2212,7 +2230,7 @@ function prayerNowLine(slots,now){
 
 function fmtMin(mins){
   var m=((Math.round(mins)%1440)+1440)%1440;
-  return ("0"+Math.floor(m/60)).slice(-2)+":"+("0"+(m%60)).slice(-2);
+  return fmtHM(Math.floor(m/60),m%60);
 }
 
 /* Today's times, held in memory so the chip can retick every few seconds
@@ -2717,7 +2735,8 @@ function calDayEntries(dayKey){
 
 function calEntryTimeLabel(x){
   if(x.allDay)return "All day";
-  return new Date(x.start).toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"});
+  var d=new Date(x.start);
+  return fmtHM(d.getHours(),d.getMinutes());
 }
 
 /** What kind of thing this is, in one word, for the chip and its tooltip. */
@@ -3130,7 +3149,7 @@ function buildDayPanel(dayDate,timesByKey){
       if(isCurrentHour)cell.classList.add("current-hour");
 
       if(isMain){
-        cell.appendChild(el("span","cal-hour-label",String(h).padStart(2,"0")+":00"));
+        cell.appendChild(el("span","cal-hour-label",fmtHour(h)));
         var box=el("div","cal-hour-events");
         var entries=byHour[i][h]||[];
         entries.forEach(function(x){
@@ -3479,7 +3498,7 @@ function checkReminders(){
     fetchPrayerTimes(todayStr,loc.lat,loc.lon).then(function(times){
       PRAYER_NAMES.forEach(function(name){
         if(!times[name])return;
-        if(justPassed(minutesOfDay(times[name]),nowMins))notifyOnce("prayer-"+todayStr+"-"+name,name+" time",name+" is now — "+times[name]);
+        if(justPassed(minutesOfDay(times[name]),nowMins))notifyOnce("prayer-"+todayStr+"-"+name,name+" time",name+" is now — "+fmtMin(minutesOfDay(times[name])));
       });
       var dhikrAnchor={Fajr:"morning",Dhuhr:"afternoon",Maghrib:"evening"};
       Object.keys(dhikrAnchor).forEach(function(prayerName){
@@ -3552,7 +3571,7 @@ function openingReminders(){
     var rec=state.days[cur.day];
     if(rec&&rec.prayers&&rec.prayers[cur.key])return;
     notifyOnce("open-prayer-"+cur.day+"-"+cur.key,cur.name+" not marked yet",
-      cur.name+(cur.at?" began at "+cur.at:"")+" — mark it once you've prayed.");
+      cur.name+(cur.at?" began at "+fmtMin(minutesOfDay(cur.at)):"")+" — mark it once you've prayed.");
     /* Opening a couple of minutes after a prayer began would otherwise say
        the same thing twice: this nudge, then the minute-tick's "X time".
        Having said it once, don't. */

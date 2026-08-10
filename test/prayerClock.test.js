@@ -73,9 +73,10 @@ test("tapping a chip opens the times, with every window listed and no gap betwee
   const rows = [...app.document.querySelectorAll("#pmSlots .pslot")];
   assert.equal(rows.length, 6, "five prayers plus Chasht (sunrise to Dhuhr)");
   const spans = rows.map((r) => r.querySelector(".pst").textContent);
+  // Written 12-hour, the way every clock time in the app is.
   assert.deepEqual(spans, [
-    "04:45 – 05:50", "05:50 – 13:02", "13:02 – 17:10",
-    "17:10 – 20:30", "20:30 – 22:10", "22:10 – 04:45",
+    "4:45 AM – 5:50 AM", "5:50 AM – 1:02 PM", "1:02 PM – 5:10 PM",
+    "5:10 PM – 8:30 PM", "8:30 PM – 10:10 PM", "10:10 PM – 4:45 AM",
   ], "each window runs to the next, and Isha's runs past midnight to Fajr");
 });
 
@@ -84,7 +85,7 @@ test("the countdown is the headline, and exactly one window is ringed as current
   app.click("headerChip");
 
   const line = app.document.getElementById("pmNowLine").textContent;
-  assert.match(line, /^(Fajr|Chasht|Dhuhr|Asr|Maghrib|Isha) · \d\d:\d\d–\d\d:\d\d · .*left$/,
+  assert.match(line, /^(Fajr|Chasht|Dhuhr|Asr|Maghrib|Isha) · \d{1,2}:\d\d [AP]M–\d{1,2}:\d\d [AP]M · .*left$/,
     `which window, its span and how long is left - got: ${line}`);
 
   const ringed = [...app.document.querySelectorAll("#pmSlots .pslot.is-now")];

@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.20.5
+
+- **Every time in the app is 12-hour now** — prayer windows, the countdown, the calendar's hour column and its event chips, task due dates, reminders, and the last-saved and last-synced lines in Settings. `1:09 PM`, not `13:09`. Midnight reads `12:00 AM` and noon `12:00 PM`, not `0:00`.
+
+Times are still *held* as 24-hour internally and the prayer API still speaks 24-hour — only what you read changed. One formatter does all of it, so nothing can drift into a different style.
+
 ## 1.20.4
 
 Prompted by comparing against a friend's UmmahAPI-backed app side by side.
