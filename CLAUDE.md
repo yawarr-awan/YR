@@ -783,14 +783,26 @@ automatically, returning `{source, ..., timings|days, warning?}`.
   method 3. The default therefore looked correct and every other method
   returned MWL times under the wrong name, with no fallback and no warning.
   `UMMAH_METHODS`/`ummahMethod()`/`ummahMadhab()` now translate, and a method
-  UmmahAPI does not document (Gulf, Kuwait, Qatar, Singapore, France,
-  Diyanet, Russia, Dubai, Tehran, Jafari) **skips the provider entirely** so
-  Aladhan - which defined those numbers - answers instead. Falling back is a
-  correct answer; asking for a method the provider doesn't know is a wrong
-  one that looks right. **Don't "simplify" this back into passing the number
-  through.**
-- **The modal names the answering provider** (`#pmSource`, from the response's
-  `source`). A primary/fallback pair works either way by design, which also
+  with no equivalent (Jafari 0, Gulf 8, France 12, Russia 14) **skips the
+  provider entirely** so Aladhan - which defined those numbers - answers
+  instead. Falling back is a correct answer; asking for a method the provider
+  doesn't know is a wrong one that looks right. **Don't "simplify" this back
+  into passing the number through.**
+- **UmmahAPI is adhan-js underneath**, which is how the name table was
+  settled (1.20.4): the names are adhan's `CalculationMethod` keys, and its
+  `methodAdjustments` explain differences between apps exactly -
+  `MoonsightingCommittee` is `{dhuhr:+5, maghrib:+3}` against
+  `MuslimWorldLeague`'s `{dhuhr:+1}`, which is precisely what two apps on
+  those two methods disagreed by when compared side by side. Reach for
+  `npm pack adhan` and read `lib/cjs/CalculationMethod.js` before theorising
+  about a timing difference; it is usually the method, not a bug.
+- **The client's method labels follow the provider's names, not Aladhan's**
+  ("Moonsighting Committee", not Aladhan's "Moonsighting Committee
+  Worldwide"). The whole point of the list is being able to match the
+  convention another app is on, so the label has to be the one they see. The
+  stored value is still Aladhan's number, which addresses both providers.
+- **The modal names the answering provider and the convention it used**
+  (`#pmSource`, from the response's `source`/`method`/`madhab`). A primary/fallback pair works either way by design, which also
   means nothing on screen would otherwise reveal that the primary had never
   once succeeded. Keep it.
 - UmmahAPI's domain is still blocked by this sandbox's egress proxy

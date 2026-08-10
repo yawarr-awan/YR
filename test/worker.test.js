@@ -1052,16 +1052,17 @@ test("handlePrayerDay: a method UmmahAPI doesn't know goes straight to Aladhan",
     return jsonResponse(200, { data: { timings: { Fajr: "04:10", Sunrise: "05:40", Dhuhr: "13:10", Asr: "17:10", Maghrib: "20:40", Isha: "22:10" } } });
   });
 
-  // 13 is Diyanet, which UmmahAPI has no documented equivalent for. Asking
-  // it anyway would get the parameter ignored and Muslim World League times
-  // back under Diyanet's name - right-looking and wrong, with no fallback.
+  // 8 is Aladhan's "Gulf Region", one of the four with no adhan equivalent.
+  // Asking UmmahAPI anyway would get the parameter ignored and Muslim World
+  // League times back under Gulf's name - right-looking and wrong, with no
+  // fallback to correct it.
   const body = await (await handlePrayerDay(
-    new Request("https://x/api/prayer?lat=41&lng=29&method=13"), {}, new Date("2026-08-10T10:00:00Z"))).json();
+    new Request("https://x/api/prayer?lat=25&lng=55&method=8"), {}, new Date("2026-08-10T10:00:00Z"))).json();
 
   assert.equal(body.source, "aladhan");
   assert.equal(hits.length, 1, "UmmahAPI is not asked at all");
   assert.match(hits[0], /aladhan/);
-  assert.match(hits[0], /method=13/, "and Aladhan gets the number it defined");
+  assert.match(hits[0], /method=8/, "and Aladhan gets the number it defined");
   assert.match(body.warning, /no UmmahAPI equivalent/);
 });
 
@@ -1072,10 +1073,19 @@ test("ummahMethod/ummahMadhab: the numbers the client stores become names the pr
   assert.equal(ummahMethod(2), "NorthAmerica");
   assert.equal(ummahMethod(1), "Karachi");
   assert.equal(ummahMethod(5), "Egyptian");
+  assert.equal(ummahMethod(7), "Tehran");
+  assert.equal(ummahMethod(9), "Kuwait");
+  assert.equal(ummahMethod(10), "Qatar");
+  assert.equal(ummahMethod(11), "Singapore");
+  assert.equal(ummahMethod(13), "Turkey");
+  assert.equal(ummahMethod(16), "Dubai");
+  // The one the comparison turned on: Aladhan calls it "Moonsighting
+  // Committee Worldwide", adhan and UmmahAPI call it this.
   assert.equal(ummahMethod(15), "MoonsightingCommittee");
   assert.equal(ummahMethod(null), "MuslimWorldLeague", "no method asked for is the provider's own default");
-  // Everything the client offers that UmmahAPI does not document.
-  [8, 9, 10, 11, 12, 13, 14, 16, 0, 7].forEach((m) => {
+  // The four Aladhan methods with no adhan equivalent: Jafari, Gulf Region,
+  // France (UOIF) and Russia. These must never be guessed at.
+  [0, 8, 12, 14].forEach((m) => {
     assert.equal(ummahMethod(m), null, `method ${m} must not be guessed at`);
   });
 

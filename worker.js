@@ -1236,19 +1236,31 @@ function asrSchool(madhab) {
  * 3, the default looked correct and every other method was quietly wrong.
  * That is why this table exists.
  *
- * Only the methods UmmahAPI is documented to support are listed. Anything
- * absent - Gulf, Kuwait, Qatar, Singapore, France, Turkey, Russia, Dubai,
- * Tehran, Jafari - deliberately maps to nothing, and unsupportedByUmmah()
- * sends those straight to Aladhan instead. Falling back is a correct answer;
- * asking UmmahAPI for a method it doesn't know is a wrong one that looks
- * right. */
+ * The names are adhan-js's `CalculationMethod` keys, which is what UmmahAPI
+ * is built on - confirmed from a real UmmahAPI-backed app showing
+ * `MoonsightingCommittee` and `Shafi`/`Hanafi`, and from the differences it
+ * produced: adhan gives MoonsightingCommittee a +5 min Dhuhr and +3 min
+ * Maghrib adjustment against MuslimWorldLeague's +1 min Dhuhr, which is
+ * exactly what two apps on those two methods disagreed by.
+ *
+ * The four Aladhan methods with no adhan equivalent - Jafari (0), Gulf
+ * Region (8), France/UOIF (12) and Russia (14) - deliberately map to
+ * nothing, and those requests skip UmmahAPI entirely for Aladhan, which
+ * defined them. Falling back is a correct answer; asking UmmahAPI for a
+ * method it doesn't know is a wrong one that looks right. */
 const UMMAH_METHODS = {
   1: "Karachi",
-  2: "NorthAmerica",
+  2: "NorthAmerica",          // ISNA
   3: "MuslimWorldLeague",
   4: "UmmAlQura",
   5: "Egyptian",
+  7: "Tehran",
+  9: "Kuwait",
+  10: "Qatar",
+  11: "Singapore",
+  13: "Turkey",               // Diyanet
   15: "MoonsightingCommittee",
+  16: "Dubai",
 };
 function ummahMethod(method) {
   if (method === null || method === undefined || method === "") return "MuslimWorldLeague";
@@ -1317,12 +1329,15 @@ async function handlePrayerDay(request, env, now) {
 
   let warning = null;
   try {
-    return json({ source: "ummahapi", day, timings: await ummahDay(opts) });
+    /* `method` is echoed back under the name the provider actually used, so
+       the app can show it and be compared against another app on the same
+       method - the only way to tell two conventions apart at a glance. */
+    return json({ source: "ummahapi", day, method: ummahMethod(opts.method), madhab: ummahMadhab(opts.madhab), timings: await ummahDay(opts) });
   } catch (e) {
     warning = `ummahapi: ${String(e.message || e)}`;
   }
   try {
-    return json({ source: "aladhan", day, timings: await aladhanDay(opts), warning });
+    return json({ source: "aladhan", day, method: String(opts.method || 3), madhab: String(asrSchool(opts.madhab)), timings: await aladhanDay(opts), warning });
   } catch (e) {
     return json({ error: "prayer_unavailable", day, warning, detail: String(e.message || e) }, 502);
   }

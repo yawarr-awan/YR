@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.20.4
+
+Prompted by comparing against a friend's UmmahAPI-backed app side by side.
+
+- **The method list is labelled the way the provider names them.** Aladhan calls method 15 "Moonsighting Committee Worldwide"; the provider calls it **"Moonsighting Committee"** — and if you're trying to match what someone else's app is set to, the name has to be the same one they see. All the labels now follow the provider.
+- **Eight more methods reach the primary provider.** Tehran, Kuwait, Qatar, Singapore, Turkey (Diyanet) and Dubai were being sent to the Aladhan fallback for no reason. Only four — Gulf Region, France (UOIF), Russia and Jafari — have no equivalent at the primary, and they're now shown in their own "Aladhan only" group so it's clear which those are.
+- **The prayer times screen names the convention it used**, not just the provider: *"Times from UmmahAPI · MoonsightingCommittee · Shafi."* Two apps on the same coordinates can differ by minutes purely because they're on different methods, and that line is what makes it checkable against someone else's screen.
+
+**About those differing times:** two apps on the same spot with different methods *should* differ, and the amounts match exactly. Moonsighting Committee adds 5 minutes to Dhuhr and 3 to Maghrib; Muslim World League adds 1 to Dhuhr and nothing to Maghrib. That is precisely the gap between the two screens — 13:04 vs 13:09, 20:31 vs 20:34. Fajr and Isha matched because at 51°N in August real twilight never arrives and both methods fall back to the same high-latitude rule. Nothing was being pulled wrong; the two were simply set to different conventions, which is now visible at a glance.
+
 ## 1.20.3
 
 **A real bug in how prayer times were requested.** UmmahAPI identifies calculation methods by **name** (`MuslimWorldLeague`, `UmmAlQura`, …); the app was sending Aladhan's **numbers**. A number where a name is expected isn't rejected — it's ignored, and you get the provider's default, Muslim World League. Since that happens to be Aladhan's method 3, the default looked perfectly right and **every other method was quietly giving Muslim World League times under the wrong name**. The Asr rule had the same problem: UmmahAPI spells it `Hanafi`/`Shafi`, the app was sending its own lowercase spellings.
