@@ -378,8 +378,8 @@ test("a Google Task with a time sits at that hour, not in the all-day row", asyn
   await openCalendar(app);
 
   const hour13 = mainCells(app)[13].querySelector(".cal-chip.is-gtask");
-  assert.ok(hour13, "expected it in the 13:00 row");
-  assert.match(hour13.textContent, /13:00/);
+  assert.ok(hour13, "expected it in the 1 PM row");
+  assert.match(hour13.textContent, /1:00 PM/);
   assert.equal(app.document.querySelectorAll("#calDayCur .cal-allday .cal-chip.is-gtask").length, 0);
 });
 

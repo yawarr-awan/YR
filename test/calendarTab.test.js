@@ -70,8 +70,8 @@ test("shows one full day at a time, with the previous and next day rendered eith
 
   const [prev, cur, next] = panels(app);
   [prev, cur, next].forEach((p) => assert.equal(p.querySelectorAll(".cal-cell.is-main").length, 24, "each panel is a whole day"));
-  assert.equal(curHours(app)[0].querySelector(".cal-hour-label").textContent, "00:00");
-  assert.equal(curHours(app)[23].querySelector(".cal-hour-label").textContent, "23:00");
+  assert.equal(curHours(app)[0].querySelector(".cal-hour-label").textContent, "12 AM");
+  assert.equal(curHours(app)[23].querySelector(".cal-hour-label").textContent, "11 PM");
   assert.match(heading(app), /Today/);
   // The neighbours exist so a drag reveals a real day, not a blank panel.
   assert.ok(prev.querySelector(".cal-cell.is-main"));
@@ -162,8 +162,8 @@ test("events land in their hour with time, calendar and location", async () => {
 
   const hours = curHours(app);
   const chip = hours[14].querySelector(".cal-chip");
-  assert.ok(chip, "a 14:30 event sits in the 14:00 row");
-  assert.match(chip.textContent, /14:30/);
+  assert.ok(chip, "a 14:30 event sits in the 2 PM row");
+  assert.match(chip.textContent, /2:30 PM/, "times read as AM/PM everywhere");
   assert.match(chip.textContent, /Physio/);
   assert.match(chip.querySelector(".cal-chip-meta").textContent, /Yawar · Clinic/);
   assert.equal(chip.style.borderInlineStartColor, "rgb(66, 133, 244)");
@@ -251,8 +251,9 @@ test("the current hour is marked, with a now-line, only on today", async () => {
 
   const marked = app.document.querySelectorAll("#calDayCur .cal-cell.is-main.current-hour");
   assert.equal(marked.length, 1);
+  const h = new Date().getHours();
   assert.equal(marked[0].querySelector(".cal-hour-label").textContent,
-    String(new Date().getHours()).padStart(2, "0") + ":00");
+    (h % 12 === 0 ? 12 : h % 12) + " " + (h < 12 ? "AM" : "PM"));
   assert.ok(marked[0].querySelector(".cal-nowline"));
 
   app.swipe("calGrid", -90, 0);

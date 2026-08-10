@@ -146,8 +146,8 @@ test("prayer checklist: once a location is saved, each row gains its window's st
   // Not just the start: each row carries its window, and they are the same
   // spans the modal lists - Fajr ends at sunrise, not at Dhuhr, because the
   // stretch between the two is its own window (Chasht).
-  assert.equal(rows[0].querySelector(".pst").textContent, "04:45 – 05:50", "Fajr, up to sunrise");
-  assert.equal(rows[4].querySelector(".pst").textContent, "22:10 – 04:45", "Isha, through midnight");
+  assert.equal(rows[0].querySelector(".pst").textContent, "4:45 AM – 5:50 AM", "Fajr, up to sunrise");
+  assert.equal(rows[4].querySelector(".pst").textContent, "10:10 PM – 4:45 AM", "Isha, through midnight");
 
   // Exactly one row is ringed, whatever time the suite runs at - and only
   // when the window we're in is one the checklist actually lists (Chasht
@@ -303,4 +303,33 @@ test("losing the month endpoint costs requests, not the calendar", async () => {
   assert.ok(calls.includes("month"), "it still tries");
   assert.ok(calls.filter((c) => c === "day").length > 0, "then falls back to fetching each day");
   assert.ok(app.document.querySelectorAll("#calDayCur .cal-cell").length > 0, "and the day renders regardless");
+});
+
+test("every clock time in the app is 12-hour, including midnight and noon", async () => {
+  // Midnight and noon are where a naive h%12 prints "0:00", and where AM/PM
+  // is easiest to get backwards.
+  const timings = { Fajr: "00:00", Sunrise: "00:30", Dhuhr: "12:00", Asr: "12:45", Maghrib: "18:05", Isha: "23:59" };
+  const app = loadApp({
+    geolocation: { lat: 51.5, lon: -0.12 },
+    fetchImpl: async (url) => String(url).includes("/api/prayer")
+      ? { ok: true, status: 200, json: async () => ({ source: "ummahapi", timings }) }
+      : { ok: true, status: 200, json: async () => ({ connected: false, status: "not_connected" }) },
+  });
+  useMyLocation(app);
+  await app.flush();
+  await app.flush();
+
+  const spans = [...app.document.querySelectorAll("#pmSlots .pst")].map((e) => e.textContent);
+  assert.deepEqual(spans, [
+    "12:00 AM – 12:30 AM",   // midnight is 12 AM, not 0 AM
+    "12:30 AM – 12:00 PM",
+    "12:00 PM – 12:45 PM",   // noon is 12 PM, not 0 PM
+    "12:45 PM – 6:05 PM",
+    "6:05 PM – 11:59 PM",
+    "11:59 PM – 12:00 AM",
+  ]);
+
+  // Nothing anywhere should still be printing a 24-hour clock.
+  const shown = app.document.body.textContent;
+  assert.doesNotMatch(shown, /\b(1[3-9]|2[0-3]):[0-5]\d\b/, `found a 24-hour time in: ${shown.slice(0, 400)}`);
 });
