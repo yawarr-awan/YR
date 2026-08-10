@@ -9,7 +9,7 @@
 <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="manifest" href="manifest.webmanifest">
-<meta name="theme-color" content="#ffffff">
+<meta name="theme-color" content="#0f1420">
 <style>
 :root{
   --bg:#f4f6fb; --panel:#ffffff; --panel-2:#f0f3f9; --ink:#1c2434; --muted:#5b6678;
@@ -20,12 +20,6 @@
   --cal-tint:30%;
   --shadow:0 1px 2px rgba(16,24,40,.06),0 6px 20px rgba(16,24,40,.06);
   --radius:16px;
-  /* The header band is white in both themes, and so is the Android status
-     bar above it (see theme-color). It therefore needs its own ink, chip and
-     ring-track colours - the themed ones are near-white in dark mode and
-     would vanish. These are deliberately NOT redefined in the dark blocks. */
-  --hdr-bg:#ffffff; --hdr-ink:#16233a; --hdr-sub:#5b6678;
-  --hdr-line:#e3e8f0; --hdr-chip:#f2f5fa; --hdr-track:#e6ebf4;
 }
 @media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]){
@@ -63,24 +57,26 @@ body{
 }
 a{color:var(--brand)}
 .wrap{max-width:1024px; margin:0 auto; padding:0 14px calc(78px + env(safe-area-inset-bottom,0px))}
+/* The header is the same surface as the page behind it - and the Android
+   status bar above it is kept in step by applyThemeColor(). */
 header.top{
-  position:sticky; top:0; z-index:20; background:var(--hdr-bg); color:var(--hdr-ink);
-  border-bottom:1px solid var(--hdr-line); box-shadow:var(--shadow);
+  position:sticky; top:0; z-index:20; background:var(--bg); color:var(--ink);
+  border-bottom:1px solid var(--line);
 }
 .top-inner{max-width:1024px; margin:0 auto; padding:10px 16px; display:flex; align-items:center; gap:12px; flex-wrap:nowrap}
 .brand-badge{width:42px;height:42px;flex:0 0 auto;display:block}
 .ring{
   --p:0; width:48px;height:48px;border-radius:50%;flex:0 0 auto; margin-inline-start:auto;
-  background:conic-gradient(var(--brand) calc(var(--p)*1%), var(--hdr-track) 0);
+  background:conic-gradient(var(--brand) calc(var(--p)*1%), var(--panel-2) 0);
   display:flex;align-items:center;justify-content:center; position:relative;
 }
-.ring::after{content:"";position:absolute;inset:5px;border-radius:50%;background:var(--hdr-bg)}
-.ring span{position:relative;z-index:1;font-size:.72rem;font-weight:800;color:var(--hdr-ink)}
-.bell-btn{border:1px solid var(--hdr-line);background:var(--hdr-chip);color:var(--hdr-ink);width:40px;height:40px;border-radius:12px;font-size:1.15rem;cursor:pointer;flex:0 0 auto}
+.ring::after{content:"";position:absolute;inset:5px;border-radius:50%;background:var(--bg)}
+.ring span{position:relative;z-index:1;font-size:.72rem;font-weight:800;color:var(--ink)}
+.bell-btn{border:1px solid var(--line);background:var(--panel-2);color:var(--ink);width:40px;height:40px;border-radius:12px;font-size:1.15rem;cursor:pointer;flex:0 0 auto}
 .bell-btn{position:relative}
 .bell-dot{
   position:absolute;top:6px;inset-inline-end:6px;width:9px;height:9px;border-radius:50%;
-  background:var(--bad);box-shadow:0 0 0 2px var(--hdr-bg)
+  background:var(--bad);box-shadow:0 0 0 2px var(--bg)
 }
 /* Anchored to the header, which is the sticky element, so it travels with it. */
 .notif-panel{
@@ -344,7 +340,7 @@ input[type=range]{width:100%;accent-color:var(--accent)}
 .statusbar.warn{background:var(--warn);color:#fff}
 .statusbar.bad{background:var(--bad);color:#fff}
 .statusbar.good{background:var(--good);color:#fff}
-.savedtag{font-size:.68rem;color:var(--hdr-sub);white-space:nowrap;margin-left:6px}
+.savedtag{font-size:.68rem;color:var(--muted);white-space:nowrap;margin-left:6px}
 .stat{display:flex;flex-direction:column;gap:2px;background:var(--panel-2);border:1px solid var(--line);border-radius:12px;padding:12px}
 .stat b{font-size:1.5rem}
 .stat span{font-size:.75rem;color:var(--muted)}
@@ -3625,8 +3621,23 @@ function currentTheme(){
   if(a)return a;
   return (window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)").matches)?"dark":"light";
 }
+/* Android paints its status bar with the page's theme-color, so it has to
+   follow the theme rather than sit at one fixed value - otherwise it clashes
+   with the app the moment the theme changes. Read from --bg so there is one
+   source of truth for "the colour of the page"; the fallback map only exists
+   for engines that don't expose custom properties to getComputedStyle. */
+var THEME_BG={light:"#f4f6fb",dark:"#0f1420"};
+function applyThemeColor(){
+  var m=document.querySelector('meta[name="theme-color"]');
+  if(!m)return;
+  var v="";
+  try{v=(getComputedStyle(document.documentElement).getPropertyValue("--bg")||"").trim();}catch(e){}
+  m.setAttribute("content",v||THEME_BG[currentTheme()]||THEME_BG.dark);
+}
+
 function applyTheme(t){
   if(t==="dark"||t==="light")document.documentElement.setAttribute("data-theme",t);
+  applyThemeColor();
   var btn=document.getElementById("themeToggle");
   /* It lives in Settings now, where there's room to say what it does rather
      than leaving an unlabelled glyph in the header. */

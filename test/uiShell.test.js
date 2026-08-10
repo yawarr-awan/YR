@@ -278,19 +278,26 @@ test("the header is only the logo, the ring, the saved time and the bell", () =>
   assert.equal(/Diet|Movement|Medicine/.test(header.textContent), false, "no leftover strapline text");
 });
 
-test("the header band is white in both themes, and so is the declared status-bar colour", () => {
+test("the header is the same surface as the page, in either theme", () => {
   const app = loadApp({});
   const styles = app.document.querySelector("style").textContent;
-  // The header carries its own tokens precisely so it stays white while the
-  // rest of the app follows the theme.
-  assert.match(styles, /--hdr-bg:#ffffff/i);
-  assert.match(styles, /header\.top\{[^}]*background:var\(--hdr-bg\)/);
-  // And nothing may redefine them in a dark block.
-  const darkBlocks = styles.match(/prefers-color-scheme: dark\)\{[\s\S]*?\n\s*\}\n\}/g) || [];
-  darkBlocks.forEach((b) => assert.equal(/--hdr-bg/.test(b), false, "the header must not be re-themed dark"));
+  assert.match(styles, /header\.top\{[^}]*background:var\(--bg\)/, "the header must not be its own colour");
+  assert.equal(/--hdr-bg/.test(styles), false, "no separate header palette any more");
+});
 
+test("the Android status-bar colour follows the theme rather than sitting at one value", () => {
+  const app = loadApp({});
   const meta = app.document.querySelector('meta[name="theme-color"]');
-  assert.equal(meta.getAttribute("content"), "#ffffff", "Android takes the status bar colour from this");
+  const before = meta.getAttribute("content");
+  assert.ok(before, "a theme-color must be declared - Android reads the status bar from it");
+
+  app.goTo("settings");
+  app.click("themeToggle");
+  const after = meta.getAttribute("content");
+  assert.notEqual(after, before, "switching theme must repaint the status bar too");
+
+  const dark = app.document.documentElement.getAttribute("data-theme") === "dark";
+  assert.equal(after, dark ? "#0f1420" : "#f4f6fb");
 });
 
 test("the notes-for-the-day card is gone from Today, and past notes are left untouched", () => {
