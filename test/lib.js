@@ -77,6 +77,9 @@ function fireEvent(window, el, type) {
  * @param {string} [opts.userAgent] - override navigator.userAgent (e.g. to simulate iOS)
  * @param {boolean} [opts.standalone] - simulate navigator.standalone (already installed, iOS)
  * @param {boolean} [opts.stubServiceWorker] - install a fake navigator.serviceWorker.register
+ * @param {boolean} [opts.serviceWorkerNotifications] - also stub
+ *   navigator.serviceWorker.ready with a recording showNotification, which is
+ *   the path Android requires and the app therefore prefers
  * @param {object} [opts.geolocation] - {lat, lon} to succeed with, or {error: "message"} to fail
  * @param {string} [opts.notificationPermission] - "granted" | "denied" | "default"; installs window.Notification
  */
@@ -139,10 +142,24 @@ function loadApp(opts = {}) {
   }
 
   const serviceWorkerCalls = [];
-  if (opts.stubServiceWorker) {
+  const swNotifications = [];
+  if (opts.stubServiceWorker || opts.serviceWorkerNotifications) {
     window.navigator.serviceWorker = {
       register: function (url) { serviceWorkerCalls.push(url); return Promise.resolve({}); },
     };
+    // Chrome on Android refuses `new Notification()` and requires the
+    // registration's showNotification instead, so the app prefers it when a
+    // registration is available. jsdom has no service worker at all, so the
+    // registration - and its ready promise - are stubbed here to make that
+    // path observable.
+    if (opts.serviceWorkerNotifications) {
+      window.navigator.serviceWorker.ready = Promise.resolve({
+        showNotification: function (title, options) {
+          swNotifications.push({ title, ...options });
+          return Promise.resolve();
+        },
+      });
+    }
   }
 
   // runScripts:"outside-only" means the page's own <script> tag did not
@@ -171,6 +188,7 @@ function loadApp(opts = {}) {
     flush: () => new Promise((resolve) => setTimeout(resolve, 0)),
     serviceWorkerCalls,
     notifications,
+    swNotifications,
     installCardVisible: () => window.document.getElementById("installCard").style.display !== "none",
     installButtonVisible: () => window.document.getElementById("installBtn").style.display !== "none",
     installText: () => window.document.getElementById("installText").textContent,

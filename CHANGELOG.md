@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.14.1
+
+- **The prayer settings cog is the right size.** It was a fixed 32px square sitting next to a 44px-tall button; it now matches that button's height, is square, has a larger glyph, and highlights while the panel is open.
+
+**Notifications — checked end-to-end in a real browser, and three things were wrong.**
+
+- **On Android, reminders never appeared at all.** Chrome there refuses `new Notification()` — it throws "Illegal constructor" and requires the service worker's `showNotification()` instead. The throw was being swallowed, so the failure was completely silent. Reminders now go through the service worker registration wherever one exists, falling back to the constructor otherwise.
+- **Reminders could be silently skipped.** A reminder only fired if a tick of the once-a-minute timer landed on the exact minute of the prayer or task time. Browsers throttle timers in a backgrounded tab, so a tick arriving even 90 seconds late missed the minute entirely and that reminder was never sent. There's now a five-minute grace window; each reminder still only fires once.
+- **Enabling reminders mid-session left you in silence.** The "already told you" marker was being set even when the app wasn't allowed to send anything, so everything it had passed over stayed suppressed until a reload. Turning reminders on now brings up the current prayer straight away.
+- Opening the app a minute or two after a prayer began used to say the same thing twice — the "not marked yet" nudge and then "X time". It says it once now.
+- Overdue **all-day** tasks are excluded from the minute-tick reminders too, matching the opening ones.
+
 ## 1.14.0
 
 **Schedule straight from the calendar.**
