@@ -970,3 +970,147 @@ test("the default prompt asks for a bulleted Today/Tomorrow list and nothing els
   assert.match(DEFAULT_BRIEF_PROMPT, /No sentences/i);
   assert.match(DEFAULT_BRIEF_PROMPT, /Nothing scheduled/i, "an empty section still needs a bullet");
 });
+
+/* ---------- prayer times ---------- */
+
+test("toHHMM copes with every shape a provider might use", async () => {
+  const { toHHMM } = await loadWorker();
+  assert.equal(toHHMM("05:12"), "05:12");
+  assert.equal(toHHMM("05:12 (BST)"), "05:12", "Aladhan tags the zone on the end");
+  assert.equal(toHHMM("5:12 am"), "05:12");
+  assert.equal(toHHMM("7:05 PM"), "19:05");
+  assert.equal(toHHMM("12:30 am"), "00:30", "midnight is 00, not 12");
+  assert.equal(toHHMM("12:30 pm"), "12:30", "noon stays 12");
+  // An ISO stamp is read textually: parsing it as a Date would convert to UTC
+  // and shift the time the provider meant.
+  assert.equal(toHHMM("2026-08-10T05:12:00+01:00"), "05:12");
+  assert.equal(toHHMM("nonsense"), null);
+  assert.equal(toHHMM(null), null);
+});
+
+test("findTimings pulls the six prayers out of whatever shape they arrive in", async () => {
+  const { findTimings } = await loadWorker();
+
+  // Flat, lowercase.
+  assert.deepEqual(
+    findTimings({ fajr: "04:00", sunrise: "05:30", dhuhr: "13:00", asr: "17:00", maghrib: "20:30", isha: "22:00" }),
+    { Fajr: "04:00", Sunrise: "05:30", Dhuhr: "13:00", Asr: "17:00", Maghrib: "20:30", Isha: "22:00" });
+
+  // Nested, capitalised, with the Aladhan-style zone suffix.
+  const aladhanish = { code: 200, data: { timings: { Fajr: "04:00 (BST)", Sunrise: "05:30 (BST)", Dhuhr: "13:00 (BST)", Asr: "17:00 (BST)", Maghrib: "20:30 (BST)", Isha: "22:00 (BST)" } } };
+  assert.equal(findTimings(aladhanish).Dhuhr, "13:00");
+
+  // Alternative spellings, and times wrapped in an object.
+  const alt = { result: { prayers: { Fajr: { time: "2026-08-10T04:00:00+01:00" }, Shurooq: { time: "05:30" }, Zuhr: { time: "13:00" }, Asr: { time: "17:00" }, Maghrib: { time: "20:30" }, Ishaa: { time: "22:00" } } } };
+  const got = findTimings(alt);
+  assert.equal(got.Fajr, "04:00");
+  assert.equal(got.Sunrise, "05:30", "shurooq is sunrise");
+  assert.equal(got.Dhuhr, "13:00", "zuhr is dhuhr");
+
+  // Not a timings object.
+  assert.equal(findTimings({ meta: { method: "MWL" }, note: "fajr is early" }), null);
+});
+
+test("asrSchool: only Hanafi shifts Asr", async () => {
+  const { asrSchool } = await loadWorker();
+  assert.equal(asrSchool("hanafi"), 1);
+  assert.equal(asrSchool("Hanafi"), 1);
+  assert.equal(asrSchool("shafii"), 0);
+  assert.equal(asrSchool("maliki"), 0);
+  assert.equal(asrSchool("hanbali"), 0);
+  assert.equal(asrSchool(undefined), 0);
+});
+
+test("handlePrayerDay: UmmahAPI answers and is reported as the source", async (t) => {
+  const { handlePrayerDay } = await loadWorker();
+  let seen = null;
+  installFetch(t, async (url) => {
+    seen = String(url);
+    return jsonResponse(200, { data: { fajr: "04:05", sunrise: "05:35", dhuhr: "13:05", asr: "17:05", maghrib: "20:35", isha: "22:05" } });
+  });
+
+  const body = await (await handlePrayerDay(
+    new Request("https://x/api/prayer?lat=51.5&lng=-0.12&method=3&madhab=hanafi&timezone=Europe/London"),
+    {}, new Date("2026-08-10T10:00:00Z"))).json();
+
+  assert.equal(body.source, "ummahapi");
+  assert.equal(body.day, "2026-08-10");
+  assert.equal(body.timings.Fajr, "04:05");
+  assert.match(seen, /ummahapi\.com/);
+  assert.match(seen, /madhab=hanafi/);
+  assert.equal(body.warning, undefined, "nothing to warn about when the primary worked");
+});
+
+test("handlePrayerDay: falls back to Aladhan, and says why", async (t) => {
+  const { handlePrayerDay } = await loadWorker();
+  const called = [];
+  installFetch(t, async (url) => {
+    const u = String(url);
+    called.push(u);
+    if (u.includes("ummahapi")) return jsonResponse(503, {}, "upstream down");
+    return jsonResponse(200, { data: { timings: { Fajr: "04:05 (BST)", Sunrise: "05:35 (BST)", Dhuhr: "13:05 (BST)", Asr: "17:05 (BST)", Maghrib: "20:35 (BST)", Isha: "22:05 (BST)" } } });
+  });
+
+  const body = await (await handlePrayerDay(
+    new Request("https://x/api/prayer?lat=51.5&lng=-0.12&madhab=hanafi"), {}, new Date("2026-08-10T10:00:00Z"))).json();
+
+  assert.equal(body.source, "aladhan");
+  assert.equal(body.timings.Asr, "17:05");
+  assert.match(body.warning, /ummahapi.*503/, "a silent downgrade would be worse than a noisy one");
+  assert.match(called[1], /school=1/, "hanafi must reach Aladhan as school=1");
+});
+
+test("handlePrayerDay: an unreadable primary response reports the payload's real keys", async (t) => {
+  // The whole point of the diagnostic: fix the shape from one look, rather
+  // than guessing at an API whose body we could not inspect.
+  const { handlePrayerDay } = await loadWorker();
+  installFetch(t, async (url) => {
+    if (String(url).includes("ummahapi")) return jsonResponse(200, { status: "ok", payload: { salah: [] } });
+    return jsonResponse(500, {}, "aladhan down too");
+  });
+
+  const res = await handlePrayerDay(new Request("https://x/api/prayer?lat=51.5&lng=-0.12"), {}, new Date("2026-08-10T10:00:00Z"));
+  const body = await res.json();
+  assert.equal(res.status, 502);
+  assert.equal(body.error, "prayer_unavailable");
+  assert.match(body.warning, /unrecognised response/);
+  assert.match(body.warning, /status, payload/, "the actual keys, so the parser can be corrected");
+});
+
+test("handlePrayerDay: lat/lng are required", async (t) => {
+  const { handlePrayerDay } = await loadWorker();
+  installFetch(t, async () => { throw new Error("must not call a provider without coordinates"); });
+  const res = await handlePrayerDay(new Request("https://x/api/prayer"), {}, new Date());
+  assert.equal(res.status, 400);
+});
+
+test("handlePrayerMonth: folds either provider's month into one date map", async (t) => {
+  const { handlePrayerMonth } = await loadWorker();
+
+  // UmmahAPI-ish: keyed by date.
+  installFetch(t, async () => jsonResponse(200, {
+    days: {
+      "2026-08-01": { fajr: "04:00", sunrise: "05:30", dhuhr: "13:00", asr: "17:00", maghrib: "20:30", isha: "22:00" },
+      "2026-08-02": { fajr: "04:02", sunrise: "05:32", dhuhr: "13:00", asr: "17:00", maghrib: "20:28", isha: "21:58" },
+    },
+  }));
+  let body = await (await handlePrayerMonth(
+    new Request("https://x/api/prayer/month?lat=51.5&lng=-0.12&month=8&year=2026"), {}, new Date("2026-08-10T10:00:00Z"))).json();
+  assert.equal(body.source, "ummahapi");
+  assert.equal(Object.keys(body.days).length, 2);
+  assert.equal(body.days["2026-08-02"].Fajr, "04:02");
+
+  // Aladhan-ish: an array, each entry carrying its own gregorian date.
+  installFetch(t, async (url) => {
+    if (String(url).includes("ummahapi")) return jsonResponse(500, {}, "down");
+    return jsonResponse(200, { data: [
+      { timings: { Fajr: "04:00 (BST)", Sunrise: "05:30", Dhuhr: "13:00", Asr: "17:00", Maghrib: "20:30", Isha: "22:00" }, date: { gregorian: { date: "01-08-2026" } } },
+      { timings: { Fajr: "04:02 (BST)", Sunrise: "05:32", Dhuhr: "13:00", Asr: "17:00", Maghrib: "20:28", Isha: "21:58" }, date: { gregorian: { date: "02-08-2026" } } },
+    ] });
+  });
+  body = await (await handlePrayerMonth(
+    new Request("https://x/api/prayer/month?lat=51.5&lng=-0.12&month=8&year=2026"), {}, new Date("2026-08-10T10:00:00Z"))).json();
+  assert.equal(body.source, "aladhan");
+  assert.equal(body.days["2026-08-01"].Fajr, "04:00", "DD-MM-YYYY must be flipped, not used as-is");
+  assert.equal(body.days["2026-08-02"].Isha, "21:58");
+});

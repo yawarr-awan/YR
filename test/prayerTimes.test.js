@@ -1,10 +1,14 @@
 "use strict";
 /*
- * Live prayer times coverage: geolocation opt-in, the Aladhan fetch +
+ * Live prayer times coverage: geolocation opt-in, the /api/prayer fetch +
  * per-day/location cache, colored slot rendering, and the "next prayer"
- * countdown. Real index.html, real DOM; geolocation and the Aladhan
+ * countdown. Real index.html, real DOM; geolocation and the Worker
  * response are mocked (see lib.js for why - jsdom implements neither
  * geolocation nor a real network at all).
+ *
+ * The client talks only to our own Worker now: which upstream provider
+ * answered (UmmahAPI, or Aladhan as its fallback) is the Worker's business
+ * and is covered in worker.test.js.
  */
 const test = require("node:test");
 const { after } = require("node:test");
@@ -12,8 +16,8 @@ const assert = require("node:assert/strict");
 const { loadApp, closeAllApps } = require("./lib.js");
 after(closeAllApps);
 
-function aladhanRes(timings) {
-  return { ok: true, status: 200, json: async () => ({ data: { timings } }) };
+function prayerRes(timings) {
+  return { ok: true, status: 200, json: async () => ({ source: "ummahapi", day: "2026-08-10", timings }) };
 }
 const SAMPLE_TIMINGS = { Fajr: "04:45 (BST)", Sunrise: "05:50", Dhuhr: "13:02", Asr: "17:10", Sunset: "20:30", Maghrib: "20:30", Isha: "22:10" };
 
@@ -39,14 +43,14 @@ test("clicking 'Use my location' saves coordinates, shows the countdown, and off
   const app = loadApp({
     geolocation: { lat: 51.5, lon: -0.12 },
     fetchImpl: async (url) => {
-      if (String(url).includes("api.aladhan.com")) return aladhanRes(SAMPLE_TIMINGS);
+      if (String(url).includes("/api/prayer")) return prayerRes(SAMPLE_TIMINGS);
       return { ok: true, status: 200, json: async () => ({ connected: false, status: "not_connected" }) };
     },
   });
 
   app.click("prayerLocBtn");
   await app.flush();
-  await app.flush(); // one hop for geolocation callback, one for the Aladhan fetch chain
+  await app.flush(); // one hop for geolocation callback, one for the prayer fetch chain
 
   assert.equal(app.state().profile.prayerLoc.lat, 51.5);
   assert.match(app.document.getElementById("prayerLocText").textContent, /times for your saved location/i);
@@ -62,31 +66,31 @@ test("geolocation permission denial shows a clear message, no crash", () => {
   assert.match(app.document.getElementById("prayerLocText").textContent, /couldn't get your location/i);
 });
 
-test("prayer times are cached per day+location: a second render does not refetch Aladhan", async () => {
-  let aladhanCalls = 0;
+test("prayer times are cached per day+location: a second render does not refetch", async () => {
+  let prayerCalls = 0;
   const app = loadApp({
     geolocation: { lat: 51.5, lon: -0.12 },
     fetchImpl: async (url) => {
-      if (String(url).includes("api.aladhan.com")) { aladhanCalls++; return aladhanRes(SAMPLE_TIMINGS); }
+      if (String(url).includes("/api/prayer")) { prayerCalls++; return prayerRes(SAMPLE_TIMINGS); }
       return { ok: true, status: 200, json: async () => ({ connected: false, status: "not_connected" }) };
     },
   });
   app.click("prayerLocBtn");
   await app.flush();
   await app.flush();
-  assert.equal(aladhanCalls, 1);
+  assert.equal(prayerCalls, 1);
 
   // Re-rendering the clock for the same day/location must hit the cache, not the network.
   app.goTo("today");
   await app.flush();
-  assert.equal(aladhanCalls, 1, "a cached day+location must not be re-fetched");
+  assert.equal(prayerCalls, 1, "a cached day+location must not be re-fetched");
 });
 
 test("the next-prayer countdown picks the smallest time-until, wrapping past midnight", async () => {
   const app = loadApp({
     geolocation: { lat: 51.5, lon: -0.12 },
     fetchImpl: async (url) => {
-      if (String(url).includes("api.aladhan.com")) return aladhanRes({ Fajr: "04:45", Sunrise: "05:50", Dhuhr: "13:02", Asr: "17:10", Maghrib: "20:30", Isha: "22:10" });
+      if (String(url).includes("/api/prayer")) return prayerRes({ Fajr: "04:45", Sunrise: "05:50", Dhuhr: "13:02", Asr: "17:10", Maghrib: "20:30", Isha: "22:10" });
       return { ok: true, status: 200, json: async () => ({ connected: false, status: "not_connected" }) };
     },
   });
@@ -113,7 +117,7 @@ test("prayer checklist: once a location is saved, each row's label gains its act
   const app = loadApp({
     geolocation: { lat: 51.5, lon: -0.12 },
     fetchImpl: async (url) => {
-      if (String(url).includes("api.aladhan.com")) return aladhanRes(SAMPLE_TIMINGS);
+      if (String(url).includes("/api/prayer")) return prayerRes(SAMPLE_TIMINGS);
       return { ok: true, status: 200, json: async () => ({ connected: false, status: "not_connected" }) };
     },
   });
@@ -131,7 +135,7 @@ test("the calculation method is selectable, stored on the profile, and changes w
   const app = loadApp({
     geolocation: { lat: 51.5, lon: -0.12 },
     fetchImpl: async (url) => {
-      if (String(url).includes("api.aladhan.com")) { urls.push(String(url)); return aladhanRes(SAMPLE_TIMINGS); }
+      if (String(url).includes("/api/prayer")) { urls.push(String(url)); return prayerRes(SAMPLE_TIMINGS); }
       return { ok: true, status: 200, json: async () => ({ connected: false, status: "not_connected" }) };
     },
   });
@@ -166,7 +170,7 @@ test("the Asr school is selectable, since Hanafi puts Asr about an hour later", 
   const app = loadApp({
     geolocation: { lat: 51.5, lon: -0.12 },
     fetchImpl: async (url) => {
-      if (String(url).includes("api.aladhan.com")) { urls.push(String(url)); return aladhanRes(SAMPLE_TIMINGS); }
+      if (String(url).includes("/api/prayer")) { urls.push(String(url)); return prayerRes(SAMPLE_TIMINGS); }
       return { ok: true, status: 200, json: async () => ({ connected: false, status: "not_connected" }) };
     },
   });
@@ -180,7 +184,7 @@ test("the Asr school is selectable, since Hanafi puts Asr about an hour later", 
   app.click("prayerLocBtn");
   await app.flush();
   await app.flush();
-  assert.match(urls[urls.length - 1], /school=0/);
+  assert.match(urls[urls.length - 1], /madhab=shafii/);
 
   school.value = "1"; // Hanafi
   school.dispatchEvent(new app.window.Event("change", { bubbles: true }));
@@ -188,7 +192,7 @@ test("the Asr school is selectable, since Hanafi puts Asr about an hour later", 
   await app.flush();
 
   assert.equal(app.state().profile.prayerSchool, 1, "stored on the profile, so it syncs");
-  assert.match(urls[urls.length - 1], /school=1/, "and the times are refetched under it");
+  assert.match(urls[urls.length - 1], /madhab=hanafi/, "and the times are refetched under it");
 });
 
 test("method and school are cached separately, so switching back is instant and correct", async () => {
@@ -196,7 +200,7 @@ test("method and school are cached separately, so switching back is instant and 
   const app = loadApp({
     geolocation: { lat: 51.5, lon: -0.12 },
     fetchImpl: async (url) => {
-      if (String(url).includes("api.aladhan.com")) { calls++; return aladhanRes(SAMPLE_TIMINGS); }
+      if (String(url).includes("/api/prayer")) { calls++; return prayerRes(SAMPLE_TIMINGS); }
       return { ok: true, status: 200, json: async () => ({ connected: false, status: "not_connected" }) };
     },
   });
