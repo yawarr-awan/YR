@@ -16,27 +16,38 @@ const assert = require("node:assert/strict");
 const { loadApp, closeAllApps } = require("./lib.js");
 after(closeAllApps);
 
+/** The header chip is the only way into the prayer screen now, and the
+ * location button lives there rather than on the Prayers tab. */
+function useMyLocation(app) {
+  app.click("headerChip");
+  app.click("pmLocBtn");
+}
+
 function prayerRes(timings) {
   return { ok: true, status: 200, json: async () => ({ source: "ummahapi", day: "2026-08-10", timings }) };
 }
 const SAMPLE_TIMINGS = { Fajr: "04:45 (BST)", Sunrise: "05:50", Dhuhr: "13:02", Asr: "17:10", Sunset: "20:30", Maghrib: "20:30", Isha: "22:10" };
 
-test("with no saved location, prompts to use location and shows no countdown", () => {
+test("with no saved location, the chip is still there - it is the way in", () => {
   const app = loadApp({});
-  app.goTo("today");
-  assert.match(app.document.getElementById("prayerLocText").textContent, /use my location/i);
-  assert.equal(app.document.getElementById("prayerNext").textContent, "");
-  assert.match(app.document.getElementById("prayerLocBtnText").textContent, /use my location/i);
+  const chip = app.document.getElementById("headerChip");
+  assert.equal(chip.hidden, false, "hiding it would leave no way to set a location at all");
+  assert.match(chip.textContent, /prayer times/i);
+
+  app.click("headerChip");
+  assert.match(app.document.getElementById("pmLocText").textContent, /no location saved/i);
+  assert.match(app.document.getElementById("pmLocBtn").textContent, /use my location/i);
 });
 
-test("the prayer names are listed once, on the checklist - not repeated underneath it", () => {
+test("the Prayers card is only the checklist - the rest lives behind the chip", () => {
   const app = loadApp({});
-  app.goTo("today");
-  // The old chip row duplicated every prayer name below the tracker.
-  assert.equal(app.document.getElementById("prayerSlots"), null);
-  assert.equal(app.document.querySelectorAll(".prayer-chip").length, 0);
+  app.goTo("prayers");
   const card = app.document.querySelector('.card[data-collapse="prayers"]');
-  assert.equal((card.textContent.match(/Fajr/g) || []).length, 1, "Fajr should appear exactly once in the card");
+  assert.ok(card.querySelector("#prayBox"), "the tick-boxes stay");
+  // Everything below them said the same thing the modal already says.
+  ["prayerLocText", "prayerNext", "prayersChip", "prayerLocBtn", "prayerCogBtn", "prayerSettings"]
+    .forEach((id) => assert.equal(app.document.getElementById(id), null, `${id} should be gone`));
+  assert.equal((card.textContent.match(/Fajr/g) || []).length, 1, "Fajr appears exactly once in the card");
 });
 
 test("clicking 'Use my location' saves coordinates, shows the countdown, and offers to update it", async () => {
@@ -48,24 +59,25 @@ test("clicking 'Use my location' saves coordinates, shows the countdown, and off
     },
   });
 
-  app.click("prayerLocBtn");
+  useMyLocation(app);
   await app.flush();
   await app.flush(); // one hop for geolocation callback, one for the prayer fetch chain
 
   assert.equal(app.state().profile.prayerLoc.lat, 51.5);
   // No reverse-geocode answer here, so the coordinates are the label - that is
   // a valid answer, not a failure state.
-  assert.match(app.document.getElementById("prayerLocText").textContent, /times for 51\.500, -0\.120/i);
-  assert.match(app.document.getElementById("prayerNext").textContent, /^Next: \w+ in /);
-  assert.match(app.document.getElementById("prayerLocBtnText").textContent, /update location/i,
+  assert.match(app.document.getElementById("pmLocText").textContent, /51\.500, -0\.120/i);
+  assert.match(app.document.getElementById("pmNowLine").textContent, /left$/);
+  assert.match(app.document.getElementById("pmLocBtn").textContent, /update location/i,
     "once a location is stored the button offers to change it, not to set it again");
-  assert.ok(app.document.querySelector("#prayerLocBtn svg"), "the button uses a drawn pin rather than an emoji");
+  assert.ok(app.document.querySelector("#pmLocBtn svg"), "the button uses a drawn pin rather than an emoji");
+  assert.match(app.document.getElementById("headerChip").textContent, /\d+m/, "and the chip starts counting down");
 });
 
 test("geolocation permission denial shows a clear message, no crash", () => {
   const app = loadApp({ geolocation: { error: "User denied Geolocation" } });
-  app.click("prayerLocBtn");
-  assert.match(app.document.getElementById("prayerLocText").textContent, /couldn't get your location/i);
+  useMyLocation(app);
+  assert.match(app.document.getElementById("pmLocText").textContent, /couldn't get your location/i);
 });
 
 test("prayer times are cached per day+location: a second render does not refetch", async () => {
@@ -77,7 +89,7 @@ test("prayer times are cached per day+location: a second render does not refetch
       return { ok: true, status: 200, json: async () => ({ connected: false, status: "not_connected" }) };
     },
   });
-  app.click("prayerLocBtn");
+  useMyLocation(app);
   await app.flush();
   await app.flush();
   assert.equal(prayerCalls, 1);
@@ -96,13 +108,14 @@ test("the next-prayer countdown picks the smallest time-until, wrapping past mid
       return { ok: true, status: 200, json: async () => ({ connected: false, status: "not_connected" }) };
     },
   });
-  app.click("prayerLocBtn");
+  useMyLocation(app);
   await app.flush();
   await app.flush();
 
   // Whatever "now" is on the test machine, some prayer is always next.
-  const next = app.document.getElementById("prayerNext").textContent;
-  assert.match(next, /^Next: (Fajr|Sunrise|Dhuhr|Asr|Maghrib|Isha) in /);
+  const chip = app.document.getElementById("headerChip").textContent;
+  assert.match(chip, /(Fajr|Chasht|Dhuhr|Asr|Maghrib|Isha)/);
+  assert.match(chip, /\d+m/);
 });
 
 test("prayer checklist: the same row shape as the times modal, with no times until a location is saved", () => {
@@ -125,7 +138,7 @@ test("prayer checklist: once a location is saved, each row gains its window's st
       return { ok: true, status: 200, json: async () => ({ connected: false, status: "not_connected" }) };
     },
   });
-  app.click("prayerLocBtn");
+  useMyLocation(app);
   await app.flush();
   await app.flush();
 
@@ -152,22 +165,15 @@ test("the calculation method is selectable, stored on the profile, and changes w
       return { ok: true, status: 200, json: async () => ({ connected: false, status: "not_connected" }) };
     },
   });
-  app.goTo("prayers");
-  // The settings live behind a cog beside the location button.
-  const panel = app.document.getElementById("prayerSettings");
-  assert.ok(panel.hasAttribute("hidden"), "tucked away until asked for");
-  app.click("prayerCogBtn");
-  assert.equal(panel.hasAttribute("hidden"), false);
 
-  const sel = app.document.getElementById("prayerMethod");
-  assert.ok(sel, "a method picker inside the cog");
+  useMyLocation(app);
+  await app.flush();
+  await app.flush();
+  assert.match(urls[urls.length - 1], /method=3/, "Muslim World League by default");
+
+  const sel = app.document.getElementById("pmMethod");
   assert.ok(sel.options.length > 5, "several conventions to choose from");
-  assert.equal(sel.value, "3", "Muslim World League by default");
-
-  app.click("prayerLocBtn");
-  await app.flush();
-  await app.flush();
-  assert.match(urls[urls.length - 1], /method=3/);
+  assert.equal(sel.value, "3");
 
   sel.value = "4"; // Umm al-Qura
   sel.dispatchEvent(new app.window.Event("change", { bubbles: true }));
@@ -178,7 +184,7 @@ test("the calculation method is selectable, stored on the profile, and changes w
   assert.match(urls[urls.length - 1], /method=4/, "and the times are refetched under the new method");
 });
 
-test("the Asr school is selectable, since Hanafi puts Asr about an hour later", async () => {
+test("the madhab is selectable, since the Hanafi position puts Asr about an hour later", async () => {
   const urls = [];
   const app = loadApp({
     geolocation: { lat: 51.5, lon: -0.12 },
@@ -187,28 +193,23 @@ test("the Asr school is selectable, since Hanafi puts Asr about an hour later", 
       return { ok: true, status: 200, json: async () => ({ connected: false, status: "not_connected" }) };
     },
   });
-  app.goTo("prayers");
-  app.click("prayerCogBtn");
 
-  const school = app.document.getElementById("prayerSchool");
-  assert.ok(school, "the cog carries the school of thought too");
-  assert.equal(school.value, "0", "standard by default");
-
-  app.click("prayerLocBtn");
+  useMyLocation(app);
   await app.flush();
   await app.flush();
   assert.match(urls[urls.length - 1], /madhab=shafii/);
 
-  school.value = "1"; // Hanafi
-  school.dispatchEvent(new app.window.Event("change", { bubbles: true }));
+  app.document.querySelector('#pmMadhab button[data-val="hanafi"]')
+    .dispatchEvent(new app.window.MouseEvent("click", { bubbles: true }));
   await app.flush();
   await app.flush();
 
-  assert.equal(app.state().profile.prayerSchool, 1, "stored on the profile, so it syncs");
-  assert.match(urls[urls.length - 1], /madhab=hanafi/, "and the times are refetched under it");
+  assert.equal(app.state().profile.prayerMadhab, "hanafi", "stored on the profile, so it syncs");
+  assert.equal(app.state().profile.prayerSchool, 1, "and the Asr rule follows it");
+  assert.match(urls[urls.length - 1], /madhab=hanafi/, "the times are refetched under it");
 });
 
-test("method and school are cached separately, so switching back is instant and correct", async () => {
+test("method and madhab are cached separately, so switching back is instant and correct", async () => {
   let calls = 0;
   const app = loadApp({
     geolocation: { lat: 51.5, lon: -0.12 },
@@ -217,23 +218,20 @@ test("method and school are cached separately, so switching back is instant and 
       return { ok: true, status: 200, json: async () => ({ connected: false, status: "not_connected" }) };
     },
   });
-  app.goTo("prayers");
-  app.click("prayerCogBtn");
-  app.click("prayerLocBtn");
+  useMyLocation(app);
   await app.flush();
   await app.flush();
   assert.equal(calls, 1);
 
-  const school = app.document.getElementById("prayerSchool");
-  const setSchool = async (v) => {
-    school.value = v;
-    school.dispatchEvent(new app.window.Event("change", { bubbles: true }));
+  const pick = async (m) => {
+    app.document.querySelector(`#pmMadhab button[data-val="${m}"]`)
+      .dispatchEvent(new app.window.MouseEvent("click", { bubbles: true }));
     await app.flush();
     await app.flush();
   };
-  await setSchool("1");
+  await pick("hanafi");
   assert.equal(calls, 2, "a new combination is fetched");
-  await setSchool("0");
+  await pick("shafii");
   assert.equal(calls, 2, "and going back reuses what was already cached for it");
 });
 

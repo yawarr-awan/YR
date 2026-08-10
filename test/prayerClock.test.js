@@ -45,23 +45,24 @@ async function booted(opts = {}) {
   return app;
 }
 
-test("with no location saved, there is no prayer chip to tap", async () => {
+test("with no location saved the chip stays, since it is the only way in", async () => {
   const app = loadApp({ fetchImpl: backend() });
   await app.flush();
-  assert.equal(app.document.getElementById("headerChip").hidden, true);
-  assert.equal(app.document.getElementById("prayersChip").hidden, true);
+  const chip = app.document.getElementById("headerChip");
+  assert.equal(chip.hidden, false, "hiding it would leave nothing to tap and no way to set a location");
+  assert.match(chip.textContent, /prayer times/i);
+  assert.ok(chip.classList.contains("is-idle"), "quieter, since there is nothing to count down yet");
 });
 
-test("with a location, both chips name the same current prayer and time left", async () => {
+test("with a location, the chip names the current prayer and how long is left", async () => {
   const app = await booted();
-  const header = app.document.getElementById("headerChip");
-  const tab = app.document.getElementById("prayersChip");
-  assert.equal(header.hidden, false);
-  assert.equal(tab.hidden, false);
-  assert.equal(header.textContent, tab.textContent, "one renderer drives both - they cannot disagree");
-  assert.match(header.textContent, /Fajr|Chasht|Dhuhr|Asr|Maghrib|Isha/);
-  assert.match(header.textContent, /\d+m/, "and how long is left of it");
-  assert.ok(header.querySelector(".pchip-dot"), "coloured for the window we're in");
+  const chip = app.document.getElementById("headerChip");
+  assert.equal(chip.classList.contains("is-idle"), false);
+  assert.match(chip.textContent, /Fajr|Chasht|Dhuhr|Asr|Maghrib|Isha/);
+  assert.match(chip.textContent, /\d+m/, "and how long is left of it");
+  assert.ok(chip.querySelector(".pchip-dot"), "coloured for the window we're in");
+  assert.equal(app.document.getElementById("prayersChip"), null,
+    "the Prayers tab no longer carries a second copy of the same thing");
 });
 
 test("tapping a chip opens the times, with every window listed and no gap between them", async () => {
@@ -96,9 +97,10 @@ test("there is no clock: the dial and its settings are gone", async () => {
   const app = await booted();
   app.click("headerChip");
   assert.equal(app.document.getElementById("prayerClockSvg"), null, "no dial");
-  assert.equal(app.document.querySelector("#modalBody svg"), null, "nothing drawn at all");
   assert.equal(app.document.getElementById("pmDayStart"), null,
     "and no day-start toggle - it only ever configured the dial");
+  assert.equal(app.document.querySelector("#modalBody svg:not(.loc-btn svg)") &&
+    app.document.querySelector("#modalBody path[d*=\"M 1\"]"), null, "no drawn dial");
   // What the modal is still for.
   assert.ok(app.document.getElementById("pmNowLine"), "the countdown");
   assert.ok(app.document.getElementById("pmSlots"), "the windows");
@@ -106,7 +108,7 @@ test("there is no clock: the dial and its settings are gone", async () => {
   assert.ok(app.document.getElementById("pmMadhab"));
 });
 
-test("the madhab toggle and the cog's Asr select are one setting, and refetch under it", async () => {
+test("the madhab toggle writes both faces of the one setting, and refetches under it", async () => {
   const urls = [];
   const app = await booted({ onUrl: (u) => { if (u.includes("/api/prayer")) urls.push(u); } });
   assert.match(urls[urls.length - 1], /madhab=shafii/);
@@ -118,9 +120,9 @@ test("the madhab toggle and the cog's Asr select are one setting, and refetch un
   await app.flush();
 
   assert.equal(app.state().profile.prayerMadhab, "hanafi");
-  assert.equal(app.state().profile.prayerSchool, 1, "the Asr school follows the madhab, not the other way round");
-  assert.equal(app.document.getElementById("prayerSchool").value, "1", "and the cog agrees with the modal");
+  assert.equal(app.state().profile.prayerSchool, 1, "the Asr rule follows the madhab, not the other way round");
   assert.match(urls[urls.length - 1], /madhab=hanafi/);
+  assert.ok(app.document.querySelector('#pmMadhab button[data-val="hanafi"]').classList.contains("on"));
 });
 
 test("a prayer's colour can be changed, and it lands on the synced profile", async () => {
@@ -178,8 +180,9 @@ test("the location can be named, reset, and the chips go with it", async () => {
   await app.flush();
 
   assert.equal(app.state().profile.prayerLoc, undefined);
-  assert.equal(app.document.getElementById("headerChip").hidden, true);
-  assert.equal(app.document.getElementById("prayersChip").hidden, true);
+  const chip = app.document.getElementById("headerChip");
+  assert.ok(chip.classList.contains("is-idle"), "the chip goes back to being a way in, not a countdown");
+  assert.match(chip.textContent, /prayer times/i);
 });
 
 /** Prayer times that put "now" inside Isha's after-midnight tail: every
@@ -233,7 +236,8 @@ test("a failing prayer endpoint is not retried every five seconds", async () => 
   // waiting on it, which is what a background tab would do all hour.
   for (let i = 0; i < 5; i++) { app.click("headerChip"); app.click("modalClose"); await app.flush(); }
   assert.equal(calls, after, "and then backs off rather than hammering it");
-  assert.equal(app.document.getElementById("headerChip").hidden, true, "with nothing to show, the chip stays away");
+  assert.ok(app.document.getElementById("headerChip").classList.contains("is-idle"),
+    "with nothing to show, the chip says so rather than counting down to nothing");
 });
 
 test("the checklist ring follows the clock, not the moment it was rendered", async () => {

@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.20.1
+
+- **The Prayers card is just the checklist now.** The location line, the "Next: … in …" countdown, the second prayer chip, the "Update location" button and the settings cog are gone from it — every one of them was already behind the chip in the header, so the card was saying the same thing three times.
+- **The chip no longer hides itself** when there's no location saved. It reads "Prayer times" instead, because it's now the only way into the screen where a location gets set — and that button has the map pin the Prayers card used to carry.
+
 ## 1.20.0
 
 **One look for a prayer, everywhere it appears.**

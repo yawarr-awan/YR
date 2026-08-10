@@ -11,6 +11,13 @@ const assert = require("node:assert/strict");
 const { loadApp, closeAllApps } = require("./lib.js");
 after(closeAllApps);
 
+/** The header chip is the only way into the prayer screen now, and the
+ * location button lives there rather than on the Prayers tab. */
+function useMyLocation(app) {
+  app.click("headerChip");
+  app.click("pmLocBtn");
+}
+
 const SLIDE_MS = 600; // the day slide plus its re-render
 
 function jsonRes(body) { return { ok: true, status: 200, json: async () => body }; }
@@ -178,7 +185,7 @@ test("prayer windows tint all 24 hours of the day with no gaps", async () => {
       ["/api/prayer", () => jsonRes({ source: "ummahapi", timings: { Fajr: "04:45", Sunrise: "05:50", Dhuhr: "13:00", Asr: "17:00", Maghrib: "20:30", Isha: "22:00" } })],
     ]),
   });
-  app.click("prayerLocBtn");
+  useMyLocation(app);
   await app.flush();
   await app.flush();
 
@@ -204,7 +211,7 @@ test("the prayer window happening now is ringed in the calendar, in its own colo
       ["/api/prayer", () => jsonRes({ source: "ummahapi", timings: { Fajr: "04:45", Sunrise: "05:50", Dhuhr: "13:00", Asr: "17:00", Maghrib: "20:30", Isha: "22:00" } })],
     ]),
   });
-  app.click("prayerLocBtn");
+  useMyLocation(app);
   await app.flush();
   await app.flush();
   app.goTo("calendar");
@@ -360,7 +367,7 @@ test("the narrow columns get the same prayer-window colours as the focused day",
       ["/api/prayer", () => jsonRes({ source: "ummahapi", timings: { Fajr: "04:45", Sunrise: "05:50", Dhuhr: "13:00", Asr: "17:00", Maghrib: "20:30", Isha: "22:00" } })],
     ]),
   });
-  app.click("prayerLocBtn");
+  useMyLocation(app);
   await app.flush();
   await app.flush();
   app.goTo("calendar");

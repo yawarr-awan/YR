@@ -320,19 +320,6 @@ input[type=range]{width:100%;accent-color:var(--accent)}
 .cal-strip button.is-sel{background:var(--brand);border-color:var(--brand);color:rgba(255,255,255,.85)}
 .cal-strip button.is-sel b,.cal-strip button.is-sel.is-today b{color:#fff}
 .loc-btn{display:inline-flex;align-items:center;gap:7px;padding:9px 13px}
-/* Square, and the same height as the button beside it - a fixed 32px box
-   next to a 44px pill reads as an afterthought. */
-.cog-btn{
-  align-self:stretch;width:44px;padding:0;display:inline-flex;align-items:center;
-  justify-content:center;font-size:1.15rem;line-height:1;flex:0 0 auto
-}
-.cog-btn[aria-expanded="true"]{background:var(--brand);border-color:var(--brand);color:#fff}
-.prayer-settings{margin-top:10px;padding:10px;border:1px solid var(--line);border-radius:12px;background:var(--panel-2)}
-.prayer-settings .field span{display:block;font-size:.76rem;color:var(--muted);font-weight:700;margin-bottom:4px}
-.prayer-settings select{
-  width:100%;border:1px solid var(--line);background:var(--panel);color:var(--ink);
-  border-radius:10px;padding:9px;font:inherit;font-size:.82rem
-}
 .loc-btn svg{width:15px;height:15px;flex:0 0 auto;fill:currentColor}
 
 /* ---- Prayer chips, rows and the times modal ---- */
@@ -346,7 +333,7 @@ input[type=range]{width:100%;accent-color:var(--accent)}
 }
 .pchip .pchip-dot{width:9px;height:9px;border-radius:50%;flex:0 0 auto;background:var(--pray)}
 .pchip .pchip-left{color:var(--muted);font-weight:600}
-.pchip[hidden]{display:none}
+.pchip.is-idle{color:var(--muted);font-weight:600}
 #headerChip{min-width:0}
 /* The countdown that headlines the times modal. */
 .pclock-now{font-size:.95rem;font-weight:800;text-align:center;margin:2px 0 10px}
@@ -458,7 +445,7 @@ footer.foot{text-align:center;color:var(--muted);font-size:.78rem;margin-top:26p
   <div class="top-inner">
     <img class="brand-badge" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAFQAAABUCAYAAAAcaxDBAAALFklEQVR42u1df1RUVR7/vnlvhsfwGBr8lfzYgYKTGIEnXUPdwvZoURS1a4NmnHU1gV3dQPohehgljDFcNVGLgtR0M9oY3cg1TmXrwqqEihYcTPaA4sQPVyQweI7PYYa7f9CzB/Pe/OINKLzPORyGe++7797P+/6873IHQIKE2xmYeF1pcdDeoSwYpiKAnL6RHYRWi4NWi486EYuNJYYyL8x1HrW4wWCwsn/r1mUr9n56WgMAYLH2hd2JHBK4rBEAoKWurMFGaDhzFZnQbBmrFlqtFv/2Qk8KKZc/0NljfrCvzzJzNAinTEac8pKDkZATbzZUf/7d4HmLRihXKqNi4n9ntvTpr9HmKaPZuchkxCklie1rPPvFu64QizllUyoqLOEz4qdZei1rveSyB0Y7mVx4exGGB6doXj34SVGzMybALqGR02cH1J2pbIt5/A9P09d+/EfHTwwOYxB3UYp6K8gWN1R//p0jUmX21Fwisx/XaPOUHpo5Gz4jfhoYDNbAF18iXZJQ1mYuWJgS/N9LrRfHMpmDMc4HhZw7c/QHlyTUYJiKUtLylecuNH8pkTkQJot8M0IIE4pVZXzSCZDTV3nyX1vGkvNxFjduWrTh05/4ExgMVj5SB6i8bl22IveNHPOChSnBZ89fMt4wWyUGBYDPmaps3b2TsSnn/vEfDDAwGvtwKiCv22SeIdEmDJ8fr7V1Xm6shthYAozGPkGntGBhSvCJmgtGiTLHgX/b91/GCNvQn+1Bg7FVkkwn0NdnmRkU+WS4MKHt7RgAgMlsvVuiyzncWgyKjSVsCa3o/2W1orkSVc6B8oYQO2HT3AGJv7WXkRhzAD7h4xDav5Jysxc0ElXOoaenp2dwGTG4oJfpBlyhlKTUURwqJ11bHJHgZjglUSARKhE6lkCMZgcxEk6VEGsgDN1lt56k1G4NUKhfbn/Xuy6Lft8Rk1CG7oKoqEisYNtuoK+bgPJRDqinr5tgtS4PamvrkCuTY+guGD8pCEqLd2LcPtl7nPjmDGTq9Iik1JC2MhlTKn9pYzKZwGS6AY1NRqg734Q6rrQMG7lDJpSk1FBbW4cuXDRiz8TP423z19w1EJeQ5HLf615djsXMiOat072xDWgTA8uXxmMbstIE+2i/2ol9/e/jUFL6BZSXH0NiESukxaI5pdSMDaj9aidvXcyMaFi+NAlzZBa40jl37sPYkhcW8NbnF+yFw2VH0P1TI6yrVyXb7WviBH9YnJgApcUFsO/9bZgmJNTq7DhGzMuTlBoYugtS0nWCbbboM8GVyeSuy+AtrzvfAHn5exClJGFDVhoxcYK/0+N8Jn4eHPlsLzHzoYcwT5EqmoSSlBrKy4+h4pJDgm02564mnJHOtJXJWGREuKCqd7RfhrlzHxY0MY4k9qtPd0FUVKRHSBU9Dn1ZtwU1GVt46x777W/sqj5Dd4EmJNQqZBOLSw5BefkxFBIaBkXbc4c0zoJtG8SbdIWH4lBW9TPWboTS4gLeNqtXJUNpWTl0XGnhdQ5CUtx+tRM25e+yAADu4y236jZsJZibZv5xeClgakQ4zHt0DghJemREOKStTMZ2vPM+EtP727xTmnDPrCrAZEPaTcfQXbB98+uCTuWzz7+GJckZAybC0F2Q8FQc9reizbzXvJq1CXZ9sB+xD81ZLF+ahG3RZ/LWNRlbYNb8xcjdeSKE9nRcrFwOEEsAVFg8mnpm5mwXVP1n4udBwlNxt1SfobuApNSwRb+Wt31Vdc0tMllNcPYn/51d6C+v5PD2G6oJgpgZ4tpSjxDKVX1hr792gMrnrFmBCXns1bo8t8cyfuJk2P/xAVRVXcNbHxYq7nq6jb26yVy3enn7wlCfGkmp4XDZEVS45+9Y6rJFvN52U3Y6tiz1ZfR0QjxvGzbmrKyqRuMnTnZrTOxDKz92GviShPB7NUCbGCApcKl/klKDmaHRsK42UUoSsvMKBFV/yQsL4OmEeGzNy6mCMefruVsRpSSHPJaWllbecl9KCWL073FCWbvoSPVLiwvAXnrJNSFD0hiShOGAzJ2VI1dJ/Vn1Xbq2uOQQHC47gsQgkzYxEBQ4iT/X7+gE2sTc/hLKJdWR6vPFnK/lvI0oJSnKw6WUJMx7dA5vXaPIu46GZYHZmYCfiw15O+FKaxOwjmgogffVNiNkrX1FMJU99s0ZC6UkcbG0clgIHaT6gh4dAKDixGnY//GBAdLpzmRpEwOUkoSM9BWCy3tV1TVgvNSEuzsnDCdGhlCu6mfq9GjOrOmCEpP22hsWAMBZqdaEhFr9VD4ujdPfXw1hoRr4Y9LvBVNPAIC8twpFc3rDTig78I72y7CjYC8U7dTzpqTnvj+Ps6pOmxjIXLWcWJyYIPpY9n10EA6XHRHNTg+bU+KLHoQWNVgH4skFYACAr44eh/TXXkdixp8jQqizts+T2PfRQUhM+jPyVP+j4jWyM6iqroG8twpvqblE6BDQZGyBuIQkxHr+Yc+U7gSs1++A6NkJlkfinodH4p6H6NkJFqFsLFQTBAX5emw4xnXHSuglYzPU1dbgvioVaw/xTJ0eRUdF8L56XpyYAJUnv8XeLdyDfFUqSUJtQjAvBWCEwqY8NW2dReiat7dmQ2RUtHXMqjyymF2+pq62Bk95KUuw/qPdW4kxS6jdmFYglvVVqWD3B/sFX2dHRoRDQb4e6+nuHh2EuiN1rvblq1LBilVZqO58A2/94sQEeHFpkkdIHbX7Q2kTAysy1gvWF+3UQ2RUtFXsROK2I1QsCaaUJJw4XonW63fYtadix6UjQmg3fd3ptr29vW7fx1elgo2bd6Kvjh4XtKebcrNEVf0RIVRF+fCWe3vbSotcLhcMm5yV1JXpa24I7QxMXbYIMtJXiEbqsAf2GKGASz+0QHHJoQHSJ5fLofLktwNiS4xQQPmxkzaSKpfLob7hIm8cyoeLTc1kSroOEp+N45X4oMBJIFawb5OOqQKiTiCrZZanieWTCIxQ2OTatInhtauuEiDUj7v9AQBgOLG7u602mbsVZ8RST2cn0E/w0B2HWP2M2bBppGBDqJ+P4opEiyiE9v8T/Q2rolOixTn4kPhJYUJjf/agcKNKospVTES2hFb0F1L+AdUSQc5hnNq7rP/TL2fhcVS+v1Afv+R70sfvlESXfdylUpbWnalss+uUIqfPDkjMSTT73eW3T6LMPtTjJn3IciZIKMt4dPivDk8Y5ycd5yAA0sfvVMzM+V9yORMMm7RaLX7wk6LmsHtC15OU2uPvye84Mik1TJ7ov6loxyqT1tHZdxxWcVRS0hfx6yfPtTYbpQMFOdCE3Pte3cl/rhh8uLfdTEk3ZSqOYRh67omZ0zQhoWP+REF23SEwWFP/7GMPrgIAMAicciv4rnrwoazGS014T3c3ePIV7O1Kpq9KBYHBmvr77w1+/OAnRc1u5fIGg8HK2tP7QgLvCQzW1PuqVOCpl1u3G8w3+xfBJwRoYPzdwQaWTN26bLtrhg53U7CSWlhYqNx/4IuNra3/S7n6408kS+xok1iuFk4Y58fISL9XXDl63antKexBrQD9x2GerTduoWlay912yD5RLhRePrz1QuXcekflgz/z9cV3H0dlrCefNN7/vftCJr/pSMXdIpQjrzibUS1YmBJc0/DDUzd7OuYzVnkAc/2nO/rbFkgfv1Mk3tumHjfpw3BNYPUtIl38+gqXN1BxpZUFQgh7blFqUH1jI/ZLx8yALTEISIKvjlvuSh23jdA1fO35xjQlLAzZSKIb3wMyZPSnXaPpG2u0+OBUUoKE0YX/AxYW5WAviUw3AAAAAElFTkSuQmCC" alt="YR logo" width="50" height="50">
     <div class="top-spacer"></div>
-    <button class="pchip" id="headerChip" type="button" hidden aria-label="Prayer times"></button>
+    <button class="pchip is-idle" id="headerChip" type="button" aria-label="Prayer times">Prayer times</button>
     <div class="ring" id="dayRing" title="How much of today is ticked off"><span id="dayRingTxt">0%</span></div>
     <button id="notifyBell" class="bell-btn" aria-label="Notifications" aria-expanded="false" title="Notifications">🔔<span class="bell-dot" id="bellDot" hidden></span></button>
   </div>
@@ -575,34 +562,12 @@ footer.foot{text-align:center;color:var(--muted);font-size:.78rem;margin-top:26p
     <div class="grid">
       <div class="card collapsible" data-collapse="prayers">
         <h3><span class="dot" style="background:var(--pray)"></span> Prayers (Salah)<span class="count" id="prayCount"></span></h3>
+        <!-- Just the checklist. The location, the countdown, the calculation
+             settings and the per-prayer colours all live behind the prayer
+             chip in the header, and having them in both places said the same
+             thing three times over. -->
         <div class="card-body">
           <div id="prayBox"></div>
-          <div class="muted" id="prayerLocText" style="font-size:.74rem;margin:8px 0 4px"></div>
-          <div class="muted" id="prayerNext" style="font-size:.8rem;margin-top:4px;font-weight:700"></div>
-          <div class="pill-row" style="margin-top:8px">
-            <button class="pchip" id="prayersChip" type="button" hidden aria-label="Prayer times"></button>
-          </div>
-          <div class="pill-row" style="margin-top:8px">
-            <button class="btn loc-btn" id="prayerLocBtn" type="button">
-              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 2a7 7 0 0 0-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 0 0-7-7Zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5Z"/></svg>
-              <span id="prayerLocBtnText">Use my location</span>
-            </button>
-            <button class="btn cog-btn" id="prayerCogBtn" type="button" aria-label="Prayer time settings" aria-expanded="false">⚙</button>
-          </div>
-          <div id="prayerSettings" class="prayer-settings" hidden>
-            <label class="field" style="margin:0">
-              <span>Calculation method</span>
-              <select id="prayerMethod"></select>
-            </label>
-            <label class="field" style="margin:8px 0 0">
-              <span>Asr (school of thought)</span>
-              <select id="prayerSchool">
-                <option value="0">Standard — Shafi'i, Maliki, Hanbali</option>
-                <option value="1">Hanafi — later Asr</option>
-              </select>
-            </label>
-            <p class="muted" style="font-size:.72rem;margin:8px 0 0">The Hanafi position puts Asr roughly an hour later. Everything else is set by the calculation method.</p>
-          </div>
         </div>
       </div>
 
@@ -1851,9 +1816,6 @@ var PRAYER_METHODS=[
   [7,"Institute of Geophysics, Tehran"]
 ];
 var PRAYER_METHOD_DEFAULT=3;
-/* Asr falls at a different time under the Hanafi position, which is the
-   single biggest source of "these times look wrong" after the method. */
-var PRAYER_SCHOOLS=[[0,"Standard — Shafi'i, Maliki, Hanbali"],[1,"Hanafi — later Asr"]];
 /* The four schools, in the order the toggle shows them. Only Hanafi changes
    the Asr calculation; the other three are identical for timing purposes,
    and the choice is kept because people identify with it. */
@@ -2068,7 +2030,7 @@ function applyPrayerSettingChange(cosmetic){
   save();
   /* A deliberate action deserves an immediate retry, whatever the last one did. */
   if(!cosmetic)_pcFailUntil=0;
-  renderPrayerClock();renderToday();renderPrayerModal();
+  renderToday();renderPrayerModal();
   /* The modal is rebuilt twice on purpose: once now, so the button you
      pressed responds, and again once the times for the new setting land -
      otherwise the listed Asr time would still be the old madhab's while the
@@ -2076,59 +2038,6 @@ function applyPrayerSettingChange(cosmetic){
   renderPrayerChips().then(renderPrayerModal);
   if(!cosmetic)_calWin=null;
   if(currentView==="calendar")renderCalendarTab();
-}
-
-function renderMethodSelect(){
-  var sel=document.getElementById("prayerMethod"),school=document.getElementById("prayerSchool");
-  if(!sel)return;
-  if(!sel.options.length){
-    PRAYER_METHODS.forEach(function(m){
-      var o=document.createElement("option");
-      o.value=String(m[0]);o.textContent=m[1];
-      sel.appendChild(o);
-    });
-    sel.addEventListener("change",function(){
-      state.profile.prayerMethod=parseInt(this.value,10);
-      applyPrayerSettingChange();
-    });
-  }
-  sel.value=String(prayerMethod());
-  if(school){
-    if(!school._wired){
-      school._wired=true;
-      /* Routed through setPrayerMadhab so this select and the modal's
-         four-way madhab toggle stay one setting, not two that drift. */
-      school.addEventListener("change",function(){
-        setPrayerMadhab(parseInt(this.value,10)===1?"hanafi":"shafii");
-      });
-    }
-    school.value=String(madhabSchool(prayerMadhab()));
-  }
-}
-
-function renderPrayerClock(){
-  var nextEl=document.getElementById("prayerNext"),locText=document.getElementById("prayerLocText");
-  var btnText=document.getElementById("prayerLocBtnText");
-  renderMethodSelect();
-  if(!nextEl&&!locText)return;
-  var loc=state.profile&&state.profile.prayerLoc;
-  if(btnText)btnText.textContent=loc?"Update location":"Use my location";
-  if(!loc){
-    if(locText)locText.textContent="Tap “Use my location” to see live prayer times here.";
-    if(nextEl)nextEl.textContent="";
-    return;
-  }
-  if(locText)locText.textContent="Times for "+locLabel(loc)+".";
-  fetchPrayerTimes(todayKey(),loc.lat,loc.lon).then(function(times){
-    var next=nextPrayerInfo(times,new Date());
-    if(nextEl&&next.name){
-      var h=Math.floor(next.diff/60),m=next.diff%60;
-      nextEl.textContent="Next: "+next.name+" in "+(h?h+"h ":"")+m+"m";
-    }
-    renderPrayerChips();
-  }).catch(function(){
-    if(locText)locText.textContent="Couldn't load prayer times right now.";
-  });
 }
 
 /** What to call the saved location. A place name is nicer than numbers, but
@@ -2158,16 +2067,21 @@ function reverseGeocode(lat,lon){
   }).catch(function(){return null;});
 }
 
+/* Progress and failures are reported in the modal, which is the only place
+   that asks for a location now. */
+function prayerLocStatus(msg){
+  var el=document.getElementById("pmLocText");
+  if(el)el.textContent=msg;
+}
 function requestPrayerLocation(){
-  var locText=document.getElementById("prayerLocText");
-  if(!navigator.geolocation){if(locText)locText.textContent="Location isn't available in this browser.";return;}
-  if(locText)locText.textContent="Getting your location…";
+  if(!navigator.geolocation){prayerLocStatus("Location isn't available in this browser.");return;}
+  prayerLocStatus("Getting your location…");
   navigator.geolocation.getCurrentPosition(function(pos){
     state.profile.prayerLoc={lat:pos.coords.latitude,lon:pos.coords.longitude};
     state.profile.updated_at=Date.now();
     save();
-    renderPrayerClock();
     renderToday();
+    renderPrayerChips();
     renderPrayerModal();
     /* The name arrives later (or not at all) and must not hold up the times. */
     reverseGeocode(pos.coords.latitude,pos.coords.longitude).then(function(name){
@@ -2176,11 +2090,10 @@ function requestPrayerLocation(){
       loc.name=name;
       state.profile.updated_at=Date.now();
       save();
-      renderPrayerClock();
       renderPrayerModal();
     });
   },function(err){
-    if(locText)locText.textContent="Couldn't get your location ("+(err&&err.message?err.message:"permission denied")+"). Try again.";
+    prayerLocStatus("Couldn't get your location ("+(err&&err.message?err.message:"permission denied")+"). Try again.");
   },{maximumAge:3600000,timeout:15000});
 }
 
@@ -2191,7 +2104,7 @@ function resetPrayerLocation(){
   state.profile.updated_at=Date.now();
   clearPrayerCache();
   save();
-  renderPrayerClock();renderToday();renderPrayerChips();renderPrayerModal();
+  renderToday();renderPrayerChips();renderPrayerModal();
 }
 
 /* ---------- PRAYER COLOURS ---------- */
@@ -2307,7 +2220,7 @@ function ensureTodayTimes(){
 /* ---------- PRAYER CHIP ---------- */
 /* The same renderer drives the header chip and the one on the Prayers tab,
    so the two can never disagree about what prayer it is. */
-var PCHIP_IDS=["headerChip","prayersChip"];
+var PCHIP_IDS=["headerChip"];
 var _pchipTick=null;
 
 function prayerChipText(times,now){
@@ -2324,13 +2237,21 @@ function prayerChipText(times,now){
   return {name:cur?PRAYER_SHORT[cur.name]:"—",color:cur?prayerColorCss(cur.name):"var(--pray)",left:left,next:next&&next.name};
 }
 
+/** With no times to show the chip still has to be there: it is the only way
+ * into the prayer screen, and that screen is where a location gets set. */
 function paintPrayerChips(info){
   PCHIP_IDS.forEach(function(id){
     var b=document.getElementById(id);
     if(!b)return;
-    if(!info){b.hidden=true;b.innerHTML="";return;}
     b.hidden=false;
     b.innerHTML="";
+    if(!info){
+      b.appendChild(el("span",null,"Prayer times"));
+      b.title="Set up prayer times";
+      b.classList.add("is-idle");
+      return;
+    }
+    b.classList.remove("is-idle");
     var dot=el("i","pchip-dot");dot.style.background=info.color;
     b.appendChild(dot);
     b.appendChild(el("span",null,info.name));
@@ -2446,8 +2367,11 @@ function renderPrayerModal(){
   wrap.appendChild(locLine);
 
   var locRow=el("div","pill-row");
-  var locBtn=el("button","btn",loc?"Update location":"Use my location");
+  var locBtn=el("button","btn loc-btn");
   locBtn.type="button";locBtn.id="pmLocBtn";
+  locBtn.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">'+
+    '<path d="M12 2a7 7 0 0 0-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 0 0-7-7Zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5Z"/></svg>';
+  locBtn.appendChild(el("span",null,loc?"Update location":"Use my location"));
   locBtn.addEventListener("click",requestPrayerLocation);
   locRow.appendChild(locBtn);
   if(loc){
@@ -3984,7 +3908,6 @@ function renderPrayersTab(){
   var lbl=document.getElementById("prayDateLabel");
   if(lbl)lbl.textContent=(k===todayKey()?"Today · ":"")+humanShort(cur);
   renderToday();
-  renderPrayerClock();
   renderPraySummary();
   renderQada();
 }
@@ -4294,17 +4217,9 @@ document.getElementById("clearBtn").addEventListener("click",function(){
 document.getElementById("taskAddBtn").addEventListener("click",function(){addTask("taskTitleIn");});
 document.getElementById("taskTitleIn").addEventListener("keydown",function(e){if(e.key==="Enter")addTask("taskTitleIn");});
 
-document.getElementById("prayerLocBtn").addEventListener("click",requestPrayerLocation);
 PCHIP_IDS.forEach(function(id){
   var b=document.getElementById(id);
   if(b)b.addEventListener("click",function(ev){ev.stopPropagation();openPrayerModal();});
-});
-document.getElementById("prayerCogBtn").addEventListener("click",function(){
-  var panel=document.getElementById("prayerSettings");
-  if(!panel)return;
-  var open=panel.hasAttribute("hidden");
-  if(open)panel.removeAttribute("hidden");else panel.setAttribute("hidden","");
-  this.setAttribute("aria-expanded",open?"true":"false");
 });
 
 /* The arrows jump a whole week; the carousel only ever holds the two
@@ -4398,7 +4313,6 @@ renderPlan();renderRecipes();renderExercises();renderToday();
 updateInstallUI();
 loadBrief();
 renderTasks();
-renderPrayerClock();
 renderPrayerChips();startPrayerChipTick();
 updateNotifyUI();
 loadNotifs();renderNotifs();
