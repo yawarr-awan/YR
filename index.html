@@ -224,10 +224,38 @@ input[type=range]{width:100%;accent-color:var(--accent)}
 .cal-hour-events{display:flex;flex-direction:column;gap:3px;flex:1;min-width:0}
 .cal-chip{
   border-radius:7px;padding:4px 8px;font-size:.82rem;line-height:1.35;
-  background:var(--panel-2);border-inline-start:3px solid var(--brand)
+  background:var(--panel-2);border-inline-start:3px solid var(--brand);
+  cursor:pointer;text-align:start;width:100%;border-block:0;border-inline-end:0;
+  color:var(--ink);font-family:inherit;display:block
 }
+.cal-chip:hover{filter:brightness(1.06)}
 .cal-chip-time{font-weight:800;color:var(--muted);margin-inline-end:5px}
 .cal-chip-meta{display:block;font-size:.72rem;color:var(--muted)}
+/* A scheduled task reads as a task, not as one more meeting. */
+.cal-chip.is-task{border-inline-start-style:dashed}
+.cal-chip.is-done{opacity:.6}
+.cal-chip.is-done .cal-chip-title{text-decoration:line-through}
+.cal-mini.is-task{border-inline-start-style:dashed}
+/* Tapping an empty stretch of an hour schedules something there. */
+.cal-cell.is-main .cal-hour-events{cursor:pointer}
+.cal-slot-hint{
+  font-size:.72rem;color:var(--muted);opacity:0;transition:opacity .12s;
+  padding:2px 0;pointer-events:none
+}
+.cal-cell.is-main:hover .cal-slot-hint{opacity:.75}
+.cal-edit .field{margin:0 0 10px;display:block}
+.cal-edit .field>span{display:block;font-size:.76rem;color:var(--muted);font-weight:700;margin-bottom:4px}
+.cal-edit .field input,.cal-edit .field select,.cal-edit .field textarea{
+  width:100%;box-sizing:border-box;border:1px solid var(--line);background:var(--panel-2);
+  color:var(--ink);border-radius:10px;padding:9px;font:inherit;font-size:.9rem
+}
+.cal-edit .field textarea{min-height:60px;resize:vertical}
+.cal-edit .row2{display:flex;gap:10px;flex-wrap:wrap}
+/* The datetime input needs the wider share or Chromium clips its am/pm. */
+.cal-edit .row2>*{flex:2 1 175px;min-width:0}
+.cal-edit .row2>*+*{flex:1 1 110px}
+.cal-edit .actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+.cal-edit .actions .grow{flex:1 1 auto}
 /* Narrow columns can't hold a sentence, so they get a compact chip. */
 .cal-mini{
   border-radius:4px;padding:1px 3px;margin-bottom:2px;font-size:.55rem;line-height:1.2;
@@ -1797,6 +1825,10 @@ var calCur=new Date(); calCur.setHours(0,0,0,0);
 var CAL_SLIDE_MS=280;
 var CAL_WINDOW_PAD=7;          /* days fetched either side of the focused day */
 var _calSliding=false;
+/* A swipe ends with a click event on whatever was under the finger. This
+   flag lets the tap-to-schedule handlers tell a real tap from the tail of a
+   drag. */
+var _calDragged=false;
 var _calWin=null;              /* {from,to,byDay,connected,status} */
 var _calReqId=0;
 
@@ -1915,6 +1947,284 @@ function renderCalendarTab(){
   return ensureCalWindow(calCur).then(function(){return renderCalPanels();});
 }
 
+/* ---------- CALENDAR ENTRIES (events + scheduled tasks) ---------- */
+
+/** Everything that belongs on a day's grid: the Google events for that day,
+ * plus the tasks scheduled onto it. A task scheduled from this app also
+ * exists as a real Google event, so the two are merged on `calendarEventId`
+ * rather than drawn twice - the event keeps the real time and calendar, the
+ * task lends it its done state. A task whose event never made it to Google
+ * (offline, or created before it was connected) still shows, from the local
+ * record alone. */
+function calDayEntries(dayKey){
+  var out=((_calWin&&_calWin.byDay[dayKey])||[]).map(function(e){
+    return {kind:"event",event:e,task:null,title:e.title,start:e.start,allDay:!!e.allDay,color:e.color||null};
+  });
+  var byEventId={};
+  out.forEach(function(x){if(x.event&&x.event.id)byEventId[x.event.id]=x;});
+
+  ensureTasks().forEach(function(t){
+    if(!t.due)return;
+    var allDay=/^\d{4}-\d{2}-\d{2}$/.test(t.due);
+    if((allDay?t.due:keyOf(new Date(t.due)))!==dayKey)return;
+    var linked=t.calendarEventId?byEventId[t.calendarEventId]:null;
+    if(linked){linked.kind="task";linked.task=t;return;}
+    out.push({kind:"task",event:null,task:t,title:t.title,start:t.due,allDay:allDay,color:null});
+  });
+
+  out.sort(function(a,b){
+    if(a.allDay!==b.allDay)return a.allDay?-1:1;
+    return String(a.start).localeCompare(String(b.start));
+  });
+  return out;
+}
+
+function calEntryTimeLabel(x){
+  if(x.allDay)return "All day";
+  return new Date(x.start).toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"});
+}
+
+function calEntryDetail(x){
+  return [calEntryTimeLabel(x),x.title,x.kind==="task"?"Task":null,x.event&&x.event.calendar,x.event&&x.event.location]
+    .filter(Boolean).join(" · ");
+}
+
+/** How long an entry runs, in minutes - from the event's own end where
+ * there is one, otherwise the same 30 minutes a new entry defaults to. */
+function calEntryDuration(x){
+  if(x.event&&x.event.end&&!x.allDay){
+    var mins=Math.round((new Date(x.event.end).getTime()-new Date(x.event.start).getTime())/60000);
+    if(mins>0)return mins;
+  }
+  return 30;
+}
+
+function calChip(x){
+  var chip=el("button","cal-chip"+(x.kind==="task"?" is-task":"")+(x.task&&x.task.done?" is-done":""));
+  chip.type="button";
+  chip.style.borderInlineStartColor=x.color||"var(--brand)";
+  chip.appendChild(el("span","cal-chip-time",calEntryTimeLabel(x)));
+  chip.appendChild(el("span","cal-chip-title",x.title));
+  var meta=[x.kind==="task"?"Task":null,x.event&&x.event.calendar,x.event&&x.event.location].filter(Boolean).join(" · ");
+  if(meta)chip.appendChild(el("span","cal-chip-meta",meta));
+  chip.title=calEntryDetail(x);
+  chip.addEventListener("click",function(ev){ev.stopPropagation();if(!_calDragged)openCalEntry(x);});
+  return chip;
+}
+
+/* ---------- CALENDAR EDITOR ---------- */
+var CAL_DURATIONS=[15,30,45,60,90,120,180,240];
+
+function openCalSlot(dayDate,hour){
+  var start=new Date(dayDate);
+  start.setHours(hour,0,0,0);
+  openCalEditor({start:start});
+}
+
+function openCalEntry(x){openCalEditor({entry:x});}
+
+function calEditField(parent,labelText,node){
+  var lab=el("label","field");
+  lab.appendChild(el("span",null,labelText));
+  lab.appendChild(node);
+  parent.appendChild(lab);
+  return node;
+}
+
+/** One editor for all three cases: a new event in a tapped slot, an existing
+ * calendar event, and a scheduled task (which is an event with a task
+ * attached). A calendar the user can only read gets the details without a
+ * Save button rather than a form whose submit would always fail. */
+function openCalEditor(o){
+  var body=document.getElementById("modalBody");
+  if(!body)return;
+  var entry=o.entry||null,ev=entry&&entry.event,task=entry&&entry.task;
+  var readOnly=!!(ev&&ev.writable===false);
+  var allDay=!!(entry&&entry.allDay);
+
+  body.innerHTML="";
+  var wrap=el("div","cal-edit");
+  wrap.appendChild(el("h2",null,!entry?"New event":(task?"Scheduled task":"Event")));
+
+  var titleIn=el("input");titleIn.type="text";titleIn.value=entry?entry.title:"";
+  titleIn.placeholder="What is it?";
+  calEditField(wrap,"Title",titleIn);
+
+  var whenIn=null,durIn=null;
+  if(!allDay){
+    var row=el("div","row2");
+    whenIn=el("input");whenIn.type="datetime-local";
+    var seed=entry?new Date(entry.start):new Date(o.start);
+    seed.setSeconds(0,0);
+    whenIn.value=localDatetimeValue(seed);
+    durIn=el("select");
+    var mins=entry?calEntryDuration(entry):30;
+    if(CAL_DURATIONS.indexOf(mins)<0)CAL_DURATIONS.push(mins);
+    CAL_DURATIONS.slice().sort(function(a,b){return a-b;}).forEach(function(m){
+      var opt=el("option",null,m<60?(m+" min"):(m%60?(Math.floor(m/60)+"h "+(m%60)+"m"):(m/60+" hour"+(m>60?"s":""))));
+      opt.value=String(m);
+      durIn.appendChild(opt);
+    });
+    durIn.value=String(mins);
+    calEditField(row,"Starts",whenIn);
+    calEditField(row,"Length",durIn);
+    wrap.appendChild(row);
+  }
+
+  var locIn=el("input");locIn.type="text";locIn.value=(ev&&ev.location)||"";
+  locIn.placeholder="Optional";
+  calEditField(wrap,"Location",locIn);
+
+  var notesIn=el("textarea");notesIn.rows=2;notesIn.value=(ev&&ev.notes)||"";
+  calEditField(wrap,"Notes",notesIn);
+
+  if(ev&&ev.calendar)wrap.appendChild(el("p","muted","On "+ev.calendar+(readOnly?" — you can only read this calendar, so it can't be edited here.":"")));
+  if(allDay)wrap.appendChild(el("p","muted","All-day event — its time can't be changed here."));
+
+  var status=el("div","muted");status.id="calEditStatus";status.style.marginTop="8px";
+
+  if(task){
+    var doneWrap=el("label","chk"+(task.done?" done":""));
+    var doneCb=el("input");doneCb.type="checkbox";doneCb.checked=!!task.done;
+    doneCb.addEventListener("change",function(){
+      task.done=doneCb.checked;task.updated_at=Date.now();
+      state.profile.updated_at=Date.now();
+      save();renderTasks();
+      doneWrap.className="chk"+(task.done?" done":"");
+    });
+    var dtxt=el("div");dtxt.appendChild(el("div","lbl","Done"));
+    doneWrap.appendChild(doneCb);doneWrap.appendChild(dtxt);
+    wrap.appendChild(doneWrap);
+  }
+
+  /* No Save button means the fields shouldn't look typeable either. */
+  if(readOnly)Array.prototype.forEach.call(wrap.querySelectorAll("input,select,textarea"),function(n){n.disabled=true;});
+
+  var actions=el("div","actions");
+  if(!readOnly){
+    var saveBtn=el("button","btn primary grow",entry?"Save":"Add to calendar");
+    saveBtn.type="button";
+    saveBtn.addEventListener("click",function(){
+      calEditorSave({
+        entry:entry,
+        title:(titleIn.value||"").trim(),
+        start:whenIn&&whenIn.value?new Date(whenIn.value):null,
+        durationMinutes:durIn?parseInt(durIn.value,10):null,
+        location:locIn.value,
+        notes:notesIn.value,
+      },saveBtn);
+    });
+    actions.appendChild(saveBtn);
+  }
+  if(entry&&!readOnly&&(ev||task)){
+    var delBtn=el("button","btn",task?"Remove from calendar":"Delete");
+    delBtn.type="button";delBtn.style.color="var(--bad)";
+    delBtn.addEventListener("click",function(){calEditorDelete(entry,delBtn);});
+    actions.appendChild(delBtn);
+  }
+  var closeBtn=el("button","btn","Close");
+  closeBtn.type="button";
+  closeBtn.addEventListener("click",hideModal);
+  actions.appendChild(closeBtn);
+
+  wrap.appendChild(actions);
+  wrap.appendChild(status);
+  body.appendChild(wrap);
+  showModal();
+}
+
+/** Maps a write response to something the card can say. Returns true when
+ * the write actually landed. */
+function calWriteOk(resp,status){
+  if(resp&&resp.status==="ok")return true;
+  var msg="Couldn't save that — try again in a bit.";
+  if(resp&&(resp.status==="reconnect_required"||resp.status==="not_connected"))
+    msg="Connect Google Calendar (Today's Brief card) to change your calendar.";
+  else if(resp&&resp.status==="not_found")msg="That event is no longer on your calendar.";
+  if(status)status.textContent=msg;
+  return false;
+}
+
+/** Applies the editor to the real calendar, then to the local task if this
+ * entry is one. A failed write leaves both untouched, same rule as sync. */
+function calEditorSave(f,btn){
+  var status=document.getElementById("calEditStatus");
+  if(!f.title){if(status)status.textContent="Give it a title first.";return Promise.resolve();}
+  if(btn)btn.disabled=true;
+  if(status)status.textContent="Saving…";
+
+  var entry=f.entry,ev=entry&&entry.event,task=entry&&entry.task;
+  var startIso=f.start&&!isNaN(f.start.getTime())?f.start.toISOString():null;
+  var req;
+  if(ev&&ev.id){
+    var patch={calendarId:ev.calendarId||"primary",eventId:ev.id,title:f.title,location:f.location,notes:f.notes};
+    if(startIso){patch.start=startIso;patch.durationMinutes=f.durationMinutes||30;}
+    req=calApi("PATCH","/api/google/calendar/events",patch);
+  }else{
+    if(!startIso){if(status)status.textContent="Pick a time first.";if(btn)btn.disabled=false;return Promise.resolve();}
+    req=calApi("POST","/api/google/calendar/events",{
+      title:f.title,start:startIso,durationMinutes:f.durationMinutes||30,location:f.location,notes:f.notes,
+    });
+  }
+
+  return req.then(function(resp){
+    if(!calWriteOk(resp,status)){if(btn)btn.disabled=false;return;}
+    if(task){
+      task.title=f.title;
+      if(startIso){task.due=startIso;task.scheduled=true;}
+      if(resp.eventId)task.calendarEventId=resp.eventId;
+      task.updated_at=Date.now();
+      state.profile.updated_at=Date.now();
+      save();renderTasks();
+    }
+    hideModal();
+    _calWin=null;                                  /* the day changed - refetch */
+    renderCalendarTab();
+  }).catch(function(){
+    if(status)status.textContent="Couldn't reach the server.";
+    if(btn)btn.disabled=false;
+  });
+}
+
+/** Removes an event. For a scheduled task this unschedules it - the task
+ * itself stays on the list, it just isn't on the calendar any more. */
+function calEditorDelete(entry,btn){
+  var status=document.getElementById("calEditStatus");
+  var ev=entry.event,task=entry.task;
+  if(btn)btn.disabled=true;
+  if(status)status.textContent="Removing…";
+
+  var done=function(){
+    if(task){
+      task.due=null;task.scheduled=false;task.calendarEventId=null;task.updated_at=Date.now();
+      state.profile.updated_at=Date.now();
+      save();renderTasks();
+    }
+    hideModal();
+    _calWin=null;
+    renderCalendarTab();
+  };
+
+  if(!ev||!ev.id){done();return Promise.resolve();}   /* local-only task */
+  return calApi("DELETE","/api/google/calendar/events?calendarId="+
+    encodeURIComponent(ev.calendarId||"primary")+"&eventId="+encodeURIComponent(ev.id)).then(function(resp){
+    if(!calWriteOk(resp,status)){if(btn)btn.disabled=false;return;}
+    done();
+  }).catch(function(){
+    if(status)status.textContent="Couldn't reach the server.";
+    if(btn)btn.disabled=false;
+  });
+}
+
+function calApi(method,path,payload){
+  var opts={method:method,credentials:"same-origin"};
+  if(payload){opts.headers={"content-type":"application/json"};opts.body=JSON.stringify(payload);}
+  return fetch(path,opts).then(function(res){
+    if(!res.ok)throw new Error("http "+res.status);
+    return res.json();
+  });
+}
+
 /** The focused day plus the next two, as one grid so every row is the same
  * hour across all three columns and they scroll together with the page.
  * The neighbours are full days, not summaries - just narrower. */
@@ -1928,9 +2238,9 @@ function buildDayPanel(dayDate,timesByKey){
 
   var byHour=days.map(function(_,i){
     var m={};
-    ((_calWin&&_calWin.byDay[keys[i]])||[]).forEach(function(e){
-      var hour=e.allDay?0:new Date(e.start).getHours();
-      (m[hour]=m[hour]||[]).push(e);
+    calDayEntries(keys[i]).forEach(function(x){
+      var hour=x.allDay?0:new Date(x.start).getHours();
+      (m[hour]=m[hour]||[]).push(x);
     });
     Object.keys(m).forEach(function(h){
       m[h].sort(function(a,b){return String(a.start).localeCompare(String(b.start));});
@@ -1966,22 +2276,29 @@ function buildDayPanel(dayDate,timesByKey){
       if(isMain){
         cell.appendChild(el("span","cal-hour-label",String(h).padStart(2,"0")+":00"));
         var box=el("div","cal-hour-events");
-        (byHour[i][h]||[]).forEach(function(e){
-          var chip=el("div","cal-chip");
-          chip.style.borderInlineStartColor=e.color||"var(--brand)";
-          var time=e.allDay?"All day":new Date(e.start).toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"});
-          chip.appendChild(el("span","cal-chip-time",time));
-          chip.appendChild(document.createTextNode(e.title));
-          var meta=[e.calendar,e.location].filter(Boolean).join(" · ");
-          if(meta)chip.appendChild(el("span","cal-chip-meta",meta));
-          box.appendChild(chip);
+        var entries=byHour[i][h]||[];
+        entries.forEach(function(x){
+          box.appendChild(calChip(x));
         });
+        if(!entries.length)box.appendChild(el("div","cal-slot-hint","+ Add"));
+        /* Tapping empty space in an hour schedules something at that hour;
+           tapping a chip opens that entry instead, so chips are excluded. */
+        (function(dayDate,hour){
+          cell.addEventListener("click",function(ev){
+            if(ev.target.closest(".cal-chip"))return;
+            if(_calDragged)return;                  /* that was a swipe, not a tap */
+            openCalSlot(dayDate,hour);
+          });
+        })(days[i],h);
         cell.appendChild(box);
       }else{
-        (byHour[i][h]||[]).forEach(function(e){
-          var mini=el("div","cal-mini",e.title);
-          mini.style.borderInlineStartColor=e.color||"var(--brand)";
-          mini.title=[e.allDay?"All day":new Date(e.start).toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"}),e.title,e.calendar,e.location].filter(Boolean).join(" · ");
+        (byHour[i][h]||[]).forEach(function(x){
+          var e=x.event;
+          var mini=el("button","cal-mini"+(x.kind==="task"?" is-task":""),x.title);
+          mini.type="button";
+          mini.style.borderInlineStartColor=x.color||"var(--brand)";
+          mini.title=calEntryDetail(x);
+          mini.addEventListener("click",function(ev){ev.stopPropagation();if(!_calDragged)openCalEntry(x);});
           cell.appendChild(mini);
         });
       }
@@ -2096,7 +2413,7 @@ function attachCalSwipe(){
     if(!t)return;
     var dx=t.clientX-startX,dy=t.clientY-startY;
     if(!dragging&&Math.abs(dx)<Math.abs(dy))return;   /* vertical scroll wins */
-    if(Math.abs(dx)>6)dragging=true;
+    if(Math.abs(dx)>6){dragging=true;_calDragged=true;}
     if(!dragging)return;
     lastDx=dx;
     calSetTrack(dx,false);
@@ -2107,6 +2424,9 @@ function attachCalSwipe(){
     var t=e.changedTouches&&e.changedTouches[0];
     var sx=startX,sy=startY,wasDragging=dragging,dragDx=lastDx;
     startX=null;startY=null;dragging=false;lastDx=0;
+    /* Cleared after the click that follows this touchend has been and gone. */
+    if(wasDragging)setTimeout(function(){_calDragged=false;},0);
+    else _calDragged=false;
     if(!t){if(wasDragging)calSetTrack(0,true);return;}
     var dx=t.clientX-sx,dy=t.clientY-sy;
     if(Math.abs(dx)<40||Math.abs(dx)<Math.abs(dy)*1.2){
@@ -2210,6 +2530,68 @@ function checkReminders(){
   });
 }
 setInterval(checkReminders,60000);
+
+/** The prayer whose window we're in right now, as {key,name,day,at}. Before
+ * today's Fajr that's still *last night's* Isha - which is exactly the one
+ * most likely to be sitting unmarked, so it's worth getting right. */
+function currentPrayerWindow(times,now){
+  if(!times||!times.Fajr)return null;
+  var mins=now.getHours()*60+now.getMinutes();
+  if(mins<minutesOfDay(times.Fajr)){
+    /* Yesterday's Isha - and yesterday's time for it, which we don't have
+       here, so the message doesn't claim one. */
+    return {key:"isha",name:"Isha",day:keyOf(addDays(now,-1)),at:null};
+  }
+  var found=null;
+  PRAYERS.forEach(function(p){
+    var t=times[p[1]];
+    if(t&&minutesOfDay(t)<=mins)found={key:p[0],name:p[1],day:keyOf(now),at:t};
+  });
+  return found;
+}
+
+/** Fired once when the app is opened, and again when it's brought back into
+ * view: a nudge for the prayer we're currently in if it isn't ticked, and
+ * for scheduled tasks that are due and still open. All-day items are
+ * deliberately excluded - they aren't due at any particular moment, so
+ * treating them as overdue would mean a notification every single time.
+ * `notifyOnce` keys on the prayer/task, so returning to the app repeatedly
+ * inside the same window stays silent. */
+function openingReminders(){
+  if(!("Notification" in window)||Notification.permission!=="granted")return Promise.resolve();
+  var now=new Date();
+
+  var due=ensureTasks().filter(function(t){
+    if(t.done||!t.due)return false;
+    if(/^\d{4}-\d{2}-\d{2}$/.test(t.due))return false;
+    var at=new Date(t.due).getTime();
+    return !isNaN(at)&&at<=now.getTime();
+  });
+  if(due.length===1){
+    notifyOnce("open-task-"+due[0].id+"-"+due[0].due,"Task due",due[0].title);
+  }else if(due.length>1){
+    notifyOnce("open-tasks-"+due.map(function(t){return t.id+":"+t.due;}).join(","),
+      due.length+" tasks due",
+      due.slice(0,4).map(function(t){return t.title;}).join(", ")+(due.length>4?", and more":""));
+  }
+
+  var loc=state.profile&&state.profile.prayerLoc;
+  if(!loc)return Promise.resolve();
+  return fetchPrayerTimes(todayKey(),loc.lat,loc.lon).then(function(times){
+    var cur=currentPrayerWindow(times,now);
+    if(!cur)return;
+    var rec=state.days[cur.day];
+    if(rec&&rec.prayers&&rec.prayers[cur.key])return;
+    notifyOnce("open-prayer-"+cur.day+"-"+cur.key,cur.name+" not marked yet",
+      cur.name+(cur.at?" began at "+cur.at:"")+" — mark it once you've prayed.");
+  }).catch(function(){});
+}
+
+/* An installed app is usually resumed rather than reloaded, so coming back
+   into view counts as opening it. */
+document.addEventListener("visibilitychange",function(){
+  if(!document.hidden)openingReminders();
+});
 
 /* ---------- RENDER: MEAL PLAN ---------- */
 function renderPlan(){
@@ -2936,6 +3318,7 @@ loadBrief();
 renderTasks();
 renderPrayerClock();
 updateNotifyUI();
+openingReminders();
 (function restoreLastTab(){
   var saved=null,savedSub=null;
   try{saved=localStorage.getItem(LASTTAB_KEY);savedSub=localStorage.getItem(LASTSUB_KEY);}catch(e){}
