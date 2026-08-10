@@ -763,8 +763,74 @@ test("fetchTasksInRange: returns dated open tasks inside the window, bucketed by
   const out = await fetchTasksInRange("tok", "2026-08-05", "2026-08-15");
   assert.equal(out.error, null);
   assert.deepEqual(out.tasks.map((x) => x.title), ["Renew passport"]);
-  assert.equal(out.tasks[0].due, "2026-08-10", "the bare date is what buckets it onto a day");
+  assert.equal(out.tasks[0].due, "2026-08-10T00:00:00.000Z", "the whole timestamp travels, not just its date");
+  assert.equal(out.tasks[0].allDay, true, "midnight UTC is how Google spells a date-only task");
   assert.equal(out.tasks[0].list, "My Tasks");
+});
+
+test("fetchTasksInRange: a task given a time of day is not all-day", async (t) => {
+  // Truncating due to its date prefix made every task look all-day, so a
+  // task set for 1pm sat in the all-day row instead of at 13:00.
+  const { fetchTasksInRange } = await loadWorker();
+  installFetch(t, googleApiMocks({
+    taskLists: [{ id: "list1", title: "My Tasks" }],
+    tasksByList: { list1: [{ id: "t1", title: "Call the bank", due: "2026-08-10T12:00:00.000Z" }] },
+  }));
+
+  const out = await fetchTasksInRange("tok", "2026-08-05", "2026-08-15");
+  assert.equal(out.tasks[0].allDay, false);
+  assert.equal(out.tasks[0].due, "2026-08-10T12:00:00.000Z");
+});
+
+test("isDateOnlyDue distinguishes a dated task from a timed one", async () => {
+  const { isDateOnlyDue } = await loadWorker();
+  assert.equal(isDateOnlyDue("2026-08-10T00:00:00.000Z"), true);
+  assert.equal(isDateOnlyDue("2026-08-10T12:00:00.000Z"), false);
+  assert.equal(isDateOnlyDue(undefined), true, "no due date at all reads as all-day, not as midnight");
+});
+
+test("handleUpdateGoogleTask: ticks a task off in Google Tasks", async (t) => {
+  const { handleUpdateGoogleTask } = await loadWorker();
+  const d1 = createFakeD1();
+  d1.seedToken(EMAIL, { access_token: "tok", access_token_expires_at: Date.now() + 600000 });
+  let seenUrl = null, method = null, body = null;
+  installFetch(t, async (url, opts) => {
+    seenUrl = String(url); method = opts.method; body = JSON.parse(opts.body);
+    return jsonResponse(200, { id: "t1", status: "completed" });
+  });
+
+  const resp = await (await handleUpdateGoogleTask(
+    { json: async () => ({ listId: "list1", taskId: "t1", completed: true }) }, d1.env, EMAIL)).json();
+  assert.equal(resp.status, "ok");
+  assert.equal(method, "PATCH");
+  assert.match(seenUrl, /tasks\/v1\/lists\/list1\/tasks\/t1/);
+  assert.deepEqual(body, { status: "completed" });
+});
+
+test("handleUpdateGoogleTask: reopening clears the completion stamp, not just the status", async (t) => {
+  const { handleUpdateGoogleTask } = await loadWorker();
+  const d1 = createFakeD1();
+  d1.seedToken(EMAIL, { access_token: "tok", access_token_expires_at: Date.now() + 600000 });
+  let body = null;
+  installFetch(t, async (url, opts) => { body = JSON.parse(opts.body); return jsonResponse(200, {}); });
+
+  await handleUpdateGoogleTask({ json: async () => ({ listId: "l", taskId: "t", completed: false }) }, d1.env, EMAIL);
+  assert.deepEqual(body, { status: "needsAction", completed: null },
+    "leaving the timestamp behind keeps the task hidden in Google's own UI");
+});
+
+test("handleUpdateGoogleTask: requires both ids, and maps an old read-only token to reconnect_required", async (t) => {
+  const { handleUpdateGoogleTask } = await loadWorker();
+  const d1 = createFakeD1();
+  installFetch(t, async () => { throw new Error("must not touch the network on a validation failure"); });
+  const bad = await (await handleUpdateGoogleTask({ json: async () => ({ taskId: "t" }) }, d1.env, EMAIL)).json();
+  assert.match(bad.error, /listId and taskId/);
+
+  d1.seedToken(EMAIL, { access_token: "tok", access_token_expires_at: Date.now() + 600000 });
+  installFetch(t, async () => jsonResponse(403, {}, JSON.stringify({ error: { message: "Insufficient Permission" } })));
+  const denied = await (await handleUpdateGoogleTask(
+    { json: async () => ({ listId: "l", taskId: "t", completed: true }) }, d1.env, EMAIL)).json();
+  assert.equal(denied.status, "reconnect_required");
 });
 
 test("fetchTasksInRange: reports a failure instead of looking like an empty task list", async (t) => {

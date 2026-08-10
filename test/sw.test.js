@@ -24,10 +24,13 @@ const vm = require("vm");
 const SW_PATH = path.join(__dirname, "..", "sw.js");
 const SW_SOURCE = fs.readFileSync(SW_PATH, "utf8");
 
-function loadServiceWorker({ fetchImpl, staleCacheNames } = {}) {
+function loadServiceWorker({ fetchImpl, staleCacheNames, cached } = {}) {
   const listeners = {};
+  const calls = { skipWaiting: 0, claim: 0 };
   const selfMock = {
     addEventListener(type, fn) { (listeners[type] = listeners[type] || []).push(fn); },
+    skipWaiting() { calls.skipWaiting++; },
+    clients: { claim: async () => { calls.claim++; } },
   };
 
   const cacheAddAllCalls = [];
@@ -42,7 +45,8 @@ function loadServiceWorker({ fetchImpl, staleCacheNames } = {}) {
     open: async () => fakeCache,
     keys: async () => staleCacheNames || ["yr-wellness-shell-v1"],
     delete: async (name) => { deletedCaches.push(name); return true; },
-    match: async () => undefined, // top-level CacheStorage.match() — always a miss in these tests
+    // Top-level CacheStorage.match() — a miss unless a test seeds one.
+    match: async () => cached,
   };
 
   const fetchCalls = [];
@@ -58,7 +62,7 @@ function loadServiceWorker({ fetchImpl, staleCacheNames } = {}) {
 
   return {
     dispatch(type, event) { (listeners[type] || []).forEach((fn) => fn(event)); },
-    cacheAddAllCalls, cachePuts, fetchCalls, deletedCaches,
+    cacheAddAllCalls, cachePuts, fetchCalls, deletedCaches, calls,
   };
 }
 
@@ -133,4 +137,45 @@ test("static sub-resources are served through the cache/network path and get cac
   assert.equal(sw.fetchCalls.length, 1, "a real static asset request should go through fetch()");
   await new Promise((r) => setTimeout(r, 0)); // let the background cache.put settle
   assert.equal(sw.cachePuts.length, 1);
+});
+
+/* The three below are the fix for a real failure: renaming the app to "YR"
+   and replacing its icon changed nothing on an installed Android copy, even
+   after uninstalling and reinstalling it. */
+
+test("install calls skipWaiting, so a new worker never waits for the old one to be released", async () => {
+  const sw = loadServiceWorker();
+  let waited;
+  sw.dispatch("install", { waitUntil: (p) => { waited = p; } });
+  await waited;
+  assert.equal(sw.calls.skipWaiting, 1);
+});
+
+test("activate claims the open clients, so the new worker controls them immediately", async () => {
+  const sw = loadServiceWorker();
+  let waited;
+  sw.dispatch("activate", { waitUntil: (p) => { waited = p; } });
+  await waited;
+  assert.equal(sw.calls.claim, 1);
+});
+
+test("the shell is network-first: a renamed manifest or new icon is never served stale", async () => {
+  const stale = { status: 200, type: "basic", body: "old", clone: () => ({}) };
+  const fresh = { status: 200, type: "basic", body: "new", clone: () => ({}) };
+  const sw = loadServiceWorker({ cached: stale, fetchImpl: async () => fresh });
+  const ev = makeFetchEvent({ method: "GET", mode: "no-cors", url: "https://yr-wellness.yawar-awan.workers.dev/manifest.webmanifest" });
+
+  sw.dispatch("fetch", ev);
+  const res = await ev.response;
+  assert.equal(res.body, "new", "the cached copy must not win while the network is reachable");
+});
+
+test("offline, the cached copy is still served", async () => {
+  const stale = { status: 200, type: "basic", body: "old", clone: () => ({}) };
+  const sw = loadServiceWorker({ cached: stale, fetchImpl: async () => { throw new Error("offline"); } });
+  const ev = makeFetchEvent({ method: "GET", mode: "no-cors", url: "https://yr-wellness.yawar-awan.workers.dev/icons/icon-192.png" });
+
+  sw.dispatch("fetch", ev);
+  const res = await ev.response;
+  assert.equal(res.body, "old", "the cache is what makes the app work offline");
 });

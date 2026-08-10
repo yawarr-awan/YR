@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.16.0
+
+**The app name and icon really do change now.** They hadn't, and reinstalling couldn't fix it: the service worker never handed over. A new worker sits in "waiting" until every client of the old one is gone, and uninstalling a PWA doesn't unregister its worker or clear its cache — so the old one kept control and kept serving the old manifest and icons. It now takes over immediately, and the app shell is fetched network-first (the cache is there for offline, not for speed), so an identity change lands on the next load instead of whenever the worker happens to turn over.
+
+- **A new logo.** Redrawn as a monoline YR monogram — the letters are drawn as shapes rather than set in a typeface — on a deep navy field with a gold gradient and a hairline gold border. It's built to survive being 32 pixels wide, which the old bevelled version didn't.
+- **Google Tasks can be ticked off from the calendar.** Tap one and mark it complete; it completes in Google Tasks itself. This needs permission the app didn't have before, so **you'll need to reconnect Google once** — it'll say so if you try before then.
+- **A Google Task with a time now sits at that time.** One due at 1pm was showing as an all-day item, because its due timestamp was being truncated to just the date.
+- **A notification bell in the header**, with everything the app has reminded you about — prayer times, due tasks, dhikr — and a dot when there's something new. It records them even when the browser won't let the app raise a real notification, which is exactly when having somewhere to look matters.
+- **Reminders fire when you come back to the app**, not only after a refresh. Returning after more than a minute away counts as opening it afresh; a quick flick away and straight back stays quiet.
+- **The light/dark switch moved to Settings**, under Appearance, where it can say what it does instead of being an unlabelled glyph in the header.
+
 ## 1.15.0
 
 - **New app icon and name.** The app is now just **YR**, with your logo as the icon everywhere — home screen, browser tab, install prompt and the header. The wordmark was recentred (it sat about 6% low) and enlarged slightly so it holds up at favicon size, and the gold was brightened from a muddy ochre so it reads properly against the navy. Android gets a dedicated maskable icon so its circular crop doesn't slice the letters.

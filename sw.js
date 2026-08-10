@@ -17,8 +17,22 @@
  *     can be redirected to Access's login page at any time; that redirect
  *     must run as a normal top-level browser navigation, not a fetch()
  *     mediated by this worker.
+ *
+ * Two rules here exist because of a real, user-visible failure: renaming the
+ * app to "YR" and replacing its icon changed nothing on an installed Android
+ * copy, even after uninstalling and reinstalling it.
+ *
+ *   1. skipWaiting + clients.claim. Without them a new worker sits in
+ *      "waiting" until every client of the old one is gone. Uninstalling a
+ *      PWA does not unregister its service worker or clear Cache Storage, so
+ *      the old worker kept control and kept answering from the old cache.
+ *   2. Network-first for the shell. These files are a few KB and the cache
+ *      is here for offline, not for speed - serving them cache-first meant
+ *      the manifest's name and the icons were whatever was cached when the
+ *      worker last changed. Network-first makes an identity change land on
+ *      the next load even if this file is untouched.
  */
-var CACHE_NAME = "yr-wellness-shell-v3";
+var CACHE_NAME = "yr-shell-v4";
 var SHELL_ASSETS = [
   "./manifest.webmanifest",
   "./favicon.ico",
@@ -30,6 +44,7 @@ var SHELL_ASSETS = [
 ];
 
 self.addEventListener("install", function (event) {
+  self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME).then(function (cache) {
       return cache.addAll(SHELL_ASSETS);
@@ -44,7 +59,7 @@ self.addEventListener("activate", function (event) {
         names.filter(function (n) { return n !== CACHE_NAME; })
              .map(function (n) { return caches.delete(n); })
       );
-    })
+    }).then(function () { return self.clients.claim(); })
   );
 });
 
@@ -56,15 +71,15 @@ self.addEventListener("fetch", function (event) {
   if (url.pathname.startsWith("/api/")) return;      // never cache the API
 
   event.respondWith(
-    caches.match(req).then(function (cached) {
-      var network = fetch(req).then(function (res) {
-        if (res && res.status === 200 && res.type === "basic") {
-          var copy = res.clone();
-          caches.open(CACHE_NAME).then(function (cache) { cache.put(req, copy); });
-        }
-        return res;
-      }).catch(function () { return cached; });
-      return cached || network;
+    fetch(req).then(function (res) {
+      if (res && res.status === 200 && res.type === "basic") {
+        var copy = res.clone();
+        caches.open(CACHE_NAME).then(function (cache) { cache.put(req, copy); });
+      }
+      return res;
+    }).catch(function () {
+      // Offline: whatever we last saw is better than nothing.
+      return caches.match(req);
     })
   );
 });
