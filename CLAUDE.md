@@ -528,6 +528,24 @@ felt built for a desktop.
   work: the carousel viewport is `overflow:hidden`, which makes it the
   sticky container and it never scrolls.
 
+## Calendar layout + prayer accuracy (1.13.0)
+- The calendar's three columns (focused day + next two) are **one CSS grid**
+  laid out row-major, so hours line up across them and the whole thing
+  scrolls with the page. The earlier internal-scroll approach
+  (`.cal-hours{overflow-y:auto}`) is gone.
+- `.cal-sticky` pins the date bar + week strip. Its offset is `--hdr-h`,
+  set from `header.top`'s measured `offsetHeight` by `syncHeaderHeight()`
+  on init and resize - a hardcoded value is wrong because the header's
+  ring/theme row wraps at phone width, roughly doubling its height.
+- Prayer colours were re-picked for hue separation between the pairs that
+  are adjacent in the grid: Isha->Fajr (violet vs indigo, also split by
+  lightness) and Dhuhr->Asr (cyan vs green).
+- **Calculation method** is `profile.prayerMethod` (synced), surfaced as a
+  `<select>` next to the location button and included in the prayer-times
+  cache key, so switching method refetches rather than serving stale times.
+  Aladhan is still the provider: accuracy is governed by the method and
+  coordinates, not by which service applies them.
+
 ## Honest caveat
 The "Client-side sync layer," "Access + hosting," and "Current data state"
 sections above were re-verified live in this session (2026-08-09): read
