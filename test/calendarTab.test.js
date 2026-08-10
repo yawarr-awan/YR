@@ -51,7 +51,7 @@ function windowTracker(events) {
 }
 
 const panels = (app) => ["calDayPrev", "calDayCur", "calDayNext"].map((id) => app.document.getElementById(id));
-const curHours = (app) => app.document.querySelectorAll("#calDayCur .cal-hour");
+const curHours = (app) => app.document.querySelectorAll("#calDayCur .cal-cell.is-main");
 const heading = (app) => app.document.getElementById("calDayHeading").textContent;
 
 test("shows one full day at a time, with the previous and next day rendered either side", async () => {
@@ -61,13 +61,13 @@ test("shows one full day at a time, with the previous and next day rendered eith
   await app.flush();
 
   const [prev, cur, next] = panels(app);
-  [prev, cur, next].forEach((p) => assert.equal(p.querySelectorAll(".cal-hour").length, 24, "each panel is a whole day"));
+  [prev, cur, next].forEach((p) => assert.equal(p.querySelectorAll(".cal-cell.is-main").length, 24, "each panel is a whole day"));
   assert.equal(curHours(app)[0].querySelector(".cal-hour-label").textContent, "00:00");
   assert.equal(curHours(app)[23].querySelector(".cal-hour-label").textContent, "23:00");
   assert.match(heading(app), /Today/);
   // The neighbours exist so a drag reveals a real day, not a blank panel.
-  assert.ok(prev.querySelector(".cal-hour"));
-  assert.ok(next.querySelector(".cal-hour"));
+  assert.ok(prev.querySelector(".cal-cell.is-main"));
+  assert.ok(next.querySelector(".cal-cell.is-main"));
 });
 
 test("fetches a padded window once, so moving day costs no round trip", async () => {
@@ -197,7 +197,7 @@ test("the current hour is marked, with a now-line, only on today", async () => {
   await app.flush();
   await app.flush();
 
-  const marked = app.document.querySelectorAll("#calDayCur .cal-hour.current-hour");
+  const marked = app.document.querySelectorAll("#calDayCur .cal-cell.is-main.current-hour");
   assert.equal(marked.length, 1);
   assert.equal(marked[0].querySelector(".cal-hour-label").textContent,
     String(new Date().getHours()).padStart(2, "0") + ":00");
@@ -205,7 +205,7 @@ test("the current hour is marked, with a now-line, only on today", async () => {
 
   app.swipe("calGrid", -90, 0);
   await app.wait(SLIDE_MS);
-  assert.equal(app.document.querySelectorAll("#calDayCur .cal-hour.current-hour").length, 0,
+  assert.equal(app.document.querySelectorAll("#calDayCur .cal-cell.is-main.current-hour").length, 0,
     "tomorrow has no 'now'");
 });
 
@@ -269,7 +269,7 @@ test("connect / reconnect / error / empty each say something specific", async ()
   }
 });
 
-test("the next two days sit beside today as peek columns, and tapping one jumps to it", async () => {
+test("the next two days are full day columns beside today, not summaries", async () => {
   const tomorrow = addDays(new Date(), 1);
   const dayAfter = addDays(new Date(), 2);
   const at = (d, h) => { const x = new Date(d); x.setHours(h, 0, 0, 0); return x.toISOString(); };
@@ -287,30 +287,61 @@ test("the next two days sit beside today as peek columns, and tapping one jumps 
   await app.flush();
   await app.flush();
 
-  const peeks = app.document.querySelectorAll("#calDayCur .cal-peek");
-  assert.equal(peeks.length, 2, "a narrow column for each of the next two days");
-  assert.equal(peeks[0].querySelector("h4 b").textContent, String(tomorrow.getDate()));
-  assert.equal(peeks[1].querySelector("h4 b").textContent, String(dayAfter.getDate()));
-  assert.match(peeks[0].textContent, /School run/, "so you can see what's coming without swiping");
-  assert.match(peeks[1].textContent, /Dentist/);
+  const cells = app.document.querySelectorAll("#calDayCur .cal-cell");
+  assert.equal(cells.length, 24 * 3, "three columns of 24 hours, sharing one grid so the rows line up");
+  const cellAt = (col, hour) => cells[hour * 3 + col];
 
-  // The focused day keeps its full hour grid alongside them.
-  assert.equal(app.document.querySelectorAll("#calDayCur .cal-main .cal-hour").length, 24);
-  assert.match(app.document.querySelector("#calDayCur .cal-main").textContent, /Physio/);
+  // Each event sits in its own column at its own hour - a real day, not a list.
+  assert.match(cellAt(0, 14).textContent, /Physio/);
+  assert.match(cellAt(1, 8).textContent, /School run/);
+  assert.match(cellAt(2, 11).textContent, /Dentist/);
+  assert.equal(cellAt(1, 9).textContent, "", "empty hours stay empty in the narrow columns too");
 
-  peeks[1].click();
+  // Headings name each day; the neighbours are tappable to bring into focus.
+  const heads = app.document.querySelectorAll("#calDayCur .cal-gh");
+  assert.equal(heads.length, 3);
+  assert.equal(heads[1].querySelector("b").textContent, String(tomorrow.getDate()));
+  heads[2].click();
   await app.flush();
   await app.flush();
   assert.equal(app.document.getElementById("calDatePick").value, keyOf(dayAfter));
 });
 
-test("a day with nothing on reads as clear rather than looking broken", async () => {
+test("the narrow columns get the same prayer-window colours as the focused day", async () => {
+  const app = loadApp({
+    geolocation: { lat: 51.5, lon: -0.12 },
+    fetchImpl: fetchRouter([
+      ["/api/calendar/events", () => jsonRes({ connected: true, status: "ok", events: [] })],
+      ["api.aladhan.com", () => jsonRes({ data: { timings: { Fajr: "04:45", Sunrise: "05:50", Dhuhr: "13:00", Asr: "17:00", Maghrib: "20:30", Isha: "22:00" } } })],
+    ]),
+  });
+  app.click("prayerLocBtn");
+  await app.flush();
+  await app.flush();
+  app.goTo("calendar");
+  await app.flush();
+  await app.flush();
+
+  const cells = app.document.querySelectorAll("#calDayCur .cal-cell");
+  cells.forEach((c) => assert.notEqual(c.style.background, "", "every hour of every column is tinted"));
+  const cellAt = (col, hour) => cells[hour * 3 + col];
+  [0, 1, 2].forEach((col) => {
+    assert.match(cellAt(col, 14).style.background, /--dhuhr/);
+    assert.match(cellAt(col, 0).style.background, /--isha/);
+  });
+});
+
+test("the date bar and week strip stay pinned while the day scrolls past", async () => {
   const app = loadApp({
     fetchImpl: fetchRouter([["/api/calendar/events", () => jsonRes({ connected: true, status: "ok", events: [] })]]),
   });
   app.goTo("calendar");
   await app.flush();
-  await app.flush();
-  const peeks = app.document.querySelectorAll("#calDayCur .cal-peek");
-  peeks.forEach((p) => assert.match(p.textContent, /Clear/));
+
+  const sticky = app.document.querySelector("#view-calendar .cal-sticky");
+  assert.ok(sticky, "the dates live in their own pinned strip");
+  assert.ok(sticky.querySelector("#calDatePick"), "the date bar is inside it");
+  assert.ok(sticky.querySelector("#calStrip"), "and so is the week strip");
+  // The day itself must not scroll internally - the page scrolls instead.
+  assert.equal(app.document.querySelector(".cal-hours"), null);
 });

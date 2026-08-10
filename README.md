@@ -2,7 +2,7 @@
   <img src="icons/logo.png" width="120" alt="Wellness Tracker logo">
 </p>
 
-<h1 align="center">Wellness Tracker</h1>
+<h1 align="center">YR Dashboard</h1>
 
 <p align="center">
   A private, offline-first daily wellness tracker — diet plan, quick halal recipes,

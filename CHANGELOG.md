@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.13.0
+
+- **Renamed to YR Dashboard**, and the "Others" tab is now **Misc** with a new icon.
+- **Calendar: the date bar and week strip are pinned.** They stay put while the day scrolls past them — and the day now scrolls with the *page* rather than inside its own box.
+- **Calendar: the next two days are full days, not summaries.** All three columns share one grid, so every row is the same hour across them, with the same prayer-window colours; the neighbours are simply narrower. Tap either heading to bring it into focus.
+- **Brighter, more distinguishable prayer colours.** Dhuhr and Asr were both blue-ish and Fajr and Isha were both indigo; they're now cyan/green and indigo/violet respectively, and the whole palette is brighter.
+- **Prayer calculation method is selectable** — a picker sits next to the location button with the common conventions (Muslim World League, ISNA, Karachi, Umm al-Qura, Egyptian, Diyanet, Moonsighting Committee and more). It's stored on the synced profile, and the times cache per method so switching refetches cleanly.
+
 ## 1.12.0
 
 - **Settings: supplements & drinks are now editable** — rename, re-cost (the calorie figure feeds the meal totals), remove or add your own. Like the medicine list, it lives on the synced profile and past days keep whatever they were ticked with.

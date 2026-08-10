@@ -125,3 +125,32 @@ test("prayer checklist: once a location is saved, each row's label gains its act
   const fajrLbl = box.querySelectorAll("label.chk .lbl")[0];
   assert.match(fajrLbl.textContent, /Fajr.*04:45/);
 });
+
+test("the calculation method is selectable, stored on the profile, and changes what is fetched", async () => {
+  const urls = [];
+  const app = loadApp({
+    geolocation: { lat: 51.5, lon: -0.12 },
+    fetchImpl: async (url) => {
+      if (String(url).includes("api.aladhan.com")) { urls.push(String(url)); return aladhanRes(SAMPLE_TIMINGS); }
+      return { ok: true, status: 200, json: async () => ({ connected: false, status: "not_connected" }) };
+    },
+  });
+  app.goTo("prayers");
+  const sel = app.document.getElementById("prayerMethod");
+  assert.ok(sel, "a method picker sits next to the location button");
+  assert.ok(sel.options.length > 5, "several conventions to choose from");
+  assert.equal(sel.value, "3", "Muslim World League by default");
+
+  app.click("prayerLocBtn");
+  await app.flush();
+  await app.flush();
+  assert.match(urls[urls.length - 1], /method=3/);
+
+  sel.value = "4"; // Umm al-Qura
+  sel.dispatchEvent(new app.window.Event("change", { bubbles: true }));
+  await app.flush();
+  await app.flush();
+
+  assert.equal(app.state().profile.prayerMethod, 4, "stored on the profile, so it syncs");
+  assert.match(urls[urls.length - 1], /method=4/, "and the times are refetched under the new method");
+});
