@@ -170,3 +170,37 @@ test("dhikr is editable per period, so morning and evening can differ", () => {
   assert.equal(app.document.getElementById("dhikrCount").textContent, "0/21");
   assert.match(cards[2].textContent, /Surah Al-Mulk/);
 });
+
+test("Settings has a Google card that offers to connect when you aren't", async () => {
+  const app = loadApp({
+    fetchImpl: async () => ({ ok: true, status: 200, json: async () => ({ connected: false, status: "not_connected" }) }),
+  });
+  await app.flush();
+  await app.flush();
+  app.goTo("settings");
+
+  assert.match(app.document.getElementById("googleStatus").textContent, /not connected/i);
+  const btn = app.document.querySelector("#googleActions a");
+  assert.ok(btn, "expected a connect button");
+  assert.match(btn.textContent, /connect google/i);
+  assert.equal(btn.getAttribute("href"), "/api/google/connect");
+});
+
+test("the Google card offers a reconnect once connected, and says so when the grant is stale", async () => {
+  const connected = loadApp({
+    fetchImpl: async () => ({ ok: true, status: 200, json: async () => ({ connected: true, status: "ok", summary: "All good.", day: "2026-08-10" }) }),
+  });
+  await connected.flush();
+  await connected.flush();
+  connected.goTo("settings");
+  assert.match(connected.document.getElementById("googleStatus").textContent, /connected/i);
+  assert.match(connected.document.querySelector("#googleActions a").textContent, /reconnect/i);
+
+  const stale = loadApp({
+    fetchImpl: async () => ({ ok: true, status: 200, json: async () => ({ connected: false, status: "reconnect_required" }) }),
+  });
+  await stale.flush();
+  await stale.flush();
+  stale.goTo("settings");
+  assert.match(stale.document.getElementById("googleStatus").textContent, /expired|permission/i);
+});

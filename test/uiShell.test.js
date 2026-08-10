@@ -264,3 +264,16 @@ test("switching the theme still works from its new home", () => {
   assert.notEqual(after, before);
   assert.ok(after === "dark" || after === "light");
 });
+
+test("the header is only the logo, the ring, the saved time and the bell", () => {
+  const app = loadApp({});
+  const header = app.document.querySelector("header.top");
+  assert.ok(header.querySelector(".brand-badge"), "the logo stays");
+  assert.ok(header.querySelector("#dayRing"), "so does the completion ring");
+  assert.ok(header.querySelector("#savedTag"), "and the saved time");
+  assert.ok(header.querySelector("#notifyBell"), "and the bell");
+
+  assert.equal(header.querySelector(".brand-title"), null, "the wordmark is gone");
+  assert.equal(header.querySelector(".brand-sub"), null, "so is the strapline");
+  assert.equal(/Diet|Movement|Medicine/.test(header.textContent), false, "no leftover strapline text");
+});

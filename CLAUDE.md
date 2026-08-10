@@ -699,6 +699,22 @@ Found by checking the whole path in real Chromium rather than only jsdom.
   stale one would be a lie about where the icons come from. The PNGs are the
   artefact.
 
+## Peek columns, header, Google settings (1.17.0)
+- The slot-tap handler is attached to **every** hour cell, not just
+  `is-main` ones, so the two peek columns schedule onto their own day. It
+  skips `.cal-chip,.cal-mini` so tapping an entry still opens that entry.
+- The header is now badge + ring + saved tag + bell only (`flex-wrap:nowrap`);
+  `.brand-title`/`.brand-sub` are gone. That shortens the header, which
+  `syncHeaderHeight()` already measures, so `--hdr-h` follows on its own.
+- `renderGoogleSettings()` is driven by the **same `/api/brief` response** as
+  the Today card, so the two can never disagree about connection state.
+- **Google Tasks time of day is not available.** The Tasks API documents
+  `due` as recording the date only; a task set for 1pm arrives as midnight
+  UTC, which is why `isDateOnlyDue()` correctly calls it all-day. This was
+  reported as a bug twice - it is an API limitation, not ours. The task
+  detail now says so, with the raw value Google sent in the element's
+  `title`. Don't "fix" it by inventing a time.
+
 ## Honest caveat
 The "Client-side sync layer," "Access + hosting," and "Current data state"
 sections above were re-verified live in this session (2026-08-09): read

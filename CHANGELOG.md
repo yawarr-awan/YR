@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.17.0
+
+- **The next two days are schedulable too.** Tapping an empty hour in either narrow column now opens the editor for *that* day and hour, exactly as the focused day already did. Tapping something already there still opens it instead.
+- **Slimmer header:** just the logo, the completion ring, the saved time and the bell. The name and the "Diet · Movement · Medicine…" strapline are gone.
+- **Settings has a Google card**, at the top: whether you're connected, and a button to connect or reconnect, with a note on exactly what the connection covers and where to revoke it. It reads the same status the Today's Brief card does, so the two can't disagree.
+- **Google Tasks with a time:** a task set for 1pm still shows in the all-day row, and now says why. Google's Tasks API records **only the date** for a task's due — the time of day is discarded before it ever leaves Google, so there is nothing for the app to place it by. Tapping the task explains this rather than silently pretending it's an all-day item.
+
 ## 1.16.1
 
 - **Your own logo is now the app icon**, on navy: the artwork you supplied, with the white field replaced by a navy gradient and the letters inverted to white — black letters on navy would have been unreadable. The letterforms, their size and position, and the corner radius are all exactly as you drew them; only the colours changed. The drop shadow baked into the source was trimmed off the edge so it sits cleanly on any background.
