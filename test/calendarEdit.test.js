@@ -472,3 +472,58 @@ test("a Google Tasks failure is reported without breaking the agenda", async () 
   assert.equal(chips(app).length, 1, "the calendar still renders");
   assert.match(app.document.getElementById("calStatus").textContent, /Google Tasks couldn't be read/);
 });
+
+test("an empty hour in the peek columns schedules on that day, not on the focused one", async () => {
+  const app = loadApp({ fetchImpl: calendarBackend().impl });
+  await openCalendar(app);
+
+  // Row 10 of the grid, second column = tomorrow at 10:00.
+  const row = app.document.querySelectorAll("#calDayCur .cal-cell:not(.cal-allday)");
+  const perRow = 3;
+  const tomorrow10 = row[10 * perRow + 1];
+  assert.ok(tomorrow10, "expected a cell for tomorrow at 10:00");
+  tomorrow10.click();
+
+  assert.ok(editorOpen(app), "the next two days must be schedulable too");
+  const t = new Date(Date.now() + 86400000);
+  assert.equal(editorField(app, "Starts").value, keyOf(t) + "T10:00");
+});
+
+test("the day after tomorrow is schedulable as well", async () => {
+  const app = loadApp({ fetchImpl: calendarBackend().impl });
+  await openCalendar(app);
+
+  const cells = app.document.querySelectorAll("#calDayCur .cal-cell:not(.cal-allday)");
+  cells[15 * 3 + 2].click();
+
+  const t = new Date(Date.now() + 2 * 86400000);
+  assert.equal(editorField(app, "Starts").value, keyOf(t) + "T15:00");
+});
+
+test("tapping a chip in a peek column opens that entry rather than a new one", async () => {
+  const tomorrow = new Date(Date.now() + 86400000);
+  tomorrow.setHours(11, 0, 0, 0);
+  const backend = calendarBackend({
+    events: [{ id: "e5", calendarId: "primary", writable: true, title: "Dentist", start: tomorrow.toISOString(), calendar: "Yawar" }],
+  });
+  const app = loadApp({ fetchImpl: backend.impl });
+  await openCalendar(app);
+
+  const mini = app.document.querySelector("#calDayCur .cal-mini");
+  assert.ok(mini, "the event should show in the peek column");
+  mini.click();
+  assert.match(app.document.querySelector("#modalBody h2").textContent, /Event/);
+  assert.equal(editorField(app, "Title").value, "Dentist");
+});
+
+test("a Google Task with no time says why it is in the all-day row", async () => {
+  const today = keyOf(new Date());
+  const app = loadApp({
+    fetchImpl: backendWithTasks([{ id: "gt1", title: "Internet bill", due: today + "T00:00:00.000Z", allDay: true, list: "My Tasks", listId: "l1" }]),
+  });
+  await openCalendar(app);
+
+  app.document.querySelector("#calDayCur .cal-chip.is-gtask").click();
+  const body = app.document.querySelector("#modalBody").textContent;
+  assert.match(body, /only shares the date/i, "the API limitation should be stated, not hidden");
+});
