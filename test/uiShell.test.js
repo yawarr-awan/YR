@@ -332,3 +332,14 @@ test("the notes-for-the-day card is gone from Today, and past notes are left unt
   // Removing a card must not quietly delete what was written in it.
   assert.equal(app.state().days[key].notes, "felt okay", "the stored note survives");
 });
+
+test("Today's cards run in the order the day does, with medicines after the meals", () => {
+  const app = loadApp({});
+  const order = Array.from(app.document.querySelectorAll("#view-today .card.collapsible"))
+    .map((c) => c.getAttribute("data-collapse"));
+  // The medicines are taken around the food - pre-breakfast, after-breakfast,
+  // after-dinner - so the card belongs below it, not above.
+  assert.ok(order.indexOf("meds") > order.indexOf("meals"),
+    `medicines should follow the meals, got: ${order.join(", ")}`);
+  assert.ok(order.indexOf("extras") < order.indexOf("meals"), "supplements still lead");
+});
