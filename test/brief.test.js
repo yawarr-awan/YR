@@ -107,3 +107,32 @@ test("clicking Refresh calls POST /api/brief/refresh and re-renders with the new
   assert.equal(refreshCalled, true);
   assert.equal(app.document.getElementById("briefText").textContent, "Freshly generated.");
 });
+
+test("a schedule-style brief renders as headings and bullets, not one block of text", async () => {
+  const summary = "Today\n- 09:30 Standup [Work]\n- 14:00 Donation collection [Family]\n- Cancel Uber 1 (overdue)\n\nTomorrow\n- 11:00 Dentist\n- Nothing else";
+  const app = loadApp({
+    fetchImpl: async () => ({ ok: true, status: 200, json: async () => ({ connected: true, status: "ok", day: "2026-08-10", summary, generated_at: Date.now() }) }),
+  });
+  await app.flush();
+  await app.flush();
+
+  const heads = Array.from(app.document.querySelectorAll("#briefText .brief-head")).map((h) => h.textContent);
+  assert.deepEqual(heads, ["Today", "Tomorrow"]);
+
+  const lists = app.document.querySelectorAll("#briefText .brief-list");
+  assert.equal(lists.length, 2, "each day gets its own list");
+  assert.equal(lists[0].querySelectorAll("li").length, 3);
+  assert.equal(lists[1].querySelectorAll("li").length, 2);
+  assert.equal(lists[0].querySelectorAll("li")[0].textContent, "09:30 Standup [Work]", "the bullet marker itself is not printed");
+});
+
+test("a status message still reads as a plain line", async () => {
+  const app = loadApp({
+    fetchImpl: async () => ({ ok: true, status: 200, json: async () => ({ connected: false, status: "not_connected" }) }),
+  });
+  await app.flush();
+  await app.flush();
+
+  assert.equal(app.document.querySelectorAll("#briefText .brief-list").length, 0);
+  assert.match(app.document.getElementById("briefText").textContent, /Connect your Google Calendar/i);
+});

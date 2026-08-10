@@ -732,6 +732,26 @@ Found by checking the whole path in real Chromium rather than only jsdom.
   field stays in every day record and in `blankDay()` - dropping it would
   destroy what was already written and break round-tripping of old exports.
 
+## Two-day brief, list format (1.18.0)
+- `generateBrief` fetches **today and tomorrow in one ranged call**
+  (`timeMin` = today's start, `timeMax` = tomorrow's end) and splits the
+  result with `localDayOf()`; listing the calendars twice for consecutive
+  days would be waste. Today is still filtered to what has not ended;
+  tomorrow never is.
+- `fetchTasks(token, day, tomorrow)` gained a `dueTomorrow` bucket. Anything
+  further out is still excluded - the brief covers two days.
+- `nextDay()` does the date arithmetic in UTC so no DST shift can move it,
+  and `localDayOf()` returns an all-day item's bare date untouched (parsing
+  one as a Date reads UTC midnight and can land on the wrong day).
+- `DEFAULT_BRIEF_PROMPT` now asks for a **bulleted Today/Tomorrow list with
+  no prose**, and the client renders it with `renderBriefBody()`: a short
+  line with no terminal punctuation is a heading, `- `/`* `/`• ` lines group
+  into a `<ul>`, anything else is a paragraph. That last branch is what keeps
+  the status messages ("Connect your Google Calendar…") rendering sensibly.
+- **A saved custom prompt still overrides the default**, so changing
+  `DEFAULT_BRIEF_PROMPT` does nothing for a user who has one stored in
+  `user_settings`; they have to Reset in Settings.
+
 ## Honest caveat
 The "Client-side sync layer," "Access + hosting," and "Current data state"
 sections above were re-verified live in this session (2026-08-09): read

@@ -404,6 +404,29 @@ function dayBoundsForDate(timeZone, day) {
   return { day, timeMin: `${day}T00:00:00${offset}`, timeMax: `${day}T23:59:59${offset}` };
 }
 
+/** The day after a `YYYY-MM-DD`, done in UTC so no local DST shift can move
+ * it. Date arithmetic on the string itself would break across month ends. */
+function nextDay(day) {
+  const d = new Date(`${day}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + 1);
+  return d.toISOString().slice(0, 10);
+}
+
+/** Which local calendar day something falls on in `timeZone`. An all-day
+ * item already carries a bare date and is used as-is - parsing one as a Date
+ * reads it as UTC midnight and can land on the wrong day. */
+function localDayOf(timeZone, when) {
+  const s = String(when || "");
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  const d = new Date(s);
+  if (Number.isNaN(d.getTime())) return null;
+  const p = Object.fromEntries(
+    new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" })
+      .formatToParts(d).map((x) => [x.type, x.value])
+  );
+  return `${p.year}-${p.month}-${p.day}`;
+}
+
 /** Local midnight-to-midnight bounds for "now" in `timeZone`. */
 function localDayBounds(timeZone, now) {
   const parts = Object.fromEntries(
@@ -490,8 +513,8 @@ async function fetchEventsForRange(accessToken, calendars, timeMin, timeMax) {
  * on the due date: Google Tasks stores `due` as a date (midnight UTC) and
  * most tasks have no due date at all, so a dueMin/dueMax window silently
  * dropped both undated and overdue work - the very things worth surfacing. */
-async function fetchTasks(accessToken, day) {
-  const out = { dueToday: [], overdue: [], undatedCount: 0, error: null };
+async function fetchTasks(accessToken, day, tomorrow) {
+  const out = { dueToday: [], dueTomorrow: [], overdue: [], undatedCount: 0, error: null };
   try {
     const listsRes = await fetch("https://tasks.googleapis.com/tasks/v1/users/@me/lists?maxResults=100", {
       headers: { authorization: `Bearer ${accessToken}` },
@@ -525,7 +548,8 @@ async function fetchTasks(accessToken, day) {
         const dueDay = String(t.due).slice(0, 10);
         if (dueDay < day) out.overdue.push(entry);
         else if (dueDay === day) out.dueToday.push(entry);
-        /* Later than today: not part of a brief about today. */
+        else if (tomorrow && dueDay === tomorrow) out.dueTomorrow.push(entry);
+        /* Anything further out is beyond what the brief covers. */
       }
     }
   } catch (e) {
@@ -535,18 +559,27 @@ async function fetchTasks(accessToken, day) {
 }
 
 const DEFAULT_BRIEF_PROMPT =
-  "You are a concise personal daily-briefing assistant. Everything below is what is still " +
-  "outstanding - events that have already finished were removed on purpose, so do not imply " +
-  "the day is just starting.\n\n" +
-  "Cover ALL of it: the calendar events AND the Google Tasks. The events span every calendar " +
-  "the person can see, including shared, family and secondary ones - the bracketed tag names " +
-  "the source calendar or task list. Treat them all as equally real; do not skip a section " +
-  "because it is short.\n\n" +
-  "Write a clear, friendly summary (up to 6 sentences). Say what is left on the schedule, call " +
-  "out any tight back-to-back timings or free stretches, and then say what needs doing - naming " +
-  "overdue tasks first, since those are the ones slipping. Do not open with a time-of-day " +
-  "greeting like \"Good morning\" or \"Good evening\". Do not invent anything not listed below. " +
-  "Plain text, no markdown.";
+  "Return a schedule list and nothing else. No sentences, no summary, no greeting, no advice, " +
+  "no commentary before or after.\n\n" +
+  "Use exactly this shape:\n" +
+  "Today\n" +
+  "- 09:30 Standup [Work]\n" +
+  "- 14:00 Donation collection [Family]\n" +
+  "- Cancel Uber 1 (overdue)\n" +
+  "\n" +
+  "Tomorrow\n" +
+  "- 11:00 Dentist\n" +
+  "- All day Internet bill [My Tasks]\n\n" +
+  "Rules:\n" +
+  "- One bullet per calendar event and per task. Never merge two into one line.\n" +
+  "- Start each bullet with its time exactly as given, or \"All day\" if it has none.\n" +
+  "- Then the name, then its calendar or task list in square brackets if one is given.\n" +
+  "- Order each section by time; items with no time go last.\n" +
+  "- Overdue tasks belong under Today, marked (overdue), and come first in that section.\n" +
+  "- Always print both the Today and Tomorrow headings. If a section has nothing, its only " +
+  "bullet is \"- Nothing scheduled\".\n" +
+  "- Events that already finished today were removed on purpose; do not mention them.\n" +
+  "- Cover every calendar and task list shown below, however short. Invent nothing.";
 
 /* The brief's instructions are user-editable (Settings tab). The data
    sections are always appended by summarizeWithGemini, so a custom prompt
@@ -590,22 +623,22 @@ async function handlePutBriefPrompt(request, env, email) {
   return json({ prompt, default: DEFAULT_BRIEF_PROMPT });
 }
 
-async function summarizeWithGemini(env, day, events, tasks, now, instructions) {
+async function summarizeWithGemini(env, day, events, tasks, now, instructions, tomorrow) {
   if (!env.GEMINI_API_KEY) throw new Error("Gemini API key not configured");
 
   const nowLabel = (now || new Date()).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: BRIEF_TIMEZONE });
 
-  const eventLines = events.length
-    ? events.map((e) => {
+  const eventBlock = (list, emptyText) => (list && list.length
+    ? list.map((e) => {
         const when = e.allDay
           ? "All day"
           : new Date(e.start).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: BRIEF_TIMEZONE });
         const cal = e.calendar ? ` [${e.calendar}]` : "";
         return `- ${when}: ${e.title}${e.location ? ` (${e.location})` : ""}${cal}`;
       }).join("\n")
-    : "(No calendar events remaining today.)";
+    : emptyText);
 
-  const t = tasks || { dueToday: [], overdue: [], undatedCount: 0 };
+  const t = tasks || { dueToday: [], dueTomorrow: [], overdue: [], undatedCount: 0 };
   const taskBlock = (label, list, cap) => {
     if (!list || !list.length) return `${label}:\n(none)`;
     const shown = cap ? list.slice(0, cap) : list;
@@ -614,13 +647,18 @@ async function summarizeWithGemini(env, day, events, tasks, now, instructions) {
     return `${label}:\n${lines}${more}`;
   };
 
+  const tm = tomorrow || {};
   const prompt =
     `${(instructions || DEFAULT_BRIEF_PROMPT)}\n\n` +
     `It is currently ${nowLabel} on ${day}.\n\n` +
-    `Remaining events today:\n${eventLines}\n\n` +
+    `TODAY (${day})\n` +
+    `Remaining events:\n${eventBlock(events, "(No calendar events remaining today.)")}\n\n` +
     `${taskBlock("Tasks due today", t.dueToday)}\n\n` +
-    `${taskBlock("Overdue tasks", t.overdue, 10)}` +
-    (t.undatedCount ? `\n\n(${t.undatedCount} further task(s) have no due date and are not part of today.)` : "");
+    `${taskBlock("Overdue tasks", t.overdue, 10)}\n\n` +
+    `TOMORROW (${tm.day || nextDay(day)})\n` +
+    `Events:\n${eventBlock(tm.events, "(No calendar events tomorrow.)")}\n\n` +
+    `${taskBlock("Tasks due tomorrow", t.dueTomorrow)}` +
+    (t.undatedCount ? `\n\n(${t.undatedCount} further task(s) have no due date and belong to neither day.)` : "");
 
   const res = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${env.GEMINI_API_KEY}`,
@@ -660,15 +698,24 @@ async function generateBrief(env, email, now) {
   const tokenResult = await getGoogleAccessToken(env, email);
   if (tokenResult.error) return { status: tokenResult.error, day };
 
-  let events;
+  /* The brief covers today and tomorrow, so both days are fetched in one
+     range - listing the calendars twice for two consecutive days would be
+     pure waste - and then split by their local date. */
+  const tomorrowDay = nextDay(day);
+  const { timeMax: tomorrowMax } = dayBoundsForDate(BRIEF_TIMEZONE, tomorrowDay);
+
+  let events, tomorrowEvents;
   try {
     const calendars = await listCalendars(tokenResult.accessToken);
-    const allEvents = await fetchEventsForRange(tokenResult.accessToken, calendars, timeMin, timeMax);
-    // A refresh triggered mid-day should talk about what's left, not
-    // re-describe meetings that already happened - drop anything whose
-    // end time (or start, for events missing one) is already in the past.
+    const allEvents = await fetchEventsForRange(tokenResult.accessToken, calendars, timeMin, tomorrowMax);
+    const todayAll = allEvents.filter((e) => localDayOf(BRIEF_TIMEZONE, e.start) === day);
+    tomorrowEvents = allEvents.filter((e) => localDayOf(BRIEF_TIMEZONE, e.start) === tomorrowDay);
+    // A refresh triggered mid-day should talk about what's left of today, not
+    // re-describe meetings that already happened - drop anything whose end
+    // time (or start, for events missing one) is already in the past.
+    // Tomorrow is never filtered: none of it has happened yet.
     const nowMs = effectiveNow.getTime();
-    events = allEvents.filter((e) => {
+    events = todayAll.filter((e) => {
       const endMs = new Date(e.end || e.start).getTime();
       return !Number.isFinite(endMs) || endMs > nowMs;
     });
@@ -678,11 +725,14 @@ async function generateBrief(env, email, now) {
     return { status: "calendar_error", day, error: detail };
   }
 
-  const tasks = await fetchTasks(tokenResult.accessToken, day);
+  const tasks = await fetchTasks(tokenResult.accessToken, day, tomorrowDay);
 
   let summary;
   try {
-    summary = await summarizeWithGemini(env, day, events, tasks, effectiveNow, await getBriefPrompt(env, email));
+    summary = await summarizeWithGemini(
+      env, day, events, tasks, effectiveNow, await getBriefPrompt(env, email),
+      { day: tomorrowDay, events: tomorrowEvents }
+    );
   } catch (e) {
     const detail = String(e.message || e);
     await saveBriefStatus(env, email, day, "gemini_error", null, detail);
@@ -1117,6 +1167,8 @@ export default {
 export {
   localDayBounds,
   dayBoundsForDate,
+  nextDay,
+  localDayOf,
   utcOffsetMinutes,
   getGoogleAccessToken,
   listCalendars,
