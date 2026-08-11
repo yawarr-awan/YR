@@ -509,22 +509,25 @@ test("a peek column draws an event to its real length, not as a fixed label", as
     .find((m) => m.textContent === title);
 
   // An hour long, starting on the hour.
-  const pct = (v) => Number(String(v).replace("%", ""));   // jsdom trims 0.000% to 0%
+  // Measured in rows, not percentages: a percentage resolves against the
+  // cell's content box, which is a border and two paddings shorter than the
+  // row, so a four-hour event came out three rows tall.
+  const rows = (v) => Number((String(v).match(/var\(--cal-row\) \* ([\d.]+)/) || [])[1]);
   const ob = mini("Obstetric appointment");
   assert.ok(ob.classList.contains("is-timed"));
-  assert.equal(pct(ob.style.top), 0);
-  assert.equal(pct(ob.style.height), 100, "an hour should look like an hour");
+  assert.equal(rows(ob.style.top), 0);
+  assert.equal(rows(ob.style.height), 1, "an hour should be one row");
 
   // A quarter of an hour, starting halfway down it - and beside the other
   // one rather than on top of it, since both are positioned now.
   const qs = mini("Quick sync");
-  assert.equal(pct(qs.style.top), 50);
-  assert.equal(pct(qs.style.height), 25);
+  assert.equal(rows(qs.style.top), 0.5);
+  assert.equal(rows(qs.style.height), 0.25);
   assert.notEqual(qs.style.insetInlineStart, ob.style.insetInlineStart);
 
   // Two and a half hours: it runs past its own cell into the ones it covers.
-  assert.equal(pct(mini("Workshop").style.height), 250);
-  assert.equal(pct(mini("Workshop").style.top), 50);
+  assert.equal(rows(mini("Workshop").style.height), 2.5);
+  assert.equal(rows(mini("Workshop").style.top), 0.5);
 });
 
 test("an all-day chip is not positioned by time - there is no time to position it by", async () => {
@@ -557,4 +560,37 @@ test("the legend calls the sunrise window Chasht, the way everything else does",
   const legend = app.document.getElementById("calLegend").textContent;
   assert.match(legend, /Chasht/);
   assert.doesNotMatch(legend, /Sunrise/, "the legend was the last place still naming the astronomical event");
+});
+
+test("the focused column sizes an event by its length too, not just the peeks", async () => {
+  const at = (h, m) => { const d = new Date(); d.setHours(h, m || 0, 0, 0); return d.toISOString(); };
+  const app = loadApp({
+    fetchImpl: fetchRouter([
+      ["/api/calendar/events", () => jsonRes({ connected: true, status: "ok", events: [
+        { id: "e1", calendarId: "p", title: "Birthday", start: at(17, 0), end: at(21, 0), writable: true, calendar: "Family" },
+        { id: "e2", calendarId: "p", title: "Cancel membership", start: at(16, 0), end: at(16, 30), writable: true, calendar: "Family" },
+      ] })],
+      ["/api/prayer", () => jsonRes({ source: "ummahapi", timings: { Fajr: "04:45", Sunrise: "05:50", Dhuhr: "13:00", Asr: "17:00", Maghrib: "20:30", Isha: "22:00" } })],
+    ]),
+  });
+  app.goTo("calendar");
+  await app.flush();
+  await app.flush();
+
+  const chip = (title) => [...app.document.querySelectorAll("#calDayCur .cal-chip")]
+    .find((c) => c.querySelector(".cal-chip-title").textContent === title);
+  const rows = (v) => Number((String(v).match(/var\(--cal-row\) \* ([\d.]+)/) || [])[1]);
+
+  // Four hours is four rows. It was one, the height coming from how much
+  // text happened to fit rather than from when the event ends.
+  const bday = chip("Birthday");
+  assert.ok(bday.classList.contains("is-timed"));
+  assert.equal(rows(bday.style.height), 4);
+
+  // Half an hour is half a row - it must not stretch to fit its own text.
+  assert.equal(rows(chip("Cancel membership").style.height), 0.5);
+
+  // Inside .cal-hour-events, so it cancels that box's top padding to line up
+  // with the top of its hour; a peek chip sits against the cell and doesn't.
+  assert.match(bday.style.top, /var\(--cal-pad-t\)/);
 });

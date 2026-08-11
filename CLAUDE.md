@@ -654,7 +654,26 @@ Found by checking the whole path in real Chromium rather than only jsdom.
   agenda but is surfaced in `#calStatus`.
 - Client: entries of `kind:"gtask"` are read-only (the OAuth scope is
   `tasks.readonly`, so there is nothing to save back) and always all-day.
-- **Peek-column chips are drawn to the event's length** (1.21.2).
+- **Both columns draw an event to its length** (peek 1.21.2, focused
+  1.23.0), through the shared `placeByTime()`. **The maths is in `--cal-row`
+  units, not percentages**: a percentage resolves against the cell's content
+  box, which is a border and two paddings shorter than the row, so a
+  four-hour event came out three rows tall. A chip inside `.cal-hour-events`
+  passes `inset:true` to cancel that box's top padding; a peek chip is
+  positioned against the cell and doesn't. Chips are `overflow:hidden` and
+  never grow to fit their text - a chip that stretched would be lying about
+  when the event ends.
+- **`[hidden]{display:none!important}` is load-bearing** (1.23.0). `hidden`
+  is only the UA stylesheet's `display:none`, so any author rule with a
+  display beats it - `.row2` is a flex row, and the all-day toggle appeared
+  to do nothing in Chromium while passing in jsdom, which reads the property
+  rather than the cascade. Don't remove it.
+- **All-day creation** (1.23.0): the client sends `allDay:true` + a local
+  `day`, never an instant - deriving a date from an instant lands on the
+  wrong side of midnight in some zones. The Worker sends Google
+  `{start:{date}, end:{date}}` with an **exclusive** end (`nextDay()`), which
+  is a day out if you forget.
+- (superseded) **Peek-column chips are drawn to the event's length** (1.21.2).
   `calMini(x, place)` takes `{hour, index, of}` and sets `top` from the
   start's minute-within-the-hour and `height` from `calEntryDuration()`, both
   as a percentage of one hour. A long event therefore overflows its cell on
