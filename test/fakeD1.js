@@ -10,6 +10,7 @@
 function createFakeD1() {
   const googleTokens = new Map(); // user_email -> row
   const dailyBrief = new Map(); // `${email}|${day}` -> row
+  const duas = new Map(); // `${email}|${id}` -> row
 
   // Real D1 statements support .first()/.all()/.run() directly on the
   // prepared statement (no bind() needed when there are nothing to bind),
@@ -28,11 +29,24 @@ function createFakeD1() {
           const [email, day] = args;
           return dailyBrief.get(`${email}|${day}`) || null;
         }
+        if (/FROM dua_images/.test(sql)) {
+          const [email, id] = args;
+          return duas.get(`${email}|${id}`) || null;
+        }
         return null;
       },
       async all() {
         if (/FROM google_tokens/.test(sql)) {
           return { results: Array.from(googleTokens.keys()).map((user_email) => ({ user_email })) };
+        }
+        if (/FROM dua_images/.test(sql)) {
+          const email = args[0];
+          return {
+            results: Array.from(duas.values())
+              .filter((r) => r.user_email === email)
+              .sort((a, b) => a.created_at - b.created_at)
+              .map(({ id, name, created_at }) => ({ id, name, created_at })),
+          };
         }
         return { results: [] };
       },
@@ -44,6 +58,11 @@ function createFakeD1() {
           const [access_token, access_token_expires_at, updated_at, email] = args;
           const row = googleTokens.get(email) || {};
           googleTokens.set(email, { ...row, access_token, access_token_expires_at, updated_at });
+        } else if (/INSERT INTO dua_images/.test(sql)) {
+          const [user_email, id, name, mime, data, created_at] = args;
+          duas.set(`${user_email}|${id}`, { user_email, id, name, mime, data, created_at });
+        } else if (/DELETE FROM dua_images/.test(sql)) {
+          duas.delete(`${args[0]}|${args[1]}`);
         } else if (/INSERT INTO daily_brief/.test(sql)) {
           const [email, day, summary, status, error, generated_at] = args;
           dailyBrief.set(`${email}|${day}`, { summary, status, error, generated_at });

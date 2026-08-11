@@ -1,0 +1,179 @@
+"use strict";
+/*
+ * Du'as: pictures the user uploads in Misc → Duas and links to a dhikr item.
+ * The picture lives behind /api/duas (the link rides the synced profile, so a
+ * second device has to be able to fetch what the link points at); the link
+ * itself is profile.duaLinks["<period>|<item key>"].
+ *
+ * Real index.html in a real DOM, with only the network boundary mocked.
+ */
+const test = require("node:test");
+const { after } = require("node:test");
+const assert = require("node:assert/strict");
+const { loadApp, closeAllApps } = require("./lib.js");
+after(closeAllApps);
+
+function jsonRes(body, status = 200) {
+  return { ok: status >= 200 && status < 300, status, json: async () => body };
+}
+
+/* One dua on the server, plus the idle brief every load asks for. */
+function backend(duas = [], opts = {}) {
+  const posted = [];
+  const deleted = [];
+  const impl = async (url, init) => {
+    const u = String(url);
+    if (u.startsWith("/api/duas") && init && init.method === "POST") {
+      const body = JSON.parse(init.body);
+      posted.push(body);
+      if (opts.rejectUpload) return jsonRes({ error: "that image is too large" }, 413);
+      const dua = { id: "d" + (duas.length + 1), name: body.name || "Du'a", created_at: Date.now() };
+      duas.push(dua);
+      return jsonRes({ dua });
+    }
+    if (u.startsWith("/api/duas/") && init && init.method === "DELETE") {
+      const id = u.slice("/api/duas/".length);
+      deleted.push(id);
+      const at = duas.findIndex((d) => d.id === id);
+      if (at >= 0) duas.splice(at, 1);
+      return jsonRes({ ok: true });
+    }
+    if (u === "/api/duas") {
+      if (opts.listFails) return jsonRes({ error: "nope" }, 500);
+      return jsonRes({ duas: duas.slice() });
+    }
+    return jsonRes({ connected: false, status: "not_connected" });
+  };
+  impl.posted = posted;
+  impl.deleted = deleted;
+  return impl;
+}
+
+async function openDuas(app) {
+  app.goTo("others");
+  app.document.querySelector('[data-sub="duas"]').click();
+  await app.flush();
+  await app.flush();
+}
+
+function duaCards(app) {
+  return Array.from(app.document.querySelectorAll("#duasBox .dua-card"));
+}
+
+test("Duas is a sub-tab of Misc and lists what the server holds", async () => {
+  const app = loadApp({ fetchImpl: backend([{ id: "d1", name: "Morning du'a", created_at: 1 }]) });
+  await openDuas(app);
+
+  assert.equal(app.document.querySelector(".subview.active").id, "sub-duas");
+  const cards = duaCards(app);
+  assert.equal(cards.length, 1);
+  assert.match(cards[0].textContent, /Morning du'a/);
+  assert.equal(cards[0].querySelector("img.dua-thumb").getAttribute("src"), "/api/duas/d1",
+    "the picture is fetched from the server, not carried in the list");
+});
+
+test("with nothing uploaded it says so rather than showing an empty box", async () => {
+  const app = loadApp({ fetchImpl: backend([]) });
+  await openDuas(app);
+  assert.match(app.document.getElementById("duasBox").textContent, /Nothing here yet/i);
+});
+
+test("a server that won't answer is reported, and does not leave it loading forever", async () => {
+  const app = loadApp({ fetchImpl: backend([], { listFails: true }) });
+  await openDuas(app);
+  assert.doesNotMatch(app.document.getElementById("duasBox").textContent, /Loading/);
+  assert.match(app.document.getElementById("duaStatus").textContent, /couldn't load/i);
+});
+
+test("linking a du'a to a dhikr item stores it on the synced profile", async () => {
+  const app = loadApp({ fetchImpl: backend([{ id: "d1", name: "Morning du'a", created_at: 1 }]) });
+  await openDuas(app);
+
+  const before = (app.state() && app.state().profile.updated_at) || 0;
+  const box = duaCards(app)[0].querySelector(".dua-links");
+  const first = box.querySelector("input[type=checkbox]");
+  assert.ok(first, "every dhikr item is offered as a link target");
+  first.checked = true;
+  first.dispatchEvent(new app.window.Event("change", { bubbles: true }));
+
+  const links = app.state().profile.duaLinks;
+  const keys = Object.keys(links);
+  assert.equal(keys.length, 1);
+  assert.equal(links[keys[0]], "d1");
+  assert.match(keys[0], /^morning\|/, "keyed by period and the item's key, not its label");
+  assert.ok(app.state().profile.updated_at >= before, "a link must stamp the profile or it never syncs");
+});
+
+test("a linked dhikr item grows a button that opens the picture", async () => {
+  const app = loadApp({ fetchImpl: backend([{ id: "d1", name: "Morning du'a", created_at: 1 }]) });
+  await openDuas(app);
+  const cb = duaCards(app)[0].querySelector(".dua-links input[type=checkbox]");
+  cb.checked = true;
+  cb.dispatchEvent(new app.window.Event("change", { bubbles: true }));
+
+  app.goTo("prayers");
+  const opener = app.document.querySelector("#dhikrBox .dua-open");
+  assert.ok(opener, "the linked item offers a way in");
+
+  opener.dispatchEvent(new app.window.MouseEvent("click", { bubbles: true, cancelable: true }));
+  assert.ok(app.document.getElementById("overlay").classList.contains("open"), "it opens the modal");
+  assert.equal(app.document.querySelector("#modalBody img.dua-full").getAttribute("src"), "/api/duas/d1");
+});
+
+test("opening the du'a does not also tick the dhikr item off", async () => {
+  const app = loadApp({ fetchImpl: backend([{ id: "d1", name: "Morning du'a", created_at: 1 }]) });
+  await openDuas(app);
+  const cb = duaCards(app)[0].querySelector(".dua-links input[type=checkbox]");
+  cb.checked = true;
+  cb.dispatchEvent(new app.window.Event("change", { bubbles: true }));
+
+  app.goTo("prayers");
+  const row = app.document.querySelector("#dhikrBox .chk");
+  row.querySelector(".dua-open").dispatchEvent(new app.window.MouseEvent("click", { bubbles: true, cancelable: true }));
+  assert.equal(row.querySelector("input[type=checkbox]").checked, false,
+    "the row is a label wrapping the checkbox, so the button has to stop the click");
+});
+
+test("an unlinked dhikr item has no opener", async () => {
+  const app = loadApp({ fetchImpl: backend([]) });
+  app.goTo("prayers");
+  assert.equal(app.document.querySelector("#dhikrBox .dua-open"), null);
+});
+
+test("removing a du'a also removes every link pointing at it", async () => {
+  const impl = backend([{ id: "d1", name: "Morning du'a", created_at: 1 }]);
+  const app = loadApp({ fetchImpl: impl });
+  await openDuas(app);
+  const cb = duaCards(app)[0].querySelector(".dua-links input[type=checkbox]");
+  cb.checked = true;
+  cb.dispatchEvent(new app.window.Event("change", { bubbles: true }));
+  assert.equal(Object.keys(app.state().profile.duaLinks).length, 1);
+
+  Array.from(duaCards(app)[0].querySelectorAll("button"))
+    .find((b) => /remove/i.test(b.textContent)).click();
+  await app.flush();
+  await app.flush();
+
+  assert.deepEqual(impl.deleted, ["d1"]);
+  assert.deepEqual(app.state().profile.duaLinks, {}, "a link to a deleted picture would open nothing");
+  assert.equal(app.document.querySelector("#dhikrBox .dua-open"), null);
+});
+
+test("uploading sends a resized data URL, and a refusal is reported", async () => {
+  const impl = backend([], { rejectUpload: true });
+  const app = loadApp({ fetchImpl: impl });
+  await openDuas(app);
+
+  // jsdom has no real file picker; this is the shape the change event leaves.
+  const file = new app.window.File(["x"], "Ayat al-Kursi.png", { type: "image/png" });
+  Object.defineProperty(app.document.getElementById("duaFile"), "files", { value: [file], configurable: true });
+  app.click("duaAddBtn");
+  await app.flush();
+  await app.flush();
+  await app.flush();
+
+  assert.equal(impl.posted.length, 1, "one upload attempt");
+  assert.equal(impl.posted[0].name, "Ayat al-Kursi", "the extension is not part of the name");
+  assert.match(impl.posted[0].dataUrl, /^data:image\//);
+  assert.match(app.document.getElementById("duaStatus").textContent, /couldn't add it/i);
+});

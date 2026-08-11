@@ -68,7 +68,7 @@ test("meals, recipes and movement share one Others tab with its own sub-tabs", (
   assert.equal(app.document.querySelector(".view.active").id, "view-others");
 
   const subs = Array.from(app.document.querySelectorAll("#subTabs button"));
-  assert.deepEqual(subs.map((b) => b.getAttribute("data-sub")), ["plan", "recipes", "exercises"]);
+  assert.deepEqual(subs.map((b) => b.getAttribute("data-sub")), ["plan", "recipes", "exercises", "duas"]);
   assert.equal(app.document.querySelector(".subview.active").id, "sub-plan");
   assert.ok(app.document.getElementById("planBox").textContent.length, "the meal plan still renders");
 
@@ -88,6 +88,8 @@ test("inside Others a swipe steps through the sub-tabs before leaving the tab", 
   assert.equal(activeSub(), "sub-recipes");
   app.swipe(".wrap", -120, 0);
   assert.equal(activeSub(), "sub-exercises");
+  app.swipe(".wrap", -120, 0);
+  assert.equal(activeSub(), "sub-duas");
   assert.equal(activeView(), "view-others", "still inside Others");
 
   // Nowhere further to go inside the tab, so now it moves on.

@@ -370,7 +370,7 @@ test("a dateless Google Task due that day shows on the calendar as an all-day en
   assert.match(gchips[0].textContent, /Renew passport/);
   assert.match(gchips[0].textContent, /Google Task/);
   assert.match(gchips[0].textContent, /My Tasks/, "the list it came from is worth knowing");
-  assert.match(gchips[0].textContent, /All day/, "Google Tasks carry a date, not a time");
+  assert.match(gchips[0].title, /All day/, "Google Tasks carry a date, not a time");
 });
 
 test("a Google Task due another day does not appear on this one", async () => {
@@ -390,7 +390,7 @@ test("a Google Task with a time sits at that hour, not in the all-day row", asyn
 
   const hour13 = mainCells(app)[13].querySelector(".cal-chip.is-gtask");
   assert.ok(hour13, "expected it in the 1 PM row");
-  assert.match(hour13.textContent, /1:00 PM/);
+  assert.match(hour13.title, /1:00 PM/, "the time is in the tooltip; the row it sits in is the display");
   assert.equal(app.document.querySelectorAll("#calDayCur .cal-allday .cal-chip.is-gtask").length, 0);
 });
 

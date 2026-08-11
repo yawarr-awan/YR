@@ -1090,6 +1090,60 @@ endpoint; `test/calendarTab.test.js` for the current-window ring;
   width at 390px, where the row already holds a checkbox, title, date and two
   buttons.
 
+## Sync redraw, du'as, task dragging, week calendar (1.25.0)
+- **The sync bug the user reported as "the prayer summary doesn't match" was a
+  *render* bug, not a data one.** `runSync()` redrew `renderToday`,
+  `renderProgress` and `renderTasks` only, so a pulled change never reached
+  the prayer summary, the qada card, or any Settings editor (the medicine /
+  extras / dhikr lists live on the **synced profile**). The data was in
+  `state` and in localStorage; the screen was stale until a tab change or a
+  reload. `renderAll()` is now the single redraw for "the whole store was
+  replaced under the UI" - sync and backup-restore both call it. **Add new
+  views to `renderAll`, not to `runSync`.** `test/sync.test.js` pins it: the
+  test fails if `runSync` goes back to redrawing three things.
+- `onResume()` also syncs (`RESUME_SYNC_MS`, 60s, throttled). An installed app
+  is resumed rather than reloaded, so the startup sync could be days old.
+- **The remaining sync caveat is real and unfixed**: last-write-wins is per
+  *day*, so two devices editing the same day concurrently lose one side's
+  edit, and the comparison is on each device's own clock. A per-field merge or
+  a server-assigned sequence would be needed; see the 1.11.0 note.
+- **Du'as** (`/api/duas`, `dua_images` table, created lazily with
+  `CREATE TABLE IF NOT EXISTS` like `user_settings`). The picture is in D1
+  rather than on the device **because the link rides the synced profile** -
+  `profile.duaLinks["<period>|<item key>"] = <dua id>` - so any device that
+  pulls the link must be able to fetch what it points at. Keyed on the dhikr
+  item's *key*, never its label, so renaming an item in Settings keeps its
+  du'a. `MAX_DUA_BYTES` is 900KB and the client downscales on a canvas first
+  (`DUA_MAX_PX` 1600, JPEG); D1 is not a blob store, so an oversize image is
+  refused rather than truncated. Deleting a du'a clears every link to it.
+  `renderDuas()` paints the held list and **always refetches** - a du'a added
+  on another device would otherwise never appear.
+- **Task dragging** replaced the ▲▼ pair. Pointer events, not HTML5 DnD (which
+  never fires on touch); `pointermove`/`pointerup` are bound to the
+  **document**, not the grip, because grabbing a grip expands a collapsed list
+  and that replaces the element the gesture started on. `.task-grip` needs
+  `touch-action:none` or the browser claims the gesture as a scroll.
+  `reorderTask()` is an insertion and renumbers everything; the done-last sort
+  is stable, so dropping an open task among the ticked ones lands it at the
+  end of the open block instead of pretending it is done.
+- **The calendar is a Mon-Sun week at >=`CAL_WIDE_MIN` (900px)**, three days
+  below it. `calCols()` is the one switch; the focused column is
+  `CAL_WIDE_FOCUS_FR` (2fr) and is **not necessarily the first**, which is why
+  the wide layout has a `.cal-gutter` column for the hour labels - they used
+  to live inside the `.is-main` cell and would otherwise appear mid-grid.
+  `ensureCalWindow`/`renderCalPanels` derive their day range from `calCols()`,
+  and `CAL_WINDOW_PAD` is 10 to cover it. A resize only rebuilds when the
+  column count actually changed.
+- **jsdom's `innerWidth` is 1024, i.e. a desktop to this app.** `test/lib.js`
+  now pins it to 390 unless a test asks otherwise - without that, every
+  calendar test silently started asserting against the week layout.
+- **Chips carry no clock time** and are sized from their slot
+  (`--chip-rows` set by `placeByTime`, `font-size:clamp(...)`). A chip may
+  never grow to fit its text - its height is how long the event runs - so the
+  text shrinks instead. Under 1.6 rows it also drops the meta line.
+- `.cal-cell.current-hour` **keeps the class and loses the outline**: the class
+  is what the tab scrolls to on open, the ring was noise over the now-line.
+
 ## Honest caveat
 The "Client-side sync layer," "Access + hosting," and "Current data state"
 sections above were re-verified live in this session (2026-08-09): read

@@ -1263,3 +1263,75 @@ test("handleCreateCalendarEvent: a timed event is still a dateTime range", async
   assert.equal(sent.end.dateTime, "2026-08-15T14:45:00.000Z");
   assert.equal(sent.start.date, undefined);
 });
+
+/* ---------- du'as ----------
+ * Pictures of du'as, linked to a dhikr item. They live in D1 because the link
+ * rides the synced profile, so a second device has to be able to fetch the
+ * picture the link points at.
+ */
+const PNG_1PX = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+
+function duaReq(body) {
+  return { json: async () => body };
+}
+
+test("a du'a is stored, listed and served back as image bytes", async () => {
+  const worker = await loadWorker();
+  const { env } = createFakeD1();
+
+  const created = await (await worker.handleCreateDua(duaReq({ name: "Morning", dataUrl: PNG_1PX }), env, EMAIL)).json();
+  assert.ok(created.dua.id, "it comes back with an id to link against");
+  assert.equal(created.dua.name, "Morning");
+
+  const listed = await (await worker.handleListDuas(env, EMAIL)).json();
+  assert.equal(listed.duas.length, 1);
+  assert.equal(listed.duas[0].name, "Morning");
+  assert.equal(listed.duas[0].data, undefined, "the list must not carry the bytes");
+
+  const res = await worker.handleGetDua(env, EMAIL, created.dua.id);
+  assert.equal(res.headers.get("content-type"), "image/png");
+  assert.match(res.headers.get("cache-control"), /private/, "someone's du'as are not for a shared cache");
+  assert.ok((await res.arrayBuffer()).byteLength > 0);
+});
+
+test("another sign-in cannot read or list a du'a that isn't theirs", async () => {
+  const worker = await loadWorker();
+  const { env } = createFakeD1();
+  const created = await (await worker.handleCreateDua(duaReq({ dataUrl: PNG_1PX }), env, EMAIL)).json();
+
+  const res = await worker.handleGetDua(env, "someone.else@example.com", created.dua.id);
+  assert.equal(res.status, 404);
+  const listed = await (await worker.handleListDuas(env, "someone.else@example.com")).json();
+  assert.equal(listed.duas.length, 0);
+});
+
+test("anything that isn't a base64 image is refused", async () => {
+  const worker = await loadWorker();
+  const { env } = createFakeD1();
+  for (const bad of [{}, { dataUrl: "" }, { dataUrl: "https://example.com/a.png" },
+                     { dataUrl: "data:text/html;base64,PHNjcmlwdD4=" },
+                     { dataUrl: "data:application/pdf;base64,JVBERi0=" }]) {
+    const res = await worker.handleCreateDua(duaReq(bad), env, EMAIL);
+    assert.equal(res.status, 400, JSON.stringify(bad) + " should be refused");
+  }
+  assert.equal((await (await worker.handleListDuas(env, EMAIL)).json()).duas.length, 0);
+});
+
+test("an image over the ceiling is refused rather than truncated", async () => {
+  const worker = await loadWorker();
+  const { env } = createFakeD1();
+  const huge = "data:image/jpeg;base64," + "A".repeat(1000000);
+  const res = await worker.handleCreateDua(duaReq({ dataUrl: huge }), env, EMAIL);
+  assert.equal(res.status, 413);
+  assert.match((await res.json()).error, /too large/);
+});
+
+test("removing a du'a takes it out of the list and stops serving it", async () => {
+  const worker = await loadWorker();
+  const { env } = createFakeD1();
+  const created = await (await worker.handleCreateDua(duaReq({ dataUrl: PNG_1PX }), env, EMAIL)).json();
+
+  await worker.handleDeleteDua(env, EMAIL, created.dua.id);
+  assert.equal((await (await worker.handleListDuas(env, EMAIL)).json()).duas.length, 0);
+  assert.equal((await worker.handleGetDua(env, EMAIL, created.dua.id)).status, 404);
+});
