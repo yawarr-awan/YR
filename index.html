@@ -4847,6 +4847,20 @@ function applyTheme(t){
      than leaving an unlabelled glyph in the header. */
   if(btn)btn.textContent=(currentTheme()==="dark")?"☀️ Switch to light":"🌙 Switch to dark";
 }
+/* Belt and braces on rotation. The manifest asks for no orientation lock,
+   but an already-installed Android copy is a WebAPK whose orientation was
+   baked in when it was installed, and Chrome only rebuilds that on its own
+   schedule - so the manifest change alone can leave an installed app stuck
+   in portrait for a day or more. Chrome applies orientation locks by asking
+   Android for one, so releasing the lock here can take effect immediately
+   where the manifest hasn't yet. Best-effort: it throws on any browser that
+   has nothing to unlock, which is not an error. */
+try{
+  if(window.screen&&screen.orientation&&typeof screen.orientation.unlock==="function"){
+    screen.orientation.unlock();
+  }
+}catch(e){}
+
 try{var savedTheme=localStorage.getItem(THEMEKEY);applyTheme(savedTheme||undefined);}catch(e){applyTheme();}
 document.getElementById("layoutEditBtn").addEventListener("click",function(){setLayoutEditing(!_editingLayout);});
 document.getElementById("layoutResetBtn").addEventListener("click",resetLayout);

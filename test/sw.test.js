@@ -182,7 +182,9 @@ test("offline, the cached copy is still served", async () => {
 
 test("the installed app is not locked to portrait", () => {
   const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "manifest.webmanifest"), "utf8"));
-  // An `orientation` of "portrait" stops an installed copy from rotating at
-  // all, which is wrong on a tablet or a desktop window.
-  assert.equal(manifest.orientation, undefined);
+  // "portrait" stops an installed copy rotating at all. Stated explicitly
+  // rather than left out: an installed Android copy is a WebAPK whose
+  // orientation was baked in at install time, and Chrome only rebuilds it
+  // when it notices the manifest differ - so the value should be unmissable.
+  assert.equal(manifest.orientation, "any");
 });
