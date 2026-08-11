@@ -1804,7 +1804,9 @@ function scheduleTaskAt(t,startIso,statusId){
     method:"POST",
     credentials:"same-origin",
     headers:{"content-type":"application/json"},
-    body:JSON.stringify({title:t.title,start:startIso,durationMinutes:30}),
+    /* Onto whichever calendar was last chosen in the editor, so scheduling a
+       task doesn't quietly disagree with where events go. */
+    body:JSON.stringify({title:t.title,start:startIso,durationMinutes:30,calendarId:defaultCalendarId()}),
   }).then(function(res){
     if(!res.ok)throw new Error("http "+res.status);
     return res.json();
@@ -2582,7 +2584,7 @@ var _calSliding=false;
    flag lets the tap-to-schedule handlers tell a real tap from the tail of a
    drag. */
 var _calDragged=false;
-var _calWin=null;              /* {from,to,byDay,connected,status} */
+var _calWin=null;              /* {from,to,byDay,connected,status,calendars} */
 var _calReqId=0;
 
 function calGridEl(){return document.getElementById("calGrid");}
@@ -2700,7 +2702,8 @@ function ensureCalWindow(centre){
       (gtByDay[k]=gtByDay[k]||[]).push(t);
     });
     _calWin={from:from,to:to,byDay:byDay,gtByDay:gtByDay,connected:!!data.connected,
-             status:data.status,tasksError:data.tasksError||null};
+             status:data.status,tasksError:data.tasksError||null,
+             calendars:Array.isArray(data.calendars)?data.calendars:[]};
     return _calWin;
   });
 }
@@ -2881,6 +2884,22 @@ function calEditField(parent,labelText,node){
  * calendar event, and a scheduled task (which is an event with a task
  * attached). A calendar the user can only read gets the details without a
  * Save button rather than a form whose submit would always fail. */
+/** The calendars this account can actually write to. A shared calendar you
+ * can only read is no use as a destination, so it isn't offered. */
+function writableCalendars(){
+  return ((_calWin&&_calWin.calendars)||[]).filter(function(c){return c.writable;});
+}
+/** Which calendar a new event should land on: the one used last if it is
+ * still writable, otherwise the primary. Stored on the synced profile, so
+ * the choice carries between devices rather than being relearnt on each. */
+function defaultCalendarId(){
+  var list=writableCalendars();
+  var saved=state.profile&&state.profile.calendarId;
+  if(saved&&list.some(function(c){return c.id===saved;}))return saved;
+  var primary=list.filter(function(c){return c.primary;})[0];
+  return primary?primary.id:(list.length?list[0].id:"primary");
+}
+
 function openCalEditor(o){
   var body=document.getElementById("modalBody");
   if(!body)return;
@@ -2917,6 +2936,26 @@ function openCalEditor(o){
     calEditField(row,"Starts",whenIn);
     calEditField(row,"Length",durIn);
     wrap.appendChild(row);
+  }
+
+  /* Which calendar to put it on. Only for something new: moving an existing
+     event between calendars is a different Google call (events.move), so an
+     existing one says where it lives instead. With one writable calendar
+     there is no choice to offer. */
+  var calIn=null;
+  if(!ev&&!gtask){
+    var cals=writableCalendars();
+    if(cals.length>1){
+      calIn=el("select");
+      calIn.id="calEditCalendar";
+      cals.forEach(function(c){
+        var opt=el("option",null,c.name+(c.primary?" (default)":""));
+        opt.value=c.id;
+        calIn.appendChild(opt);
+      });
+      calIn.value=defaultCalendarId();
+      calEditField(wrap,"Calendar",calIn);
+    }
   }
 
   var locIn=el("input");locIn.type="text";locIn.value=(ev&&ev.location)||"";
@@ -2988,6 +3027,7 @@ function openCalEditor(o){
         durationMinutes:durIn?parseInt(durIn.value,10):null,
         location:locIn.value,
         notes:notesIn.value,
+        calendarId:calIn?calIn.value:null,
       },saveBtn);
     });
     actions.appendChild(saveBtn);
@@ -3038,13 +3078,20 @@ function calEditorSave(f,btn){
     req=calApi("PATCH","/api/google/calendar/events",patch);
   }else{
     if(!startIso){if(status)status.textContent="Pick a time first.";if(btn)btn.disabled=false;return Promise.resolve();}
-    req=calApi("POST","/api/google/calendar/events",{
-      title:f.title,start:startIso,durationMinutes:f.durationMinutes||30,location:f.location,notes:f.notes,
-    });
+    var create={title:f.title,start:startIso,durationMinutes:f.durationMinutes||30,
+                location:f.location,notes:f.notes};
+    if(f.calendarId)create.calendarId=f.calendarId;
+    req=calApi("POST","/api/google/calendar/events",create);
   }
 
   return req.then(function(resp){
     if(!calWriteOk(resp,status)){if(btn)btn.disabled=false;return;}
+    /* Remember where it went, so the next one defaults to the same place. */
+    if(f.calendarId&&state.profile&&state.profile.calendarId!==f.calendarId){
+      state.profile.calendarId=f.calendarId;
+      state.profile.updated_at=Date.now();
+      save();
+    }
     if(task){
       task.title=f.title;
       if(startIso){task.due=startIso;task.scheduled=true;}

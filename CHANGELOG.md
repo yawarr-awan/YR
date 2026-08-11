@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.22.0
+
+- **Pick which calendar a new event goes on.** Adding something from the calendar now offers your writable calendars — Personal, Family, and anything else you can edit — instead of always using the primary one. Calendars you can only read aren't offered, since nothing can be put on them. With just one writable calendar there's no picker, because there's no choice to make.
+- **It remembers where you put the last one**, so a run of family events doesn't mean re-picking every time. That preference rides your synced profile, so it follows you between devices. Scheduling a task from the Today list uses the same default rather than quietly disagreeing.
+- An **existing** event still says which calendar it's on but doesn't offer to move it — moving between calendars is a different Google operation, and a picker that silently did nothing would be worse than none.
+
 ## 1.21.2
 
 - **The next two days draw an event to its real length.** A one-hour appointment in a peek column was a small fixed-size label, the same size as a five-minute one and shorter than the slot it takes up. Each now starts at its own minute within the hour and runs the length of the event — past the cell and into the hours it covers, if it's long enough. Two things at the same hour sit side by side instead of on top of each other.
