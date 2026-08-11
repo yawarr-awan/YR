@@ -161,79 +161,107 @@ test("an expanded list stays expanded while you work in it", () => {
 function titles(app) {
   return Array.from(app.document.querySelectorAll("#taskList .task-row .task-title")).map((n) => n.textContent);
 }
-function moveButtons(app, index) {
-  const rows = app.document.querySelectorAll("#taskList .task-row");
-  return Array.from(rows[index].querySelectorAll(".task-move-btn"));
+
+
+/* jsdom has no layout, so the two browser primitives a drag depends on -
+ * elementFromPoint and getBoundingClientRect - are stubbed, the same way
+ * fetch is. Everything else is the app's own code path: a real pointerdown
+ * on the grip, pointermove over a row, pointerup. The drag was also checked
+ * end to end in Chromium, where those primitives are real. */
+function row(app, title) {
+  return Array.from(app.document.querySelectorAll("#taskList .task-row"))
+    .find((r) => r.querySelector(".task-title").textContent === title);
+}
+function pointer(app, type, y) {
+  const ev = new app.window.Event(type, { bubbles: true, cancelable: true });
+  ev.clientX = 10;
+  ev.clientY = y;
+  return ev;
+}
+function drag(app, fromTitle, toTitle, before) {
+  const src = row(app, fromTitle);
+  src.querySelector(".task-grip").dispatchEvent(pointer(app, "pointerdown", 0));
+  const dst = row(app, toTitle);           // re-read: grabbing may have expanded the list
+  dst.getBoundingClientRect = () => ({ top: 100, height: 40, bottom: 140, left: 0, right: 0, width: 0 });
+  app.document.elementFromPoint = () => dst;
+  app.document.dispatchEvent(pointer(app, "pointermove", before ? 110 : 130));
+  app.document.dispatchEvent(pointer(app, "pointerup", before ? 110 : 130));
 }
 
-test("the move buttons only appear once you ask to reorder", () => {
+test("every row has a drag grip - reordering is not behind a mode", () => {
   const app = loadApp({ fetchImpl: briefIdle });
   addTasks(app, ["One", "Two"]);
-  assert.equal(app.document.querySelector("#taskList .task-move"), null, "rows stay uncluttered by default");
-
-  app.click("taskReorderBtn");
-  assert.equal(app.document.querySelectorAll("#taskList .task-move").length, 2);
-  assert.equal(app.document.getElementById("taskReorderBtn").getAttribute("aria-pressed"), "true");
-
-  app.click("taskReorderBtn");
-  assert.equal(app.document.querySelector("#taskList .task-move"), null, "and the toggle turns them off again");
+  assert.equal(app.document.querySelectorAll("#taskList .task-grip").length, 2);
 });
 
-test("a task moves up and down, and the order is what the list then renders", () => {
+test("dragging a task onto the top half of another drops it above", () => {
   const app = loadApp({ fetchImpl: briefIdle });
   addTasks(app, ["One", "Two", "Three"]);
-  app.click("taskReorderBtn");
   assert.deepEqual(titles(app), ["One", "Two", "Three"]);
 
-  moveButtons(app, 2)[0].click();                 // Three up
-  assert.deepEqual(titles(app), ["One", "Three", "Two"]);
-
-  moveButtons(app, 0)[1].click();                 // One down
+  drag(app, "Three", "One", true);
   assert.deepEqual(titles(app), ["Three", "One", "Two"]);
 });
 
-test("the ends of the list cannot be moved off it", () => {
+test("the bottom half drops it below, so either end of a row is reachable", () => {
   const app = loadApp({ fetchImpl: briefIdle });
-  addTasks(app, ["One", "Two"]);
-  app.click("taskReorderBtn");
-  assert.equal(moveButtons(app, 0)[0].disabled, true, "nothing above the first row");
-  assert.equal(moveButtons(app, 1)[1].disabled, true, "nothing below the last");
+  addTasks(app, ["One", "Two", "Three"]);
+  drag(app, "One", "Two", false);
+  assert.deepEqual(titles(app), ["Two", "One", "Three"]);
 });
 
-test("a ticked task is its own block - a move never crosses the divide", () => {
+test("a drag is an insertion, not a swap - the rows between shuffle up", () => {
+  const app = loadApp({ fetchImpl: briefIdle });
+  addTasks(app, ["One", "Two", "Three", "Four"]);
+  drag(app, "One", "Four", false);
+  assert.deepEqual(titles(app), ["Two", "Three", "Four", "One"]);
+});
+
+test("a ticked task keeps its own block however it is dropped", () => {
   const app = loadApp({ fetchImpl: briefIdle });
   addTasks(app, ["One", "Two"]);
   const cb = app.document.querySelectorAll("#taskList .task-row input[type=checkbox]")[0];
   cb.checked = true;
   cb.dispatchEvent(new app.window.Event("change", { bubbles: true }));
-  app.click("taskReorderBtn");
-  assert.deepEqual(titles(app), ["Two", "One"], "ticked tasks still sink");
+  assert.deepEqual(titles(app), ["Two", "One"], "ticked tasks sink");
 
-  assert.equal(moveButtons(app, 0)[1].disabled, true, "cannot push an open task into the done block");
-  assert.equal(moveButtons(app, 1)[0].disabled, true, "nor pull a done one out of it");
+  drag(app, "Two", "One", false);
+  assert.deepEqual(titles(app), ["Two", "One"], "an open task cannot be dropped below a done one");
 });
 
-test("reordering shows the whole list, not the three Today keeps", () => {
+test("a drag that ends on nothing changes nothing", () => {
+  const app = loadApp({ fetchImpl: briefIdle });
+  addTasks(app, ["One", "Two"]);
+  const src = row(app, "Two");
+  src.querySelector(".task-grip").dispatchEvent(pointer(app, "pointerdown", 0));
+  app.document.elementFromPoint = () => null;
+  app.document.dispatchEvent(pointer(app, "pointermove", 500));
+  app.document.dispatchEvent(pointer(app, "pointerup", 500));
+  assert.deepEqual(titles(app), ["One", "Two"]);
+  assert.equal(app.document.querySelector("#taskList .task-row.is-dragging"), null, "and the row stops looking dragged");
+});
+
+test("grabbing a grip opens a collapsed list, so there is somewhere to drop", () => {
   const app = loadApp({ fetchImpl: briefIdle });
   addTasks(app, ["One", "Two", "Three", "Four", "Five"]);
   assert.equal(app.document.querySelectorAll("#taskList .task-row").length, 3);
 
-  app.click("taskReorderBtn");
+  app.document.querySelector("#taskList .task-grip")
+    .dispatchEvent(pointer(app, "pointerdown", 0));
   assert.equal(app.document.querySelectorAll("#taskList .task-row").length, 5,
-    "you cannot move a task past a row that is not on screen");
+    "you cannot drop onto a row that is not on screen");
 });
 
 test("a hand-picked order rides the synced profile and survives a reload", () => {
   const app = loadApp({ fetchImpl: briefIdle });
   addTasks(app, ["One", "Two", "Three"]);
-  app.click("taskReorderBtn");
   const before = app.state().profile.updated_at;
-  moveButtons(app, 2)[0].click();
+  drag(app, "Three", "One", true);
   assert.ok(app.state().profile.updated_at >= before, "a move must stamp the profile or it never pushes");
   assert.deepEqual(app.state().profile.tasks.map((t) => typeof t.order), ["number", "number", "number"]);
 
   const again = loadApp({ fetchImpl: briefIdle, localStorageSeed: { [MAIN_KEY]: app.rawMain() } });
-  assert.deepEqual(titles(again).slice(0, 3), ["One", "Three", "Two"]);
+  assert.deepEqual(titles(again).slice(0, 3), ["Three", "One", "Two"]);
 });
 
 test("tasks saved before ordering existed keep the order they were showing in", () => {

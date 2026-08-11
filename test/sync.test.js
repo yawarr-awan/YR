@@ -240,3 +240,52 @@ test("a device upgrading from the old layout carries its local tasks into the sy
   assert.equal(s.tasks, undefined, "and it no longer lives at the top level");
   assert.match(app.document.getElementById("taskList").textContent, /Old local task/);
 });
+
+/* A sync that pulls another device's data has to redraw the tab you are
+ * looking at. This was a real bug: sync redrew Today, Progress and the tasks
+ * only, so the Prayers tab kept showing this device's stale summary and it
+ * read exactly like sync not working. */
+test("a pulled edit reaches the tab you are on, not just the stored state", async () => {
+  const server = createMockServer();
+  const T0 = 1700000000000;
+  const day = (over) => Object.assign({
+    meds: {}, prayers: {}, meals: {}, extras: {},
+    dhikr: { morning: {}, afternoon: {}, evening: {} },
+    water: 0, weight: "", sleep: "", steps: "", jointPain: null, energy: null,
+    exercise: false, notes: "", updated_at: T0,
+  }, over || {});
+
+  // The other device has ticked all five prayers on a day this one has blank.
+  server.seedDay("2026-04-01", JSON.stringify(day({
+    prayers: { fajr: true, dhuhr: true, asr: true, maghrib: true, isha: true },
+    updated_at: T0 + 5000,
+  })), T0 + 5000);
+
+  const app = loadApp({
+    localStorageSeed: {
+      [MAIN_KEY]: JSON.stringify({
+        schema: 2,
+        profile: { startWeight: 108, targetWeight: 88, updated_at: 0 },
+        days: { "2026-04-01": day() },
+        sync: { enabled: true, since: 0, lastSyncAt: null, lastError: null },
+      }),
+      yawarLastTab: "prayers",
+    },
+    fetchImpl: fetchImplFor(server),
+  });
+
+  app.goTo("prayers");
+  app.pickDate("2026-04-01");
+  const summaryBefore = app.document.getElementById("praySummary").textContent;
+
+  app.click("syncNowBtn");
+  await app.flush();
+  await app.flush();
+
+  const stored = app.state().days["2026-04-01"].prayers;
+  assert.equal(stored.fajr, true, "the pull landed in storage");
+  assert.notEqual(app.document.getElementById("praySummary").textContent, summaryBefore,
+    "and the prayer summary on screen was redrawn to match");
+  assert.equal(app.document.querySelectorAll("#prayBox input[type=checkbox]:checked").length, 5,
+    "the checklist too");
+});

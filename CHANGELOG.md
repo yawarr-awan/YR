@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.25.0
+
+**Sync was pulling your other device's data and then not showing it.** This is the bug behind "the prayer summary doesn't match". A sync redrew the Today tab, Progress and the task list — and nothing else. So a device that pulled another's edits kept showing its own stale prayer summary, qada card, medicine and dhikr lists until you navigated away and came back or reloaded the app. The data had arrived; the screen hadn't been told. Everything that reads your record is now redrawn after a sync, and after restoring a backup.
+
+**It also syncs when you come back to it.** An installed app is resumed rather than reloaded, so the sync it does at startup could be days old and you had to remember to press *Sync now*. Returning to the app after a minute away now syncs on its own.
+
+**Du'as.** Misc → **Duas**: upload a photo or scan of a du'a and tick which dhikr items it belongs to. Those items grow a 📿 button on the Prayers tab that opens the picture full size. Pictures are stored in your own database, so they reach every device you sign in on, and the links ride your synced profile. Pictures are resized in the browser before being sent, and removing one clears every link pointing at it so nothing opens a blank.
+
+**Drag a task where you want it.** The ▲▼ buttons are gone; every task now has a **⠿** grip. Drag it and drop it above or below any other row — grabbing one opens the whole list, since you can't drop onto a row that isn't on screen. Works with a finger and with a mouse.
+
+**Calendar**
+
+- **A whole week on a tablet or desktop.** Monday to Sunday in one grid, lined up with the week strip above it, with the day you're on about twice the width of the rest. The phone keeps the day-plus-two view it had. Rotating a tablet switches between them.
+- **The bright outline around the current hour is gone.** The red now-line already marks it, and the ring on top was noise — the same reason the prayer-window ring went in 1.21.1.
+- **Chips fit their slot.** The clock time has been dropped from the chip — where it sits in the grid already says when it is — and the text is sized to the height of the slot, so a one-hour appointment shows its whole title instead of "Obstetric appo…". The exact times are still in the tooltip and in the editor.
+
 ## 1.24.3
 
 **The icon is sharp now.** It was soft — most visible on the splash screen, where Android scales it up. Two causes, both fixed:

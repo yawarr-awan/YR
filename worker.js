@@ -623,6 +623,90 @@ async function handlePutBriefPrompt(request, env, email) {
   return json({ prompt, default: DEFAULT_BRIEF_PROMPT });
 }
 
+/* ---------- duas ----------
+ *
+ * Scans of du'as the user uploads and links to a dhikr item. They live in D1
+ * rather than on the device because the link is stored on the synced profile,
+ * so a phone that pulls the link has to be able to fetch the picture too.
+ *
+ * The bytes are held as a data: URL string, which is what the client already
+ * has after downscaling on a canvas. D1 is not a blob store, hence the hard
+ * ceiling below - the client resizes to well under it, and a file that still
+ * comes in over is refused rather than truncated.
+ */
+const MAX_DUA_BYTES = 900000;
+const DUA_MIME = /^image\/(png|jpeg|webp|gif)$/;
+
+async function ensureDuaTable(env) {
+  await env.DB.prepare(
+    `CREATE TABLE IF NOT EXISTS dua_images (
+       user_email TEXT NOT NULL,
+       id TEXT NOT NULL,
+       name TEXT,
+       mime TEXT,
+       data TEXT,
+       created_at INTEGER,
+       PRIMARY KEY (user_email, id)
+     )`
+  ).run();
+}
+
+async function handleListDuas(env, email) {
+  await ensureDuaTable(env);
+  const { results } = await env.DB.prepare(
+    `SELECT id, name, created_at FROM dua_images WHERE user_email = ?1 ORDER BY created_at ASC`
+  ).bind(email).all();
+  return json({ duas: results || [] });
+}
+
+async function handleCreateDua(request, env, email) {
+  let body;
+  try { body = await request.json(); } catch { return json({ error: "invalid json" }, 400); }
+
+  const dataUrl = typeof body.dataUrl === "string" ? body.dataUrl : "";
+  const m = /^data:([^;,]+);base64,/.exec(dataUrl);
+  if (!m || !DUA_MIME.test(m[1])) return json({ error: "expected a base64 image data URL" }, 400);
+  if (dataUrl.length > MAX_DUA_BYTES) {
+    return json({ error: "that image is too large even after resizing — try a smaller one" }, 413);
+  }
+
+  const name = (typeof body.name === "string" ? body.name.trim() : "").slice(0, 120) || "Du'a";
+  const id = "d" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+  const created = Date.now();
+  await ensureDuaTable(env);
+  await env.DB.prepare(
+    `INSERT INTO dua_images (user_email, id, name, mime, data, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)`
+  ).bind(email, id, name, m[1], dataUrl, created).run();
+  return json({ dua: { id, name, created_at: created } });
+}
+
+/* The image itself. Served as bytes rather than JSON so an <img src> can point
+   straight at it, and marked private so only this browser's cache keeps it. */
+async function handleGetDua(env, email, id) {
+  await ensureDuaTable(env);
+  const row = await env.DB.prepare(
+    `SELECT mime, data FROM dua_images WHERE user_email = ?1 AND id = ?2`
+  ).bind(email, id).first();
+  if (!row) return json({ error: "not found" }, 404);
+
+  const base64 = String(row.data).slice(String(row.data).indexOf(",") + 1);
+  const bin = atob(base64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return new Response(bytes, {
+    headers: {
+      "content-type": row.mime || "image/jpeg",
+      "cache-control": "private, max-age=86400",
+    },
+  });
+}
+
+async function handleDeleteDua(env, email, id) {
+  await ensureDuaTable(env);
+  await env.DB.prepare(`DELETE FROM dua_images WHERE user_email = ?1 AND id = ?2`).bind(email, id).run();
+  return json({ ok: true });
+}
+
 async function summarizeWithGemini(env, day, events, tasks, now, instructions, tomorrow) {
   if (!env.GEMINI_API_KEY) throw new Error("Gemini API key not configured");
 
@@ -1489,6 +1573,18 @@ export default {
       if (url.pathname === "/api/settings/brief-prompt" && request.method === "PUT") {
         return await handlePutBriefPrompt(request, env, email);
       }
+      if (url.pathname === "/api/duas" && request.method === "GET") {
+        return await handleListDuas(env, email);
+      }
+      if (url.pathname === "/api/duas" && request.method === "POST") {
+        return await handleCreateDua(request, env, email);
+      }
+      if (url.pathname.startsWith("/api/duas/")) {
+        const duaId = decodeURIComponent(url.pathname.slice("/api/duas/".length));
+        if (!duaId) return json({ error: "not found" }, 404);
+        if (request.method === "GET") return await handleGetDua(env, email, duaId);
+        if (request.method === "DELETE") return await handleDeleteDua(env, email, duaId);
+      }
       if (url.pathname === "/api/brief" && request.method === "GET") {
         return await handleGetBrief(env, email);
       }
@@ -1549,6 +1645,10 @@ export {
   handleRefreshBrief,
   handleGetBriefPrompt,
   handlePutBriefPrompt,
+  handleListDuas,
+  handleCreateDua,
+  handleGetDua,
+  handleDeleteDua,
   DEFAULT_BRIEF_PROMPT,
   handleGetCalendarEvents,
   handleCreateCalendarEvent,

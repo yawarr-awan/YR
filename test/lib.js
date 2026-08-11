@@ -54,10 +54,24 @@ function stubCanvas(window) {
     return {
       clearRect: noop, beginPath: noop, moveTo: noop, lineTo: noop,
       stroke: noop, fillText: noop, fillRect: noop, arc: noop, fill: noop,
-      setLineDash: noop,
+      setLineDash: noop, drawImage: noop,
       fillStyle: "", strokeStyle: "", lineWidth: 1, font: "", textAlign: "",
     };
   };
+  // jsdom decodes no images, so toDataURL has nothing real to give back.
+  // A recognisable stub is enough: the tests care that a data: URL of the
+  // right type is what gets sent, not what the pixels are.
+  window.HTMLCanvasElement.prototype.toDataURL = function (type) {
+    return "data:" + (type || "image/png") + ";base64,c3R1Yg==";
+  };
+  // Likewise <img>: jsdom never fires load for a data: URL, so anything
+  // waiting on onload would hang forever.
+  class StubImage {
+    constructor() { this.naturalWidth = 2400; this.naturalHeight = 1800; }
+    set src(v) { this._src = v; if (this.onload) setTimeout(() => this.onload(), 0); }
+    get src() { return this._src; }
+  }
+  window.Image = StubImage;
 }
 
 function fireClick(window, el) {
@@ -85,6 +99,9 @@ function fireEvent(window, el, type) {
  * @param {function} [opts.beforeRun] - (window) => void, called after the
  *   environment is seeded but before the app's own script runs. For browser
  *   capabilities jsdom doesn't implement at all, like screen.orientation.
+ * @param {number} [opts.innerWidth] - viewport width the app should read.
+ *   jsdom defaults to 1024, which is a *desktop* to this app - the calendar
+ *   lays out a whole week there. Tests about the phone layout must say so.
  */
 function loadApp(opts = {}) {
   const html = fs.readFileSync(HTML_PATH, "utf8");
@@ -106,6 +123,12 @@ function loadApp(opts = {}) {
   const window = dom.window;
   openWindows.push(window);
   stubCanvas(window);
+  // jsdom's innerWidth is a plain getter, so it has to be redefined rather
+  // than assigned. Default to a phone: most of this suite is about the phone.
+  Object.defineProperty(window, "innerWidth", {
+    configurable: true,
+    value: opts.innerWidth || 390,
+  });
 
   if (opts.localStorageSeed) {
     Object.keys(opts.localStorageSeed).forEach((k) => {

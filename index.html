@@ -288,23 +288,30 @@ input[type=range]{width:100%;accent-color:var(--accent)}
    all-day toggle appeared to do nothing in a real browser while passing in
    jsdom, which reads the property rather than the cascade. */
 [hidden]{display:none!important}
-.cal-daygroup{--cal-row:34px;--cal-pad-t:3px}
+.cal-daygroup{--cal-row:34px;--cal-pad-t:3px;--cal-gutter:46px}
+/* The wide layout puts the hour labels in a column of their own, because the
+   focused day is somewhere inside the week rather than at its left edge. */
+.cal-gutter{
+  border-top:1px solid var(--line);min-height:var(--cal-row);
+  padding:var(--cal-pad-t) 4px 4px;background:var(--panel-2);overflow:hidden
+}
+.cal-gutter-head{border-top:0;min-height:0}
+.cal-daygroup.is-week .cal-cell.is-main{border-inline-start:1px solid var(--line)}
+.cal-daygroup.is-week .cal-gh.is-focus{background:var(--panel);color:var(--ink)}
 .cal-cell{
   position:relative;border-top:1px solid var(--line);border-inline-start:1px solid var(--line);
   min-height:var(--cal-row);padding:var(--cal-pad-t) 5px 4px;overflow:hidden
 }
 .cal-cell.is-main{border-inline-start:none;display:flex;gap:8px;padding-inline:8px}
-/* The hour it is now. There is deliberately no ring around the current
-   prayer *window* here - the tint already says which window every minute
-   belongs to, and a second border on top of it was noise. The window you're
-   in is ringed on the Prayers checklist and named on the chip instead. */
-.cal-cell.current-hour{outline:2px solid var(--brand);outline-offset:-2px;z-index:1}
+.cal-daygroup.is-week .cal-gh:first-child{text-align:center;padding-inline-start:3px;cursor:pointer}
+/* .current-hour carries no outline. It marks the hour it is now, which the
+   red now-line already draws across that cell - the ring on top of it was
+   noise, the same reason the prayer-window ring went in 1.21.1. The class
+   stays because opening the tab scrolls to it. */
 /* All-day items and Google Tasks sit here rather than in the 00:00 row,
    which is the one part of a 24-hour grid nobody scrolls back to. */
 .cal-allday{background:var(--panel-2)}
 .cal-allday .cal-hour-label{opacity:.8;font-size:.6rem}
-/* The row already says "All day"; repeating it on every chip only costs width. */
-.cal-allday .cal-chip-time{display:none}
 .cal-hour-label{font-size:.66rem;font-weight:800;color:var(--ink);opacity:.65;flex:0 0 34px;padding-top:2px}
 .cal-hour-events{display:flex;flex-direction:column;gap:3px;flex:1;min-width:0;position:relative}
 .cal-chip{
@@ -323,11 +330,17 @@ input[type=range]{width:100%;accent-color:var(--accent)}
 .cal-cell.is-main:not(.cal-allday){overflow:visible}
 .cal-chip.is-timed{
   position:absolute;margin:0;overflow:hidden;z-index:2;min-height:13px;
-  box-shadow:0 1px 4px rgba(0,0,0,.3)
+  box-shadow:0 1px 4px rgba(0,0,0,.3);
+  /* Scaled to the slot it occupies - see placeByTime. The floor keeps a
+     half-hour chip from vanishing; the ceiling is the normal chip size, so
+     a long event reads exactly as it did. */
+  font-size:clamp(8px,calc(var(--cal-row) * var(--chip-rows,1) * .30),.82rem);
+  line-height:1.2;padding:2px 6px
 }
-.cal-chip.is-timed .cal-chip-meta{margin-top:1px}
+.cal-chip.is-timed.is-short{padding:1px 5px}
+.cal-chip.is-timed.is-short .cal-chip-meta{display:none}
+.cal-chip.is-timed .cal-chip-meta{margin-top:1px;font-size:.9em}
 .cal-chip:hover{filter:brightness(1.06)}
-.cal-chip-time{font-weight:800;color:var(--muted);margin-inline-end:5px}
 .cal-chip-meta{display:block;font-size:.72rem;color:var(--muted)}
 /* A scheduled task reads as a task, not as one more meeting; a Google Task
    is a third thing again, and read-only. */
@@ -450,13 +463,27 @@ label.prow{cursor:pointer}
 .icon-btn.active{border-color:var(--brand);color:var(--brand)}
 /* The move pair is stacked so it costs one button's width on a phone, where
    the row already carries a checkbox, the title, a date and two buttons. */
-.task-move{display:flex;flex-direction:column;gap:2px;flex:0 0 auto}
-.task-move-btn{
-  border:1px solid var(--line);background:var(--panel-2);color:var(--ink);
-  width:32px;height:19px;border-radius:6px;font-size:.6rem;line-height:1;
-  cursor:pointer;padding:0;font-family:inherit
+/* touch-action:none is what makes a drag on the phone a drag rather than a
+   page scroll - without it the browser claims the gesture before pointermove
+   ever fires. */
+.task-grip{
+  cursor:grab;font-size:1rem;color:var(--muted);line-height:1;flex:0 0 auto;
+  padding:6px 2px;touch-action:none;user-select:none;-webkit-user-select:none
 }
-.task-move-btn:disabled{opacity:.35;cursor:default}
+.task-row.is-dragging{opacity:.4}
+.task-row.drop-before{box-shadow:inset 0 2px 0 var(--brand)}
+.task-row.drop-after{box-shadow:inset 0 -2px 0 var(--brand)}
+/* Du'as: a picture per card, its links underneath, and the full-size view in
+   the shared modal. */
+.dua-thumb{
+  display:block;width:100%;max-height:320px;object-fit:contain;cursor:zoom-in;
+  background:var(--panel-2);border:1px solid var(--line);border-radius:10px;margin:8px 0
+}
+.dua-full{display:block;width:100%;height:auto;border-radius:10px}
+.dua-linklabel{font-size:.76rem;margin-bottom:4px}
+.dua-links{display:flex;flex-direction:column;gap:2px;margin-bottom:10px}
+.dua-links .chk{padding:4px 6px}
+.dua-open{margin-inline-start:auto}
 .task-sched{display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding:0 4px 10px}
 .task-sched input[type=datetime-local]{
   flex:1;min-width:150px;border:1px solid var(--line);background:var(--panel-2);color:var(--ink);
@@ -557,7 +584,6 @@ footer.foot{text-align:center;color:var(--muted);font-size:.78rem;margin-top:26p
         <div style="display:flex;gap:8px;margin:0 0 8px">
           <input type="text" id="taskTitleIn" placeholder="Add a task…" style="flex:1;min-width:0;border:1px solid var(--line);background:var(--panel-2);color:var(--ink);border-radius:10px;padding:9px;font:inherit">
           <button class="btn primary" id="taskAddBtn">Add</button>
-          <button class="icon-btn" id="taskReorderBtn" type="button" title="Reorder tasks" aria-label="Reorder tasks">⇅</button>
         </div>
         <div id="taskList"></div>
         <div class="muted" id="taskStatus" style="font-size:.76rem;margin-top:6px"></div>
@@ -701,6 +727,7 @@ footer.foot{text-align:center;color:var(--muted);font-size:.78rem;margin-top:26p
       <button data-sub="plan" class="active">🍽️ Meals</button>
       <button data-sub="recipes">👨‍🍳 Recipes</button>
       <button data-sub="exercises">🧘 Movement</button>
+      <button data-sub="duas">📿 Duas</button>
     </nav>
 
     <div id="sub-plan" class="subview active">
@@ -727,6 +754,19 @@ footer.foot{text-align:center;color:var(--muted);font-size:.78rem;margin-top:26p
       </table>
       <div class="note" style="margin-top:12px">Losing weight is itself powerful for arthritis: research suggests every <b>1 kg</b> you lose takes roughly <b>4 kg</b> of pressure off each knee with every step. So even without hard exercise, the diet alone will ease your joints.</div>
     </div>
+    </div>
+    <div id="sub-duas" class="subview">
+    <div class="section-title">Your Du'as</div>
+    <div class="note">Upload a photo or scan of a du'a and link it to a dhikr item. Tap that item on the Prayers tab and the du'a opens. Pictures are kept in your own database, so they reach every device you sign in on.</div>
+    <div class="card">
+      <h3>➕ Add a du'a</h3>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <input type="file" id="duaFile" accept="image/*" style="flex:1;min-width:0;font-size:.82rem">
+        <button class="btn primary" id="duaAddBtn" type="button">Upload</button>
+      </div>
+      <div class="muted" id="duaStatus" style="font-size:.78rem;margin-top:6px"></div>
+    </div>
+    <div id="duasBox"></div>
     </div>
   </section>
 
@@ -1676,7 +1716,25 @@ function renderDhikr(d){
         d.dhikr[period[0]][item[0]]=cb.checked;d.updated_at=Date.now();save();renderDhikr(d);renderDayCounts(d);
       });
       var txt=el("div");txt.appendChild(el("div","lbl",item[1]));
-      row.appendChild(cb);row.appendChild(txt);body.appendChild(row);
+      row.appendChild(cb);row.appendChild(txt);
+      /* A du'a linked from the Duas tab (Misc) opens from its own button, not
+         from the row - the row is a label wrapping the checkbox, so a click
+         anywhere in it ticks the item off. */
+      var linked=duaFor(period[0],item[0]);
+      if(linked){
+        var open=el("button","icon-btn dua-open","📿");
+        open.type="button";
+        open.title="Open the du'a";
+        open.setAttribute("aria-label","Open the du'a for "+item[1]);
+        (function(id,label){
+          open.addEventListener("click",function(ev){
+            ev.preventDefault();ev.stopPropagation();
+            openDuaModal(id,label);
+          });
+        })(linked,item[1]);
+        row.appendChild(open);
+      }
+      body.appendChild(row);
     });
     card.appendChild(body);
     box.appendChild(card);
@@ -1802,6 +1860,28 @@ function updateSyncUI(){
   else setSyncStatus("Enabled — not synced yet."+saved);
 }
 
+/* Redraws everything that reads from `state`, for the two moments where the
+ * whole store is replaced under the UI: a sync that pulled another device's
+ * data, and restoring a backup file.
+ *
+ * This exists because of a real bug. Sync used to redraw Today, Progress and
+ * the task list only - so a device that pulled another's edits kept showing
+ * its own stale prayer summary, qada card, medicine/dhikr lists (those live
+ * on the synced profile) and prayer colours until the tab was navigated away
+ * from and back, or the app reloaded. It read exactly like sync not working.
+ * Add any new view that reads state here, not to runSync. */
+function renderAll(){
+  renderToday();
+  renderTasks();
+  renderPrayersTab();
+  renderProgress();
+  renderPrayerChips();
+  renderSettings();
+  if(currentSub==="duas")renderDuasList();   /* the links live on the profile */
+  renderPrayerModal();          /* no-ops unless the modal is actually open */
+  if(currentView==="calendar"){_calWin=null;renderCalendarTab();}
+}
+
 /* Never touches local state on failure: a slow/unreachable/misconfigured
    server must not risk the only copy of real history on this device. */
 function runSync(){
@@ -1846,7 +1926,7 @@ function runSync(){
     state.sync.lastSyncAt=Date.now();
     state.sync.lastError=null;
     save();
-    if(changed){renderToday();renderProgress();renderTasks();}
+    if(changed)renderAll();
     else updateSyncUI();
     return true;
   }).catch(function(e){
@@ -2020,7 +2100,6 @@ function refreshBrief(){
 var TASK_TODAY_LIMIT=3;
 var _taskSchedOpenId=null;   /* which task's inline date picker is showing */
 var _tasksExpanded=false;
-var _tasksReorder=false;     /* ⇅ mode: rows grow move buttons, list shows in full */
 
 function ensureTasks(){if(!Array.isArray(state.profile.tasks))state.profile.tasks=[];return state.profile.tasks;}
 function taskId(){return "t"+Date.now()+"_"+Math.random().toString(36).slice(2,8);}
@@ -2057,22 +2136,81 @@ function sortedTasks(){
   });
 }
 
-/** Swaps a task with its neighbour. Ticked tasks sit in their own block at the
- * bottom, so a move stops at that divide rather than silently un-ticking or
- * jumping past it. Expands the list if the move would have carried the task
- * out of the three Today shows, so it never appears to vanish. */
-function moveTask(id,delta){
-  var list=sortedTasks(),i=-1,k;
-  for(k=0;k<list.length;k++)if(list[k].id===id)i=k;
-  var j=i+delta;
-  if(i<0||j<0||j>=list.length)return;
-  if(!!list[i].done!==!!list[j].done)return;
-  var a=list[i],b=list[j],o=a.order;
-  a.order=b.order;b.order=o;
-  a.updated_at=b.updated_at=Date.now();
+/** Drops a task before or after another one and renumbers the lot. Insertion,
+ * not a swap: a drag is "put it here", not "move it one place". Ticked tasks
+ * still gather at the bottom afterwards - the sort is stable, so dropping an
+ * open task among them lands it at the end of the open block rather than
+ * pretending it is done. */
+function reorderTask(id,targetId,before){
+  if(id===targetId)return;
+  var list=sortedTasks(),moving=null,rest=[];
+  list.forEach(function(t){ if(t.id===id)moving=t; else rest.push(t); });
+  if(!moving)return;
+  var at=rest.length,k;
+  for(k=0;k<rest.length;k++)if(rest[k].id===targetId)at=before?k:k+1;
+  rest.splice(at,0,moving);
+  rest.sort(function(a,b){return (a.done?1:0)-(b.done?1:0);});
+  rest.forEach(function(t,i){
+    if(t.order!==i){t.order=i;t.updated_at=Date.now();}
+  });
   state.profile.updated_at=Date.now();
-  if(j>=TASK_TODAY_LIMIT)_tasksExpanded=true;
   save();renderTasks();
+}
+
+/* Dragging is pointer events, not HTML5 drag-and-drop, which does not fire on
+ * touch at all - the same grip has to work on the phone and with a mouse. The
+ * row is not moved while you drag; only the row under the pointer is marked,
+ * above or below depending on which half you are over. Move/up are bound to
+ * the document rather than the grip, because grabbing a grip expands a
+ * collapsed list and that replaces the element you started on. */
+var _taskDrag=null;
+function taskRowUnder(x,y){
+  if(typeof document.elementFromPoint!=="function")return null;
+  var n=document.elementFromPoint(x,y);
+  return n&&n.closest?n.closest("#taskList .task-row[data-task]"):null;
+}
+function clearTaskDropMarks(){
+  document.querySelectorAll("#taskList .task-row.drop-before,#taskList .task-row.drop-after")
+    .forEach(function(r){r.classList.remove("drop-before","drop-after");});
+}
+function taskDragMove(ev){
+  if(!_taskDrag)return;
+  ev.preventDefault();
+  var row=taskRowUnder(ev.clientX,ev.clientY);
+  clearTaskDropMarks();
+  _taskDrag.overId=null;
+  if(!row||row.getAttribute("data-task")===_taskDrag.id)return;
+  var r=row.getBoundingClientRect();
+  _taskDrag.overId=row.getAttribute("data-task");
+  _taskDrag.before=ev.clientY<r.top+r.height/2;
+  row.classList.add(_taskDrag.before?"drop-before":"drop-after");
+}
+function taskDragEnd(){
+  if(!_taskDrag)return;
+  var d=_taskDrag;
+  _taskDrag=null;
+  clearTaskDropMarks();
+  document.removeEventListener("pointermove",taskDragMove);
+  document.removeEventListener("pointerup",taskDragEnd);
+  document.removeEventListener("pointercancel",taskDragEnd);
+  var row=document.querySelector('#taskList .task-row[data-task="'+d.id+'"]');
+  if(row)row.classList.remove("is-dragging");
+  if(d.overId)reorderTask(d.id,d.overId,d.before);
+}
+function startTaskDrag(id,ev){
+  ev.preventDefault();
+  /* You cannot drop a task onto a row that is not on screen, so grabbing a
+     grip opens the list in full for the duration. */
+  if(!_tasksExpanded&&sortedTasks().length>TASK_TODAY_LIMIT){
+    _tasksExpanded=true;
+    renderTasks();
+  }
+  _taskDrag={id:id,overId:null,before:true};
+  var row=document.querySelector('#taskList .task-row[data-task="'+id+'"]');
+  if(row)row.classList.add("is-dragging");
+  document.addEventListener("pointermove",taskDragMove);
+  document.addEventListener("pointerup",taskDragEnd);
+  document.addEventListener("pointercancel",taskDragEnd);
 }
 function localDatetimeValue(d){
   var p=function(n){return ("0"+n).slice(-2);};
@@ -2085,27 +2223,18 @@ function renderTaskList(listEl,tasks,statusId,hiddenCount){
     listEl.appendChild(el("p","muted","No tasks yet — add one above."));
     return;
   }
-  tasks.forEach(function(t,idx){
+  tasks.forEach(function(t){
     var row=el("div","task-row"+(t.done?" done":""));
+    row.setAttribute("data-task",t.id);
+    var grip=el("span","task-grip","⠿");
+    grip.title="Drag to move";
+    grip.setAttribute("aria-label","Drag to move: "+t.title);
+    grip.addEventListener("pointerdown",function(ev){startTaskDrag(t.id,ev);});
+    row.appendChild(grip);
     var cb=el("input");cb.type="checkbox";cb.checked=!!t.done;
     cb.addEventListener("change",function(){t.done=cb.checked;t.updated_at=Date.now();state.profile.updated_at=Date.now();save();renderTasks();});
     row.appendChild(cb);
     row.appendChild(el("span","task-title",t.title));
-    if(_tasksReorder){
-      /* Stacked so the pair costs one button's width on a phone. Disabled at
-         the ends of the block rather than hidden, so the rows stay aligned. */
-      var move=el("div","task-move");
-      [["▲",-1],["▼",1]].forEach(function(pair){
-        var b=el("button","task-move-btn",pair[0]);
-        b.type="button";
-        b.setAttribute("aria-label",(pair[1]<0?"Move up: ":"Move down: ")+t.title);
-        var to=tasks[idx+pair[1]];
-        b.disabled=!to||!!to.done!==!!t.done;
-        b.addEventListener("click",function(){moveTask(t.id,pair[1]);});
-        move.appendChild(b);
-      });
-      row.appendChild(move);
-    }
     if(t.due){
       var due=new Date(t.due);
       row.appendChild(el("span","task-due",
@@ -2164,17 +2293,9 @@ function renderTasks(){
   var open=all.filter(function(t){return !t.done;}).length;
   var todayList=document.getElementById("taskList");
   if(!todayList)return;
-  /* Reordering always shows the whole list: you cannot move a task past the
-     three Today keeps if the rest are not on screen. */
-  var shown=(_tasksExpanded||_tasksReorder)?all:all.slice(0,TASK_TODAY_LIMIT);
+  var shown=_tasksExpanded?all:all.slice(0,TASK_TODAY_LIMIT);
   renderTaskList(todayList,shown,"taskStatus",Math.max(0,all.length-shown.length));
   setCount("taskCount",all.length?(open+" open"):"");
-  var rb=document.getElementById("taskReorderBtn");
-  if(rb){
-    rb.classList.toggle("active",_tasksReorder);
-    rb.setAttribute("aria-pressed",_tasksReorder?"true":"false");
-    rb.title=_tasksReorder?"Done reordering":"Reorder tasks";
-  }
 }
 
 function addTask(inputId){
@@ -2973,7 +3094,17 @@ function openColorMenu(name,anchor,ev){
    round trip: events are fetched a window at a time and kept in memory. */
 var calCur=new Date(); calCur.setHours(0,0,0,0);
 var CAL_SLIDE_MS=280;
-var CAL_WINDOW_PAD=7;          /* days fetched either side of the focused day */
+var CAL_WINDOW_PAD=10;         /* days fetched either side of the focused day */
+/* How many days one panel shows: the focused day plus its followers. A phone
+   has room for two neighbours; a tablet or a desktop window gets the whole
+   week. The focused column is CAL_FOCUS_FR times a peek column either way, so
+   the day you are on stays the one you can read. */
+var CAL_WIDE_MIN=900;
+var CAL_WEEK_COLS=7, CAL_PHONE_COLS=3, CAL_WIDE_FOCUS_FR=2;
+function calCols(){
+  var w=(typeof window!=="undefined"&&window.innerWidth)||0;
+  return w>=CAL_WIDE_MIN?CAL_WEEK_COLS:CAL_PHONE_COLS;
+}
 var _calSliding=false;
 /* A swipe ends with a click event on whatever was under the finger. This
    flag lets the tap-to-schedule handlers tell a real tap from the tail of a
@@ -3068,9 +3199,9 @@ function eventDayKey(e){
 /** Loads a padded window around `centre` unless the one in memory already
  * covers the days we're about to show. Returns a promise either way. */
 function ensureCalWindow(centre){
-  /* -1 for the previous panel, +3 because the next panel's peek columns
-     reach two days beyond it. */
-  var need0=keyOf(addDays(centre,-1)),need1=keyOf(addDays(centre,3));
+  /* -1 for the previous panel, and forward far enough for the *next* panel's
+     last column - which is calCols() days past it. */
+  var need0=keyOf(addDays(centre,-1)),need1=keyOf(addDays(centre,calCols()+1));
   if(_calWin&&need0>=_calWin.from&&need1<=_calWin.to)return Promise.resolve(_calWin);
   var from=keyOf(addDays(centre,-CAL_WINDOW_PAD)),to=keyOf(addDays(centre,CAL_WINDOW_PAD));
   var reqId=++_calReqId;
@@ -3217,7 +3348,10 @@ function calChip(x,place){
     +(x.task&&x.task.done?" is-done":""));
   chip.type="button";
   chip.style.borderInlineStartColor=x.color||(x.kind==="gtask"?"var(--accent)":"var(--brand)");
-  chip.appendChild(el("span","cal-chip-time",calEntryTimeLabel(x)));
+  /* No time on the chip: where it sits in the grid already says when it is,
+     and in a narrow column those few characters were the difference between
+     a title that reads and one that is cut off. The full detail, times
+     included, is in the tooltip and in the editor. */
   chip.appendChild(el("span","cal-chip-title",x.title));
   var meta=[calEntryKindLabel(x),x.gtask&&x.gtask.list,x.event&&x.event.calendar,x.event&&x.event.location]
     .filter(Boolean).join(" · ");
@@ -3241,8 +3375,15 @@ function placeByTime(node,x,place){
      a peek-column chip is positioned against the cell itself and subtracts
      nothing. */
   var inset=place.inset?" - var(--cal-pad-t)":"";
+  var rows=calEntryDuration(x)/60;
   node.style.top="calc(var(--cal-row) * "+(offset/60).toFixed(4)+inset+")";
-  node.style.height="calc(var(--cal-row) * "+(calEntryDuration(x)/60).toFixed(4)+" - 2px)";
+  node.style.height="calc(var(--cal-row) * "+rows.toFixed(4)+" - 2px)";
+  /* The text is sized from the slot, not the other way round: a chip may
+     never grow to fit its title, because its height is how long the event
+     runs. Short chips also drop the meta line - one legible title beats a
+     title and a subtitle both clipped. */
+  node.style.setProperty("--chip-rows",rows.toFixed(4));
+  if(rows<1.6)node.classList.add("is-short");
   var w=100/place.of;
   node.style.insetInlineStart="calc("+(place.index*w).toFixed(3)+"% + 1px)";
   node.style.width="calc("+w.toFixed(3)+"% - 2px)";
@@ -3631,7 +3772,31 @@ function calApi(method,path,payload){
  * The neighbours are full days, not summaries - just narrower. */
 function buildDayPanel(dayDate,timesByKey){
   var group=el("div","cal-daygroup");
-  var days=[dayDate,addDays(dayDate,1),addDays(dayDate,2)];
+  var cols=calCols(),wide=cols!==CAL_PHONE_COLS,ci,days=[],focusIdx=0;
+  if(wide){
+    /* Monday to Sunday, so the grid lines up with the week strip above it.
+       The focused day is one of the seven and is the wide one - it is not
+       necessarily the first, which is why the hour labels move into a gutter
+       column of their own rather than living in the focused cell. */
+    var mon=weekStart(dayDate),fk=keyOf(dayDate);
+    for(ci=0;ci<cols;ci++){
+      days.push(addDays(mon,ci));
+      if(keyOf(days[ci])===fk)focusIdx=ci;
+    }
+    var tpl=[];
+    for(ci=0;ci<cols;ci++)tpl.push("minmax(0,"+(ci===focusIdx?CAL_WIDE_FOCUS_FR:1)+"fr)");
+    group.style.gridTemplateColumns="var(--cal-gutter) "+tpl.join(" ");
+    group.classList.add("is-week");
+  }else{
+    for(ci=0;ci<cols;ci++)days.push(addDays(dayDate,ci));
+  }
+  /* One cell per row in the gutter, or nothing at all on the phone. */
+  function gutter(text,cls){
+    if(!wide)return;
+    var g=el("div","cal-gutter"+(cls?" "+cls:""));
+    if(text)g.appendChild(el("span","cal-hour-label",text));
+    group.appendChild(g);
+  }
   var keys=days.map(keyOf);
   var tk=todayKey();
   var segs=days.map(function(d,i){return calWindowsForDay(timesByKey[keys[i]]);});
@@ -3657,13 +3822,14 @@ function buildDayPanel(dayDate,timesByKey){
     return m;
   });
 
-  /* Heading row: the focused day names itself, the two neighbours are
-     tappable so you can bring one into focus. */
+  /* Heading row: the focused day names itself, the others are tappable so
+     you can bring one into focus. */
+  gutter(null,"cal-gutter-head");
   days.forEach(function(d,i){
-    var head=el("div","cal-gh"+(keys[i]===tk?" is-today":""));
+    var head=el("div","cal-gh"+(keys[i]===tk?" is-today":"")+(i===focusIdx?" is-focus":""));
     head.appendChild(el("b",null,String(d.getDate())));
     head.appendChild(document.createTextNode(WK_LABELS[(d.getDay()+6)%7]));
-    if(i>0){
+    if(i!==focusIdx){
       head.setAttribute("role","button");
       head.addEventListener("click",function(){
         calCur=new Date(d);calCur.setHours(0,0,0,0);
@@ -3674,10 +3840,11 @@ function buildDayPanel(dayDate,timesByKey){
   });
 
   if(hasAllDay){
+    gutter("All day","cal-allday");
     days.forEach(function(_,i){
-      var cell=el("div","cal-cell cal-allday"+(i===0?" is-main":""));
-      if(i===0){
-        cell.appendChild(el("span","cal-hour-label","All day"));
+      var cell=el("div","cal-cell cal-allday"+(i===focusIdx?" is-main":""));
+      if(i===focusIdx){
+        if(!wide)cell.appendChild(el("span","cal-hour-label","All day"));
         var box=el("div","cal-hour-events");
         allDay[i].forEach(function(x){box.appendChild(calChip(x));});
         cell.appendChild(box);
@@ -3689,8 +3856,9 @@ function buildDayPanel(dayDate,timesByKey){
   }
 
   for(var h=0;h<24;h++){
-    for(var i=0;i<3;i++){
-      var isMain=i===0;
+    gutter(fmtHour(h));
+    for(var i=0;i<cols;i++){
+      var isMain=i===focusIdx;
       var cell=el("div","cal-cell"+(isMain?" is-main":""));
       var bg=calCellBackground(segs[i],h);
       if(bg)cell.style.background=bg;
@@ -3698,7 +3866,7 @@ function buildDayPanel(dayDate,timesByKey){
       if(isCurrentHour)cell.classList.add("current-hour");
 
       if(isMain){
-        cell.appendChild(el("span","cal-hour-label",fmtHour(h)));
+        if(!wide)cell.appendChild(el("span","cal-hour-label",fmtHour(h)));
         var box=el("div","cal-hour-events");
         var entries=byHour[i][h]||[];
         entries.forEach(function(x,n){
@@ -3781,7 +3949,11 @@ function paintCalPanels(days,timesByKey){
   });
 
   if(keyOf(calCur)===todayKey()){
-    var target=document.getElementById("calDayCur").querySelector(".cal-cell.is-main.current-hour");
+    /* Any column will do: in the week layout the focused day is often not
+       today, so ".is-main.current-hour" would find nothing and the grid would
+       open at midnight. */
+    var target=document.getElementById("calDayCur").querySelector(".cal-cell.current-hour")
+      ||document.getElementById("calDayCur").querySelector(".cal-gutter");
     if(target&&typeof target.scrollIntoView==="function"){
       try{target.scrollIntoView({block:"center"});}catch(e){}
     }
@@ -3798,10 +3970,10 @@ function paintCalPanels(days,timesByKey){
 function renderCalPanels(){
   var loc=state.profile&&state.profile.prayerLoc;
   var days=[addDays(calCur,-1),calCur,addDays(calCur,1)];
-  /* Each panel shows its day plus the next two, so times are needed from
-     one day before the focused day to three after it. */
+  /* Each panel shows its day plus the following ones, so times are needed
+     from one day before the focused day to calCols() after it. */
   var needed=[];
-  for(var n=-1;n<=3;n++)needed.push(keyOf(addDays(calCur,n)));
+  for(var n=-1;n<=calCols()+1;n++)needed.push(keyOf(addDays(calCur,n)));
 
   var cached=cachedTimesFor(needed);
   paintCalPanels(days,cached);
@@ -4177,10 +4349,19 @@ function forgetOpeningReminders(){
   Object.keys(_loggedKeys).forEach(function(k){if(k.indexOf("open-")===0)delete _loggedKeys[k];});
 }
 
+var RESUME_SYNC_MS=60*1000;   /* don't re-sync on every glance at the app */
+var _lastResumeSync=0;
 function onResume(away){
   if(away>=RESUME_FRESH_MS)forgetOpeningReminders();
   openingReminders();
   checkReminders();          /* the minute tick may have been throttled off */
+  /* An installed app is resumed, not reloaded, so the sync at startup can be
+     days old. Without this, another device's edits only arrived when you
+     remembered to press Sync now. */
+  if(state.sync&&state.sync.enabled&&away>=RESUME_SYNC_MS&&Date.now()-_lastResumeSync>=RESUME_SYNC_MS){
+    _lastResumeSync=Date.now();
+    runSync();
+  }
 }
 
 document.addEventListener("visibilitychange",function(){
@@ -4192,6 +4373,193 @@ document.addEventListener("visibilitychange",function(){
 /* Restored from the back/forward cache: no scripts re-run, so this is the
    only signal that the app is on screen again. */
 window.addEventListener("pageshow",function(e){if(e.persisted)onResume(RESUME_FRESH_MS);});
+
+/* ---------- DUAS ----------
+ *
+ * A du'a is a picture the user uploads and links to a dhikr item. The picture
+ * lives in D1 behind /api/duas (the link is on the synced profile, so every
+ * device that pulls the link has to be able to fetch the picture too); the
+ * link itself is `profile.duaLinks["<period>|<item key>"] = <dua id>`.
+ *
+ * Keyed on the item's *key*, not its label, so renaming a dhikr item in
+ * Settings keeps its du'a. */
+var DUA_MAX_PX=1600;          /* longest edge after resizing */
+var DUA_QUALITY=0.85;
+var _duas=null;               /* the list, once fetched */
+
+function duaLinks(){
+  if(!state.profile.duaLinks||typeof state.profile.duaLinks!=="object")state.profile.duaLinks={};
+  return state.profile.duaLinks;
+}
+function duaLinkKey(period,itemKey){return period+"|"+itemKey;}
+function duaFor(period,itemKey){
+  var id=duaLinks()[duaLinkKey(period,itemKey)];
+  return id||null;
+}
+function setDuaLink(period,itemKey,duaId){
+  var links=duaLinks(),k=duaLinkKey(period,itemKey);
+  if(duaId)links[k]=duaId; else delete links[k];
+  state.profile.updated_at=Date.now();
+  save();
+}
+function duaStatus(msg){
+  var el2=document.getElementById("duaStatus");
+  if(el2)el2.textContent=msg||"";
+}
+
+/** Shrinks the picture in the browser before it is ever sent. A phone photo
+ * is several megabytes and D1 is not a blob store; this keeps a scan legible
+ * while landing well inside the server's ceiling. */
+function shrinkImage(file){
+  return new Promise(function(resolve,reject){
+    var reader=new FileReader();
+    reader.onerror=function(){reject(new Error("couldn't read that file"));};
+    reader.onload=function(){
+      var img=new Image();
+      img.onerror=function(){reject(new Error("that file isn't an image the browser can open"));};
+      img.onload=function(){
+        var w=img.naturalWidth||img.width,h=img.naturalHeight||img.height;
+        var scale=Math.min(1,DUA_MAX_PX/Math.max(w,h));
+        var cv=document.createElement("canvas");
+        cv.width=Math.max(1,Math.round(w*scale));
+        cv.height=Math.max(1,Math.round(h*scale));
+        var ctx=cv.getContext&&cv.getContext("2d");
+        if(!ctx){resolve(String(reader.result));return;}   /* no canvas: send as-is */
+        ctx.drawImage(img,0,0,cv.width,cv.height);
+        try{resolve(cv.toDataURL("image/jpeg",DUA_QUALITY));}
+        catch(e){resolve(String(reader.result));}
+      };
+      img.src=String(reader.result);
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function loadDuas(){
+  return fetch("/api/duas",{credentials:"same-origin"}).then(function(res){
+    if(!res.ok)throw new Error("http "+res.status);
+    return res.json();
+  }).then(function(data){
+    _duas=data.duas||[];
+    return _duas;
+  });
+}
+
+function uploadDua(){
+  var input=document.getElementById("duaFile");
+  var file=input&&input.files&&input.files[0];
+  if(!file){duaStatus("Choose a picture first.");return Promise.resolve();}
+  duaStatus("Preparing…");
+  return shrinkImage(file).then(function(dataUrl){
+    duaStatus("Uploading…");
+    return fetch("/api/duas",{
+      method:"POST",credentials:"same-origin",
+      headers:{"content-type":"application/json"},
+      body:JSON.stringify({name:file.name.replace(/\.[^.]+$/,""),dataUrl:dataUrl})
+    });
+  }).then(function(res){
+    return res.json().then(function(body){
+      if(!res.ok)throw new Error(body.error||("http "+res.status));
+      return body;
+    });
+  }).then(function(){
+    input.value="";
+    duaStatus("Added.");
+    return loadDuas().then(renderDuasList);
+  }).catch(function(e){
+    duaStatus("Couldn't add it: "+((e&&e.message)||e));
+  });
+}
+
+function deleteDua(id){
+  return fetch("/api/duas/"+encodeURIComponent(id),{method:"DELETE",credentials:"same-origin"})
+    .then(function(){
+      /* Any dhikr item pointing at it would otherwise open a broken picture. */
+      var links=duaLinks(),changed=false;
+      Object.keys(links).forEach(function(k){if(links[k]===id){delete links[k];changed=true;}});
+      if(changed){state.profile.updated_at=Date.now();save();}
+      return loadDuas().then(function(){renderDuasList();renderToday();});
+    }).catch(function(){duaStatus("Couldn't remove it.");});
+}
+
+/** Every dhikr item, across the three periods, as [key, period, label]. */
+function allDhikrItems(){
+  var out=[];
+  DHIKR_PERIODS.forEach(function(period){
+    dhikrItems(period[0]).forEach(function(item){
+      out.push([duaLinkKey(period[0],item[0]),period[0],period[1]+" · "+item[1],item[0]]);
+    });
+  });
+  return out;
+}
+
+function renderDuasList(){
+  var box=document.getElementById("duasBox");
+  if(!box)return;
+  box.innerHTML="";
+  if(_duas===null){box.appendChild(el("p","muted","Loading…"));return;}
+  if(!_duas.length){
+    box.appendChild(el("p","muted","Nothing here yet — add a picture above."));
+    return;
+  }
+  var links=duaLinks();
+  _duas.forEach(function(d){
+    var card=el("div","card dua-card");
+    card.appendChild(el("h3",null,d.name||"Du'a"));
+    var img=el("img","dua-thumb");
+    img.src="/api/duas/"+encodeURIComponent(d.id);
+    img.alt=d.name||"Du'a";
+    img.addEventListener("click",function(){openDuaModal(d.id,d.name);});
+    card.appendChild(img);
+
+    card.appendChild(el("div","muted dua-linklabel","Opens from these dhikr items:"));
+    var list=el("div","dua-links");
+    allDhikrItems().forEach(function(row){
+      var label=el("label","chk");
+      var cb=el("input");cb.type="checkbox";
+      cb.checked=links[row[0]]===d.id;
+      cb.addEventListener("change",function(){
+        setDuaLink(row[1],row[3],cb.checked?d.id:null);
+        renderDuasList();
+        renderToday();
+      });
+      label.appendChild(cb);
+      label.appendChild(el("div","lbl",row[2]));
+      list.appendChild(label);
+    });
+    card.appendChild(list);
+
+    var del=el("button","btn danger","Remove");
+    del.type="button";
+    del.addEventListener("click",function(){deleteDua(d.id);});
+    card.appendChild(del);
+    box.appendChild(card);
+  });
+}
+
+/* Paints what is already held, then always refetches: a du'a added on
+   another device would otherwise never appear on this one, since the list is
+   held in memory for the life of the page. */
+function renderDuas(){
+  renderDuasList();
+  return loadDuas().then(renderDuasList).catch(function(){
+    if(_duas===null)_duas=[];
+    renderDuasList();
+    duaStatus("Couldn't load your du'as — check you're signed in.");
+  });
+}
+
+function openDuaModal(id,name){
+  var body=document.getElementById("modalBody");
+  if(!body)return;
+  body.innerHTML="";
+  body.appendChild(el("h2",null,name||"Du'a"));
+  var img=el("img","dua-full");
+  img.src="/api/duas/"+encodeURIComponent(id);
+  img.alt=name||"Du'a";
+  body.appendChild(img);
+  showModal();
+}
 
 /* ---------- RENDER: MEAL PLAN ---------- */
 function renderPlan(){
@@ -4538,7 +4906,17 @@ function syncHeaderHeight(){
   var h=document.querySelector("header.top");
   if(h&&h.offsetHeight)document.documentElement.style.setProperty("--hdr-h",h.offsetHeight+"px");
 }
-window.addEventListener("resize",syncHeaderHeight);
+/* Rotating a tablet crosses the calendar's wide/narrow breakpoint, and the
+   grid is built in JS - so it has to be rebuilt, but only when the column
+   count actually changed, not on every resize event. */
+var _calColsAt=calCols();
+window.addEventListener("resize",function(){
+  syncHeaderHeight();
+  var n=calCols();
+  if(n===_calColsAt)return;
+  _calColsAt=n;
+  if(currentView==="calendar")renderCalendarTab();
+});
 
 /* ---------- PRAYERS TAB ---------- */
 /* Shares `cur` with Today, so ticking a prayer here and there is the same
@@ -4739,7 +5117,7 @@ function saveBriefPrompt(value){
 var VIEWS=["today","prayers","calendar","others","progress","settings"];
 /* Meals, recipes and movement are reference material rather than daily
    tracking, so they share one tab with their own sub-tabs. */
-var SUBVIEWS=["plan","recipes","exercises"];
+var SUBVIEWS=["plan","recipes","exercises","duas"];
 var currentView="today",currentSub="plan";
 /* Which tab you were on is remembered so a refresh (or reopening the
    installed app) puts you back where you were, not always on Today. */
@@ -4771,6 +5149,7 @@ function navSub(sub){
     document.getElementById("sub-"+v).classList.toggle("active",v===sub);
   });
   try{localStorage.setItem(LASTSUB_KEY,sub);}catch(e){}
+  if(sub==="duas")renderDuas();
   window.scrollTo(0,0);
 }
 
@@ -4845,7 +5224,7 @@ document.getElementById("installBtn").addEventListener("click",function(){
 document.getElementById("importBtn").addEventListener("click",function(){document.getElementById("importFile").click();});
 document.getElementById("importFile").addEventListener("change",function(){
   var f=this.files[0];if(!f)return;var r=new FileReader();
-  r.onload=function(){try{var s=JSON.parse(r.result);if(s&&s.days){if(!s.profile)s.profile={startWeight:108,targetWeight:88};if(!s.schema)s.schema=1;if(!s.sync)s.sync={enabled:false,since:0,lastSyncAt:null,lastError:null};migrate(s);state=s;save();renderToday();renderProgress();alert("Backup restored.");}else alert("That file doesn't look like a valid backup.");}catch(e){alert("Couldn't read that file.");}};
+  r.onload=function(){try{var s=JSON.parse(r.result);if(s&&s.days){if(!s.profile)s.profile={startWeight:108,targetWeight:88};if(!s.schema)s.schema=1;if(!s.sync)s.sync={enabled:false,since:0,lastSyncAt:null,lastError:null};migrate(s);state=s;save();renderAll();alert("Backup restored.");}else alert("That file doesn't look like a valid backup.");}catch(e){alert("Couldn't read that file.");}};
   r.readAsText(f);
 });
 document.getElementById("clearBtn").addEventListener("click",function(){
@@ -4855,11 +5234,7 @@ document.getElementById("clearBtn").addEventListener("click",function(){
 });
 
 document.getElementById("taskAddBtn").addEventListener("click",function(){addTask("taskTitleIn");});
-document.getElementById("taskReorderBtn").addEventListener("click",function(){
-  _tasksReorder=!_tasksReorder;
-  if(_tasksReorder)_taskSchedOpenId=null;   /* one panel open at a time */
-  renderTasks();
-});
+document.getElementById("duaAddBtn").addEventListener("click",function(){uploadDua();});
 document.getElementById("taskTitleIn").addEventListener("keydown",function(e){if(e.key==="Enter")addTask("taskTitleIn");});
 
 PCHIP_IDS.forEach(function(id){

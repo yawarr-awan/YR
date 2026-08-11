@@ -163,7 +163,11 @@ test("events land in their hour with time, calendar and location", async () => {
   const hours = curHours(app);
   const chip = hours[14].querySelector(".cal-chip");
   assert.ok(chip, "a 14:30 event sits in the 2 PM row");
-  assert.match(chip.textContent, /2:30 PM/, "times read as AM/PM everywhere");
+  // The chip carries no time: where it sits in the grid says when it is, and
+  // those characters were the difference between a title that reads and one
+  // that is cut off in a narrow column. The tooltip still has it.
+  assert.doesNotMatch(chip.textContent, /2:30/, "the chip shows no clock time");
+  assert.match(chip.title, /2:30 PM/, "but the tooltip does, in AM/PM like everywhere else");
   assert.match(chip.textContent, /Physio/);
   assert.match(chip.querySelector(".cal-chip-meta").textContent, /Yawar · Clinic/);
   assert.equal(chip.style.borderInlineStartColor, "rgb(66, 133, 244)");
