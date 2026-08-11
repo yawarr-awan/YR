@@ -118,3 +118,77 @@ test("clearing the whole backlog reads as nothing outstanding, not as never havi
   assert.match(summary, /nothing outstanding/i);
   assert.match(summary, /10 made up so far/);
 });
+
+/* --- the history is a run of dates, not a set of records --------------------
+ * Two devices disagreed about how many prayers were owed because the summary
+ * was built from Object.keys(state.days). A record gets created merely by
+ * *looking* at a date, so which blank days each device held was accidental -
+ * and a blank day counted as five missed prayers. It is a date range now.
+ */
+function seedWith(days, extra) {
+  return JSON.stringify(Object.assign({
+    schema: 4,
+    profile: { startWeight: 108, targetWeight: 88, tasks: [], updated_at: 1 },
+    days,
+    sync: { enabled: false, since: 0, lastSyncAt: null, lastError: null },
+  }, extra || {}));
+}
+function dayRec(over) {
+  return Object.assign({
+    meds: {}, prayers: {}, meals: {}, extras: {},
+    dhikr: { morning: {}, afternoon: {}, evening: {} },
+    water: 0, weight: "", sleep: "", steps: "", jointPain: null, energy: null,
+    exercise: false, notes: "", updated_at: 1,
+  }, over || {});
+}
+function ago(n) {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() - n);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+test("a day with no record at all still counts against the history", () => {
+  // Ten days ago is the start; only it and yesterday have records. The eight
+  // days between were never opened, and are missed, not absent.
+  const days = {};
+  days[ago(10)] = dayRec({ prayers: { fajr: true, dhuhr: true, asr: true, maghrib: true, isha: true } });
+  days[ago(1)] = dayRec({ prayers: { fajr: true } });
+
+  const app = loadApp({ localStorageSeed: { [MAIN_KEY]: seedWith(days) }, fetchImpl: idle });
+  app.goTo("prayers");
+
+  const note = app.document.querySelector("#praySummary .note").textContent;
+  assert.match(note, /across 10 completed day\(s\)/, "ten days from the first record to yesterday");
+  // 10 days x 5 = 50 prayers; 5 + 1 were prayed.
+  assert.match(note, /44 prayer\(s\) still to make up/);
+  assert.match(note, /1 day\(s\) had all 5/);
+});
+
+test("the table shows the unlogged days too, and can open the whole history", () => {
+  const days = {};
+  days[ago(20)] = dayRec({ prayers: { fajr: true } });
+  const app = loadApp({ localStorageSeed: { [MAIN_KEY]: seedWith(days) }, fetchImpl: idle });
+  app.goTo("prayers");
+
+  const rows = () => app.document.querySelectorAll("#praySummary tbody tr").length;
+  assert.equal(rows(), 14, "a recent window by default");
+
+  const more = Array.from(app.document.querySelectorAll("#praySummary button"))
+    .find((b) => /show all/i.test(b.textContent));
+  assert.ok(more, "with a way to see the rest");
+  assert.match(more.textContent, new RegExp("since " + ago(20)));
+  more.click();
+  assert.equal(rows(), 21, "twenty days plus today - nothing since the start is dropped");
+});
+
+test("qada owed follows the same continuous history", () => {
+  const days = {};
+  days[ago(3)] = dayRec({ prayers: {} });
+  const app = loadApp({ localStorageSeed: { [MAIN_KEY]: seedWith(days) }, fetchImpl: idle });
+  app.goTo("prayers");
+
+  const owed = Array.from(app.document.querySelectorAll("#qadaBox .qada-owed")).map((n) => n.textContent);
+  assert.deepEqual(owed, ["3 owed", "3 owed", "3 owed", "3 owed", "3 owed"],
+    "three past days, none prayed, whether or not each has a record");
+});

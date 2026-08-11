@@ -302,3 +302,41 @@ test("a pulled edit reaches the tab you are on, not just the stored state", asyn
   assert.equal(app.document.querySelectorAll("#prayBox input[type=checkbox]:checked").length, 5,
     "the checklist too");
 });
+
+/* A day record is created merely by *looking* at a date, and those records
+ * carry no updated_at - so dayChunks() skipped them and they could never
+ * reach another device. A record with real content in it must always push;
+ * a still-empty one must not, or the phantom day spreads instead. */
+test("a day holding real data always pushes, even if it somehow lost its stamp", async () => {
+  const server = createMockServer();
+  const withContent = {
+    meds: {}, prayers: { fajr: true }, meals: {}, extras: {},
+    dhikr: { morning: {}, afternoon: {}, evening: {} },
+    water: 0, weight: "", sleep: "", steps: "", jointPain: null, energy: null,
+    exercise: false, notes: "",
+  };                                            // no updated_at at all
+  const blank = Object.assign({}, withContent, { prayers: {} });
+
+  const app = loadApp({
+    localStorageSeed: {
+      [MAIN_KEY]: JSON.stringify({
+        schema: 4,
+        profile: { startWeight: 108, targetWeight: 88, tasks: [], updated_at: 1 },
+        days: { "2026-05-01": withContent, "2026-05-02": blank },
+        sync: { enabled: true, since: 0, lastSyncAt: null, lastError: null },
+      }),
+    },
+    fetchImpl: fetchImplFor(server),
+  });
+
+  app.goTo("settings");
+  app.click("syncNowBtn");
+  await app.flush();
+  await app.flush();
+
+  assert.ok(server._days["2026-05-01"], "the day with a tick on it reached the server");
+  assert.equal(JSON.parse(server._days["2026-05-01"].data).prayers.fajr, true);
+  assert.ok(app.state().days["2026-05-01"].updated_at > 0, "and was stamped on the way out");
+  assert.equal(server._days["2026-05-02"], undefined,
+    "a day that only ever got looked at says nothing and must not be spread to other devices");
+});

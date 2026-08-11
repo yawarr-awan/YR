@@ -1157,6 +1157,32 @@ endpoint; `test/calendarTab.test.js` for the current-window ring;
 - The Settings copy no longer says "optional, off by default" or "your data
   stays local-only until you turn this on" - both are now false.
 
+## The prayer history is a date range, not a set of records (1.25.2)
+**Two devices legitimately disagreed about the qada debt. Two causes, both
+real, and neither was the sync protocol.**
+- `dayData(k)` creates a record for any date that is merely **rendered** -
+  looking at a past date is enough. `blankDay()` sets no `updated_at`.
+- `renderPraySummary`/`missedByPrayer` iterated `Object.keys(state.days)`, so
+  a look-only record counted as **five missed prayers** while a day never
+  opened at all was **absent from the history**. Which blank days each device
+  held was accidental, so the totals diverged by exactly 5 per day.
+- `dayChunks()` filtered on `updated_at`, so those same records **could never
+  be pushed** - the divergence could not heal itself either.
+
+Fixes:
+- `prayerHistoryDays()` walks **dates** from `prayerHistoryStart()` (the
+  earliest key on record) to yesterday, and a date with no record is treated
+  as all-missed. Every device now reaches the same answer from the same
+  dates, whatever blank records it happens to hold. **Don't reintroduce
+  `Object.keys(state.days)` here.** This raises the outstanding count against
+  the old behaviour - unlogged days now count - which was flagged to Yawar.
+- `dayChunks()` stamps an unstamped day **only if `dayHasContent(d)`**, then
+  pushes it. Stamping everything was tried first and pushes a blank record for
+  today on every sync, which spreads the phantom-day problem instead of
+  fixing it.
+- `PRAY_SUMMARY_ROWS` (14) with a "Show all N days since <date>" toggle -
+  the memory is kept in full, but a year of rows is not the default view.
+
 ## Honest caveat
 The "Client-side sync layer," "Access + hosting," and "Current data state"
 sections above were re-verified live in this session (2026-08-09): read
