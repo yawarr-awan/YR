@@ -1204,3 +1204,62 @@ test("handleGetCalendarEvents: sends the calendar list so the editor can offer a
     [["Personal", true], ["Family", true], ["UK holidays", false]]);
   assert.equal(resp.calendars[0].primary, true);
 });
+
+test("handleCreateCalendarEvent: an all-day event is a date range, with an exclusive end", async (t) => {
+  const { handleCreateCalendarEvent } = await loadWorker();
+  const d1 = createFakeD1();
+  d1.seedToken(EMAIL, { access_token: "tok", access_token_expires_at: Date.now() + 10 * 60 * 1000 });
+  let sent = null;
+  installFetch(t, async (url, opts) => {
+    sent = JSON.parse(opts.body);
+    return jsonResponse(200, { id: "evt-1", htmlLink: "https://cal/evt-1" });
+  });
+
+  const req = new Request("https://x/api/google/calendar/events", {
+    method: "POST",
+    body: JSON.stringify({ title: "Birthday", allDay: true, day: "2026-08-15", calendarId: "fam@g" }),
+  });
+  const resp = await (await handleCreateCalendarEvent(req, d1.env, EMAIL)).json();
+
+  assert.equal(resp.status, "ok");
+  // Google spells all-day as `date`, and its end is EXCLUSIVE - a single day
+  // runs to the following morning. A day out here shows on the wrong dates.
+  assert.deepEqual(sent.start, { date: "2026-08-15" });
+  assert.deepEqual(sent.end, { date: "2026-08-16" });
+  assert.equal(sent.start.dateTime, undefined);
+});
+
+test("handleCreateCalendarEvent: an all-day event without a day is refused, not guessed at", async (t) => {
+  const { handleCreateCalendarEvent } = await loadWorker();
+  const d1 = createFakeD1();
+  d1.seedToken(EMAIL, { access_token: "tok", access_token_expires_at: Date.now() + 10 * 60 * 1000 });
+  installFetch(t, async () => { throw new Error("must not reach Google without a date"); });
+
+  const req = new Request("https://x/api/google/calendar/events", {
+    method: "POST",
+    body: JSON.stringify({ title: "Birthday", allDay: true }),
+  });
+  const resp = await handleCreateCalendarEvent(req, d1.env, EMAIL);
+  assert.equal(resp.status, 400);
+  assert.match((await resp.json()).error, /day/);
+});
+
+test("handleCreateCalendarEvent: a timed event is still a dateTime range", async (t) => {
+  const { handleCreateCalendarEvent } = await loadWorker();
+  const d1 = createFakeD1();
+  d1.seedToken(EMAIL, { access_token: "tok", access_token_expires_at: Date.now() + 10 * 60 * 1000 });
+  let sent = null;
+  installFetch(t, async (url, opts) => {
+    sent = JSON.parse(opts.body);
+    return jsonResponse(200, { id: "evt-2" });
+  });
+
+  const req = new Request("https://x/api/google/calendar/events", {
+    method: "POST",
+    body: JSON.stringify({ title: "Physio", start: "2026-08-15T14:00:00.000Z", durationMinutes: 45 }),
+  });
+  await handleCreateCalendarEvent(req, d1.env, EMAIL);
+  assert.equal(sent.start.dateTime, "2026-08-15T14:00:00.000Z");
+  assert.equal(sent.end.dateTime, "2026-08-15T14:45:00.000Z");
+  assert.equal(sent.start.date, undefined);
+});

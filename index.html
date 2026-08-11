@@ -241,9 +241,22 @@ input[type=range]{width:100%;accent-color:var(--accent)}
 .cal-gh:first-child{border-inline-start:none;text-align:start;padding-inline-start:8px;cursor:default}
 .cal-gh b{display:block;font-size:.76rem;color:var(--ink)}
 .cal-gh.is-today b{color:var(--brand)}
+/* One hour of the grid is one row of --cal-row, and the placement maths
+   below works in those units rather than percentages: a percentage height
+   resolves against the cell's *content* box, which is a border and two
+   paddings shorter than the row, so a four-hour event came out three rows
+   tall. --cal-pad-t is what a chip inside .cal-hour-events has to cancel to
+   line up with the top of its hour. */
+/* The `hidden` attribute is only `display:none` from the UA stylesheet, so
+   any author rule setting a display - .row2 is a flex row - beats it and the
+   element stays on screen. This is the standard fix, and the reason the
+   all-day toggle appeared to do nothing in a real browser while passing in
+   jsdom, which reads the property rather than the cascade. */
+[hidden]{display:none!important}
+.cal-daygroup{--cal-row:34px;--cal-pad-t:3px}
 .cal-cell{
   position:relative;border-top:1px solid var(--line);border-inline-start:1px solid var(--line);
-  min-height:34px;padding:3px 5px 4px;overflow:hidden
+  min-height:var(--cal-row);padding:var(--cal-pad-t) 5px 4px;overflow:hidden
 }
 .cal-cell.is-main{border-inline-start:none;display:flex;gap:8px;padding-inline:8px}
 /* The hour it is now. There is deliberately no ring around the current
@@ -258,13 +271,26 @@ input[type=range]{width:100%;accent-color:var(--accent)}
 /* The row already says "All day"; repeating it on every chip only costs width. */
 .cal-allday .cal-chip-time{display:none}
 .cal-hour-label{font-size:.66rem;font-weight:800;color:var(--ink);opacity:.65;flex:0 0 34px;padding-top:2px}
-.cal-hour-events{display:flex;flex-direction:column;gap:3px;flex:1;min-width:0}
+.cal-hour-events{display:flex;flex-direction:column;gap:3px;flex:1;min-width:0;position:relative}
 .cal-chip{
   border-radius:7px;padding:4px 8px;font-size:.82rem;line-height:1.35;
   background:var(--panel-2);border-inline-start:3px solid var(--brand);
   cursor:pointer;text-align:start;width:100%;border-block:0;border-inline-end:0;
   color:var(--ink);font-family:inherit;display:block
 }
+/* A timed chip in the focused column is drawn to the length of the event,
+   the same way the peek columns are: an hour of the grid is an hour of the
+   day, so a four-hour event is four rows tall. It therefore leaves its own
+   cell, which is why the main cells stop clipping and the chip is lifted
+   above the backgrounds painted after it. Anything too short to hold its
+   own text is clipped rather than allowed to grow - a chip that stretched
+   to fit would be lying about when the event ends. */
+.cal-cell.is-main:not(.cal-allday){overflow:visible}
+.cal-chip.is-timed{
+  position:absolute;margin:0;overflow:hidden;z-index:2;min-height:13px;
+  box-shadow:0 1px 4px rgba(0,0,0,.3)
+}
+.cal-chip.is-timed .cal-chip-meta{margin-top:1px}
 .cal-chip:hover{filter:brightness(1.06)}
 .cal-chip-time{font-weight:800;color:var(--muted);margin-inline-end:5px}
 .cal-chip-meta{display:block;font-size:.72rem;color:var(--muted)}
@@ -2815,7 +2841,7 @@ function calEntryDuration(x){
   return 30;
 }
 
-function calChip(x){
+function calChip(x,place){
   var chip=el("button","cal-chip"
     +(x.kind==="task"?" is-task":"")
     +(x.kind==="gtask"?" is-gtask":"")
@@ -2829,7 +2855,28 @@ function calChip(x){
   if(meta)chip.appendChild(el("span","cal-chip-meta",meta));
   chip.title=calEntryDetail(x);
   chip.addEventListener("click",function(ev){ev.stopPropagation();if(!_calDragged)openCalEntry(x);});
+  if(place&&!x.allDay)placeByTime(chip,x,place);
   return chip;
+}
+
+/** Positions a chip within its hour cell by when the event actually runs:
+ * `top` from the start's minute within the hour, `height` from its length,
+ * both as a fraction of one hour. Overlapping entries share the width so
+ * they sit side by side rather than on top of one another. */
+function placeByTime(node,x,place){
+  var start=new Date(x.start);
+  var offset=start.getHours()===place.hour?start.getMinutes():0;
+  node.classList.add("is-timed");
+  /* In rows, not percentages - see --cal-row. `inset` is what a chip living
+     inside .cal-hour-events must subtract to sit at the top of its hour;
+     a peek-column chip is positioned against the cell itself and subtracts
+     nothing. */
+  var inset=place.inset?" - var(--cal-pad-t)":"";
+  node.style.top="calc(var(--cal-row) * "+(offset/60).toFixed(4)+inset+")";
+  node.style.height="calc(var(--cal-row) * "+(calEntryDuration(x)/60).toFixed(4)+" - 2px)";
+  var w=100/place.of;
+  node.style.insetInlineStart="calc("+(place.index*w).toFixed(3)+"% + 1px)";
+  node.style.width="calc("+w.toFixed(3)+"% - 2px)";
 }
 
 /** The narrow columns can't hold a sentence, so they get a colour block
@@ -2844,20 +2891,7 @@ function calMini(x,place){
   mini.style.borderInlineStartColor=x.color||(x.kind==="gtask"?"var(--accent)":"var(--brand)");
   mini.title=calEntryDetail(x);
   mini.addEventListener("click",function(ev){ev.stopPropagation();if(!_calDragged)openCalEntry(x);});
-  if(place&&!x.allDay){
-    var start=new Date(x.start);
-    /* An event only starts partway down the hour it begins in. */
-    var offset=start.getHours()===place.hour?start.getMinutes():0;
-    mini.classList.add("is-timed");
-    mini.style.top=(offset/60*100).toFixed(3)+"%";
-    mini.style.height=(calEntryDuration(x)/60*100).toFixed(3)+"%";
-    /* Two things in the same hour sit side by side rather than on top of one
-       another - they are absolutely positioned now, so nothing else would
-       keep them apart. */
-    var w=100/place.of;
-    mini.style.insetInlineStart="calc("+(place.index*w).toFixed(3)+"% + 2px)";
-    mini.style.width="calc("+w.toFixed(3)+"% - 4px)";
-  }
+  if(place&&!x.allDay)placeByTime(mini,x,place);
   return mini;
 }
 
@@ -2917,12 +2951,27 @@ function openCalEditor(o){
   titleIn.placeholder="What is it?";
   calEditField(wrap,"Title",titleIn);
 
-  var whenIn=null,durIn=null;
+  var whenIn=null,durIn=null,dayIn=null,allDayCb=null;
   if(!allDay){
-    var row=el("div","row2");
-    whenIn=el("input");whenIn.type="datetime-local";
     var seed=entry?new Date(entry.start):new Date(o.start);
     seed.setSeconds(0,0);
+
+    /* Only for something genuinely new. Turning an existing timed event into
+       an all-day one is a different edit (Google wants date, not dateTime,
+       on both ends) and PATCH here only ever moves an event within the
+       clock; and an existing scheduled task has a due timestamp the rest of
+       the app reads, so it can't become dateless either. */
+    if(!entry){
+      allDayCb=el("input");allDayCb.type="checkbox";allDayCb.id="calEditAllDay";
+      var adRow=el("label","chk");
+      var adTxt=el("div");adTxt.appendChild(el("div","lbl","All day"));
+      adRow.appendChild(allDayCb);adRow.appendChild(adTxt);
+      wrap.appendChild(adRow);
+    }
+
+    var row=el("div","row2");
+    row.id="calEditWhenRow";
+    whenIn=el("input");whenIn.type="datetime-local";
     whenIn.value=localDatetimeValue(seed);
     durIn=el("select");
     var mins=entry?calEntryDuration(entry):30;
@@ -2936,6 +2985,35 @@ function openCalEditor(o){
     calEditField(row,"Starts",whenIn);
     calEditField(row,"Length",durIn);
     wrap.appendChild(row);
+
+    if(allDayCb){
+      /* A separate date input rather than reusing the datetime-local: the
+         two take different value formats, and swapping an input's type
+         underneath the browser is a good way to lose what was typed. */
+      var dayRow=el("div");
+      dayRow.id="calEditDayRow";
+      dayRow.hidden=true;
+      dayIn=el("input");dayIn.type="date";
+      dayIn.value=keyOf(seed);
+      calEditField(dayRow,"Date",dayIn);
+      wrap.appendChild(dayRow);
+
+      allDayCb.addEventListener("change",function(){
+        var on=allDayCb.checked;
+        row.hidden=on;
+        dayRow.hidden=!on;
+        /* Keep the two in step, so ticking the box doesn't move the day. */
+        if(on){
+          var v=whenIn.value?new Date(whenIn.value):seed;
+          if(!isNaN(v.getTime()))dayIn.value=keyOf(v);
+        }else if(dayIn.value){
+          var p=dayIn.value.split("-");
+          var back=new Date(+p[0],+p[1]-1,+p[2]);
+          back.setHours(seed.getHours(),seed.getMinutes(),0,0);
+          whenIn.value=localDatetimeValue(back);
+        }
+      });
+    }
   }
 
   /* Which calendar to put it on. Only for something new: moving an existing
@@ -3028,6 +3106,8 @@ function openCalEditor(o){
         location:locIn.value,
         notes:notesIn.value,
         calendarId:calIn?calIn.value:null,
+        allDay:!!(allDayCb&&allDayCb.checked),
+        day:dayIn?dayIn.value:null,
       },saveBtn);
     });
     actions.appendChild(saveBtn);
@@ -3076,6 +3156,11 @@ function calEditorSave(f,btn){
     var patch={calendarId:ev.calendarId||"primary",eventId:ev.id,title:f.title,location:f.location,notes:f.notes};
     if(startIso){patch.start=startIso;patch.durationMinutes=f.durationMinutes||30;}
     req=calApi("PATCH","/api/google/calendar/events",patch);
+  }else if(f.allDay){
+    if(!f.day){if(status)status.textContent="Pick a date first.";if(btn)btn.disabled=false;return Promise.resolve();}
+    var whole={title:f.title,allDay:true,day:f.day,location:f.location,notes:f.notes};
+    if(f.calendarId)whole.calendarId=f.calendarId;
+    req=calApi("POST","/api/google/calendar/events",whole);
   }else{
     if(!startIso){if(status)status.textContent="Pick a time first.";if(btn)btn.disabled=false;return Promise.resolve();}
     var create={title:f.title,start:startIso,durationMinutes:f.durationMinutes||30,
@@ -3247,8 +3332,8 @@ function buildDayPanel(dayDate,timesByKey){
         cell.appendChild(el("span","cal-hour-label",fmtHour(h)));
         var box=el("div","cal-hour-events");
         var entries=byHour[i][h]||[];
-        entries.forEach(function(x){
-          box.appendChild(calChip(x));
+        entries.forEach(function(x,n){
+          box.appendChild(calChip(x,{hour:h,index:n,of:entries.length,inset:true}));
         });
         if(!entries.length)box.appendChild(el("div","cal-slot-hint","+ Add"));
         cell.appendChild(box);

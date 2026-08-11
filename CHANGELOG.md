@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.23.0
+
+- **The focused day sizes an event by its length**, like the two peek columns already did. A four-hour birthday is four rows tall instead of one — an event's height came from how much of its title happened to fit, not from when it ends. Half-hour things are half a row and don't stretch to fit their own text, because a chip that grew would be lying about when the event finishes.
+- **All-day events can be created.** Tick "All day" when adding something and the time and length give way to a plain date. It goes to Google as a real all-day event, not a timed one with the clock ignored.
+
+Fixed on the way: the "All day" tick appeared to do nothing in a real browser. The `hidden` attribute is only `display:none` from the browser's own stylesheet, so the app's own `display:flex` on that row beat it and the time fields stayed put.
+
 ## 1.22.0
 
 - **Pick which calendar a new event goes on.** Adding something from the calendar now offers your writable calendars — Personal, Family, and anything else you can edit — instead of always using the primary one. Calendars you can only read aren't offered, since nothing can be put on them. With just one writable calendar there's no picker, because there's no choice to make.

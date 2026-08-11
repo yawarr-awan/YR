@@ -919,16 +919,32 @@ async function handleCreateCalendarEvent(request, env, email) {
 
   const title = typeof body.title === "string" ? body.title.trim() : "";
   if (!title) return json({ error: "title is required" }, 400);
-  if (typeof body.start !== "string") return json({ error: "start (ISO datetime) is required" }, 400);
-  const startDate = new Date(body.start);
-  if (Number.isNaN(startDate.getTime())) return json({ error: "invalid start" }, 400);
+
+  /* An all-day event is a different shape to Google, not a timed one with
+     the clock ignored: `date` rather than `dateTime`, and an END THAT IS
+     EXCLUSIVE - a single day runs to the following morning. Get that wrong
+     by a day and the event shows on the wrong dates. The client sends the
+     local date it means, because deriving one from an instant would land on
+     the wrong side of midnight in some zones. */
+  const allDay = body.allDay === true;
+  let startDate = null;
+  if (allDay) {
+    if (!DAY_RE.test(String(body.day || ""))) return json({ error: "day (YYYY-MM-DD) is required for an all-day event" }, 400);
+  } else {
+    if (typeof body.start !== "string") return json({ error: "start (ISO datetime) is required" }, 400);
+    startDate = new Date(body.start);
+    if (Number.isNaN(startDate.getTime())) return json({ error: "invalid start" }, 400);
+  }
 
   const tokenResult = await getGoogleAccessToken(env, email);
   if (tokenResult.error) return json({ status: tokenResult.error });
 
   const durationMinutes = Number.isFinite(body.durationMinutes) && body.durationMinutes > 0 ? body.durationMinutes : 30;
-  const endDate = new Date(startDate.getTime() + durationMinutes * 60000);
+  const endDate = allDay ? null : new Date(startDate.getTime() + durationMinutes * 60000);
   const calendarId = typeof body.calendarId === "string" && body.calendarId ? body.calendarId : "primary";
+  const when = allDay
+    ? { start: { date: body.day }, end: { date: nextDay(body.day) } }
+    : { start: { dateTime: startDate.toISOString() }, end: { dateTime: endDate.toISOString() } };
 
   const res = await fetch(
     `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events`,
@@ -939,8 +955,8 @@ async function handleCreateCalendarEvent(request, env, email) {
         summary: title,
         description: typeof body.notes === "string" ? body.notes : undefined,
         location: typeof body.location === "string" ? body.location : undefined,
-        start: { dateTime: startDate.toISOString() },
-        end: { dateTime: endDate.toISOString() },
+        start: when.start,
+        end: when.end,
       }),
     }
   );

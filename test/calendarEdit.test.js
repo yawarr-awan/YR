@@ -17,6 +17,7 @@ function jsonRes(body) { return { ok: true, status: 200, json: async () => body 
 function keyOf(d) {
   return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
 }
+function addDays(d, n) { const x = new Date(d); x.setDate(x.getDate() + n); return x; }
 function atToday(h, m) {
   const d = new Date();
   d.setHours(h, m || 0, 0, 0);
@@ -613,4 +614,71 @@ test("an existing event says where it lives rather than offering to move it", as
   // events.move is a different Google call, so this doesn't pretend to offer it.
   assert.equal(app.document.getElementById("calEditCalendar"), null);
   assert.match(app.document.querySelector("#modalBody").textContent, /On Family/);
+});
+
+test("a new event can be made all-day, and goes to Google as a date, not a time", async () => {
+  const backend = calendarBackend({ calendars: TWO_CALENDARS });
+  const app = loadApp({ fetchImpl: backend.impl });
+  await openCalendar(app);
+
+  mainCells(app)[15].click();
+  const allDay = app.document.getElementById("calEditAllDay");
+  assert.ok(allDay, "a new event should offer to be all-day");
+  assert.equal(app.document.getElementById("calEditWhenRow").hidden, false);
+  assert.equal(app.document.getElementById("calEditDayRow").hidden, true);
+
+  allDay.checked = true;
+  allDay.dispatchEvent(new app.window.Event("change", { bubbles: true }));
+  // The time and length stop applying, and a plain date takes their place.
+  assert.equal(app.document.getElementById("calEditWhenRow").hidden, true);
+  // `hidden` alone is only the UA stylesheet's display:none, which any author
+  // rule setting a display beats - .row2 is a flex row, so it stayed on
+  // screen in a real browser while passing here. This is what fixes it.
+  assert.match(app.document.querySelector("style").textContent, /\[hidden\]\{display:none!important\}/);
+  assert.equal(app.document.getElementById("calEditDayRow").hidden, false);
+  assert.equal(editorField(app, "Date").value, keyOf(new Date()), "the day the slot was tapped on");
+
+  editorField(app, "Title").value = "Rahmah and Amal's birthday";
+  editorButton(app, "Add to calendar").click();
+  await app.flush();
+
+  const post = backend.writes.filter((w) => w.method === "POST").pop();
+  assert.equal(post.body.allDay, true);
+  assert.equal(post.body.day, keyOf(new Date()));
+  assert.equal(post.body.start, undefined, "an all-day event has no instant to send");
+  assert.equal(post.body.durationMinutes, undefined);
+});
+
+test("switching all-day off again keeps the day you had picked", async () => {
+  const app = loadApp({ fetchImpl: calendarBackend().impl });
+  await openCalendar(app);
+
+  mainCells(app)[9].click();
+  const allDay = app.document.getElementById("calEditAllDay");
+  const toggle = (on) => {
+    allDay.checked = on;
+    allDay.dispatchEvent(new app.window.Event("change", { bubbles: true }));
+  };
+
+  toggle(true);
+  const tomorrow = keyOf(addDays(new Date(), 1));
+  editorField(app, "Date").value = tomorrow;
+  toggle(false);
+
+  // The hour comes back from the slot that was tapped; the date is the one
+  // that was just chosen, not the one the slot started on.
+  assert.match(editorField(app, "Starts").value, new RegExp("^" + tomorrow + "T09:00"));
+});
+
+test("an existing entry is not offered an all-day switch", async () => {
+  const backend = calendarBackend({
+    events: [{ id: "e1", calendarId: "primary", title: "Physio", start: atToday(10, 0), end: atToday(11, 0), writable: true, calendar: "Personal" }],
+  });
+  const app = loadApp({ fetchImpl: backend.impl });
+  await openCalendar(app);
+
+  app.document.querySelector("#calDayCur .cal-chip").click();
+  // Google wants a different shape on both ends for this, and PATCH here
+  // only ever moves an event within the clock.
+  assert.equal(app.document.getElementById("calEditAllDay"), null);
 });
