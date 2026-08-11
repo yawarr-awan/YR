@@ -488,3 +488,73 @@ test("the grid is on screen before the network answers, not after", async () => 
     "and a cached day is tinted straight away rather than after a round trip");
   assert.ok(asked > 0, "the fetches did go out - they just aren't blocking the paint");
 });
+
+test("a peek column draws an event to its real length, not as a fixed label", async () => {
+  const at = (offset, h, m) => { const d = addDays(new Date(), offset); d.setHours(h, m || 0, 0, 0); return d.toISOString(); };
+  const app = loadApp({
+    fetchImpl: fetchRouter([
+      ["/api/calendar/events", () => jsonRes({ connected: true, status: "ok", events: [
+        { id: "e1", calendarId: "p", title: "Obstetric appointment", start: at(1, 9, 0), end: at(1, 10, 0), writable: true, calendar: "Family" },
+        { id: "e2", calendarId: "p", title: "Quick sync", start: at(1, 9, 30), end: at(1, 9, 45), writable: true, calendar: "Work" },
+        { id: "e3", calendarId: "p", title: "Workshop", start: at(2, 14, 30), end: at(2, 17, 0), writable: true, calendar: "Work" },
+      ] })],
+      ["/api/prayer", () => jsonRes({ source: "ummahapi", timings: { Fajr: "04:45", Sunrise: "05:50", Dhuhr: "13:00", Asr: "17:00", Maghrib: "20:30", Isha: "22:00" } })],
+    ]),
+  });
+  app.goTo("calendar");
+  await app.flush();
+  await app.flush();
+
+  const mini = (title) => [...app.document.querySelectorAll("#calDayCur .cal-mini")]
+    .find((m) => m.textContent === title);
+
+  // An hour long, starting on the hour.
+  const pct = (v) => Number(String(v).replace("%", ""));   // jsdom trims 0.000% to 0%
+  const ob = mini("Obstetric appointment");
+  assert.ok(ob.classList.contains("is-timed"));
+  assert.equal(pct(ob.style.top), 0);
+  assert.equal(pct(ob.style.height), 100, "an hour should look like an hour");
+
+  // A quarter of an hour, starting halfway down it - and beside the other
+  // one rather than on top of it, since both are positioned now.
+  const qs = mini("Quick sync");
+  assert.equal(pct(qs.style.top), 50);
+  assert.equal(pct(qs.style.height), 25);
+  assert.notEqual(qs.style.insetInlineStart, ob.style.insetInlineStart);
+
+  // Two and a half hours: it runs past its own cell into the ones it covers.
+  assert.equal(pct(mini("Workshop").style.height), 250);
+  assert.equal(pct(mini("Workshop").style.top), 50);
+});
+
+test("an all-day chip is not positioned by time - there is no time to position it by", async () => {
+  const day = todayKey();
+  const app = loadApp({
+    fetchImpl: fetchRouter([
+      ["/api/calendar/events", () => jsonRes({ connected: true, status: "ok", events: [
+        { id: "e1", calendarId: "p", title: "Bank holiday", start: day, allDay: true, writable: true, calendar: "Personal" },
+      ] })],
+      ["/api/prayer", () => jsonRes({ source: "ummahapi", timings: { Fajr: "04:45", Sunrise: "05:50", Dhuhr: "13:00", Asr: "17:00", Maghrib: "20:30", Isha: "22:00" } })],
+    ]),
+  });
+  app.goTo("calendar");
+  await app.flush();
+  await app.flush();
+
+  const all = [...app.document.querySelectorAll("#calDayCur .cal-allday .cal-mini")];
+  all.forEach((m) => {
+    assert.equal(m.classList.contains("is-timed"), false);
+    assert.equal(m.style.height, "");
+  });
+});
+
+test("the legend calls the sunrise window Chasht, the way everything else does", async () => {
+  const app = loadApp({ fetchImpl: fetchRouter([[ "/api", () => jsonRes({ connected: false, status: "not_connected" }) ]]) });
+  app.goTo("calendar");
+  await app.flush();
+  await app.flush();
+
+  const legend = app.document.getElementById("calLegend").textContent;
+  assert.match(legend, /Chasht/);
+  assert.doesNotMatch(legend, /Sunrise/, "the legend was the last place still naming the astronomical event");
+});

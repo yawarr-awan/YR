@@ -302,6 +302,16 @@ input[type=range]{width:100%;accent-color:var(--accent)}
   background:var(--panel);border-inline-start:3px solid var(--brand);
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap
 }
+/* A timed chip in a peek column is drawn to the length of the event, since
+   the chip is the only thing there is to read a duration from. It starts at
+   its own minute within the hour and can run past the cell into the hours it
+   covers - which is why those cells stop clipping, and why it is lifted
+   above the cell backgrounds painted after it. */
+.cal-cell:not(.is-main):not(.cal-allday){overflow:visible}
+.cal-mini.is-timed{
+  position:absolute;margin:0;z-index:2;min-height:11px;
+  box-shadow:0 1px 3px rgba(0,0,0,.28)
+}
 .cal-nowline{position:absolute;inset-inline:0;height:2px;background:var(--bad);z-index:2}
 .cal-nowline i{position:absolute;inset-inline-start:-2px;top:-3px;width:8px;height:8px;border-radius:50%;background:var(--bad);display:block}
 .cal-strip{display:flex;gap:4px;margin:0 0 10px}
@@ -2821,12 +2831,30 @@ function calChip(x){
 
 /** The narrow columns can't hold a sentence, so they get a colour block
  * carrying the full detail in its tooltip. */
-function calMini(x){
+/** The compact chip for a peek column. `place` positions it by time rather
+ * than stacking it at the top of the hour: {hour, index, of}. Without it a
+ * one-hour appointment and a five-minute one looked identical, and both
+ * looked shorter than the slot they actually occupy. */
+function calMini(x,place){
   var mini=el("button","cal-mini"+(x.kind==="task"?" is-task":"")+(x.kind==="gtask"?" is-gtask":""),x.title);
   mini.type="button";
   mini.style.borderInlineStartColor=x.color||(x.kind==="gtask"?"var(--accent)":"var(--brand)");
   mini.title=calEntryDetail(x);
   mini.addEventListener("click",function(ev){ev.stopPropagation();if(!_calDragged)openCalEntry(x);});
+  if(place&&!x.allDay){
+    var start=new Date(x.start);
+    /* An event only starts partway down the hour it begins in. */
+    var offset=start.getHours()===place.hour?start.getMinutes():0;
+    mini.classList.add("is-timed");
+    mini.style.top=(offset/60*100).toFixed(3)+"%";
+    mini.style.height=(calEntryDuration(x)/60*100).toFixed(3)+"%";
+    /* Two things in the same hour sit side by side rather than on top of one
+       another - they are absolutely positioned now, so nothing else would
+       keep them apart. */
+    var w=100/place.of;
+    mini.style.insetInlineStart="calc("+(place.index*w).toFixed(3)+"% + 2px)";
+    mini.style.width="calc("+w.toFixed(3)+"% - 4px)";
+  }
   return mini;
 }
 
@@ -3178,7 +3206,11 @@ function buildDayPanel(dayDate,timesByKey){
         if(!entries.length)box.appendChild(el("div","cal-slot-hint","+ Add"));
         cell.appendChild(box);
       }else{
-        (byHour[i][h]||[]).forEach(function(x){cell.appendChild(calMini(x));});
+        (function(list,hour){
+          list.forEach(function(x,n){
+            cell.appendChild(calMini(x,{hour:hour,index:n,of:list.length}));
+          });
+        })(byHour[i][h]||[],h);
       }
 
       /* Tapping an empty stretch of any hour - in the focused day or either
@@ -3239,7 +3271,9 @@ function paintCalPanels(days,timesByKey){
 
   legend.innerHTML="";
   PRAYER_NAMES.forEach(function(name){
-    var chip=el("span",null," "+name);
+    /* "Chasht" everywhere, including here - the legend was the last place
+       still calling that window by the astronomical event it starts at. */
+    var chip=el("span",null," "+PRAYER_SHORT[name]);
     var dot=el("i");dot.style.background=prayerColorCss(name);
     chip.insertBefore(dot,chip.firstChild);
     legend.appendChild(chip);
