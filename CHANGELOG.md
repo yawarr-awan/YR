@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.24.1
+
+**If the installed app still won't rotate, it's the install, not the app.** Removing the portrait lock from the manifest in 1.23.1 was the right fix, but an installed Android copy is a WebAPK whose orientation was decided when it was installed. Chrome only rebuilds that after it notices the manifest differ — and it waits until every window of the app is closed, the phone is charging and on Wi‑Fi, which can easily take a day or two.
+
+- The app now **releases the orientation lock itself on startup**, which can take effect straight away where the manifest hasn't caught up yet.
+- The manifest says `"orientation": "any"` outright rather than leaving it out, so there's no ambiguity about what's being asked for.
+
+**If it still won't turn, uninstall and reinstall it** — that rebuilds the WebAPK immediately rather than waiting for Chrome. (Check the phone's own rotation lock isn't on, too.)
+
 ## 1.24.0
 
 **Arrange the cards yourself.** Settings → *Arrange your cards* → **Rearrange cards**, and every card grows a small toolbar:

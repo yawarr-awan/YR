@@ -725,6 +725,24 @@ Found by checking the whole path in real Chromium rather than only jsdom.
 - The theme toggle now lives in Settings -> Appearance; the header holds the
   bell in its place.
 
+## Rotation on an installed Android copy (1.24.1)
+Same family as the stale name/icon bug above, and worth knowing before
+"fixing" it again. An installed Android PWA is a **WebAPK**, and its
+orientation is an Android activity property decided at install time.
+Changing `orientation` in the manifest does not reach an installed copy
+until Chrome rebuilds the WebAPK: it notices `ORIENTATION_DIFFERS`, then
+waits for **every window of the app to be closed, the device charging and on
+Wi-Fi**. A day or two is normal.
+
+- The manifest says `"orientation": "any"` explicitly rather than omitting
+  the key - both mean "no lock", but there is no ambiguity in a diff.
+- `screen.orientation.unlock()` runs at startup, wrapped in try/catch
+  (Safari has no such method and throwing there would take the app down
+  before it rendered). Chrome applies orientation locks by asking Android
+  for one, so releasing it can take effect before the WebAPK is rebuilt.
+- **The reliable fix for a user is reinstalling**, which rebuilds the WebAPK
+  immediately. Don't go looking for a CSS or layout cause first.
+
 ## Logo from supplied artwork (1.16.1)
 - The icon is the user's own mark: a rounded white tile with black YR,
   supplied as a flattened screenshot with a transparency checkerboard baked

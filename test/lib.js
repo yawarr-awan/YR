@@ -82,6 +82,9 @@ function fireEvent(window, el, type) {
  *   the path Android requires and the app therefore prefers
  * @param {object} [opts.geolocation] - {lat, lon} to succeed with, or {error: "message"} to fail
  * @param {string} [opts.notificationPermission] - "granted" | "denied" | "default"; installs window.Notification
+ * @param {function} [opts.beforeRun] - (window) => void, called after the
+ *   environment is seeded but before the app's own script runs. For browser
+ *   capabilities jsdom doesn't implement at all, like screen.orientation.
  */
 function loadApp(opts = {}) {
   const html = fs.readFileSync(HTML_PATH, "utf8");
@@ -161,6 +164,8 @@ function loadApp(opts = {}) {
       });
     }
   }
+
+  if (opts.beforeRun) opts.beforeRun(window);
 
   // runScripts:"outside-only" means the page's own <script> tag did not
   // auto-execute during parsing; we run its exact, unmodified source now
