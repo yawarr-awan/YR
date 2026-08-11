@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.24.3
+
+**The icon is sharp now.** It was soft — most visible on the splash screen, where Android scales it up. Two causes, both fixed:
+
+- The icons were resampled straight from the artwork, so they carried its own soft edges, and the tile's silhouette had been cut with a hard threshold that left it slightly ragged. They are now redrawn: the tile as an exact shape, the letters traced to outlines from the 4306px master and rasterised at four times the size before being scaled down. Same mark, same colours, same proportions — only the edges change.
+- There was nothing bigger than 512px to scale up from. There is now a **1024px** icon (and a 1024px maskable one), so the splash has something to work with.
+
+**Rearrange your tasks.** The **⇅** button next to *Add* turns on reordering: every task grows a ▲▼ pair, and the whole list opens up so you can move a task anywhere in it, not just among the three Today shows. The order you set is the order it keeps — it outranks the due-date sorting, rides your synced profile, and reaches your other devices. Ticked tasks still gather at the bottom, and a move won't push a task across that line.
+
 ## 1.24.2
 
 **The desktop no longer wastes half the screen.** Three things were leaving gaps:

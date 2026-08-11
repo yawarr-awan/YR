@@ -188,3 +188,26 @@ test("the installed app is not locked to portrait", () => {
   // when it notices the manifest differ - so the value should be unmissable.
   assert.equal(manifest.orientation, "any");
 });
+
+/* Every asset the worker precaches has to actually be in the repo: addAll()
+ * rejects the whole install if a single entry 404s, which would leave the app
+ * with no offline shell at all. The manifest gets the same check, since a
+ * missing icon there is what an install reads. */
+test("every precached asset and every manifest icon exists on disk", () => {
+  const root = path.join(__dirname, "..");
+  const listed = SW_SOURCE.match(/var SHELL_ASSETS = \[([\s\S]*?)\]/)[1]
+    .match(/"([^"]+)"/g).map((s) => s.slice(1, -1).replace(/^\.\//, ""));
+  assert.ok(listed.length >= 8, "expected the shell list to still be populated");
+  listed.forEach((rel) => {
+    assert.ok(fs.existsSync(path.join(root, rel)), rel + " is precached but missing");
+  });
+
+  const manifest = JSON.parse(fs.readFileSync(path.join(root, "manifest.webmanifest"), "utf8"));
+  manifest.icons.forEach((icon) => {
+    assert.ok(fs.existsSync(path.join(root, icon.src)), icon.src + " is in the manifest but missing");
+    assert.ok(listed.includes(icon.src), icon.src + " should be precached too");
+  });
+  const anySizes = manifest.icons.filter((i) => i.purpose === "any").map((i) => i.sizes);
+  assert.ok(anySizes.includes("1024x1024"),
+    "keep a 1024 icon: the Android splash scales the largest 'any' icon up, and 512 was being blurred");
+});

@@ -1049,6 +1049,47 @@ endpoint; `test/calendarTab.test.js` for the current-window ring;
   because `--hdr-h` is a *measured* value and the header grows with the text.
   `applyScale(currentScale())` runs at load, before first paint.
 
+## Icon rasterisation + task order (1.24.3)
+- **The icons are traced, not resampled.** The 1.16.1 pass downsampled the
+  4306px master directly, so the PNGs carried the artwork's own soft
+  antialiasing (a ~3px edge ramp at 512) and an alpha channel that had been
+  hard-thresholded (`0,3,0,63,255` across an edge - noise, not a ramp).
+  Now the tile is drawn analytically and the glyph is potrace'd from the
+  master, both rasterised at 8x and box-filtered down: the ramp is a clean
+  `0,128,255`. Shape unchanged - the new 512 disagrees with the old on 1.3%
+  of the tile mask and 3% of the glyph, all of it sub-pixel.
+- **The generator is scratch-only**, like its predecessors; the PNGs are the
+  artefact. Three traps it had to handle, worth knowing before rerunning it:
+  the master has the transparency **checkerboard baked in as real pixels**
+  and its white squares are the same value as the tile, so the tile edge is
+  found by run length (the checker squares are ~110px; a real edge is the
+  first white run that lasts 300px). `potrace.Bitmap()` **thresholds a
+  non-bool array at 127 and then inverts**, so a 0/1 mask traces the whole
+  frame - pass `~mask` as bool. And PIL's ICO writer ignores `append_images`
+  here, so `favicon.ico` is assembled by hand from per-size renders rather
+  than one image downsampled five times.
+- The fit says the artwork's corner is `r/w=0.235`, but the shipped icons
+  render it at `0.2074` (1.16.1 eroded the silhouette to trim the baked drop
+  shadow, and eroding shrinks a corner). **The shipped value is kept** - this
+  pass is about sharpness, not about redrawing the mark.
+- **`icon-1024.png` and `icon-maskable-1024.png` are new.** Nothing bigger
+  than 512 existed, and the Android splash scales the largest `any` icon up,
+  which is where the softness was most obvious. `test/sw.test.js` now asserts
+  every precached/manifest icon exists on disk and that a 1024 `any` icon is
+  among them - `cache.addAll()` rejects the entire install if one entry 404s.
+- **Tasks carry `order`** (schema-free: assigned lazily by `ensureTaskOrder()`
+  in the order they were already showing, so nothing jumps on first load).
+  `sortedTasks()` sorts done-last, then `order` - **a hand-picked position
+  outranks the due-date rule**, which is the whole point of being able to
+  move a row. It rides `profile.tasks`, so it syncs; every move must stamp
+  `profile.updated_at` or it never pushes.
+- `_tasksReorder` is a mode, not a preference (never persisted), mirroring the
+  card layout editor: `#taskReorderBtn` reveals a stacked `.task-move` pair
+  per row and **forces the full list open** - you cannot move a task past a
+  row that is not on screen. The pair is stacked so it costs one button's
+  width at 390px, where the row already holds a checkbox, title, date and two
+  buttons.
+
 ## Honest caveat
 The "Client-side sync layer," "Access + hosting," and "Current data state"
 sections above were re-verified live in this session (2026-08-09): read
