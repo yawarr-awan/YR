@@ -32,14 +32,16 @@
  *      worker last changed. Network-first makes an identity change land on
  *      the next load even if this file is untouched.
  */
-var CACHE_NAME = "yr-shell-v22";
+var CACHE_NAME = "yr-shell-v23";
 var SHELL_ASSETS = [
   "./manifest.webmanifest",
   "./favicon.ico",
   "./icons/icon-192.png",
   "./icons/icon-512.png",
+  "./icons/icon-1024.png",
   "./icons/apple-touch-icon.png",
   "./icons/icon-maskable-512.png",
+  "./icons/icon-maskable-1024.png",
   "./icons/favicon-32.png",
 ];
 

@@ -10,7 +10,7 @@
 const test = require("node:test");
 const { after } = require("node:test");
 const assert = require("node:assert/strict");
-const { loadApp, closeAllApps } = require("./lib.js");
+const { loadApp, closeAllApps, MAIN_KEY } = require("./lib.js");
 after(closeAllApps);
 
 function jsonRes(body) { return { ok: true, status: 200, json: async () => body }; }
@@ -151,4 +151,99 @@ test("an expanded list stays expanded while you work in it", () => {
   cb.dispatchEvent(new app.window.Event("change", { bubbles: true }));
 
   assert.equal(app.document.querySelectorAll("#taskList .task-row").length, 5, "ticking a task must not re-collapse the list");
+});
+
+/* --- rearranging ---------------------------------------------------------
+ * Ordering a task list by due date is a rule; moving a row by hand is an
+ * instruction. The instruction has to win, and it has to survive a reload,
+ * which means the position rides the synced profile like the rest of a task.
+ */
+function titles(app) {
+  return Array.from(app.document.querySelectorAll("#taskList .task-row .task-title")).map((n) => n.textContent);
+}
+function moveButtons(app, index) {
+  const rows = app.document.querySelectorAll("#taskList .task-row");
+  return Array.from(rows[index].querySelectorAll(".task-move-btn"));
+}
+
+test("the move buttons only appear once you ask to reorder", () => {
+  const app = loadApp({ fetchImpl: briefIdle });
+  addTasks(app, ["One", "Two"]);
+  assert.equal(app.document.querySelector("#taskList .task-move"), null, "rows stay uncluttered by default");
+
+  app.click("taskReorderBtn");
+  assert.equal(app.document.querySelectorAll("#taskList .task-move").length, 2);
+  assert.equal(app.document.getElementById("taskReorderBtn").getAttribute("aria-pressed"), "true");
+
+  app.click("taskReorderBtn");
+  assert.equal(app.document.querySelector("#taskList .task-move"), null, "and the toggle turns them off again");
+});
+
+test("a task moves up and down, and the order is what the list then renders", () => {
+  const app = loadApp({ fetchImpl: briefIdle });
+  addTasks(app, ["One", "Two", "Three"]);
+  app.click("taskReorderBtn");
+  assert.deepEqual(titles(app), ["One", "Two", "Three"]);
+
+  moveButtons(app, 2)[0].click();                 // Three up
+  assert.deepEqual(titles(app), ["One", "Three", "Two"]);
+
+  moveButtons(app, 0)[1].click();                 // One down
+  assert.deepEqual(titles(app), ["Three", "One", "Two"]);
+});
+
+test("the ends of the list cannot be moved off it", () => {
+  const app = loadApp({ fetchImpl: briefIdle });
+  addTasks(app, ["One", "Two"]);
+  app.click("taskReorderBtn");
+  assert.equal(moveButtons(app, 0)[0].disabled, true, "nothing above the first row");
+  assert.equal(moveButtons(app, 1)[1].disabled, true, "nothing below the last");
+});
+
+test("a ticked task is its own block - a move never crosses the divide", () => {
+  const app = loadApp({ fetchImpl: briefIdle });
+  addTasks(app, ["One", "Two"]);
+  const cb = app.document.querySelectorAll("#taskList .task-row input[type=checkbox]")[0];
+  cb.checked = true;
+  cb.dispatchEvent(new app.window.Event("change", { bubbles: true }));
+  app.click("taskReorderBtn");
+  assert.deepEqual(titles(app), ["Two", "One"], "ticked tasks still sink");
+
+  assert.equal(moveButtons(app, 0)[1].disabled, true, "cannot push an open task into the done block");
+  assert.equal(moveButtons(app, 1)[0].disabled, true, "nor pull a done one out of it");
+});
+
+test("reordering shows the whole list, not the three Today keeps", () => {
+  const app = loadApp({ fetchImpl: briefIdle });
+  addTasks(app, ["One", "Two", "Three", "Four", "Five"]);
+  assert.equal(app.document.querySelectorAll("#taskList .task-row").length, 3);
+
+  app.click("taskReorderBtn");
+  assert.equal(app.document.querySelectorAll("#taskList .task-row").length, 5,
+    "you cannot move a task past a row that is not on screen");
+});
+
+test("a hand-picked order rides the synced profile and survives a reload", () => {
+  const app = loadApp({ fetchImpl: briefIdle });
+  addTasks(app, ["One", "Two", "Three"]);
+  app.click("taskReorderBtn");
+  const before = app.state().profile.updated_at;
+  moveButtons(app, 2)[0].click();
+  assert.ok(app.state().profile.updated_at >= before, "a move must stamp the profile or it never pushes");
+  assert.deepEqual(app.state().profile.tasks.map((t) => typeof t.order), ["number", "number", "number"]);
+
+  const again = loadApp({ fetchImpl: briefIdle, localStorageSeed: { [MAIN_KEY]: app.rawMain() } });
+  assert.deepEqual(titles(again).slice(0, 3), ["One", "Three", "Two"]);
+});
+
+test("tasks saved before ordering existed keep the order they were showing in", () => {
+  const app = loadApp({ fetchImpl: briefIdle });
+  addTasks(app, ["Later", "Sooner"]);
+  const raw = JSON.parse(app.rawMain());
+  raw.profile.tasks.forEach((t) => { delete t.order; });
+  raw.profile.tasks[0].due = "2030-02-02T09:00:00.000Z";
+  raw.profile.tasks[1].due = "2030-01-01T09:00:00.000Z";
+
+  const again = loadApp({ fetchImpl: briefIdle, localStorageSeed: { [MAIN_KEY]: JSON.stringify(raw) } });
+  assert.deepEqual(titles(again), ["Sooner", "Later"], "the due-date order they already had");
 });
