@@ -983,6 +983,32 @@ the modal); `test/prayerTimes.test.js` for the checklist rows and the month
 endpoint; `test/calendarTab.test.js` for the current-window ring;
 `test/worker.test.js` for both endpoints. See CHANGELOG 1.19.0 and 1.20.0.
 
+## Rearranging the cards (1.24.0)
+- **Every rearrangeable view is one `> .grid` of `.card[data-card]`.** That
+  is the whole precondition, and it is why Today's date bar moved above the
+  Brief (so brief/tasks could join the grid), why the prayer summary and qada
+  moved into the prayers grid, and why Settings and Progress got a grid at
+  all. A card outside its view's grid can never be reordered - `layout.test.js`
+  asserts there are none.
+- `LAYOUT_VIEWS` is the four that qualify. **Calendar and Others cannot join**:
+  one is a grid of hours, the other three sub-panels. Neither is a list of
+  cards.
+- `data-card` is the key, separate from `data-collapse` - Progress's cards
+  are movable but not collapsible. Where a card sits and whether it is folded
+  are both keyed on the card, so a card keeps its fold state when it changes
+  tab.
+- **`applyLayout()` only places keys it recognises**; a card the stored order
+  has never heard of keeps its markup position rather than disappearing.
+  That is what makes it safe to add a card in a later version.
+- Storage is `yawarLayout` (its own key, per device) - same reasoning as
+  `yawarCollapsed`. **Don't move it onto the synced profile**: where a card
+  sits is a display preference and has no business in a health record.
+- Dragging is **pointer events, not HTML5 drag-and-drop**, which does not
+  fire on touch at all - the same gesture has to work on the phone and in a
+  desktop window. The card is not moved during the drag; only the card under
+  the pointer is outlined, and the drop lands before or after it depending on
+  which half was released over.
+
 ## Honest caveat
 The "Client-side sync layer," "Access + hosting," and "Current data state"
 sections above were re-verified live in this session (2026-08-09): read
