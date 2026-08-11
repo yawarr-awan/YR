@@ -14,28 +14,41 @@ after(closeAllApps);
 
 function sleep(ms) { return new Promise((r) => setTimeout(r, ms)); }
 
-test("sync stays off until explicitly enabled, even with existing local data", () => {
-  const seed = {
-    schema: 2,
-    profile: { startWeight: 108, targetWeight: 88, updated_at: 0 },
-    days: { "2026-03-01": { meds: {}, prayers: {}, meals: {}, extras: {}, water: 1, weight: "", sleep: "", steps: "", jointPain: null, energy: null, exercise: false, notes: "", updated_at: 10 } },
-    sync: { enabled: false, since: 0, lastSyncAt: null, lastError: null },
-  };
-  let syncCalled = false;
-  const app = loadApp({
-    localStorageSeed: { [MAIN_KEY]: JSON.stringify(seed) },
-    // The page also fetches /api/brief unconditionally (that feature has
-    // its own opt-in gate: nothing happens until Google is connected) -
-    // this test only cares whether /api/sync specifically gets hit.
-    fetchImpl: async (url) => {
-      if (String(url).includes("/api/sync")) syncCalled = true;
-      return { ok: true, json: async () => ({ now: 1, days: {}, profile: null, applied: 0, skipped: [], more: false, status: "not_connected" }) };
+test("sync is on by default, and an existing install that had it off is switched on once", () => {
+  // It is not really optional: this app is one person's record across their
+  // own devices behind their own sign-in, and a device that is not syncing is
+  // quietly keeping a diverging copy.
+  const fresh = loadApp({ fetchImpl: async () => ({ ok: true, json: async () => ({ now: 1, days: {}, profile: null, more: false }) }) });
+  fresh.goTo("settings");
+  assert.equal(fresh.document.getElementById("syncEnabled").checked, true);
+  assert.equal(fresh.document.getElementById("syncNowBtn").disabled, false);
+
+  const old = loadApp({
+    localStorageSeed: {
+      [MAIN_KEY]: JSON.stringify({
+        schema: 3,
+        profile: { startWeight: 108, targetWeight: 88, tasks: [], updated_at: 0 },
+        days: {},
+        sync: { enabled: false, since: 0, lastSyncAt: null, lastError: null },
+      }),
     },
+    fetchImpl: async () => ({ ok: true, json: async () => ({ now: 1, days: {}, profile: null, more: false }) }),
   });
-  app.goTo("progress");
-  assert.equal(syncCalled, false, "loading with sync disabled must never call /api/sync");
-  assert.equal(app.document.getElementById("syncEnabled").checked, false);
-  assert.equal(app.document.getElementById("syncNowBtn").disabled, true);
+  assert.equal(old.state().sync.enabled, true, "the upgrade turns it on");
+  assert.equal(old.state().schema, 4, "and records that it has done so");
+});
+
+test("turning sync off still sticks - the upgrade runs once, not on every load", () => {
+  const impl = async () => ({ ok: true, json: async () => ({ now: 1, days: {}, profile: null, more: false }) });
+  const app = loadApp({ fetchImpl: impl });
+  app.goTo("settings");
+  app.check("syncEnabled", false);
+  assert.equal(app.state().sync.enabled, false);
+
+  const again = loadApp({ localStorageSeed: { [MAIN_KEY]: app.rawMain() }, fetchImpl: impl });
+  assert.equal(again.state().sync.enabled, false, "a deliberate opt-out must not be undone on the next load");
+  again.goTo("settings");
+  assert.equal(again.document.getElementById("syncEnabled").checked, false);
 });
 
 test("first sync from empty: local history pushes up and populates an empty server", async () => {
@@ -235,7 +248,7 @@ test("a device upgrading from the old layout carries its local tasks into the sy
     },
   });
   const s = app.state();
-  assert.equal(s.schema, 3);
+  assert.equal(s.schema, 4);
   assert.deepEqual(s.profile.tasks.map((t) => t.title), ["Old local task"], "nothing is dropped in the move");
   assert.equal(s.tasks, undefined, "and it no longer lives at the top level");
   assert.match(app.document.getElementById("taskList").textContent, /Old local task/);

@@ -1144,6 +1144,19 @@ endpoint; `test/calendarTab.test.js` for the current-window ring;
 - `.cal-cell.current-hour` **keeps the class and loses the outline**: the class
   is what the tab scrolls to on open, the ring was noise over the now-line.
 
+## Sync is on by default (1.25.1)
+- `freshState()` ships `sync.enabled = true`, and **schema 3 -> 4 turns it on
+  once** for an existing install. Keyed on the schema, deliberately: forcing
+  it true on every load would mean a deliberate opt-out never stuck.
+  `test/sync.test.js` pins both halves.
+- The reasoning, per Yawar: sync is not optional here. One person, one record,
+  their own devices, their own Access sign-in - a device that is not syncing
+  is a device holding a diverging copy, which is exactly what produced the
+  mismatched prayer summaries. The toggle is kept for deliberately stopping
+  it, not as an opt-in gate.
+- The Settings copy no longer says "optional, off by default" or "your data
+  stays local-only until you turn this on" - both are now false.
+
 ## Honest caveat
 The "Client-side sync layer," "Access + hosting," and "Current data state"
 sections above were re-verified live in this session (2026-08-09): read
