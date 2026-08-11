@@ -343,3 +343,19 @@ test("Today's cards run in the order the day does, with medicines after the meal
     `medicines should follow the meals, got: ${order.join(", ")}`);
   assert.ok(order.indexOf("extras") < order.indexOf("meals"), "supplements still lead");
 });
+
+test("a wide window puts cards side by side instead of leaving a column empty", () => {
+  const app = loadApp({});
+  const styles = app.document.querySelector("style").textContent;
+
+  // Spanning every column forced Today's Meals onto a row of its own and
+  // left the cell beside Supplements empty on a desktop window.
+  const meals = app.document.querySelector('.card[data-collapse="meals"]');
+  assert.equal(/grid-column/.test(meals.getAttribute("style") || ""), false);
+
+  assert.match(styles, /\.grid\{[^}]*align-items:start/,
+    "a short card must not stretch to the height of the tall one beside it");
+  assert.match(styles, /@media\(min-width:1200px\)\{\.grid\{grid-template-columns:repeat\(3,1fr\)\}\}/);
+  assert.match(styles, /@media\(max-width:720px\)\{\.grid\{grid-template-columns:1fr\}\}/,
+    "and a phone is still one column");
+});

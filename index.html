@@ -145,8 +145,12 @@ nav.tabs button.active{color:var(--brand)}
 .subview{display:none}
 .subview.active{display:block;animation:viewIn .16s ease}
 @keyframes viewIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
-.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+/* align-items:start so a short card doesn't stretch to the height of the
+   tallest one beside it, which is what made a two-column row look half
+   empty on a desktop window. */
+.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;align-items:start}
 @media(max-width:720px){.grid{grid-template-columns:1fr}}
+@media(min-width:1200px){.grid{grid-template-columns:repeat(3,1fr)}}
 .card{
   background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
   padding:14px;box-shadow:var(--shadow)
@@ -525,7 +529,10 @@ footer.foot{text-align:center;color:var(--muted);font-size:.78rem;margin-top:26p
         <div class="card-body"><div id="extrasBox"></div></div>
       </div>
 
-      <div class="card collapsible" data-collapse="meals" style="grid-column:1/-1">
+      <!-- Not full-width any more: spanning every column forced it onto a
+           row of its own and left the cell beside Supplements empty on a
+           desktop window. -->
+      <div class="card collapsible" data-collapse="meals">
         <h3><span class="dot" style="background:var(--food)"></span> Today's Meals <span class="muted" id="mealKcal" style="font-weight:600;font-size:.74rem"></span><span class="count" id="mealsCount"></span></h3>
         <div class="card-body"><div id="mealsBox"></div></div>
       </div>

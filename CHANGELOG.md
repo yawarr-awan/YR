@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.23.1
+
+- **The desktop layout uses the width it has.** Today's Meals was set to span every column, which forced it onto a row of its own and left the space beside Supplements & Drinks empty. It sits beside it now, and a window wider than 1200px gets three columns instead of two. Cards no longer stretch to match the tallest one in their row.
+- **The installed app can rotate.** It was pinned to portrait in the manifest, so it wouldn't turn on a tablet or in a desktop window.
+
 ## 1.23.0
 
 - **The focused day sizes an event by its length**, like the two peek columns already did. A four-hour birthday is four rows tall instead of one — an event's height came from how much of its title happened to fit, not from when it ends. Half-hour things are half a row and don't stretch to fit their own text, because a chip that grew would be lying about when the event finishes.
