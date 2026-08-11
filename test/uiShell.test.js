@@ -344,20 +344,61 @@ test("Today's cards run in the order the day does, with medicines after the meal
   assert.ok(order.indexOf("extras") < order.indexOf("meals"), "supplements still lead");
 });
 
-test("a wide window puts cards side by side instead of leaving a column empty", () => {
+test("a wide window fills its columns instead of leaving holes", () => {
   const app = loadApp({});
   const styles = app.document.querySelector("style").textContent;
 
-  // Spanning every column forced Today's Meals onto a row of its own and
-  // left the cell beside Supplements empty on a desktop window.
+  // Spanning every column forced Today's Meals onto a row of its own.
   const meals = app.document.querySelector('.card[data-collapse="meals"]');
   assert.equal(/grid-column/.test(meals.getAttribute("style") || ""), false);
 
-  assert.match(styles, /\.grid\{[^}]*align-items:start/,
-    "a short card must not stretch to the height of the tall one beside it");
-  assert.match(styles, /@media\(min-width:1200px\)\{\.grid\{grid-template-columns:repeat\(3,1fr\)\}\}/);
-  assert.match(styles, /@media\(max-width:720px\)\{\.grid\{grid-template-columns:1fr\}\}/,
-    "and a phone is still one column");
+  // Cards flow down columns rather than across grid rows: a grid row is as
+  // tall as its tallest card, so a short one left a hole nothing could fill.
+  ["today", "prayers", "progress", "settings"].forEach((v) => {
+    const box = app.document.querySelector("#view-" + v + " > .grid");
+    assert.ok(box.classList.contains("cards"), `${v} should use the column flow`);
+  });
+  assert.match(styles, /\.cards\{display:block;columns:1/);
+  assert.match(styles, /\.cards>\.card\{break-inside:avoid/, "a card must not be split across columns");
+  assert.match(styles, /@media\(min-width:1100px\)\{\.cards\{columns:3\}\}/);
+  assert.match(styles, /@media\(min-width:1560px\)\{\.cards\{columns:4\}\}/);
+
+  // The inner grid inside "Your targets" is a plain two-up and must not have
+  // been turned into a column layout with it.
+  const inner = app.document.querySelector('.card[data-card="targets"] .grid');
+  assert.ok(inner);
+  assert.equal(inner.classList.contains("cards"), false);
+
+  // And the page uses the width a monitor has rather than stopping at 1024.
+  assert.match(styles, /\.wrap\{max-width:1480px/);
+  assert.match(styles, /\.top-inner\{max-width:1480px/, "the header has to line up with it");
+});
+
+test("the whole interface can be scaled from Settings", () => {
+  const app = loadApp({});
+  app.goTo("settings");
+
+  const seg = app.document.getElementById("scaleSeg");
+  const opts = [...seg.querySelectorAll("button")].map((b) => b.getAttribute("data-scale"));
+  assert.deepEqual(opts, ["13", "15", "17", "19", "21"]);
+  assert.equal(seg.querySelector("button.on").getAttribute("data-scale"), "15", "default to begin with");
+
+  seg.querySelector('button[data-scale="19"]').click();
+  // Everything in the app is sized in rem off the root, so this one number
+  // scales the lot.
+  assert.equal(app.document.documentElement.style.fontSize, "19px");
+  assert.equal(seg.querySelector("button.on").getAttribute("data-scale"), "19");
+  assert.equal(app.window.localStorage.getItem("yawarScale"), "19");
+
+  const reopened = loadApp({ localStorageSeed: { yawarScale: "19" } });
+  assert.equal(reopened.document.documentElement.style.fontSize, "19px");
+  // Per device, like the other display preferences.
+  assert.equal(/yawarScale/.test(JSON.stringify(reopened.state() || {})), false);
+});
+
+test("a nonsense stored scale falls back to the default rather than breaking the page", () => {
+  const app = loadApp({ localStorageSeed: { yawarScale: "999" } });
+  assert.equal(app.document.documentElement.style.fontSize, "15px");
 });
 
 test("any orientation lock left over from an install is released at startup", () => {

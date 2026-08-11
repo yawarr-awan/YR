@@ -1027,6 +1027,28 @@ endpoint; `test/calendarTab.test.js` for the current-window ring;
   the pointer is outlined, and the drop lands before or after it depending on
   which half was released over.
 
+## Filling the desktop (1.24.2)
+- **The card views are a column flow, not a grid** (`.cards{display:block;
+  columns:N}` with `.cards>.card{break-inside:avoid}`). A grid row is as tall
+  as its tallest card, so a short card left a hole beneath it that nothing
+  could fill - and these cards vary enormously in height. Columns pack each
+  card directly under the previous one in the same column instead.
+  Breakpoints: 2 at 721px, 3 at 1100px, 4 at 1560px.
+- The four views keep `class="grid cards"` so `LAYOUT_VIEWS`/`applyLayout()`
+  still find `> .grid` - **the layout editor's precondition is unchanged**,
+  and reordering still works because column flow follows DOM order. The inner
+  `.grid` inside the "Your targets" card is deliberately *not* `.cards`: it is
+  a two-field form, not a list of cards.
+- `.wrap` and `.top-inner` are `max-width:1480px` (was 1024). The header has
+  to match the page or the logo and bell sit inboard of the cards.
+- **UI scale** is `yawarScale` (its own localStorage key - same reasoning as
+  `yawarCollapsed`/`yawarLayout`, never synced, never in the health record).
+  `SCALES` is five steps 13-21px and `applyScale()` writes
+  `documentElement.style.fontSize`; **everything else in the app is in rem**,
+  which is what makes one knob enough. It also re-runs `syncHeaderHeight()`,
+  because `--hdr-h` is a *measured* value and the header grows with the text.
+  `applyScale(currentScale())` runs at load, before first paint.
+
 ## Honest caveat
 The "Client-side sync layer," "Access + hosting," and "Current data state"
 sections above were re-verified live in this session (2026-08-09): read
