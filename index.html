@@ -155,6 +155,27 @@ nav.tabs button.active{color:var(--brand)}
   background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
   padding:14px;box-shadow:var(--shadow)
 }
+/* ---- Layout editing ---- */
+.card-tools{
+  display:none;align-items:center;gap:6px;margin:-4px 0 10px;padding-bottom:8px;
+  border-bottom:1px dashed var(--line);flex-wrap:wrap
+}
+body.editing .card-tools{display:flex}
+body.editing .card[data-card]{outline:1px dashed var(--line);outline-offset:2px}
+body.editing .card[data-card].is-dragging{opacity:.4}
+body.editing .card[data-card].is-over{outline:2px solid var(--brand)}
+.card-tools .grip{cursor:grab;font-size:1rem;color:var(--muted);padding:0 2px;line-height:1}
+.card-tools button,.card-tools select{
+  border:1px solid var(--line);background:var(--panel-2);color:var(--ink);
+  border-radius:8px;padding:3px 7px;font:inherit;font-size:.72rem;cursor:pointer
+}
+.card-tools .rm{color:var(--bad);border-color:var(--bad)}
+.card-tools .spacer{flex:1}
+.hidden-card{
+  display:flex;align-items:center;gap:8px;padding:7px 9px;border:1px solid var(--line);
+  border-radius:10px;background:var(--panel-2);margin-bottom:6px
+}
+.hidden-card .hc-name{flex:1;font-weight:700;font-size:.82rem}
 .card h3{margin:0 0 10px;font-size:.92rem;display:flex;align-items:center;gap:8px}
 .card h3 .dot{width:9px;height:9px;border-radius:50%}
 /* Collapsible cards: the h3 is the toggle, everything else lives in
@@ -496,14 +517,21 @@ footer.foot{text-align:center;color:var(--muted);font-size:.78rem;margin-top:26p
 
   <!-- ===================== TODAY ===================== -->
   <section id="view-today" class="view active">
-    <div class="card" id="briefCard" style="margin-bottom:14px">
+    <div class="datebar">
+      <button id="prevDay" title="Previous day">‹</button>
+      <div class="dlabel" id="dateLabel">Today</div>
+      <input type="date" id="datePick">
+      <button class="today-btn" id="jumpToday">Today</button>
+    </div>
+
+    <div class="grid">
+      <div class="card" id="briefCard" data-card="brief">
       <h3>✨ Today's Brief</h3>
       <div class="muted brief-body" id="briefText" style="margin:0 0 8px">Loading…</div>
       <div class="pill-row" id="briefActions"></div>
       <div class="muted" id="briefMeta" style="font-size:.72rem;margin-top:6px"></div>
     </div>
-
-    <div class="card collapsible" id="taskCard" data-collapse="tasks" style="margin-bottom:12px">
+<div class="card collapsible" id="taskCard" data-collapse="tasks" data-card="tasks">
       <h3>✅ Tasks<span class="count" id="taskCount"></span></h3>
       <div class="card-body">
         <div style="display:flex;gap:8px;margin:0 0 8px">
@@ -515,16 +543,7 @@ footer.foot{text-align:center;color:var(--muted);font-size:.78rem;margin-top:26p
       </div>
     </div>
 
-    <div class="datebar">
-      <button id="prevDay" title="Previous day">‹</button>
-      <div class="dlabel" id="dateLabel">Today</div>
-      <input type="date" id="datePick">
-      <button class="today-btn" id="jumpToday">Today</button>
-    </div>
-
-    <div class="grid">
-
-      <div class="card collapsible" data-collapse="extras">
+      <div class="card collapsible" data-collapse="extras" data-card="extras">
         <h3><span class="dot" style="background:var(--brand)"></span> Supplements &amp; Drinks<span class="count" id="extrasCount"></span></h3>
         <div class="card-body"><div id="extrasBox"></div></div>
       </div>
@@ -532,17 +551,17 @@ footer.foot{text-align:center;color:var(--muted);font-size:.78rem;margin-top:26p
       <!-- Not full-width any more: spanning every column forced it onto a
            row of its own and left the cell beside Supplements empty on a
            desktop window. -->
-      <div class="card collapsible" data-collapse="meals">
+      <div class="card collapsible" data-collapse="meals" data-card="meals">
         <h3><span class="dot" style="background:var(--food)"></span> Today's Meals <span class="muted" id="mealKcal" style="font-weight:600;font-size:.74rem"></span><span class="count" id="mealsCount"></span></h3>
         <div class="card-body"><div id="mealsBox"></div></div>
       </div>
 
-      <div class="card collapsible" data-collapse="meds">
+      <div class="card collapsible" data-collapse="meds" data-card="meds">
         <h3><span class="dot" style="background:var(--med)"></span> Medicines<span class="count" id="medsCount"></span></h3>
         <div class="card-body"><div id="medsBox"></div></div>
       </div>
 
-      <div class="card collapsible" data-collapse="water">
+      <div class="card collapsible" data-collapse="water" data-card="water">
         <h3><span class="dot" style="background:var(--water)"></span> Water<span class="count" id="waterCountTag"></span></h3>
         <div class="card-body">
           <div class="water-wrap">
@@ -554,7 +573,7 @@ footer.foot{text-align:center;color:var(--muted);font-size:.78rem;margin-top:26p
         </div>
       </div>
 
-      <div class="card collapsible" data-collapse="move">
+      <div class="card collapsible" data-collapse="move" data-card="move">
         <h3><span class="dot" style="background:var(--move)"></span> Movement</h3>
         <div class="card-body">
           <div id="moveBox"></div>
@@ -563,7 +582,7 @@ footer.foot{text-align:center;color:var(--muted);font-size:.78rem;margin-top:26p
         </div>
       </div>
 
-      <div class="card collapsible" data-collapse="weight">
+      <div class="card collapsible" data-collapse="weight" data-card="weight">
         <h3>⚖️ Weight &amp; Sleep</h3>
         <div class="card-body">
           <div class="field"><label for="weightIn">Today's weight (kg)</label>
@@ -573,7 +592,7 @@ footer.foot{text-align:center;color:var(--muted);font-size:.78rem;margin-top:26p
         </div>
       </div>
 
-      <div class="card collapsible collapsed" data-collapse="pain">
+      <div class="card collapsible collapsed" data-collapse="pain" data-card="pain">
         <h3>🦵 Joint Pain &amp; Energy</h3>
         <div class="card-body">
           <div class="field"><label for="painIn">Joint pain / stiffness today <span class="slider-val" id="painVal">–</span></label>
@@ -597,7 +616,7 @@ footer.foot{text-align:center;color:var(--muted);font-size:.78rem;margin-top:26p
       <button class="today-btn" id="prayJumpToday">Today</button>
     </div>
     <div class="grid">
-      <div class="card collapsible" data-collapse="prayers">
+      <div class="card collapsible" data-collapse="prayers" data-card="prayers">
         <h3><span class="dot" style="background:var(--pray)"></span> Prayers (Salah)<span class="count" id="prayCount"></span></h3>
         <!-- Just the checklist. The location, the countdown, the calculation
              settings and the per-prayer colours all live behind the prayer
@@ -608,24 +627,25 @@ footer.foot{text-align:center;color:var(--muted);font-size:.78rem;margin-top:26p
         </div>
       </div>
 
-      <div class="card collapsible" data-collapse="dhikr">
+      <div class="card collapsible" data-collapse="dhikr" data-card="dhikr">
         <h3><span class="dot" style="background:var(--accent)"></span> Dhikr<span class="count" id="dhikrCount"></span></h3>
         <div class="card-body"><div id="dhikrBox"></div></div>
       </div>
-    </div>
-    <div class="card collapsible" data-collapse="praysum" style="margin-top:12px">
+    
+<div class="card collapsible" data-collapse="praysum" data-card="praysum">
       <h3>🕌 Prayer summary</h3>
       <div class="card-body"><div id="praySummary"></div></div>
     </div>
-
-    <div class="card collapsible" data-collapse="qada" style="margin-top:12px">
+<div class="card collapsible" data-collapse="qada" data-card="qada">
       <h3>🤲 Made-up (qada) prayers</h3>
       <div class="card-body">
         <p class="muted" style="font-size:.8rem;margin-top:0">Log prayers you've since made up. Each one you record here comes off the missed count above.</p>
         <div id="qadaBox"></div>
       </div>
     </div>
-  </section>
+    </div>
+    
+      </section>
 
   <!-- ===================== CALENDAR ===================== -->
   <section id="view-calendar" class="view">
@@ -693,20 +713,21 @@ footer.foot{text-align:center;color:var(--muted);font-size:.78rem;margin-top:26p
   <section id="view-progress" class="view">
     <div class="section-title">Your Progress</div>
     <div class="stats-grid" id="statsGrid"></div>
+    <div class="grid">
 
-    <div class="card" style="margin-top:14px">
+    <div class="card" data-collapse="weighttrend" data-card="weighttrend">
       <h3>⚖️ Weight trend</h3>
       <canvas id="weightChart" width="900" height="320"></canvas>
       <div class="muted center" id="chartNote" style="font-size:.78rem;margin-top:8px"></div>
     </div>
 
-    <div class="card" style="margin-top:14px">
+    <div class="card" data-collapse="completion" data-card="completion">
       <h3>📈 Daily completion</h3>
       <canvas id="completionChart" width="900" height="320"></canvas>
       <div class="muted center" id="completionNote" style="font-size:.78rem;margin-top:8px"></div>
     </div>
 
-    <div class="card" style="margin-top:14px">
+    <div class="card" data-collapse="targets" data-card="targets">
       <h3>🎯 Your targets</h3>
       <div class="grid">
         <div class="field"><label for="startWeightIn">Starting weight (kg)</label><input type="number" id="startWeightIn" step="0.1"></div>
@@ -714,7 +735,7 @@ footer.foot{text-align:center;color:var(--muted);font-size:.78rem;margin-top:26p
       </div>
       <div class="muted" style="font-size:.78rem">A safe, sustainable pace is about 0.5–1 kg a week. Aiming for ~88 kg keeps you healthy and reachable; you can lower the goal later.</div>
     </div>
-
+    </div>
   </section>
 
 
@@ -722,8 +743,9 @@ footer.foot{text-align:center;color:var(--muted);font-size:.78rem;margin-top:26p
   <!-- ===================== SETTINGS ===================== -->
   <section id="view-settings" class="view">
     <div class="section-title">Settings</div>
+    <div class="grid">
 
-    <div class="card collapsible" data-collapse="google" style="margin-bottom:12px" id="googleCard">
+    <div class="card collapsible" data-collapse="google" id="googleCard" data-card="google">
       <h3>🔗 Google</h3>
       <div class="card-body">
         <p class="muted" id="googleStatus" style="font-size:.85rem;margin-top:0">Checking…</p>
@@ -732,7 +754,7 @@ footer.foot{text-align:center;color:var(--muted);font-size:.78rem;margin-top:26p
       </div>
     </div>
 
-    <div class="card collapsible" data-collapse="meds-edit" style="margin-bottom:12px">
+    <div class="card collapsible" data-collapse="meds-edit" data-card="meds-edit">
       <h3>💊 Your medicines</h3>
       <div class="card-body">
         <p class="muted" style="font-size:.8rem;margin-top:0">Rename or remove anything you no longer take. Changes apply to the Today checklist straight away.</p>
@@ -744,7 +766,7 @@ footer.foot{text-align:center;color:var(--muted);font-size:.78rem;margin-top:26p
       </div>
     </div>
 
-    <div class="card collapsible collapsed" data-collapse="extras-edit" style="margin-bottom:12px">
+    <div class="card collapsible collapsed" data-collapse="extras-edit" data-card="extras-edit">
       <h3>🥤 Supplements &amp; drinks</h3>
       <div class="card-body">
         <p class="muted" style="font-size:.8rem;margin-top:0">Your daily list. The calorie figure next to each one feeds the meal totals; leave it at 0 if you don't care.</p>
@@ -756,7 +778,7 @@ footer.foot{text-align:center;color:var(--muted);font-size:.78rem;margin-top:26p
       </div>
     </div>
 
-    <div class="card collapsible collapsed" data-collapse="dhikr-edit" style="margin-bottom:12px">
+    <div class="card collapsible collapsed" data-collapse="dhikr-edit" data-card="dhikr-edit">
       <h3>📿 Dhikr</h3>
       <div class="card-body">
         <p class="muted" style="font-size:.8rem;margin-top:0">Each period has its own list — set morning, afternoon and evening to whatever you actually recite.</p>
@@ -764,7 +786,7 @@ footer.foot{text-align:center;color:var(--muted);font-size:.78rem;margin-top:26p
       </div>
     </div>
 
-    <div class="card collapsible collapsed" data-collapse="briefprompt" style="margin-bottom:12px">
+    <div class="card collapsible collapsed" data-collapse="briefprompt" data-card="briefprompt">
       <h3>✨ Today's Brief instructions</h3>
       <div class="card-body">
         <p class="muted" style="font-size:.8rem;margin-top:0">What you want the brief to do. <b>Today's and tomorrow's</b> events and tasks are always appended below this, so it can't be broken by editing here. Leave blank — or hit Reset — for the default, which is a plain Today/Tomorrow list with a bullet per item.</p>
@@ -777,7 +799,7 @@ footer.foot{text-align:center;color:var(--muted);font-size:.78rem;margin-top:26p
       </div>
     </div>
 
-    <div class="card collapsible" data-collapse="sync" style="margin-top:14px">
+    <div class="card collapsible" data-collapse="sync" data-card="sync">
       <h3>🔄 Cloud sync <span class="muted" style="font-weight:600;font-size:.78rem">(optional, off by default)</span></h3>
       <div class="card-body">
         <p class="muted" style="font-size:.85rem;margin-top:0">Backs your data up to your own private Cloudflare backend and lets it move between your devices. Your data stays local-only until you turn this on — nothing is sent anywhere unless you enable it.</p>
@@ -792,7 +814,7 @@ footer.foot{text-align:center;color:var(--muted);font-size:.78rem;margin-top:26p
       </div>
     </div>
 
-    <div class="card collapsible" data-collapse="install" style="margin-top:14px" id="installCard">
+    <div class="card collapsible" data-collapse="install" id="installCard" data-card="install">
       <h3>📲 Install as an app</h3>
       <div class="card-body">
         <p class="muted" id="installText" style="font-size:.85rem;margin-top:0"></p>
@@ -802,7 +824,21 @@ footer.foot{text-align:center;color:var(--muted);font-size:.78rem;margin-top:26p
       </div>
     </div>
 
-    <div class="card collapsible" data-collapse="appearance" style="margin-top:14px">
+    <div class="card collapsible" data-collapse="layout" data-card="layout">
+      <h3>🧩 Arrange your cards</h3>
+      <div class="card-body">
+        <p class="muted" style="font-size:.85rem;margin-top:0">Turn this on and every card grows a small toolbar: drag it by the ⠿ handle, nudge it up or down, send it to another tab, or put it away. Today, Prayers, Progress and Settings can all be rearranged.</p>
+        <div class="pill-row">
+          <button class="btn primary" id="layoutEditBtn" type="button">Rearrange cards</button>
+          <button class="btn" id="layoutResetBtn" type="button">Reset to default</button>
+        </div>
+        <p class="muted" style="font-size:.76rem;margin:12px 0 6px;font-weight:700">Put away</p>
+        <div id="hiddenCards"></div>
+        <p class="muted" style="font-size:.72rem;margin:10px 0 0">Kept on this device, like the folded/unfolded state — your arrangement never travels with your health data.</p>
+      </div>
+    </div>
+
+    <div class="card collapsible" data-collapse="appearance" data-card="appearance">
       <h3>🎨 Appearance</h3>
       <div class="card-body">
         <p class="muted" style="font-size:.85rem;margin-top:0">Light or dark. It follows your device until you pick one here.</p>
@@ -812,7 +848,7 @@ footer.foot{text-align:center;color:var(--muted);font-size:.78rem;margin-top:26p
       </div>
     </div>
 
-    <div class="card collapsible" data-collapse="reminders" style="margin-top:14px" id="notifyCard">
+    <div class="card collapsible" data-collapse="reminders" id="notifyCard" data-card="reminders">
       <h3>🔔 Reminders</h3>
       <div class="card-body">
         <p class="muted" id="notifyText" style="font-size:.85rem;margin-top:0">Get a browser notification for prayer times, task due times, and dhikr reminders — only while this app is open in a tab or installed. Off until you turn it on.</p>
@@ -822,7 +858,7 @@ footer.foot{text-align:center;color:var(--muted);font-size:.78rem;margin-top:26p
       </div>
     </div>
 
-    <div class="card collapsible" data-collapse="data" style="margin-top:14px">
+    <div class="card collapsible" data-collapse="data" data-card="data">
       <h3>💾 Your data</h3>
       <div class="card-body">
         <p class="muted" style="font-size:.85rem;margin-top:0">Everything you log lives <b>only on this device</b>, inside this file's storage. It stays there — even if you close the page — until you clear it. Nothing is sent anywhere. Back it up now and then with Export.</p>
@@ -833,6 +869,7 @@ footer.foot{text-align:center;color:var(--muted);font-size:.78rem;margin-top:26p
           <button class="btn danger" id="clearBtn">🗑️ Clear all data</button>
         </div>
       </div>
+    </div>
     </div>
   </section>
 
@@ -1212,6 +1249,240 @@ function initCollapsibles(){
     });
   });
 }
+
+/* ---------- LAYOUT EDITING ---------- */
+/* Which cards live on which tab, in what order, and which are put away.
+   Its own localStorage key rather than the synced profile, for the same
+   reason the fold state is: where a card sits is a display preference, and
+   nothing about how the app is arranged belongs in a health record. */
+var LAYOUT_KEY="yawarLayout";
+/* Only these four have a single container of interchangeable cards. The
+   calendar is a grid of hours and Misc is three sub-panels; neither is a
+   list of cards, so neither can take one. */
+var LAYOUT_VIEWS=["today","prayers","progress","settings"];
+var LAYOUT_VIEW_LABEL={today:"Today",prayers:"Prayers",progress:"Progress",settings:"Settings"};
+var _editingLayout=false;
+
+var layoutPrefs=(function(){
+  try{
+    var v=JSON.parse(localStorage.getItem(LAYOUT_KEY)||"{}");
+    if(!v||typeof v!=="object")v={};
+    if(!v.order||typeof v.order!=="object")v.order={};
+    if(!Array.isArray(v.hidden))v.hidden=[];
+    return v;
+  }catch(e){return {order:{},hidden:[]};}
+})();
+function saveLayout(){try{localStorage.setItem(LAYOUT_KEY,JSON.stringify(layoutPrefs));}catch(e){}}
+
+function layoutGrid(view){return document.querySelector("#view-"+view+" > .grid");}
+function layoutCard(key){return document.querySelector('.card[data-card="'+key+'"]');}
+function cardName(card){
+  var h=card.querySelector("h3");
+  return h?h.textContent.replace(/\s+/g," ").trim():card.getAttribute("data-card");
+}
+
+/** Every card the editor knows about, in the order it currently sits. */
+function layoutCards(view){
+  var g=layoutGrid(view);
+  return g?Array.prototype.filter.call(g.children,function(c){return c.getAttribute("data-card");}):[];
+}
+
+/** Puts the cards where the stored layout says. Anything the layout has
+ * never heard of - a card added by a later version - keeps its place in the
+ * markup rather than vanishing, which is what makes this safe to extend. */
+function applyLayout(){
+  LAYOUT_VIEWS.forEach(function(view){
+    var g=layoutGrid(view);
+    if(!g)return;
+    var order=layoutPrefs.order[view];
+    if(!Array.isArray(order))return;
+    order.forEach(function(key){
+      var card=layoutCard(key);
+      if(card)g.appendChild(card);          /* appendChild moves an existing node */
+    });
+  });
+  document.querySelectorAll(".card[data-card]").forEach(function(card){
+    card.hidden=layoutPrefs.hidden.indexOf(card.getAttribute("data-card"))>=0;
+  });
+}
+
+/** Records where everything sits now, so a move is remembered. */
+function captureLayout(){
+  LAYOUT_VIEWS.forEach(function(view){
+    layoutPrefs.order[view]=layoutCards(view).map(function(c){return c.getAttribute("data-card");});
+  });
+  saveLayout();
+}
+
+function moveCard(key,view,delta){
+  var card=layoutCard(key);
+  if(!card)return;
+  if(view){
+    var g=layoutGrid(view);
+    if(g)g.appendChild(card);
+  }else if(delta){
+    var sib=delta<0?card.previousElementSibling:card.nextElementSibling;
+    while(sib&&!sib.getAttribute("data-card"))sib=delta<0?sib.previousElementSibling:sib.nextElementSibling;
+    if(!sib)return;
+    if(delta<0)sib.parentNode.insertBefore(card,sib);
+    else sib.parentNode.insertBefore(card,sib.nextSibling);
+  }
+  captureLayout();
+  renderLayoutTools();
+}
+
+function hideCard(key){
+  if(layoutPrefs.hidden.indexOf(key)<0)layoutPrefs.hidden.push(key);
+  var card=layoutCard(key);
+  if(card)card.hidden=true;
+  saveLayout();
+  renderLayoutTools();
+}
+function showCard(key,view){
+  layoutPrefs.hidden=layoutPrefs.hidden.filter(function(k){return k!==key;});
+  var card=layoutCard(key);
+  if(card){
+    card.hidden=false;
+    var g=layoutGrid(view);
+    if(g)g.appendChild(card);
+  }
+  captureLayout();
+  renderLayoutTools();
+}
+
+/** Which view a card is sitting in right now. */
+function cardView(card){
+  var sec=card.closest("section.view");
+  return sec?sec.id.replace(/^view-/,""):null;
+}
+
+/** Builds (or removes) the per-card toolbar. Rebuilt wholesale on every
+ * change so the arrows can't claim a card is at the top when it isn't. */
+function renderLayoutTools(){
+  document.querySelectorAll(".card-tools").forEach(function(t){t.remove();});
+  document.body.classList.toggle("editing",_editingLayout);
+  renderHiddenCards();
+  if(!_editingLayout)return;
+
+  LAYOUT_VIEWS.forEach(function(view){
+    var cards=layoutCards(view).filter(function(c){return !c.hidden;});
+    cards.forEach(function(card,i){
+      var tools=el("div","card-tools");
+      var grip=el("span","grip","⠿");
+      grip.title="Drag to move";
+      tools.appendChild(grip);
+
+      var up=el("button",null,"↑");up.type="button";up.title="Move up";
+      up.disabled=i===0;
+      up.addEventListener("click",function(){moveCard(card.getAttribute("data-card"),null,-1);});
+      var down=el("button",null,"↓");down.type="button";down.title="Move down";
+      down.disabled=i===cards.length-1;
+      down.addEventListener("click",function(){moveCard(card.getAttribute("data-card"),null,1);});
+      tools.appendChild(up);tools.appendChild(down);
+
+      var sel=el("select");
+      sel.title="Move to another tab";
+      LAYOUT_VIEWS.forEach(function(v){
+        var o=el("option",null,LAYOUT_VIEW_LABEL[v]);o.value=v;sel.appendChild(o);
+      });
+      sel.value=view;
+      sel.addEventListener("change",function(){moveCard(card.getAttribute("data-card"),this.value,0);});
+      tools.appendChild(sel);
+
+      tools.appendChild(el("span","spacer"));
+      var rm=el("button","rm","Remove");rm.type="button";
+      rm.addEventListener("click",function(){hideCard(card.getAttribute("data-card"));});
+      tools.appendChild(rm);
+
+      card.insertBefore(tools,card.firstChild);
+      attachCardDrag(card,grip);
+    });
+  });
+}
+
+/* Pointer-based rather than HTML5 drag-and-drop, which does not fire on
+   touch at all - the same gesture has to work on the phone and in a desktop
+   window. The card is not moved while dragging; only the card under the
+   pointer is highlighted, and the drop happens on release. */
+function attachCardDrag(card,grip){
+  var dragging=false;
+  grip.addEventListener("pointerdown",function(ev){
+    ev.preventDefault();
+    dragging=true;
+    card.classList.add("is-dragging");
+    grip.setPointerCapture&&grip.setPointerCapture(ev.pointerId);
+  });
+  grip.addEventListener("pointermove",function(ev){
+    if(!dragging)return;
+    var over=cardUnder(ev.clientX,ev.clientY);
+    document.querySelectorAll(".card.is-over").forEach(function(c){c.classList.remove("is-over");});
+    if(over&&over!==card)over.classList.add("is-over");
+  });
+  grip.addEventListener("pointerup",function(ev){
+    if(!dragging)return;
+    dragging=false;
+    card.classList.remove("is-dragging");
+    var over=cardUnder(ev.clientX,ev.clientY);
+    document.querySelectorAll(".card.is-over").forEach(function(c){c.classList.remove("is-over");});
+    if(over&&over!==card){
+      /* Dropped above the halfway line goes before, below goes after - so a
+         card can be placed at either end of the one it lands on. */
+      var r=over.getBoundingClientRect();
+      var before=ev.clientY<r.top+r.height/2;
+      over.parentNode.insertBefore(card,before?over:over.nextSibling);
+      captureLayout();
+      renderLayoutTools();
+    }
+  });
+}
+function cardUnder(x,y){
+  if(typeof document.elementFromPoint!=="function")return null;
+  var n=document.elementFromPoint(x,y);
+  return n&&n.closest?n.closest(".card[data-card]"):null;
+}
+
+/** The put-away list in Settings, and the switch that turns editing on. */
+function renderHiddenCards(){
+  var box=document.getElementById("hiddenCards");
+  if(!box)return;
+  box.innerHTML="";
+  var hidden=layoutPrefs.hidden.filter(function(k){return !!layoutCard(k);});
+  if(!hidden.length){
+    box.appendChild(el("p","muted","Nothing put away — every card is on a tab."))
+      .style.cssText="font-size:.8rem;margin:0";
+    return;
+  }
+  hidden.forEach(function(key){
+    var row=el("div","hidden-card");
+    row.setAttribute("data-card-hidden",key);
+    row.appendChild(el("span","hc-name",cardName(layoutCard(key))));
+    var sel=el("select");
+    LAYOUT_VIEWS.forEach(function(v){
+      var o=el("option",null,LAYOUT_VIEW_LABEL[v]);o.value=v;sel.appendChild(o);
+    });
+    sel.value="today";
+    row.appendChild(sel);
+    var add=el("button","btn","Add");add.type="button";
+    add.addEventListener("click",function(){showCard(key,sel.value);});
+    row.appendChild(add);
+    box.appendChild(row);
+  });
+}
+
+function setLayoutEditing(on){
+  _editingLayout=!!on;
+  var btn=document.getElementById("layoutEditBtn");
+  if(btn)btn.textContent=_editingLayout?"Done":"Rearrange cards";
+  renderLayoutTools();
+}
+function resetLayout(){
+  layoutPrefs={order:{},hidden:[]};
+  saveLayout();
+  flash("Layout reset — reload to put every card back where it started.","good");
+  document.querySelectorAll(".card[data-card]").forEach(function(c){c.hidden=false;});
+  renderLayoutTools();
+}
+
 function setCount(id,txt){var e=document.getElementById(id);if(e)e.textContent=txt||"";}
 
 /* ---------- RENDER: TODAY ---------- */
@@ -4577,6 +4848,9 @@ function applyTheme(t){
   if(btn)btn.textContent=(currentTheme()==="dark")?"☀️ Switch to light":"🌙 Switch to dark";
 }
 try{var savedTheme=localStorage.getItem(THEMEKEY);applyTheme(savedTheme||undefined);}catch(e){applyTheme();}
+document.getElementById("layoutEditBtn").addEventListener("click",function(){setLayoutEditing(!_editingLayout);});
+document.getElementById("layoutResetBtn").addEventListener("click",resetLayout);
+
 document.getElementById("themeToggle").addEventListener("click",function(){
   var n=(currentTheme()==="dark")?"light":"dark";
   try{localStorage.setItem(THEMEKEY,n);}catch(e){}
@@ -4586,7 +4860,11 @@ document.getElementById("themeToggle").addEventListener("click",function(){
 
 /* ---------- INIT ---------- */
 syncHeaderHeight();
+/* Before initCollapsibles, so a card that moved tab still finds its own fold
+   state - both are keyed on the card, not on where it sits. */
+applyLayout();
 initCollapsibles();
+renderHiddenCards();
 renderPlan();renderRecipes();renderExercises();renderToday();
 updateInstallUI();
 loadBrief();

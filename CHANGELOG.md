@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.24.0
+
+**Arrange the cards yourself.** Settings → *Arrange your cards* → **Rearrange cards**, and every card grows a small toolbar:
+
+- **⠿ drag it** to a new position — a real drag, on the phone as well as with a mouse.
+- **↑ ↓ nudge it** up or down, for when dragging is fiddly.
+- **Send it to another tab** — Today, Prayers, Progress and Settings can all take any card.
+- **Remove it.** Anything put away is listed under *Put away* in the same place, with a tab to send it back to.
+
+**Reset to default** puts everything back. Your arrangement is kept on the device, like the folded/unfolded state — how the app is laid out never travels with your health data.
+
+Two consequences worth knowing: the date bar on Today now sits above the Brief rather than below it, so the whole tab is one list that can be rearranged; and the Settings cards are in the same grid as everywhere else, so a wide window shows them in columns.
+
+The Calendar and Misc tabs aren't rearrangeable — one is a grid of hours and the other is three sub-panels, so neither is a list of cards that could take one.
+
 ## 1.23.1
 
 - **The desktop layout uses the width it has.** Today's Meals was set to span every column, which forced it onto a row of its own and left the space beside Supplements & Drinks empty. It sits beside it now, and a window wider than 1200px gets three columns instead of two. Cards no longer stretch to match the tallest one in their row.
