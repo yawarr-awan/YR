@@ -1117,7 +1117,13 @@ endpoint; `test/calendarTab.test.js` for the current-window ring;
   (`DUA_MAX_PX` 1600, JPEG); D1 is not a blob store, so an oversize image is
   refused rather than truncated. Deleting a du'a clears every link to it.
   `renderDuas()` paints the held list and **always refetches** - a du'a added
-  on another device would otherwise never appear.
+  on another device would otherwise never appear. A linked dhikr item renders
+  its own label as a `.linklike` button (same treatment as a recipe or an
+  exercise) rather than carrying a separate icon; it must `stopPropagation`,
+  because the row is a `<label>` wrapping the checkbox. The link picker is
+  folded behind `.dua-linktoggle` (`_duaLinksOpen`, one at a time) - 21 dhikr
+  rows open under every picture buried the pictures - and a fresh upload opens
+  its own.
 - **Task dragging** replaced the ▲▼ pair. Pointer events, not HTML5 DnD (which
   never fires on touch); `pointermove`/`pointerup` are bound to the
   **document**, not the grip, because grabbing a grip expands a collapsed list

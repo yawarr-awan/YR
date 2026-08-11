@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.25.3
+
+- **A dhikr item with a du'a on it is now a link**, the way a recipe or an exercise is — tap its name to open the picture. The separate 📿 button next to it is gone.
+- **The dhikr list on a du'a folds away.** Uploading a picture no longer drops twenty-one checkboxes under it. There's a summary line instead — *"Linked to Morning · Ayat al-Kursi"*, or *"Not linked to a dhikr item yet"* — that opens the list when you tap it and closes it again afterwards. A picture you've just uploaded opens on its list, since choosing where it belongs is the next thing you'd do.
+
 ## 1.25.2
 
 **Two devices could genuinely disagree about your prayer history, and one of them was right by accident.** Two separate causes, both fixed:

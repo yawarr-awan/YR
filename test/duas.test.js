@@ -60,6 +60,18 @@ function duaCards(app) {
   return Array.from(app.document.querySelectorAll("#duasBox .dua-card"));
 }
 
+/* The picker is folded by default - 21 dhikr rows under every picture buries
+ * the pictures - so a test that links something has to open it first. */
+function openPicker(app, index = 0) {
+  duaCards(app)[index].querySelector(".dua-linktoggle").click();
+  return duaCards(app)[index].querySelector(".dua-links");
+}
+function linkFirstItem(app) {
+  const cb = openPicker(app).querySelector("input[type=checkbox]");
+  cb.checked = true;
+  cb.dispatchEvent(new app.window.Event("change", { bubbles: true }));
+}
+
 test("Duas is a sub-tab of Misc and lists what the server holds", async () => {
   const app = loadApp({ fetchImpl: backend([{ id: "d1", name: "Morning du'a", created_at: 1 }]) });
   await openDuas(app);
@@ -90,7 +102,8 @@ test("linking a du'a to a dhikr item stores it on the synced profile", async () 
   await openDuas(app);
 
   const before = (app.state() && app.state().profile.updated_at) || 0;
-  const box = duaCards(app)[0].querySelector(".dua-links");
+  assert.equal(duaCards(app)[0].querySelector(".dua-links"), null, "the picker starts folded");
+  const box = openPicker(app);
   const first = box.querySelector("input[type=checkbox]");
   assert.ok(first, "every dhikr item is offered as a link target");
   first.checked = true;
@@ -107,13 +120,14 @@ test("linking a du'a to a dhikr item stores it on the synced profile", async () 
 test("a linked dhikr item grows a button that opens the picture", async () => {
   const app = loadApp({ fetchImpl: backend([{ id: "d1", name: "Morning du'a", created_at: 1 }]) });
   await openDuas(app);
-  const cb = duaCards(app)[0].querySelector(".dua-links input[type=checkbox]");
-  cb.checked = true;
-  cb.dispatchEvent(new app.window.Event("change", { bubbles: true }));
+  linkFirstItem(app);
 
   app.goTo("prayers");
   const opener = app.document.querySelector("#dhikrBox .dua-open");
   assert.ok(opener, "the linked item offers a way in");
+  assert.ok(opener.classList.contains("linklike"), "it reads as a link, like a recipe or an exercise");
+  assert.equal(opener.textContent, opener.closest(".chk").querySelector(".lbl").textContent,
+    "the item's own name is the link - there is no extra icon beside it");
 
   opener.dispatchEvent(new app.window.MouseEvent("click", { bubbles: true, cancelable: true }));
   assert.ok(app.document.getElementById("overlay").classList.contains("open"), "it opens the modal");
@@ -123,9 +137,7 @@ test("a linked dhikr item grows a button that opens the picture", async () => {
 test("opening the du'a does not also tick the dhikr item off", async () => {
   const app = loadApp({ fetchImpl: backend([{ id: "d1", name: "Morning du'a", created_at: 1 }]) });
   await openDuas(app);
-  const cb = duaCards(app)[0].querySelector(".dua-links input[type=checkbox]");
-  cb.checked = true;
-  cb.dispatchEvent(new app.window.Event("change", { bubbles: true }));
+  linkFirstItem(app);
 
   app.goTo("prayers");
   const row = app.document.querySelector("#dhikrBox .chk");
@@ -144,9 +156,7 @@ test("removing a du'a also removes every link pointing at it", async () => {
   const impl = backend([{ id: "d1", name: "Morning du'a", created_at: 1 }]);
   const app = loadApp({ fetchImpl: impl });
   await openDuas(app);
-  const cb = duaCards(app)[0].querySelector(".dua-links input[type=checkbox]");
-  cb.checked = true;
-  cb.dispatchEvent(new app.window.Event("change", { bubbles: true }));
+  linkFirstItem(app);
   assert.equal(Object.keys(app.state().profile.duaLinks).length, 1);
 
   Array.from(duaCards(app)[0].querySelectorAll("button"))
@@ -176,4 +186,50 @@ test("uploading sends a resized data URL, and a refusal is reported", async () =
   assert.equal(impl.posted[0].name, "Ayat al-Kursi", "the extension is not part of the name");
   assert.match(impl.posted[0].dataUrl, /^data:image\//);
   assert.match(app.document.getElementById("duaStatus").textContent, /couldn't add it/i);
+});
+
+test("the picker's summary line says what it is linked to without opening it", async () => {
+  const app = loadApp({ fetchImpl: backend([{ id: "d1", name: "Morning du'a", created_at: 1 }]) });
+  await openDuas(app);
+
+  const toggle = () => duaCards(app)[0].querySelector(".dua-linktoggle");
+  assert.match(toggle().textContent, /not linked/i);
+
+  linkFirstItem(app);
+  assert.match(toggle().textContent, /Linked to Morning · /,
+    "the summary names the item, so the answer is visible while it is folded");
+});
+
+test("only one picker is open at a time, and it folds again", async () => {
+  const app = loadApp({
+    fetchImpl: backend([{ id: "d1", name: "One", created_at: 1 }, { id: "d2", name: "Two", created_at: 2 }]),
+  });
+  await openDuas(app);
+
+  openPicker(app, 0);
+  assert.ok(duaCards(app)[0].querySelector(".dua-links"));
+  assert.equal(duaCards(app)[1].querySelector(".dua-links"), null);
+
+  openPicker(app, 1);
+  assert.equal(duaCards(app)[0].querySelector(".dua-links"), null, "opening one closes the other");
+  assert.ok(duaCards(app)[1].querySelector(".dua-links"));
+
+  openPicker(app, 1);
+  assert.equal(duaCards(app)[1].querySelector(".dua-links"), null, "and tapping it again folds it");
+});
+
+test("a freshly uploaded du'a opens its picker, since linking is the point", async () => {
+  const impl = backend([]);
+  const app = loadApp({ fetchImpl: impl });
+  await openDuas(app);
+
+  const file = new app.window.File(["x"], "Ayat al-Kursi.png", { type: "image/png" });
+  Object.defineProperty(app.document.getElementById("duaFile"), "files", { value: [file], configurable: true });
+  app.click("duaAddBtn");
+  await app.flush();
+  await app.flush();
+  await app.flush();
+
+  assert.equal(duaCards(app).length, 1);
+  assert.ok(duaCards(app)[0].querySelector(".dua-links"), "the new card is open on its picker");
 });
