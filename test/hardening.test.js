@@ -43,7 +43,7 @@ test("existing good (legacy, pre-sync) data loads, migrates to the current schem
   const app = loadApp({ localStorageSeed: { [MAIN_KEY]: JSON.stringify(legacy) } });
 
   const s = app.state();
-  assert.equal(s.schema, 3, "migration should bump the schema and persist it immediately");
+  assert.equal(s.schema, 4, "migration should bump the schema and persist it immediately");
   const d = s.days["2026-01-01"];
   assert.equal(d.weight, "119.5");
   assert.equal(d.notes, "felt okay");
@@ -51,8 +51,8 @@ test("existing good (legacy, pre-sync) data loads, migrates to the current schem
   assert.ok(d.updated_at && d.updated_at > 0, "migration must stamp updated_at on pre-existing days");
   assert.ok(s.profile.updated_at && s.profile.updated_at > 0, "migration must stamp profile.updated_at too");
   assert.equal(s.profile.startWeight, 120);
-  assert.deepEqual(s.sync, { enabled: false, since: 0, lastSyncAt: null, lastError: null },
-    "sync must default to opted-out, never auto-enabled");
+  assert.deepEqual(s.sync, { enabled: true, since: 0, lastSyncAt: null, lastError: null },
+    "sync is on by default now - a device that isn't syncing holds a diverging copy");
 });
 
 test("corrupt main key with a good backup: silently recovers from backup and re-saves safely", () => {

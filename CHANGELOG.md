@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.25.1
+
+**Cloud sync is on by default now.** It isn't really optional: this is one record across your own devices, behind your own sign-in, and a device that isn't syncing is quietly keeping a different copy — which is how the prayer summaries came to disagree in the first place. Any device still running with it switched off turns it on once when it updates. The switch stays in Settings, so you can still stop it deliberately, and stopping it sticks.
+
 ## 1.25.0
 
 **Sync was pulling your other device's data and then not showing it.** This is the bug behind "the prayer summary doesn't match". A sync redrew the Today tab, Progress and the task list — and nothing else. So a device that pulled another's edits kept showing its own stale prayer summary, qada card, medicine and dhikr lists until you navigated away and came back or reloaded the app. The data had arrived; the screen hadn't been told. Everything that reads your record is now redrawn after a sync, and after restoring a backup.

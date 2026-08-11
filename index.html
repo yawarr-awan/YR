@@ -861,12 +861,12 @@ footer.foot{text-align:center;color:var(--muted);font-size:.78rem;margin-top:26p
     </div>
 
     <div class="card collapsible" data-collapse="sync" data-card="sync">
-      <h3>🔄 Cloud sync <span class="muted" style="font-weight:600;font-size:.78rem">(optional, off by default)</span></h3>
+      <h3>🔄 Cloud sync <span class="muted" style="font-weight:600;font-size:.78rem">(on)</span></h3>
       <div class="card-body">
-        <p class="muted" style="font-size:.85rem;margin-top:0">Backs your data up to your own private Cloudflare backend and lets it move between your devices. Your data stays local-only until you turn this on — nothing is sent anywhere unless you enable it.</p>
+        <p class="muted" style="font-size:.85rem;margin-top:0">Keeps your record the same on every device, backed up to your own private Cloudflare backend behind your own sign-in. On by default — a device that isn't syncing is quietly keeping a different copy. You can stop it here if you ever need to.</p>
         <label class="chk" style="padding-inline-start:0">
           <input type="checkbox" id="syncEnabled">
-          <div><div class="lbl">Enable cloud sync</div></div>
+          <div><div class="lbl">Keep this device in sync</div></div>
         </label>
         <div class="pill-row">
           <button class="btn" id="syncNowBtn" disabled>🔄 Sync now</button>
@@ -1177,17 +1177,25 @@ function showSaved(){
 
 function freshState(){
   return {
-    schema:3,
+    schema:4,
     profile:{startWeight:108,targetWeight:88,tasks:[],updated_at:0},
     days:{},
-    sync:{enabled:false,since:0,lastSyncAt:null,lastError:null}
+    /* On by default. This app is one person's record across their own
+       devices behind their own Access sign-in, so a device that is not
+       syncing is a device quietly holding a diverging copy - which is
+       exactly how the prayer summaries came to disagree. The toggle stays,
+       so it can still be stopped deliberately. */
+    sync:{enabled:true,since:0,lastSyncAt:null,lastError:null}
   };
 }
 /* schema 1 -> 2: days/profile predating sync get a one-time updated_at stamp
    so the next push carries real history instead of looking untouched.
    schema 2 -> 3: tasks move from the top level (device-local, never synced)
    into the profile blob, which does sync - so a task list finally reaches
-   every device instead of being stranded on the one that made it. */
+   every device instead of being stranded on the one that made it.
+   schema 3 -> 4: sync switches on once for an existing install. Keyed on the
+   schema rather than forced on every load, so turning it off afterwards
+   still sticks. */
 var _needsResave=false;      /* set when load() repairs state in memory; persisted right after assignment */
 function migrate(s){
   if(s.schema<2){
@@ -1207,6 +1215,11 @@ function migrate(s){
     s.schema=3;
     _needsResave=true;
   }
+  if(s.schema<4){
+    if(s.sync&&!s.sync.enabled)s.sync.enabled=true;
+    s.schema=4;
+    _needsResave=true;
+  }
   return s;
 }
 function parseState(raw){
@@ -1215,7 +1228,7 @@ function parseState(raw){
   if(!s||typeof s!=="object"||!s.days||typeof s.days!=="object")return null;
   if(!s.profile)s.profile={startWeight:108,targetWeight:88};
   if(!s.schema)s.schema=1;
-  if(!s.sync)s.sync={enabled:false,since:0,lastSyncAt:null,lastError:null};
+  if(!s.sync)s.sync={enabled:true,since:0,lastSyncAt:null,lastError:null};
   migrate(s);
   if(!Array.isArray(s.profile.tasks))s.profile.tasks=[];
   return s;
@@ -5224,7 +5237,7 @@ document.getElementById("installBtn").addEventListener("click",function(){
 document.getElementById("importBtn").addEventListener("click",function(){document.getElementById("importFile").click();});
 document.getElementById("importFile").addEventListener("change",function(){
   var f=this.files[0];if(!f)return;var r=new FileReader();
-  r.onload=function(){try{var s=JSON.parse(r.result);if(s&&s.days){if(!s.profile)s.profile={startWeight:108,targetWeight:88};if(!s.schema)s.schema=1;if(!s.sync)s.sync={enabled:false,since:0,lastSyncAt:null,lastError:null};migrate(s);state=s;save();renderAll();alert("Backup restored.");}else alert("That file doesn't look like a valid backup.");}catch(e){alert("Couldn't read that file.");}};
+  r.onload=function(){try{var s=JSON.parse(r.result);if(s&&s.days){if(!s.profile)s.profile={startWeight:108,targetWeight:88};if(!s.schema)s.schema=1;if(!s.sync)s.sync={enabled:true,since:0,lastSyncAt:null,lastError:null};migrate(s);state=s;save();renderAll();alert("Backup restored.");}else alert("That file doesn't look like a valid backup.");}catch(e){alert("Couldn't read that file.");}};
   r.readAsText(f);
 });
 document.getElementById("clearBtn").addEventListener("click",function(){
