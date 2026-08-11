@@ -639,6 +639,17 @@ Found by checking the whole path in real Chromium rather than only jsdom.
   agenda but is surfaced in `#calStatus`.
 - Client: entries of `kind:"gtask"` are read-only (the OAuth scope is
   `tasks.readonly`, so there is nothing to save back) and always all-day.
+- **Peek-column chips are drawn to the event's length** (1.21.2).
+  `calMini(x, place)` takes `{hour, index, of}` and sets `top` from the
+  start's minute-within-the-hour and `height` from `calEntryDuration()`, both
+  as a percentage of one hour. A long event therefore overflows its cell on
+  purpose, which is why `.cal-cell:not(.is-main):not(.cal-allday)` stops
+  clipping and `.cal-mini.is-timed` carries a `z-index` - later cells'
+  backgrounds paint after it otherwise. `index`/`of` share the width so two
+  things in one hour don't stack. All-day minis pass no `place` and stay
+  static: there is no time to place them by. Percentages resolve against the
+  cell's padding box, so the height runs ~1px short per hour against the grid
+  row - visible only if you measure it.
 - **All-day items have their own grid row** under the headings
   (`.cal-allday`), rather than bucketing into hour 0 - the top of a 24-hour
   grid is exactly where nobody scrolls. Tests that mean "hour cells" must
@@ -714,6 +725,12 @@ Found by checking the whole path in real Chromium rather than only jsdom.
   reported as a bug twice - it is an API limitation, not ours. The task
   detail now says so, with the raw value Google sent in the element's
   `title`. Don't "fix" it by inventing a time.
+  **Re-checked 2026-08-11** at Yawar's request: still true, and there is no
+  way round it. `due` remains date-only (issue tracker 128979662 is the
+  long-standing request for a time), and the timed copy that Google
+  Calendar's UI shows lives on a "Tasks" calendar the **Calendar API does not
+  expose** - it isn't in `calendarList` and can't be queried for events. So
+  neither API can reach the time. Don't spend another session looking.
 
 ## Header colour (1.17.1 -> 1.17.2)
 - 1.17.1 made the header a white band with its own `--hdr-*` palette; the
@@ -848,6 +865,9 @@ Used by the modal's list, the Prayers checklist and the qada card.
   the render, so crossing a prayer boundary with the tab open moves the ring
   instead of leaving it on the prayer that just ended. It reads `#prayBox`'s
   `data-day` so it can tell it is looking at today without re-deriving it.
+- The calendar legend uses `PRAYER_SHORT`, so it says **Chasht**, not
+  "Sunrise" (1.21.2) - it was the last place naming that window after the
+  astronomical event rather than the prayer window.
 - The **calendar deliberately has no ring around the current window**
   (removed 1.21.1 - it existed for one version). The tint already says which
   window every minute belongs to, so an outline on top of it was noise.

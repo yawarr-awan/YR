@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.21.2
+
+- **The next two days draw an event to its real length.** A one-hour appointment in a peek column was a small fixed-size label, the same size as a five-minute one and shorter than the slot it takes up. Each now starts at its own minute within the hour and runs the length of the event — past the cell and into the hours it covers, if it's long enough. Two things at the same hour sit side by side instead of on top of each other.
+- **The calendar legend says "Chasht"**, not "Sunrise". It was the last place still naming that window after the astronomical event it starts at.
+
 ## 1.21.1
 
 - **The border around the current prayer window is gone from the calendar.** The tint already says which window every minute belongs to, so a second outline on top of it was just noise. The window you're in is still ringed on the Prayers checklist and named on the chip.
