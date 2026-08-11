@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.25.2
+
+**Two devices could genuinely disagree about your prayer history, and one of them was right by accident.** Two separate causes, both fixed:
+
+- **The summary counted records, not days.** It listed only dates that had a record — and a record gets created just by *looking* at a date. So a day you opened the app on but ticked nothing became a permanent "0/5 missed", while a day you never opened at all vanished from the history entirely. Which of those each device happened to hold was arbitrary, so the totals differed. **The history is now a continuous run of dates**, from the first day you have any record for up to yesterday, gaps included. Both devices now reach the same answer from the same dates.
+- **Some days could never sync.** Those look-only records carry no modification stamp, and the sync skipped anything unstamped. A record holding real data is now stamped and pushed on the next sync; a record that is still genuinely empty is left alone, so a phantom day isn't spread to your other devices instead.
+
+**This changes your outstanding count.** Days you never opened the app on now count as missed, where before they were simply absent — so the number is higher, and it is the honest one. Tell me if you would rather unlogged days stayed out of it.
+
+**The whole history is reachable.** The table still shows the recent two weeks, with **Show all N days since &lt;date&gt;** underneath to open every day since you started.
+
 ## 1.25.1
 
 **Cloud sync is on by default now.** It isn't really optional: this is one record across your own devices, behind your own sign-in, and a device that isn't syncing is quietly keeping a different copy — which is how the prayer summaries came to disagree in the first place. Any device still running with it switched off turns it on once when it updates. The switch stays in Settings, so you can still stop it deliberately, and stopping it sticks.

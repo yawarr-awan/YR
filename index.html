@@ -1798,8 +1798,43 @@ function fmtClock(ts){
  * pulled. Sending the whole set is a few tens of KB for a year of history
  * and removes that entire class of bug: the server still applies
  * last-write-wins per day, so re-sending unchanged days is a no-op. */
+/** Whether a day record holds anything at all, as opposed to having been
+ * created just because that date was on screen once. */
+function dayHasContent(d){
+  if(!d)return false;
+  var any=false;
+  ["meds","prayers","meals","extras"].forEach(function(g){
+    if(d[g])Object.keys(d[g]).forEach(function(k){if(d[g][k])any=true;});
+  });
+  if(d.dhikr)Object.keys(d.dhikr).forEach(function(p){
+    var set=d.dhikr[p];
+    if(set)Object.keys(set).forEach(function(k){if(set[k])any=true;});
+  });
+  if(any)return true;
+  if(d.water)return true;
+  if(d.exercise)return true;
+  if(d.jointPain!==null&&d.jointPain!==undefined)return true;
+  if(d.energy!==null&&d.energy!==undefined)return true;
+  return ["weight","sleep","steps","notes"].some(function(f){
+    return typeof d[f]==="string"&&d[f].trim()!=="";
+  });
+}
+
 var SYNC_CHUNK=400;
 function dayChunks(){
+  /* A day with something in it but no updated_at gets stamped rather than
+     skipped. dayData() creates a record for any date you merely *look at*,
+     and those carry no stamp - so a record with real content could be saved
+     locally and then silently never pushed, which is one way two devices end
+     up holding different history. Records that are still genuinely empty are
+     left alone: they say nothing, and pushing them would spread the same
+     phantom days to every other device. */
+  var stamped=false;
+  Object.keys(state.days).forEach(function(k){
+    var d=state.days[k];
+    if(!d.updated_at&&dayHasContent(d)){d.updated_at=Date.now();stamped=true;}
+  });
+  if(stamped)save();
   var keys=Object.keys(state.days).filter(function(k){return state.days[k].updated_at;});
   var chunks=[];
   for(var i=0;i<keys.length;i+=SYNC_CHUNK){
@@ -4644,14 +4679,42 @@ function ensureQada(){
 }
 
 /** Missed-per-prayer across every completed day, before qada is applied. */
+/** Every date from the first one there is any record for, up to (not
+ * including) today - a continuous run, gaps included.
+ *
+ * The prayer history used to be `Object.keys(state.days)`, i.e. only the days
+ * that happened to have a record. That was wrong twice over. A day you never
+ * opened the app on simply vanished from the history, so it was not "the
+ * memory since I started" at all. And whether a record existed was itself
+ * accidental - merely *looking* at a date creates one (see dayData) - so two
+ * devices could hold different sets of blank days and legitimately disagree
+ * about how many prayers were owed. Deriving the range from dates instead of
+ * from records makes every device agree by construction. */
+function prayerHistoryStart(){
+  var keys=Object.keys(state.days).sort();
+  return keys.length?keys[0]:null;
+}
+function prayerHistoryDays(){
+  var start=prayerHistoryStart();
+  if(!start)return [];
+  var tk=todayKey(),out=[],d=new Date(start+"T00:00:00"),guard=0;
+  while(guard++<20000){
+    var k=keyOf(d);
+    if(k>=tk)break;
+    out.push(k);
+    d.setDate(d.getDate()+1);
+  }
+  return out;
+}
 function missedByPrayer(){
-  var tk=todayKey();
-  var past=Object.keys(state.days).filter(function(k){return k<tk;}).sort();
+  var past=prayerHistoryDays();
   var perDone={},perMissed={};
   PRAYERS.forEach(function(p){perDone[p[0]]=0;perMissed[p[0]]=0;});
   past.forEach(function(k){
     var d=state.days[k];
-    PRAYERS.forEach(function(p){if(d.prayers&&d.prayers[p[0]])perDone[p[0]]++;else perMissed[p[0]]++;});
+    PRAYERS.forEach(function(p){
+      if(d&&d.prayers&&d.prayers[p[0]])perDone[p[0]]++;else perMissed[p[0]]++;
+    });
   });
   return {done:perDone,missed:perMissed,days:past.length};
 }
@@ -4690,21 +4753,32 @@ function renderQada(){
   });
 }
 
+/* The table shows a recent window by default and the whole history on
+   request - "keep the memory since I started" means every day is still
+   there, not that a year of rows has to be scrolled past every time. */
+var PRAY_SUMMARY_ROWS=14;
+var _praySummaryAll=false;
 function renderPraySummary(){
   var box=document.getElementById("praySummary");box.innerHTML="";
   var tk=todayKey();
-  var keys=Object.keys(state.days).filter(function(k){return k<=tk;}).sort();
+  /* Every day since the first one on record, whether or not that day has a
+     record - see prayerHistoryDays. Today is on the end because it is still
+     in progress, not missed. */
+  var past=prayerHistoryDays();
+  var keys=past.concat(state.days[tk]||past.length?[tk]:[]);
   if(!keys.length){box.appendChild(el("p","muted","No prayer data yet — tick your prayers on the Today tab and this summary will build up over time."));return;}
   var qada=ensureQada();
   var stats=missedByPrayer();
-  var past=keys.filter(function(k){return k<tk;});
   var perDone=stats.done,perMissed={},totalMadeUp=0;
   PRAYERS.forEach(function(p){
     perMissed[p[0]]=Math.max(0,stats.missed[p[0]]-qada[p[0]]);
     totalMadeUp+=Math.min(qada[p[0]],stats.missed[p[0]]);
   });
   var totalMissed=0;PRAYERS.forEach(function(p){totalMissed+=perMissed[p[0]];});
-  var allFive=past.filter(function(k){var d=state.days[k];return PRAYERS.every(function(p){return d.prayers&&d.prayers[p[0]];});}).length;
+  var allFive=past.filter(function(k){
+    var d=state.days[k];
+    return !!d&&PRAYERS.every(function(p){return d.prayers&&d.prayers[p[0]];});
+  }).length;
 
   var madeUpNote=totalMadeUp?(" "+totalMadeUp+" made up so far."):"";
   var msg = past.length===0
@@ -4721,11 +4795,13 @@ function renderPraySummary(){
   PRAYERS.forEach(function(p){htr.appendChild(el("th",null,p[1].slice(0,3)));});
   htr.appendChild(el("th",null,"All 5"));thead.appendChild(htr);tbl.appendChild(thead);
   var tb=el("tbody");
-  keys.slice().reverse().slice(0,14).forEach(function(k){
+  var rows=keys.slice().reverse();
+  var shown=_praySummaryAll?rows:rows.slice(0,PRAY_SUMMARY_ROWS);
+  shown.forEach(function(k){
     var d=state.days[k],tr=el("tr");tr.appendChild(el("td",null,k===tk?(k+" (today)"):k));
     var count=0;
     PRAYERS.forEach(function(p){
-      var td=el("td"),ok=d.prayers&&d.prayers[p[0]];
+      var td=el("td"),ok=d&&d.prayers&&d.prayers[p[0]];
       if(ok){td.textContent="✓";td.style.color="var(--good)";count++;}
       else if(k<tk){td.textContent="✗";td.style.color="var(--bad)";}
       else{td.textContent="·";td.style.color="var(--muted)";}
@@ -4735,6 +4811,15 @@ function renderPraySummary(){
     tb.appendChild(tr);
   });
   tbl.appendChild(tb);box.appendChild(tbl);
+  if(rows.length>PRAY_SUMMARY_ROWS){
+    var more=el("button","linklike",_praySummaryAll
+      ? "Show fewer"
+      : ("Show all "+rows.length+" days since "+rows[rows.length-1]));
+    more.type="button";
+    more.style.margin="8px 0 0";
+    more.addEventListener("click",function(){_praySummaryAll=!_praySummaryAll;renderPraySummary();});
+    box.appendChild(more);
+  }
   box.appendChild(el("div","muted","✓ prayed · ✗ missed · · not logged / not yet due"));
 }
 
