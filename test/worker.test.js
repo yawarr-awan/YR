@@ -1182,3 +1182,25 @@ test("handlePrayerMonth: passes the timezone through, same as the day endpoint",
   // its own - and the client prefers the month cache.
   assert.match(seen[0], /timezone=Asia(%2F|\/)Karachi/);
 });
+
+test("handleGetCalendarEvents: sends the calendar list so the editor can offer a choice", async (t) => {
+  const { handleGetCalendarEvents } = await loadWorker();
+  const d1 = createFakeD1();
+  d1.seedToken(EMAIL, { access_token: "tok", access_token_expires_at: Date.now() + 10 * 60 * 1000 });
+  installFetch(t, googleApiMocks({
+    calendars: [
+      { id: "me@x", summary: "Personal", primary: true, accessRole: "owner", backgroundColor: "#4285F4" },
+      { id: "fam@g", summary: "Family", accessRole: "writer", backgroundColor: "#0B8043" },
+      { id: "hol@g", summary: "UK holidays", accessRole: "reader", backgroundColor: "#616161" },
+    ],
+  }));
+
+  const req = { url: "https://x/api/calendar/events?date=2026-08-11" };
+  const resp = await (await handleGetCalendarEvents(req, d1.env, EMAIL)).json();
+
+  // Derived from the events instead, a calendar with nothing on it that week
+  // would be invisible - which is exactly when you'd want to add to it.
+  assert.deepEqual(resp.calendars.map((c) => [c.name, c.writable]),
+    [["Personal", true], ["Family", true], ["UK holidays", false]]);
+  assert.equal(resp.calendars[0].primary, true);
+});

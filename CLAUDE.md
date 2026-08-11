@@ -556,6 +556,21 @@ felt built for a desktop.
   the shared handler: stamp `profile.updated_at`, save, re-render the clock
   and Today, drop `_calWin` and re-render the calendar if it's showing.
 
+## Choosing the calendar for a new event (1.22.0)
+- `handleGetCalendarEvents` returns the `calendars` list it already fetches
+  for `fetchEventsForRange`, so this costs **no extra Google call**. Deriving
+  the list from the events instead would hide any calendar with nothing on it
+  that week - exactly when you are most likely to be adding to it.
+- Client: `_calWin.calendars`, `writableCalendars()` (accessRole
+  writer/owner only - a read-only calendar is not a destination), and
+  `defaultCalendarId()` = last used if still writable, else primary.
+- The picker appears **only for a new event, and only when more than one
+  calendar is writable**. An existing event says where it lives instead:
+  moving between calendars is Google's `events.move`, a different call, and a
+  select that silently did nothing would be worse than none.
+- `profile.calendarId` remembers the choice (synced). `scheduleTaskAt()`
+  uses the same default, so a scheduled task doesn't land somewhere else.
+
 ## Scheduling from the calendar + opening reminders (1.14.0)
 - **Worker**: `listCalendars()` now carries `writable` (accessRole
   writer/owner), and `fetchEventsForRange()` carries `id`, `calendarId`,

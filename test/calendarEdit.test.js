@@ -24,7 +24,7 @@ function atToday(h, m) {
 }
 
 /** Routes the three endpoints the calendar touches, recording every write. */
-function calendarBackend({ events = [], writeStatus = "ok" } = {}) {
+function calendarBackend({ events = [], writeStatus = "ok", calendars } = {}) {
   const writes = [];
   const impl = async (url, opts) => {
     const u = String(url);
@@ -33,11 +33,21 @@ function calendarBackend({ events = [], writeStatus = "ok" } = {}) {
       writes.push({ method, url: u, body: opts && opts.body ? JSON.parse(opts.body) : null });
       return jsonRes({ status: writeStatus, eventId: "new-evt" });
     }
-    if (u.includes("/api/calendar/events")) return jsonRes({ connected: true, status: "ok", events });
+    if (u.includes("/api/calendar/events")) {
+      return jsonRes({ connected: true, status: "ok", events, calendars: calendars || [] });
+    }
     return jsonRes({ connected: false, status: "not_connected" });
   };
   return { impl, writes };
 }
+
+/** A personal calendar and a shared family one, plus one that can only be
+ * read - which must never be offered as somewhere to put an event. */
+const TWO_CALENDARS = [
+  { id: "me@example.com", name: "Personal", color: "#4285F4", primary: true, writable: true },
+  { id: "fam@group.calendar.google.com", name: "Family", color: "#0B8043", primary: false, writable: true },
+  { id: "holidays@group.v.calendar.google.com", name: "UK holidays", color: "#616161", primary: false, writable: false },
+];
 
 async function openCalendar(app) {
   app.goTo("calendar");
@@ -526,4 +536,81 @@ test("a Google Task with no time says why it is in the all-day row", async () =>
   app.document.querySelector("#calDayCur .cal-chip.is-gtask").click();
   const body = app.document.querySelector("#modalBody").textContent;
   assert.match(body, /only shares the date/i, "the API limitation should be stated, not hidden");
+});
+
+test("a new event can be put on any calendar you can write to", async () => {
+  const backend = calendarBackend({ calendars: TWO_CALENDARS });
+  const app = loadApp({ fetchImpl: backend.impl });
+  await openCalendar(app);
+
+  mainCells(app)[10].click();
+  assert.ok(editorOpen(app));
+
+  const sel = app.document.getElementById("calEditCalendar");
+  assert.ok(sel, "a new event should offer a choice of calendar");
+  const names = [...sel.options].map((o) => o.textContent);
+  assert.deepEqual(names, ["Personal (default)", "Family"],
+    "read-only calendars are not somewhere you can put anything");
+  assert.equal(sel.value, "me@example.com", "the primary is where it goes unless told otherwise");
+
+  sel.value = "fam@group.calendar.google.com";
+  editorField(app, "Title").value = "School run";
+  editorButton(app, "Add to calendar").click();
+  await app.flush();
+
+  const post = backend.writes.filter((w) => w.method === "POST").pop();
+  assert.equal(post.body.calendarId, "fam@group.calendar.google.com");
+  assert.equal(post.body.title, "School run");
+});
+
+test("the calendar you chose last is where the next one goes", async () => {
+  const backend = calendarBackend({ calendars: TWO_CALENDARS });
+  const app = loadApp({ fetchImpl: backend.impl });
+  await openCalendar(app);
+
+  mainCells(app)[10].click();
+  app.document.getElementById("calEditCalendar").value = "fam@group.calendar.google.com";
+  editorField(app, "Title").value = "School run";
+  editorButton(app, "Add to calendar").click();
+  await app.flush();
+
+  // On the synced profile, so the choice follows you to another device.
+  assert.equal(app.state().profile.calendarId, "fam@group.calendar.google.com");
+
+  await openCalendar(app);
+  mainCells(app)[11].click();
+  assert.equal(app.document.getElementById("calEditCalendar").value, "fam@group.calendar.google.com",
+    "the next event starts where the last one went");
+});
+
+test("with only one writable calendar there is no choice to offer", async () => {
+  const backend = calendarBackend({ calendars: [TWO_CALENDARS[0], TWO_CALENDARS[2]] });
+  const app = loadApp({ fetchImpl: backend.impl });
+  await openCalendar(app);
+
+  mainCells(app)[10].click();
+  assert.equal(app.document.getElementById("calEditCalendar"), null);
+
+  editorField(app, "Title").value = "Dentist";
+  editorButton(app, "Add to calendar").click();
+  await app.flush();
+  const post = backend.writes.filter((w) => w.method === "POST").pop();
+  assert.equal(post.body.calendarId, undefined, "nothing to say, so nothing is sent");
+});
+
+test("an existing event says where it lives rather than offering to move it", async () => {
+  const start = atToday(10, 0);
+  const backend = calendarBackend({
+    calendars: TWO_CALENDARS,
+    events: [{ id: "e1", calendarId: "fam@group.calendar.google.com", title: "Swimming", start,
+               end: atToday(11, 0), writable: true, calendar: "Family" }],
+  });
+  const app = loadApp({ fetchImpl: backend.impl });
+  await openCalendar(app);
+
+  app.document.querySelector("#calDayCur .cal-chip").click();
+  assert.ok(editorOpen(app));
+  // events.move is a different Google call, so this doesn't pretend to offer it.
+  assert.equal(app.document.getElementById("calEditCalendar"), null);
+  assert.match(app.document.querySelector("#modalBody").textContent, /On Family/);
 });

@@ -875,7 +875,11 @@ async function handleGetCalendarEvents(request, env, email, now) {
   try {
     const calendars = await listCalendars(tokenResult.accessToken);
     const events = await fetchEventsForRange(tokenResult.accessToken, calendars, timeMin, timeMax);
-    return json({ connected: true, status: "ok", day, end, events, tasks: taskResult.tasks, tasksError: taskResult.error });
+    /* The list travels with the events so the editor can offer a choice of
+       calendar. Deriving it from the events instead would hide any calendar
+       that happens to have nothing on it that week - which is exactly when
+       you are most likely to be adding something to it. */
+    return json({ connected: true, status: "ok", day, end, events, calendars, tasks: taskResult.tasks, tasksError: taskResult.error });
   } catch (e) {
     return json({
       connected: true, status: "calendar_error", day, end, events: [],
