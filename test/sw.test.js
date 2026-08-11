@@ -179,3 +179,10 @@ test("offline, the cached copy is still served", async () => {
   const res = await ev.response;
   assert.equal(res.body, "old", "the cache is what makes the app work offline");
 });
+
+test("the installed app is not locked to portrait", () => {
+  const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "manifest.webmanifest"), "utf8"));
+  // An `orientation` of "portrait" stops an installed copy from rotating at
+  // all, which is wrong on a tablet or a desktop window.
+  assert.equal(manifest.orientation, undefined);
+});
