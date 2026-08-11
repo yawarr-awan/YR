@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.24.2
+
+**The desktop no longer wastes half the screen.** Three things were leaving gaps:
+
+- **Holes under short cards.** The cards sat in a grid, and a grid row is as tall as its tallest card — so a short card left dead space beneath it that nothing could fill. They now flow down columns instead, so each card starts immediately under the one above it and the columns pack tight. Up to **two columns** from 721px, **three** from 1100px and **four** from 1560px.
+- **Space down both sides.** The page was capped at 1024px wide however big the window was. That cap is now 1480px, for the page and the header alike.
+- **Everything small on a big screen.** Settings → **Appearance → Size** now has five steps, from *Small* to *Largest*. It scales the whole app — text, cards, spacing and controls together — because every measurement in the app is relative to one root size. The choice is remembered on that device and, like the theme and the card layout, is never synced or stored with your health record.
+
 ## 1.24.1
 
 **If the installed app still won't rotate, it's the install, not the app.** Removing the portrait lock from the manifest in 1.23.1 was the right fix, but an installed Android copy is a WebAPK whose orientation was decided when it was installed. Chrome only rebuilds that after it notices the manifest differ — and it waits until every window of the app is closed, the phone is charging and on Wi‑Fi, which can easily take a day or two.

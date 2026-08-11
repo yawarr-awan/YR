@@ -49,6 +49,8 @@ html,body{margin:0;padding:0}
 /* Slightly smaller root size than the 16px browser default - every rem in
    this file scales with it, so this is one knob for "a bit more compact on
    a phone" without touching each rule. */
+/* One knob for the whole app: everything else is in rem, so this scales
+   the lot. Settings -> Appearance overrides it per device. */
 html{font-size:15px}
 body{
   background:var(--bg); color:var(--ink);
@@ -56,14 +58,14 @@ body{
   line-height:1.45; -webkit-font-smoothing:antialiased;
 }
 a{color:var(--brand)}
-.wrap{max-width:1024px; margin:0 auto; padding:0 14px calc(78px + env(safe-area-inset-bottom,0px))}
+.wrap{max-width:1480px; margin:0 auto; padding:0 14px calc(78px + env(safe-area-inset-bottom,0px))}
 /* The header is the same surface as the page behind it - and the Android
    status bar above it is kept in step by applyThemeColor(). */
 header.top{
   position:sticky; top:0; z-index:20; background:var(--bg); color:var(--ink);
   border-bottom:1px solid var(--line);
 }
-.top-inner{max-width:1024px; margin:0 auto; padding:10px 16px; display:flex; align-items:center; gap:12px; flex-wrap:nowrap}
+.top-inner{max-width:1480px; margin:0 auto; padding:10px 16px; display:flex; align-items:center; gap:12px; flex-wrap:nowrap}
 /* Deliberately larger than the 40px controls beside it, so the mark reads
    as the app's identity rather than as one more button. */
 .brand-badge{width:50px;height:50px;flex:0 0 auto;display:block}
@@ -145,12 +147,20 @@ nav.tabs button.active{color:var(--brand)}
 .subview{display:none}
 .subview.active{display:block;animation:viewIn .16s ease}
 @keyframes viewIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
-/* align-items:start so a short card doesn't stretch to the height of the
-   tallest one beside it, which is what made a two-column row look half
-   empty on a desktop window. */
 .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;align-items:start}
 @media(max-width:720px){.grid{grid-template-columns:1fr}}
-@media(min-width:1200px){.grid{grid-template-columns:repeat(3,1fr)}}
+
+/* A view's cards are a column layout, not a grid. Cards vary enormously in
+   height and a grid row is as tall as its tallest card, so a short one left
+   a hole beneath it that nothing could fill. In columns each card sits
+   directly under the one above it in its own column and the space closes up
+   by itself. The trade is that they read down a column rather than across a
+   row, which is how any dashboard of uneven cards ends up. */
+.cards{display:block;columns:1;column-gap:12px}
+.cards>.card{break-inside:avoid;-webkit-column-break-inside:avoid;margin:0 0 12px}
+@media(min-width:721px){.cards{columns:2}}
+@media(min-width:1100px){.cards{columns:3}}
+@media(min-width:1560px){.cards{columns:4}}
 .card{
   background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
   padding:14px;box-shadow:var(--shadow)
@@ -524,7 +534,7 @@ footer.foot{text-align:center;color:var(--muted);font-size:.78rem;margin-top:26p
       <button class="today-btn" id="jumpToday">Today</button>
     </div>
 
-    <div class="grid">
+    <div class="grid cards">
       <div class="card" id="briefCard" data-card="brief">
       <h3>✨ Today's Brief</h3>
       <div class="muted brief-body" id="briefText" style="margin:0 0 8px">Loading…</div>
@@ -615,7 +625,7 @@ footer.foot{text-align:center;color:var(--muted);font-size:.78rem;margin-top:26p
       <button id="prayNextDay" title="Next day">›</button>
       <button class="today-btn" id="prayJumpToday">Today</button>
     </div>
-    <div class="grid">
+    <div class="grid cards">
       <div class="card collapsible" data-collapse="prayers" data-card="prayers">
         <h3><span class="dot" style="background:var(--pray)"></span> Prayers (Salah)<span class="count" id="prayCount"></span></h3>
         <!-- Just the checklist. The location, the countdown, the calculation
@@ -713,7 +723,7 @@ footer.foot{text-align:center;color:var(--muted);font-size:.78rem;margin-top:26p
   <section id="view-progress" class="view">
     <div class="section-title">Your Progress</div>
     <div class="stats-grid" id="statsGrid"></div>
-    <div class="grid">
+    <div class="grid cards">
 
     <div class="card" data-collapse="weighttrend" data-card="weighttrend">
       <h3>⚖️ Weight trend</h3>
@@ -743,7 +753,7 @@ footer.foot{text-align:center;color:var(--muted);font-size:.78rem;margin-top:26p
   <!-- ===================== SETTINGS ===================== -->
   <section id="view-settings" class="view">
     <div class="section-title">Settings</div>
-    <div class="grid">
+    <div class="grid cards">
 
     <div class="card collapsible" data-collapse="google" id="googleCard" data-card="google">
       <h3>🔗 Google</h3>
@@ -845,6 +855,9 @@ footer.foot{text-align:center;color:var(--muted);font-size:.78rem;margin-top:26p
         <div class="pill-row">
           <button class="btn" id="themeToggle" type="button">🌙 Switch to dark</button>
         </div>
+        <p class="muted" style="font-size:.76rem;margin:14px 0 6px;font-weight:700">Size</p>
+        <p class="muted" style="font-size:.85rem;margin:0 0 8px">How big everything is — text, cards and spacing all together. Handy on a big monitor.</p>
+        <div class="pray-seg" id="scaleSeg"></div>
       </div>
     </div>
 
@@ -4861,6 +4874,41 @@ try{
   }
 }catch(e){}
 
+/* ---------- TEXT / UI SCALE ---------- */
+/* Everything in the app is sized in rem off the root font size, so this one
+   number scales the whole interface. Per device, like the other display
+   preferences - a monitor and a phone want different answers. */
+var SCALEKEY="yawarScale";
+var SCALES=[[13,"Small"],[15,"Default"],[17,"Large"],[19,"Larger"],[21,"Largest"]];
+function currentScale(){
+  var v=parseInt((function(){try{return localStorage.getItem(SCALEKEY);}catch(e){return null;}})(),10);
+  for(var i=0;i<SCALES.length;i++)if(SCALES[i][0]===v)return v;
+  return 15;
+}
+function applyScale(px){
+  document.documentElement.style.fontSize=px+"px";
+  /* The header's height is measured, not assumed, and it changes with this. */
+  if(typeof syncHeaderHeight==="function")syncHeaderHeight();
+}
+function renderScaleSeg(){
+  var box=document.getElementById("scaleSeg");
+  if(!box)return;
+  box.innerHTML="";
+  var cur=currentScale();
+  SCALES.forEach(function(sc){
+    var b=el("button",sc[0]===cur?"on":null,sc[1]);
+    b.type="button";
+    b.setAttribute("data-scale",String(sc[0]));
+    b.addEventListener("click",function(){
+      try{localStorage.setItem(SCALEKEY,String(sc[0]));}catch(e){}
+      applyScale(sc[0]);
+      renderScaleSeg();
+    });
+    box.appendChild(b);
+  });
+}
+applyScale(currentScale());
+
 try{var savedTheme=localStorage.getItem(THEMEKEY);applyTheme(savedTheme||undefined);}catch(e){applyTheme();}
 document.getElementById("layoutEditBtn").addEventListener("click",function(){setLayoutEditing(!_editingLayout);});
 document.getElementById("layoutResetBtn").addEventListener("click",resetLayout);
@@ -4879,6 +4927,7 @@ syncHeaderHeight();
 applyLayout();
 initCollapsibles();
 renderHiddenCards();
+renderScaleSeg();
 renderPlan();renderRecipes();renderExercises();renderToday();
 updateInstallUI();
 loadBrief();
