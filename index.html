@@ -4590,8 +4590,19 @@ function renderDuasList(){
     card.appendChild(toggle);
 
     if(_duaLinksOpen===d.id){
+      /* An item already spoken for by a *different* picture is left out
+         rather than shown unticked: a dhikr item points at one du'a, so
+         ticking it there would have silently taken the link off the other
+         one. Its own picture still lists it, ticked, so it can be released. */
+      var free=allDhikrItems().filter(function(row){
+        return !links[row[0]]||links[row[0]]===d.id;
+      });
       var list=el("div","dua-links");
-      allDhikrItems().forEach(function(row){
+      if(!free.length){
+        list.appendChild(el("p","muted","Every dhikr item already has a du'a. Untick one on its own picture to move it here."))
+          .style.cssText="font-size:.78rem;margin:0";
+      }
+      free.forEach(function(row){
         var label=el("label","chk");
         var cb=el("input");cb.type="checkbox";
         cb.checked=links[row[0]]===d.id;
@@ -5446,19 +5457,16 @@ function applyTheme(t){
      than leaving an unlabelled glyph in the header. */
   if(btn)btn.textContent=(currentTheme()==="dark")?"☀️ Switch to light":"🌙 Switch to dark";
 }
-/* Belt and braces on rotation. The manifest asks for no orientation lock,
-   but an already-installed Android copy is a WebAPK whose orientation was
-   baked in when it was installed, and Chrome only rebuilds that on its own
-   schedule - so the manifest change alone can leave an installed app stuck
-   in portrait for a day or more. Chrome applies orientation locks by asking
-   Android for one, so releasing the lock here can take effect immediately
-   where the manifest hasn't yet. Best-effort: it throws on any browser that
-   has nothing to unlock, which is not an error. */
-try{
-  if(window.screen&&screen.orientation&&typeof screen.orientation.unlock==="function"){
-    screen.orientation.unlock();
-  }
-}catch(e){}
+/* Rotation is deliberately left entirely to the device.
+ *
+ * There is no screen.orientation.unlock() call here and the manifest declares
+ * no `orientation` at all - both were tried in 1.24.1 and both overshot. A
+ * WebAPK translates the manifest's orientation into an Android activity
+ * orientation, and "any" becomes a sensor mode that follows the accelerometer
+ * *whether or not the phone's own rotation lock is on*. Saying nothing leaves
+ * the activity unspecified, which is what respects the system setting. The
+ * same reasoning applies to unlock(): asking to be unlocked is still asking
+ * for something, and the app should not have an opinion here at all. */
 
 /* ---------- TEXT / UI SCALE ---------- */
 /* Everything in the app is sized in rem off the root font size, so this one

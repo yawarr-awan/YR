@@ -63,8 +63,15 @@ function duaCards(app) {
 /* The picker is folded by default - 21 dhikr rows under every picture buries
  * the pictures - so a test that links something has to open it first. */
 function openPicker(app, index = 0) {
-  duaCards(app)[index].querySelector(".dua-linktoggle").click();
+  // Idempotent: the toggle is a toggle, and a re-render keeps the picker
+  // open, so clicking again would close it.
+  if (!duaCards(app)[index].querySelector(".dua-links")) {
+    duaCards(app)[index].querySelector(".dua-linktoggle").click();
+  }
   return duaCards(app)[index].querySelector(".dua-links");
+}
+function togglePicker(app, index = 0) {
+  duaCards(app)[index].querySelector(".dua-linktoggle").click();
 }
 function linkFirstItem(app) {
   const cb = openPicker(app).querySelector("input[type=checkbox]");
@@ -206,15 +213,15 @@ test("only one picker is open at a time, and it folds again", async () => {
   });
   await openDuas(app);
 
-  openPicker(app, 0);
+  togglePicker(app, 0);
   assert.ok(duaCards(app)[0].querySelector(".dua-links"));
   assert.equal(duaCards(app)[1].querySelector(".dua-links"), null);
 
-  openPicker(app, 1);
+  togglePicker(app, 1);
   assert.equal(duaCards(app)[0].querySelector(".dua-links"), null, "opening one closes the other");
   assert.ok(duaCards(app)[1].querySelector(".dua-links"));
 
-  openPicker(app, 1);
+  togglePicker(app, 1);
   assert.equal(duaCards(app)[1].querySelector(".dua-links"), null, "and tapping it again folds it");
 });
 
@@ -232,4 +239,63 @@ test("a freshly uploaded du'a opens its picker, since linking is the point", asy
 
   assert.equal(duaCards(app).length, 1);
   assert.ok(duaCards(app)[0].querySelector(".dua-links"), "the new card is open on its picker");
+});
+
+test("an item linked to one du'a disappears from every other du'a's list", async () => {
+  const app = loadApp({
+    fetchImpl: backend([{ id: "d1", name: "One", created_at: 1 }, { id: "d2", name: "Two", created_at: 2 }]),
+  });
+  await openDuas(app);
+
+  const labels = (i) => Array.from(openPicker(app, i).querySelectorAll(".lbl")).map((n) => n.textContent);
+  const before = labels(0);
+  const first = before[0];
+
+  const cb = duaCards(app)[0].querySelector(".dua-links input[type=checkbox]");
+  cb.checked = true;
+  cb.dispatchEvent(new app.window.Event("change", { bubbles: true }));
+
+  assert.deepEqual(labels(1), before.slice(1),
+    "the taken item is gone from the other picture's list, and nothing else moved");
+  assert.ok(labels(0).includes(first),
+    "but it is still on its own picture, so the link can be released again");
+});
+
+test("unlinking puts the item back in everyone else's list", async () => {
+  const app = loadApp({
+    fetchImpl: backend([{ id: "d1", name: "One", created_at: 1 }, { id: "d2", name: "Two", created_at: 2 }]),
+  });
+  await openDuas(app);
+  const all = Array.from(openPicker(app, 0).querySelectorAll(".lbl")).map((n) => n.textContent);
+
+  const tick = (i, checked) => {
+    const cb = openPicker(app, i).querySelector("input[type=checkbox]");
+    cb.checked = checked;
+    cb.dispatchEvent(new app.window.Event("change", { bubbles: true }));
+  };
+
+  tick(0, true);
+  tick(0, false);
+
+  const after = Array.from(openPicker(app, 1).querySelectorAll(".lbl")).map((n) => n.textContent);
+  assert.deepEqual(after, all, "released, it is offered everywhere again");
+});
+
+test("with every item spoken for, the list says so instead of being blank", async () => {
+  const app = loadApp({ fetchImpl: backend([{ id: "d1", name: "One", created_at: 1 }, { id: "d2", name: "Two", created_at: 2 }]) });
+  await openDuas(app);
+
+  // Hand d1 every dhikr item there is.
+  const picker = openPicker(app, 0);
+  const count = picker.querySelectorAll("input[type=checkbox]").length;
+  for (let i = 0; i < count; i++) {
+    const cb = duaCards(app)[0].querySelector(".dua-links input[type=checkbox]:not(:checked)");
+    if (!cb) break;
+    cb.checked = true;
+    cb.dispatchEvent(new app.window.Event("change", { bubbles: true }));
+  }
+
+  const other = openPicker(app, 1);
+  assert.equal(other.querySelectorAll("input[type=checkbox]").length, 0);
+  assert.match(other.textContent, /already has a du'a/i);
 });

@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.25.5
+
+- **A dhikr item that already has a du'a no longer appears in any other du'a's list.** An item points at one picture, so offering it elsewhere only invited you to silently take the link off the picture that had it. It still shows, ticked, on its own picture, so you can release it there and give it to another. If every item is spoken for, the list says so rather than looking broken.
+- **Rotation follows your phone's rotation lock again.** The 1.24.1 fix overshot: `orientation: "any"` in the manifest makes an installed Android copy follow the accelerometer *whether or not* your rotation lock is on, and the app was also releasing the orientation lock itself at startup. Both are gone — the app now says nothing at all about orientation, which is the only setting that defers to the phone.
+
+  As before, an installed copy keeps the old behaviour until Chrome rebuilds the app (all windows closed, charging, on Wi-Fi) — **reinstalling applies it immediately**.
+
 ## 1.25.4
 
 **The daily brief is generated at 00:01 instead of 7am**, so it's waiting for you the moment the day starts. It covers the day that has just begun, and nothing is filtered out as "already over" at that hour.

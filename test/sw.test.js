@@ -180,13 +180,16 @@ test("offline, the cached copy is still served", async () => {
   assert.equal(res.body, "old", "the cache is what makes the app work offline");
 });
 
-test("the installed app is not locked to portrait", () => {
+test("the manifest declares no orientation, so the device setting decides", () => {
   const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "manifest.webmanifest"), "utf8"));
-  // "portrait" stops an installed copy rotating at all. Stated explicitly
-  // rather than left out: an installed Android copy is a WebAPK whose
-  // orientation was baked in at install time, and Chrome only rebuilds it
-  // when it notices the manifest differ - so the value should be unmissable.
-  assert.equal(manifest.orientation, "any");
+  // The key is deliberately absent. "portrait" would stop an installed copy
+  // rotating at all, but "any" is not the opposite of that - a WebAPK turns
+  // "any" into a sensor mode that rotates even when the phone's own rotation
+  // lock is on. Saying nothing leaves the activity unspecified, which is the
+  // only value that follows the device setting.
+  assert.equal(manifest.orientation, undefined,
+    "no orientation at all: a WebAPK turns \"any\" into a sensor mode that " +
+    "rotates even when the phone's own rotation lock is on");
 });
 
 /* Every asset the worker precaches has to actually be in the repo: addAll()
