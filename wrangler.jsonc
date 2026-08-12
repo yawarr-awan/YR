@@ -26,11 +26,13 @@
   // Plain vars declared here would overwrite the dashboard values on every
   // deploy; secrets persist across deploys.
 
-  // Fires hourly; the scheduled handler itself only acts during the 7am
-  // Europe/London hour (computed via Intl, so it tracks BST/GMT with no
-  // DST table to maintain here) and dedupes against D1, so this stays a
-  // once-a-day brief despite the hourly trigger.
-  "triggers": { "crons": ["0 * * * *"] },
+  // Fires at one minute past every hour; the scheduled handler itself only
+  // acts during the midnight Europe/London hour (BRIEF_HOUR, computed via
+  // Intl so it tracks BST/GMT with no DST table to maintain here) and
+  // dedupes against D1, so this stays a once-a-day 00:01 brief despite the
+  // hourly trigger. Cron alone cannot express it: cron is evaluated in UTC
+  // and London is an hour off UTC for half the year.
+  "triggers": { "crons": ["1 * * * *"] },
 
   "observability": { "enabled": true }
 }
