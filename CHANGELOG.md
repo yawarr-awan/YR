@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.25.4
+
+**The daily brief is generated at 00:01 instead of 7am**, so it's waiting for you the moment the day starts. It covers the day that has just begun, and nothing is filtered out as "already over" at that hour.
+
+The cron fires at one minute past every hour and the Worker acts only during the midnight London hour. Cron alone can't express this: cron is evaluated in UTC, and London is an hour off UTC for half the year — a fixed `1 0 * * *` would drift to 01:01 every summer.
+
 ## 1.25.3
 
 - **A dhikr item with a du'a on it is now a link**, the way a recipe or an exercise is — tap its name to open the picture. The separate 📿 button next to it is gone.

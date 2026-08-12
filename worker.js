@@ -1167,17 +1167,21 @@ async function handleDeleteCalendarEvent(request, env, email) {
   return await googleWriteFailure(res);
 }
 
-/** Cron entry point. Runs hourly (see wrangler.jsonc) but only actually
- * does anything during the 7am hour in Europe/London - computed fresh via
- * Intl each run, so it self-adjusts across BST/GMT with no DST table to
- * maintain - and only once per day per user, via the daily_brief dedupe
- * check below. */
+/** Cron entry point. Fires at one minute past every hour (see
+ * wrangler.jsonc) but only actually does anything during BRIEF_HOUR in
+ * Europe/London - computed fresh via Intl each run, so it self-adjusts
+ * across BST/GMT with no DST table to maintain. The cron itself cannot
+ * express "00:01 London" because cron is evaluated in UTC and London is an
+ * hour off it for half the year; firing hourly and checking the local hour
+ * here is what makes the time hold all year. Deduped per user per day
+ * against daily_brief below, so it stays a once-a-day brief. */
+const BRIEF_HOUR = 0;                       /* midnight, Europe/London */
 async function handleScheduled(env, now) {
   now = now || new Date();
   const londonHour = Number(
     new Intl.DateTimeFormat("en-GB", { timeZone: BRIEF_TIMEZONE, hour: "2-digit", hour12: false }).format(now)
   );
-  if (londonHour !== 7) return;
+  if (londonHour !== BRIEF_HOUR) return;
 
   const { day } = localDayBounds(BRIEF_TIMEZONE, now);
   const { results } = await env.DB.prepare(`SELECT user_email FROM google_tokens`).all();

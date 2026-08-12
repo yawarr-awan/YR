@@ -318,7 +318,7 @@ test("handleGetBrief reflects not_connected / pending / ok correctly", async (t)
   assert.equal(ok.summary, "All clear today.");
 });
 
-test("handleScheduled: a no-op outside the 7am London hour, regardless of connected users", async (t) => {
+test("handleScheduled: a no-op outside the midnight London hour, regardless of connected users", async (t) => {
   const { handleScheduled } = await loadWorker();
   const d1 = createFakeD1();
   d1.seedToken(EMAIL, { access_token: "tok", access_token_expires_at: Date.now() + 10 * 60 * 1000 });
@@ -328,9 +328,14 @@ test("handleScheduled: a no-op outside the 7am London hour, regardless of connec
   await handleScheduled(d1.env, new Date("2026-08-09T10:00:00Z")); // 11am London (BST)
   assert.equal(fetched, false);
   assert.equal(d1.dailyBrief.size, 0);
+
+  // Midnight UTC is 1am London in summer, which is the trap this guards:
+  // the cron fires hourly precisely because cron itself is evaluated in UTC.
+  await handleScheduled(d1.env, new Date("2026-08-09T00:01:00Z"));
+  assert.equal(fetched, false, "00:01 UTC is 01:01 London in BST - not the hour");
 });
 
-test("handleScheduled: at 7am London, generates once and skips a user already done for today", async (t) => {
+test("handleScheduled: at midnight London, generates once and skips a user already done for today", async (t) => {
   const { handleScheduled } = await loadWorker();
   const d1 = createFakeD1();
   d1.seedToken(EMAIL, { access_token: "tok", access_token_expires_at: Date.now() + 10 * 60 * 1000 });
@@ -341,13 +346,14 @@ test("handleScheduled: at 7am London, generates once and skips a user already do
     return baseMock(url);
   });
 
-  const sevenAmBst = new Date("2026-08-09T06:30:00Z"); // 7:30am BST
-  await handleScheduled(d1.env, sevenAmBst);
+  const oneMinutePastMidnightBst = new Date("2026-08-09T23:01:00Z"); // 00:01 on the 10th, London
+  await handleScheduled(d1.env, oneMinutePastMidnightBst);
   assert.equal(calendarListCalls, 1);
-  assert.equal(d1.dailyBrief.get(`${EMAIL}|2026-08-09`).status, "ok");
+  assert.equal(d1.dailyBrief.get(`${EMAIL}|2026-08-10`).status, "ok",
+    "the brief is filed against the day that has just started, not the one that ended");
 
-  // Firing again in the same 7am hour must not regenerate an already-ok brief.
-  await handleScheduled(d1.env, sevenAmBst);
+  // Firing again in the same hour must not regenerate an already-ok brief.
+  await handleScheduled(d1.env, oneMinutePastMidnightBst);
   assert.equal(calendarListCalls, 1, "already-generated-today briefs must not be recomputed");
 });
 
