@@ -257,7 +257,17 @@ input[type=range]{width:100%;accent-color:var(--accent)}
    to fit. A column that resized while you looked at it is exactly what made
    this hard to read. */
 :root{--hdr-h:66px}
-.cal-viewport{overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain}
+/* The grid scrolls in both directions inside itself, which is what lets the
+   date row stay put at the top and the hour gutter at the left. Sticky can
+   only stick to a scrollport, and with a horizontal scroller in the way the
+   page is no longer that scrollport for anything inside it. */
+.cal-viewport{
+  overflow:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;
+  max-height:var(--cal-h);position:relative
+}
+:root{--cal-h:calc(100vh - var(--hdr-h) - 215px)}
+@supports (height:100dvh){:root{--cal-h:calc(100dvh - var(--hdr-h) - 215px)}}
+@media(min-width:900px){:root{--cal-h:calc(100vh - var(--hdr-h) - 190px)}}
 .cal-day{min-width:max-content}
 /* The date bar stays put while the week scrolls past it. */
 .cal-sticky{position:sticky;top:var(--hdr-h);z-index:15;background:var(--bg);padding-bottom:6px}
@@ -304,24 +314,26 @@ input[type=range]{width:100%;accent-color:var(--accent)}
 .cal-daygroup.is-week .cal-gh.is-focus{background:var(--panel);color:var(--ink)}
 /* A desktop has the room, so use it: an hour is nearly twice as tall, which
    is what lets every column carry readable text rather than a colour bar. */
-/* An hour is tall enough to hold a title and its calendar name at the size a
-   one-hour chip gets - a chip is sized from its slot, so a short row would
-   clip the second line rather than shrink to fit. */
-.cal-daygroup.is-week{--cal-row:54px;--cal-gutter:52px;--cal-col:124px}
+/* Narrow: the day you are on is wide enough to read, the rest are compact
+   markers you scroll to. The grid is wider than the screen either way, so
+   nothing has to shrink to fit. */
+.cal-daygroup.is-week{--cal-row:36px;--cal-gutter:46px;--cal-col:92px;--cal-col-focus:172px}
 .cal-daygroup.is-wide{--cal-row:62px;--cal-gutter:62px}
-/* Stays put while the week scrolls sideways, so you always know which hour
-   you are looking at. */
-.cal-gutter{position:sticky;inset-inline-start:0;z-index:4}
+
 .cal-daygroup.is-week .cal-gh{font-size:.66rem;padding:6px 4px}
 .cal-daygroup.is-week .cal-gh b{font-size:.9rem}
 .cal-daygroup.is-week .cal-hour-label{font-size:.7rem;opacity:.8}
 .cal-daygroup.is-wide .cal-gh{font-size:.72rem;padding:8px 4px}
 .cal-daygroup.is-wide .cal-gh b{font-size:1rem}
 .cal-daygroup.is-wide .cal-hour-label{font-size:.78rem}
-/* The heading row sits above the tinted cells, and above a chip that has
-   spilled out of its hour. */
-.cal-daygroup.is-week .cal-gh{position:relative;z-index:5}
-.cal-daygroup.is-week .cal-gh:first-child{position:sticky;inset-inline-start:0;z-index:6}
+/* The date row stays at the top of the grid while the hours scroll under it,
+   and the hour gutter stays at the left while the week scrolls across. The
+   corner where they meet has to do both, above both. */
+.cal-daygroup.is-week .cal-gh{position:sticky;top:0;z-index:6}
+.cal-gutter{position:sticky;inset-inline-start:0;z-index:5}
+/* The corner is the gutter's own heading, not the first day's - pinning the
+   wrong one leaves a day heading floating over the hour labels. */
+.cal-gutter-head{top:0;z-index:8}
 /* Every column lays its entries out like the focused one - the narrow
    colour-block treatment exists for a 74px phone column, not a 150px one. */
 .cal-daygroup.is-week .cal-cell{display:flex;gap:6px;padding-inline:6px}
@@ -3437,7 +3449,10 @@ function placeByTime(node,x,place){
      runs. Short chips also drop the meta line - one legible title beats a
      title and a subtitle both clipped. */
   node.style.setProperty("--chip-rows",rows.toFixed(4));
-  if(rows<0.85)node.classList.add("is-short");
+  /* Below this the slot cannot hold a second line, so the meta goes rather
+     than being clipped. A narrow column's rows are shorter, so it gives up
+     the meta line sooner. */
+  if(rows<(calIsWide()?0.85:1.35))node.classList.add("is-short");
   var w=100/place.of;
   node.style.insetInlineStart="calc("+(place.index*w).toFixed(3)+"% + 1px)";
   node.style.width="calc("+w.toFixed(3)+"% - 2px)";
@@ -3840,7 +3855,9 @@ function buildDayPanel(dayDate,timesByKey){
     for(ci=0;ci<cols;ci++)tpl.push("minmax(0,"+(ci===focusIdx?CAL_WIDE_FOCUS_FR:1)+"fr)");
     group.style.gridTemplateColumns="var(--cal-gutter) "+tpl.join(" ");
   }else{
-    group.style.gridTemplateColumns="var(--cal-gutter) repeat("+cols+",var(--cal-col))";
+    var ntpl=[];
+    for(ci=0;ci<cols;ci++)ntpl.push(ci===focusIdx?"var(--cal-col-focus)":"var(--cal-col)");
+    group.style.gridTemplateColumns="var(--cal-gutter) "+ntpl.join(" ");
   }
   group.classList.add("is-week");
   if(wide)group.classList.add("is-wide");
@@ -4002,17 +4019,28 @@ function paintCalPanels(days,timesByKey){
     legend.appendChild(chip);
   });
 
-  if(keyOf(calCur)===todayKey()){
-    /* Any column will do: in the week layout the focused day is often not
-       today, so ".is-main.current-hour" would find nothing and the grid would
-       open at midnight. */
-    var target=document.getElementById("calDayCur").querySelector(".cal-cell.current-hour")
-      ||document.getElementById("calDayCur").querySelector(".cal-gutter");
-    if(target&&typeof target.scrollIntoView==="function"){
-      /* Vertically only: `inline:"center"` would also scroll the week
-         sideways, hiding Monday behind the gutter on open. */
-      try{target.scrollIntoView({block:"center",inline:"nearest"});}catch(e){}
-    }
+  scrollCalToFocus(keyOf(calCur)===todayKey());
+}
+
+/** Puts the focused day against the left edge, just past the hour gutter, and
+ * (on today) brings the current hour into view.
+ *
+ * The week starts on Monday, so opening the tab on a Thursday would otherwise
+ * show three days you have already had. Scrolling rather than reordering
+ * keeps the earlier days a swipe to the left, which is where they belong. */
+function scrollCalToFocus(alsoVertical){
+  var view=calGridEl(),panel=document.getElementById("calDayCur");
+  if(!view||!panel)return;
+  var col=panel.querySelector('.cal-cell.is-main[data-day]');
+  var gutter=panel.querySelector(".cal-gutter");
+  if(col&&typeof col.offsetLeft==="number"){
+    var pad=gutter?gutter.offsetWidth:0;
+    view.scrollLeft=Math.max(0,col.offsetLeft-pad);
+  }
+  if(!alsoVertical)return;
+  var now=panel.querySelector(".cal-cell.current-hour");
+  if(now&&typeof now.offsetTop==="number"){
+    view.scrollTop=Math.max(0,now.offsetTop-view.clientHeight/2);
   }
 }
 
