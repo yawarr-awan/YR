@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.27.0
+
+**The calendar is one thing now, on every screen: a Monday–Sunday week.**
+
+- **The colours are the prayer colours.** They were being mixed 30% into the page background, which in dark mode turned them into murky olive and navy. They're now the same colours you see on the swatches in the prayer-times panel — gold for Chasht, cyan for Dhuhr, green for Asr, and so on. Events sit on top as their own cards, so nothing became harder to read.
+- **One date row, and it lines up with the columns.** There were two: a week strip above the grid, and the grid's own headings — saying the same thing in columns that didn't match, because the strip's buttons were equal width while the focused column is wider. The strip is gone. Tap any day's heading to focus it.
+- **On a phone, the week scrolls sideways.** Columns keep a fixed, readable width and you scroll to reach the rest of the week, instead of the day-plus-two view where swiping resized the columns under you. The hour labels stay pinned to the left edge while you scroll.
+- **On a desktop or tablet it still fits**, with the focused day about twice the width of the others.
+
+The day-carousel — swipe to page one day, with the neighbours pre-rendered either side — is gone, along with its drag-and-spring-back machinery. The **‹ ›** arrows page a week, the date picker jumps anywhere, and **Today** comes back.
+
 ## 1.26.0
 
 **The desktop calendar is readable without zooming.** Three things were making it unreadable, and only one of them was the type size:

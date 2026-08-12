@@ -17,7 +17,7 @@
   --good:#16a34a; --warn:#d97706; --bad:#dc2626; --gold:#b45309;
   --pray:#6d28d9; --med:#0369a1; --water:#0891b2; --food:#c2410c; --move:#15803d;
   --fajr:#818cf8; --sunrise:#fbbf24; --dhuhr:#06b6d4; --asr:#22c55e; --maghrib:#fb7185; --isha:#7c3aed;
-  --cal-tint:30%;
+  --cal-tint:82%;
   --shadow:0 1px 2px rgba(16,24,40,.06),0 6px 20px rgba(16,24,40,.06);
   --radius:16px;
 }
@@ -28,7 +28,7 @@
     --good:#4ade80; --warn:#fbbf24; --bad:#f87171; --gold:#fbbf24;
     --pray:#c4b5fd; --med:#7dd3fc; --water:#67e8f9; --food:#fdba74; --move:#86efac;
     --fajr:#93c5fd; --sunrise:#fcd34d; --dhuhr:#22d3ee; --asr:#4ade80; --maghrib:#fda4af; --isha:#d8b4fe;
-    --cal-tint:34%;
+    --cal-tint:82%;
     --shadow:0 1px 2px rgba(0,0,0,.3),0 8px 26px rgba(0,0,0,.35);
     color-scheme:dark;
   }
@@ -39,7 +39,7 @@
   --good:#4ade80; --warn:#fbbf24; --bad:#f87171; --gold:#fbbf24;
   --pray:#c4b5fd; --med:#7dd3fc; --water:#67e8f9; --food:#fdba74; --move:#86efac;
   --fajr:#93c5fd; --sunrise:#fcd34d; --dhuhr:#22d3ee; --asr:#4ade80; --maghrib:#fda4af; --isha:#d8b4fe;
-  --cal-tint:34%;
+  --cal-tint:82%;
   --shadow:0 1px 2px rgba(0,0,0,.3),0 8px 26px rgba(0,0,0,.35);
   color-scheme:dark;
 }
@@ -252,22 +252,26 @@ input[type=range]{width:100%;accent-color:var(--accent)}
 .pill-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
 .prayer-chip{font-weight:700}
 .prayer-chip.next{box-shadow:0 0 0 2px var(--ink);font-weight:800}
-/* One day fills the card - that day is the point of the screen. Its two
-   neighbours are rendered either side inside a 300%-wide track, so dragging
-   reveals the real next/previous day following your finger. After a slide
-   the track is silently re-centred, which keeps it feeling continuous. */
+/* A whole week, always. Where it does not fit - a phone - the grid keeps its
+   column width and the card scrolls sideways, rather than shrinking columns
+   to fit. A column that resized while you looked at it is exactly what made
+   this hard to read. */
 :root{--hdr-h:66px}
-.cal-viewport{overflow:hidden;touch-action:pan-y}
-.cal-track{display:flex;width:300%;transform:translateX(-33.3333%);will-change:transform}
-.cal-day{flex:0 0 33.3333%;width:33.3333%;min-width:0;padding:0 1px}
-/* The date bar and week strip stay put while the day scrolls past them. */
+.cal-viewport{overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain}
+.cal-day{min-width:max-content}
+/* The date bar stays put while the week scrolls past it. */
 .cal-sticky{position:sticky;top:var(--hdr-h);z-index:15;background:var(--bg);padding-bottom:6px}
-/* The focused day and the next two share one grid, so every row is the same
-   hour across all three and they scroll together with the page. */
+/* Seven days in one grid, so every row is the same hour across all of them. */
+/* No overflow:hidden here. It would become the containing scrollport for the
+   sticky hour gutter, which then never sticks - the same trap that killed the
+   sticky attempt in 1.12.0. The corners lose their clip; that is the trade. */
 .cal-daygroup{
-  display:grid;grid-template-columns:minmax(0,1fr) 74px 74px;
-  border:1px solid var(--line);border-radius:12px;overflow:hidden
+  display:grid;
+  border:1px solid var(--line);border-radius:12px
 }
+/* The grid must fill the card when it fits, and be its natural width when it
+   doesn't - that natural width is what gives the phone something to scroll. */
+.cal-daygroup.is-wide{width:100%}
 .cal-gh{
   padding:6px 3px;text-align:center;font-size:.58rem;font-weight:800;line-height:1.2;
   color:var(--muted);background:var(--panel-2);border-inline-start:1px solid var(--line);
@@ -300,20 +304,36 @@ input[type=range]{width:100%;accent-color:var(--accent)}
 .cal-daygroup.is-week .cal-gh.is-focus{background:var(--panel);color:var(--ink)}
 /* A desktop has the room, so use it: an hour is nearly twice as tall, which
    is what lets every column carry readable text rather than a colour bar. */
-/* Lighter prayer tint here than on the phone: the same 30% wash over a
-   1900px-wide grid is what turns the whole calendar into colour bands and
-   makes everything on top of it harder to read. The window is still legible
-   as colour, just quieter. */
-.cal-daygroup.is-week{--cal-row:62px;--cal-gutter:62px;--cal-tint:16%}
-.cal-daygroup.is-week .cal-gh{font-size:.72rem;padding:8px 4px}
-.cal-daygroup.is-week .cal-gh b{font-size:1rem}
-.cal-daygroup.is-week .cal-hour-label{font-size:.78rem;opacity:.75}
+/* An hour is tall enough to hold a title and its calendar name at the size a
+   one-hour chip gets - a chip is sized from its slot, so a short row would
+   clip the second line rather than shrink to fit. */
+.cal-daygroup.is-week{--cal-row:54px;--cal-gutter:52px;--cal-col:124px}
+.cal-daygroup.is-wide{--cal-row:62px;--cal-gutter:62px}
+/* Stays put while the week scrolls sideways, so you always know which hour
+   you are looking at. */
+.cal-gutter{position:sticky;inset-inline-start:0;z-index:4}
+.cal-daygroup.is-week .cal-gh{font-size:.66rem;padding:6px 4px}
+.cal-daygroup.is-week .cal-gh b{font-size:.9rem}
+.cal-daygroup.is-week .cal-hour-label{font-size:.7rem;opacity:.8}
+.cal-daygroup.is-wide .cal-gh{font-size:.72rem;padding:8px 4px}
+.cal-daygroup.is-wide .cal-gh b{font-size:1rem}
+.cal-daygroup.is-wide .cal-hour-label{font-size:.78rem}
+/* The heading row sits above the tinted cells, and above a chip that has
+   spilled out of its hour. */
+.cal-daygroup.is-week .cal-gh{position:relative;z-index:5}
+.cal-daygroup.is-week .cal-gh:first-child{position:sticky;inset-inline-start:0;z-index:6}
 /* Every column lays its entries out like the focused one - the narrow
    colour-block treatment exists for a 74px phone column, not a 150px one. */
 .cal-daygroup.is-week .cal-cell{display:flex;gap:6px;padding-inline:6px}
 .cal-daygroup.is-week .cal-cell:not(.cal-allday){overflow:visible}
 .cal-daygroup.is-week .cal-chip{padding:4px 7px;border-radius:8px}
+/* Narrow columns cap lower: a title wraps to two lines at 124px whatever the
+   size, so growing the type only pushes the calendar name out of the chip.
+   The wide layout has the room and takes the larger ceiling. */
 .cal-daygroup.is-week .cal-chip.is-timed{
+  font-size:clamp(10px,calc(var(--cal-row) * var(--chip-rows,1) * .26),12px)
+}
+.cal-daygroup.is-wide .cal-chip.is-timed{
   font-size:clamp(12px,calc(var(--cal-row) * var(--chip-rows,1) * .26),.95rem)
 }
 .cal-cell{
@@ -406,15 +426,6 @@ input[type=range]{width:100%;accent-color:var(--accent)}
 }
 .cal-nowline{position:absolute;inset-inline:0;height:2px;background:var(--bad);z-index:2}
 .cal-nowline i{position:absolute;inset-inline-start:-2px;top:-3px;width:8px;height:8px;border-radius:50%;background:var(--bad);display:block}
-.cal-strip{display:flex;gap:4px;margin:0 0 10px}
-.cal-strip button{
-  flex:1 1 0;min-width:0;border:1px solid var(--line);background:var(--panel);color:var(--muted);
-  border-radius:10px;padding:5px 1px;cursor:pointer;font:inherit;font-weight:700;font-size:.56rem;line-height:1.2
-}
-.cal-strip button b{display:block;font-size:.8rem;color:var(--ink)}
-.cal-strip button.is-today b{color:var(--brand)}
-.cal-strip button.is-sel{background:var(--brand);border-color:var(--brand);color:rgba(255,255,255,.85)}
-.cal-strip button.is-sel b,.cal-strip button.is-sel.is-today b{color:#fff}
 .loc-btn{display:inline-flex;align-items:center;gap:7px;padding:9px 13px}
 .loc-btn svg{width:15px;height:15px;flex:0 0 auto;fill:currentColor}
 
@@ -728,17 +739,12 @@ footer.foot{text-align:center;color:var(--muted);font-size:.78rem;margin-top:26p
         <input type="date" id="calDatePick">
         <button class="today-btn" id="calJumpToday">Today</button>
       </div>
-      <div class="cal-strip" id="calStrip"></div>
     </div>
 
     <div class="card">
       <h3 id="calDayHeading">🗓️ Today</h3>
       <div class="cal-viewport" id="calGrid">
-        <div class="cal-track" id="calTrack">
-          <div class="cal-day" id="calDayPrev"></div>
-          <div class="cal-day" id="calDayCur"></div>
-          <div class="cal-day" id="calDayNext"></div>
-        </div>
+        <div class="cal-day" id="calDayCur"></div>
       </div>
       <div class="muted" id="calStatus" style="font-size:.8rem;margin-top:8px"></div>
       <div class="legend" id="calLegend"></div>
@@ -3162,39 +3168,27 @@ function openColorMenu(name,anchor,ev){
 }
 
 /* ---------- CALENDAR TAB ---------- */
-/* One day at a time, full width - the day you're on is the point of the
-   screen. Its neighbours are rendered either side so a drag reveals the
-   real adjacent day instead of a blank panel, and so changing day costs no
-   round trip: events are fetched a window at a time and kept in memory. */
+/* A Monday-Sunday week, always. On a wide screen the seven columns share the
+   width and the focused day is given more of it; on a phone every column is
+   the same fixed width and the grid scrolls sideways, so a column never
+   changes size under you while you are looking at it. Events are fetched a
+   week at a time and kept in memory. */
 var calCur=new Date(); calCur.setHours(0,0,0,0);
-var CAL_SLIDE_MS=280;
 var CAL_WINDOW_PAD=10;         /* days fetched either side of the focused day */
-/* How many days one panel shows: the focused day plus its followers. A phone
-   has room for two neighbours; a tablet or a desktop window gets the whole
-   week. The focused column is CAL_FOCUS_FR times a peek column either way, so
-   the day you are on stays the one you can read. */
 var CAL_WIDE_MIN=900;
-var CAL_WEEK_COLS=7, CAL_PHONE_COLS=3, CAL_WIDE_FOCUS_FR=2;
-function calCols(){
-  var w=(typeof window!=="undefined"&&window.innerWidth)||0;
-  return w>=CAL_WIDE_MIN?CAL_WEEK_COLS:CAL_PHONE_COLS;
+var CAL_WEEK_COLS=7, CAL_WIDE_FOCUS_FR=2;
+/** The calendar is always a Monday-Sunday week. On a wide screen it fits and
+ * the focused day is widened; on a phone the columns keep a fixed readable
+ * width and the grid scrolls sideways instead - the day you are looking at
+ * must not change size under you while you scroll. */
+function calCols(){return CAL_WEEK_COLS;}
+function calIsWide(){
+  return ((typeof window!=="undefined"&&window.innerWidth)||0)>=CAL_WIDE_MIN;
 }
-var _calSliding=false;
-/* A swipe ends with a click event on whatever was under the finger. This
-   flag lets the tap-to-schedule handlers tell a real tap from the tail of a
-   drag. */
-var _calDragged=false;
 var _calWin=null;              /* {from,to,byDay,connected,status,calendars} */
 var _calReqId=0;
 
 function calGridEl(){return document.getElementById("calGrid");}
-function calTrackEl(){return document.getElementById("calTrack");}
-
-function calSetTrack(offsetPx,animate){
-  var t=calTrackEl();if(!t)return;
-  t.style.transition=animate?("transform "+CAL_SLIDE_MS+"ms cubic-bezier(.22,.61,.36,1)"):"none";
-  t.style.transform=offsetPx?("translateX(calc(-33.3333% + "+offsetPx+"px))"):"translateX(-33.3333%)";
-}
 
 /** Splits the day into consecutive prayer-window segments (minutes-of-day,
  * [0,1440)) covering the *entire* 24h span, so every hour of the grid can
@@ -3278,15 +3272,8 @@ function eventDayKey(e){
  * getting this wrong is invisible except that the first column loses its
  * prayer tint - which is exactly how it was caught. */
 function calSpan(centre){
-  var lo,hi;
-  if(calCols()===CAL_PHONE_COLS){
-    lo=addDays(centre,-1);
-    hi=addDays(centre,calCols());          /* the next panel's last column */
-  }else{
-    lo=weekStart(addDays(centre,-1));
-    hi=addDays(weekStart(addDays(centre,1)),calCols()-1);
-  }
-  return [keyOf(lo),keyOf(hi)];
+  var mon=weekStart(centre);
+  return [keyOf(mon),keyOf(addDays(mon,CAL_WEEK_COLS-1))];
 }
 
 function ensureCalWindow(centre){
@@ -3326,27 +3313,6 @@ function ensureCalWindow(centre){
 
 var WK_LABELS=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
 
-function renderCalStrip(){
-  var strip=document.getElementById("calStrip");
-  if(!strip)return;
-  strip.innerHTML="";
-  var ws=weekStart(calCur),tk=todayKey(),selKey=keyOf(calCur);
-  for(var i=0;i<7;i++){
-    (function(d){
-      var k=keyOf(d);
-      var b=el("button",(k===tk?"is-today ":"")+(k===selKey?"is-sel":""));
-      b.type="button";
-      b.appendChild(el("b",null,String(d.getDate())));
-      b.appendChild(document.createTextNode(WK_LABELS[(d.getDay()+6)%7]));
-      b.addEventListener("click",function(){
-        calCur=new Date(d);calCur.setHours(0,0,0,0);
-        renderCalendarTab();
-      });
-      strip.appendChild(b);
-    })(addDays(ws,i));
-  }
-}
-
 function renderCalendarTab(){
   var k=keyOf(calCur);
   var isToday=k===todayKey();
@@ -3354,8 +3320,6 @@ function renderCalendarTab(){
   document.getElementById("calDatePick").value=k;
   var heading=document.getElementById("calDayHeading");
   if(heading)heading.textContent="🗓️ "+(isToday?"Today":humanShort(calCur));
-  renderCalStrip();
-
   /* Draw straight away with whatever is held, then again when the events
      land. The grid, the hours and the prayer tints do not depend on Google
      at all, so none of them should wait for it. */
@@ -3447,7 +3411,7 @@ function calChip(x,place){
     .filter(Boolean).join(" · ");
   if(meta)chip.appendChild(el("span","cal-chip-meta",meta));
   chip.title=calEntryDetail(x);
-  chip.addEventListener("click",function(ev){ev.stopPropagation();if(!_calDragged)openCalEntry(x);});
+  chip.addEventListener("click",function(ev){ev.stopPropagation();openCalEntry(x);});
   if(place&&!x.allDay)placeByTime(chip,x,place);
   return chip;
 }
@@ -3473,7 +3437,7 @@ function placeByTime(node,x,place){
      runs. Short chips also drop the meta line - one legible title beats a
      title and a subtitle both clipped. */
   node.style.setProperty("--chip-rows",rows.toFixed(4));
-  if(rows<(calCols()===CAL_PHONE_COLS?1.6:0.85))node.classList.add("is-short");
+  if(rows<0.85)node.classList.add("is-short");
   var w=100/place.of;
   node.style.insetInlineStart="calc("+(place.index*w).toFixed(3)+"% + 1px)";
   node.style.width="calc("+w.toFixed(3)+"% - 2px)";
@@ -3490,7 +3454,7 @@ function calMini(x,place){
   mini.type="button";
   mini.style.borderInlineStartColor=x.color||(x.kind==="gtask"?"var(--accent)":"var(--brand)");
   mini.title=calEntryDetail(x);
-  mini.addEventListener("click",function(ev){ev.stopPropagation();if(!_calDragged)openCalEntry(x);});
+  mini.addEventListener("click",function(ev){ev.stopPropagation();openCalEntry(x);});
   if(place&&!x.allDay)placeByTime(mini,x,place);
   return mini;
 }
@@ -3862,27 +3826,27 @@ function calApi(method,path,payload){
  * The neighbours are full days, not summaries - just narrower. */
 function buildDayPanel(dayDate,timesByKey){
   var group=el("div","cal-daygroup");
-  var cols=calCols(),wide=cols!==CAL_PHONE_COLS,ci,days=[],focusIdx=0;
+  var cols=CAL_WEEK_COLS,wide=calIsWide(),ci,days=[],focusIdx=0;
+  var mon=weekStart(dayDate),fk=keyOf(dayDate);
+  for(ci=0;ci<cols;ci++){
+    days.push(addDays(mon,ci));
+    if(keyOf(days[ci])===fk)focusIdx=ci;
+  }
+  /* Wide: the columns share the width and the focused day gets more of it.
+     Narrow: every column is the same fixed, readable width and the grid is
+     wider than the screen, so it scrolls sideways. */
   if(wide){
-    /* Monday to Sunday, so the grid lines up with the week strip above it.
-       The focused day is one of the seven and is the wide one - it is not
-       necessarily the first, which is why the hour labels move into a gutter
-       column of their own rather than living in the focused cell. */
-    var mon=weekStart(dayDate),fk=keyOf(dayDate);
-    for(ci=0;ci<cols;ci++){
-      days.push(addDays(mon,ci));
-      if(keyOf(days[ci])===fk)focusIdx=ci;
-    }
     var tpl=[];
     for(ci=0;ci<cols;ci++)tpl.push("minmax(0,"+(ci===focusIdx?CAL_WIDE_FOCUS_FR:1)+"fr)");
     group.style.gridTemplateColumns="var(--cal-gutter) "+tpl.join(" ");
-    group.classList.add("is-week");
   }else{
-    for(ci=0;ci<cols;ci++)days.push(addDays(dayDate,ci));
+    group.style.gridTemplateColumns="var(--cal-gutter) repeat("+cols+",var(--cal-col))";
   }
-  /* One cell per row in the gutter, or nothing at all on the phone. */
+  group.classList.add("is-week");
+  if(wide)group.classList.add("is-wide");
+  /* The hour labels live in a column of their own: the focused day is
+     somewhere inside the week rather than at its left edge. */
   function gutter(text,cls){
-    if(!wide)return;
     var g=el("div","cal-gutter"+(cls?" "+cls:""));
     if(text)g.appendChild(el("span","cal-hour-label",text));
     group.appendChild(g);
@@ -3933,8 +3897,8 @@ function buildDayPanel(dayDate,timesByKey){
     gutter("All day","cal-allday");
     days.forEach(function(_,i){
       var cell=el("div","cal-cell cal-allday"+(i===focusIdx?" is-main":""));
-      if(i===focusIdx||wide){
-        if(!wide)cell.appendChild(el("span","cal-hour-label","All day"));
+      cell.setAttribute("data-day",keys[i]);
+      if(true){
         var box=el("div","cal-hour-events");
         allDay[i].forEach(function(x){box.appendChild(calChip(x));});
         cell.appendChild(box);
@@ -3956,11 +3920,9 @@ function buildDayPanel(dayDate,timesByKey){
       var isCurrentHour=keys[i]===tk&&Math.floor(nowMinutes/60)===h;
       if(isCurrentHour)cell.classList.add("current-hour");
 
-      /* On a wide screen every column gets a text chip, not just the focused
-         one: the colour-block treatment below exists for a 74px phone column,
-         and at 150px+ it is throwing away the room a desktop has. */
-      if(isMain||wide){
-        if(!wide)cell.appendChild(el("span","cal-hour-label",fmtHour(h)));
+      /* Every column carries a text chip. The old colour-block treatment was
+         for a 74px peek column, and there is no such column any more. */
+      if(true){
         var box=el("div","cal-hour-events");
         var entries=byHour[i][h]||[];
         entries.forEach(function(x,n){
@@ -3982,7 +3944,6 @@ function buildDayPanel(dayDate,timesByKey){
       (function(dayDate,hour){
         cell.addEventListener("click",function(ev){
           if(ev.target.closest(".cal-chip,.cal-mini"))return;
-          if(_calDragged)return;                    /* that was a swipe, not a tap */
           openCalSlot(dayDate,hour);
         });
       })(days[i],h);
@@ -4012,13 +3973,12 @@ function cachedTimesFor(keys){
 
 /** Draws the three panels and everything around them. */
 function paintCalPanels(days,timesByKey){
-  ["calDayPrev","calDayCur","calDayNext"].forEach(function(id,i){
+  ["calDayCur"].forEach(function(id,i){
     var host=document.getElementById(id);
     if(!host)return;
     host.innerHTML="";
     host.appendChild(buildDayPanel(days[i],timesByKey));
   });
-  calSetTrack(0,false);
 
   var status=document.getElementById("calStatus"),legend=document.getElementById("calLegend");
   var win=_calWin||{};
@@ -4049,7 +4009,9 @@ function paintCalPanels(days,timesByKey){
     var target=document.getElementById("calDayCur").querySelector(".cal-cell.current-hour")
       ||document.getElementById("calDayCur").querySelector(".cal-gutter");
     if(target&&typeof target.scrollIntoView==="function"){
-      try{target.scrollIntoView({block:"center"});}catch(e){}
+      /* Vertically only: `inline:"center"` would also scroll the week
+         sideways, hiding Monday behind the gutter on open. */
+      try{target.scrollIntoView({block:"center",inline:"nearest"});}catch(e){}
     }
   }
 }
@@ -4063,7 +4025,7 @@ function paintCalPanels(days,timesByKey){
  * prayer tints do. */
 function renderCalPanels(){
   var loc=state.profile&&state.profile.prayerLoc;
-  var days=[addDays(calCur,-1),calCur,addDays(calCur,1)];
+  var days=[calCur];
   /* Times for every day the three panels can show - see calSpan. */
   var span=calSpan(calCur),needed=[],cursor=new Date(span[0]+"T00:00:00"),guard=0;
   while(guard++<40){
@@ -4102,75 +4064,10 @@ function renderCalPanels(){
 /** Slides one day in `dir`. The neighbour is already on screen, so this is
  * purely a transform - nothing is fetched or rebuilt mid-animation, which
  * is what removes the stutter. */
-function calGoDay(dir,fromX){
-  if(_calSliding)return Promise.resolve();
-  var t=calTrackEl();
-  if(!t){calCur=addDays(calCur,dir);renderCalendarTab();return Promise.resolve();}
-  _calSliding=true;
-  if(fromX!=null)calSetTrack(fromX,false);
-  void t.offsetWidth;                       /* commit the drag position first */
-  t.style.transition="transform "+CAL_SLIDE_MS+"ms cubic-bezier(.22,.61,.36,1)";
-  t.style.transform="translateX("+(dir>0?"-66.6667%":"0%")+")";
-  return new Promise(function(resolve){
-    setTimeout(function(){
-      calCur=addDays(calCur,dir);
-      _calSliding=false;
-      /* Re-centre without a transition, then swap the panels underneath -
-         the day that slid in is already the one in the middle. */
-      resolve(renderCalendarTab());
-    },CAL_SLIDE_MS);
-  });
-}
-
-/** Moves by more than a day (the ‹ › week arrows, the date picker). */
+/** Moves by a week (the ‹ › arrows) or to a chosen date. */
 function calJumpDays(n){
   calCur=addDays(calCur,n);
   return renderCalendarTab();
-}
-
-/** Drag the track with the finger so the next/previous day is genuinely
- * visible while swiping, then either complete the slide or spring back.
- * Touch events stop here so a calendar gesture never also changes tab. */
-function attachCalSwipe(){
-  var view=calGridEl();
-  if(!view)return;
-  var startX=null,startY=null,dragging=false,lastDx=0;
-  view.addEventListener("touchstart",function(e){
-    e.stopPropagation();
-    if(_calSliding)return;
-    var t=e.touches&&e.touches[0];
-    if(!t)return;
-    startX=t.clientX;startY=t.clientY;dragging=false;lastDx=0;
-  },{passive:true});
-  view.addEventListener("touchmove",function(e){
-    e.stopPropagation();
-    if(startX==null||_calSliding)return;
-    var t=e.touches&&e.touches[0];
-    if(!t)return;
-    var dx=t.clientX-startX,dy=t.clientY-startY;
-    if(!dragging&&Math.abs(dx)<Math.abs(dy))return;   /* vertical scroll wins */
-    if(Math.abs(dx)>6){dragging=true;_calDragged=true;}
-    if(!dragging)return;
-    lastDx=dx;
-    calSetTrack(dx,false);
-  },{passive:true});
-  view.addEventListener("touchend",function(e){
-    e.stopPropagation();
-    if(startX==null)return;
-    var t=e.changedTouches&&e.changedTouches[0];
-    var sx=startX,sy=startY,wasDragging=dragging,dragDx=lastDx;
-    startX=null;startY=null;dragging=false;lastDx=0;
-    /* Cleared after the click that follows this touchend has been and gone. */
-    if(wasDragging)setTimeout(function(){_calDragged=false;},0);
-    else _calDragged=false;
-    if(!t){if(wasDragging)calSetTrack(0,true);return;}
-    var dx=t.clientX-sx,dy=t.clientY-sy;
-    if(Math.abs(dx)<40||Math.abs(dx)<Math.abs(dy)*1.2){
-      if(wasDragging)calSetTrack(0,true);              /* not far enough - spring back */
-      return;
-    }
-    calGoDay(dx<0?1:-1,wasDragging?dragDx:null);
-  },{passive:true});
 }
 
 /** Horizontal swipe anywhere on the page moves between tabs, in the same
@@ -4182,6 +4079,10 @@ function attachTabSwipe(){
   wrap.addEventListener("touchstart",function(e){
     var t=e.touches&&e.touches[0];
     if(!t)return;
+    /* The calendar grid scrolls sideways itself. A drag that starts inside it
+       belongs to the week, not to the tab bar - without this the two fight
+       and a scroll along the week jumps to another tab. */
+    if(e.target&&e.target.closest&&e.target.closest(".cal-viewport"))return;
     startX=t.clientX;startY=t.clientY;
   },{passive:true});
   wrap.addEventListener("touchend",function(e){
@@ -5429,7 +5330,6 @@ document.getElementById("calPrevDay").addEventListener("click",function(){calJum
 document.getElementById("calNextDay").addEventListener("click",function(){calJumpDays(7);});
 document.getElementById("calJumpToday").addEventListener("click",function(){calCur=new Date();calCur.setHours(0,0,0,0);renderCalendarTab();});
 document.getElementById("calDatePick").addEventListener("change",function(){var v=this.value.split("-");calCur=new Date(+v[0],+v[1]-1,+v[2]);calCur.setHours(0,0,0,0);renderCalendarTab();});
-attachCalSwipe();
 attachTabSwipe();
 
 document.getElementById("notifyBtn").addEventListener("click",enableNotifications);
