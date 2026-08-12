@@ -1276,6 +1276,27 @@ the week containing `dayDate`). `calCols()` is a constant 7; `calIsWide()`
 - Narrow columns are `--cal-col` 92px with `--cal-col-focus` 172px, and
   `--cal-row` is back to 36px (54px was too tall on a phone).
 
+## Dhikr in the day's score, folded reminders (1.28.0)
+- `dayTotalItems()`/`dayCompletion()` include **every dhikr item across the
+  three periods** (`dhikrTotalItems()`), the same way each medicine and each
+  prayer counts once. Dhikr is the longest list, so it dominates the ring -
+  flagged to Yawar, who can have per-period instead if he prefers. Because the
+  total is computed from the *current* lists, past days on the Progress chart
+  are re-scored too; that is existing behaviour of a dynamic total, not new.
+- **`pushNotif(title, body, key)` folds a repeat** into the entry already in
+  the bell: it moves that row back to the top, restamps `at`, keeps `firstAt`
+  and increments `count` (rendered as a `×N` badge). Without it the same
+  unticked prayer, raised again in a later window or on reopening, pushed
+  everything else off a 40-row log.
+- **`notifSubject(key)` is what "the same thing" means.** A reminder key is per
+  prayer *per day* and per task *per due time* - right for firing once, wrong
+  for the list, since tomorrow's Asr would be a second row. The date and any
+  epoch-millisecond part are stripped. Note titles are **not** unique:
+  morning and evening dhikr both say "Dhikr reminder" and differ only in the
+  body, which is why folding is keyed rather than title-matched.
+- Clearing the bell closes the panel - an empty popup left open reads as
+  broken.
+
 ## Honest caveat
 The "Client-side sync layer," "Access + hosting," and "Current data state"
 sections above were re-verified live in this session (2026-08-09): read
