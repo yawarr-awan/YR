@@ -328,6 +328,8 @@ test("the bell shows an unread dot until it's opened, and Clear empties it", asy
   app.click("notifClear");
   assert.equal(bellItems(app).length, 0);
   assert.match(app.document.getElementById("notifList").textContent, /Nothing yet/);
+  assert.equal(bellPanel(app).hidden, true,
+    "with nothing left to read, the panel closes rather than sitting open on an empty list");
 });
 
 test("the notification log is per device — it never enters the synced state", async () => {
@@ -384,4 +386,70 @@ test("a quick flick away and back stays quiet", async () => {
   await app.flush();
 
   assert.equal(prayerNotes(app).length, 1, "a glance away is not a fresh open");
+});
+
+
+/* The same reminder legitimately fires more than once - the minute tick
+ * raises an unticked prayer again, and reopening the app re-raises whatever
+ * is still outstanding. Six identical rows push everything else off the bell,
+ * so a repeat updates the row that is already there. */
+// Title alone is not the subject: morning and evening dhikr are two genuinely
+// different reminders that share the title "Dhikr reminder" and differ in the
+// body. What the user sees as "the same notification" is both lines together.
+const bellTitles = (app) =>
+  Array.from(app.document.querySelectorAll("#notifList .notif-item")).map((r) => {
+    const t = r.querySelector(".t").firstChild.textContent;
+    const b = r.querySelector(".b");
+    return b ? t + " — " + b.textContent : t;
+  });
+
+test("reopening never puts the same reminder in the bell twice", async () => {
+  const due = new Date(Date.now() - 3600000).toISOString();
+  const app = loadApp({
+    notificationPermission: "granted",
+    localStorageSeed: {
+      yawarWellness_v1: withProfile({ tasks: [{ id: "t1", title: "Call the GP", due, done: false, scheduled: true, calendarEventId: null, updated_at: 1 }] }),
+    },
+    fetchImpl: backend(timingsAllPast()),
+  });
+  await app.flush();
+  await app.flush();
+  app.click("notifyBell");
+
+  const before = bellTitles(app);
+  assert.ok(before.length >= 1, "something was logged");
+  assert.equal(new Set(before).size, before.length, "no duplicates to begin with");
+
+  // Away long enough to count as a fresh open, which re-raises whatever is
+  // still outstanding - the exact path that used to stack duplicates.
+  Object.defineProperty(app.document, "hidden", { value: true, configurable: true });
+  app.document.dispatchEvent(new app.window.Event("visibilitychange"));
+  await app.flush();
+  Object.defineProperty(app.document, "hidden", { value: false, configurable: true });
+  app.document.dispatchEvent(new app.window.Event("visibilitychange"));
+  await app.flush();
+  await app.flush();
+
+  const after = bellTitles(app);
+  assert.equal(new Set(after).size, after.length,
+    "still one row per subject after reopening: " + after.join(" | "));
+  before.forEach((t) => assert.ok(after.includes(t), t + " should still be there, once"));
+});
+
+test("different reminders stay different rows", async () => {
+  const due = new Date(Date.now() - 3600000).toISOString();
+  const app = loadApp({
+    notificationPermission: "granted",
+    localStorageSeed: {
+      yawarWellness_v1: withProfile({ tasks: [{ id: "t1", title: "Call the GP", due, done: false, scheduled: true, calendarEventId: null, updated_at: 1 }] }),
+    },
+    fetchImpl: backend(timingsAllPast()),
+  });
+  await app.flush();
+  await app.flush();
+  app.click("notifyBell");
+
+  const titles = bellTitles(app);
+  assert.ok(titles.length >= 2, "a prayer and a task are separate subjects: " + titles.join(" | "));
+  assert.equal(new Set(titles).size, titles.length, "and neither folded into the other");
 });

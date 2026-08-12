@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.28.0
+
+- **Dhikr counts towards the day now.** Every item across morning, afternoon and evening is part of the completion ring and the Progress trend, so a day with the dhikr left undone reads as unfinished — which is the point of the number.
+
+  Two consequences worth knowing. Dhikr is the biggest list you have, so it now carries most of the score. And because "a full day" is always measured against your *current* routine, past days on the Progress chart are re-scored against it too — so the whole line drops. Say the word if you'd rather each period counted as one item instead of each dhikr counting separately.
+- **The bell folds repeats.** The same reminder firing again — an unticked prayer raised in a later window, or reopening the app — updates the row that's already there and restamps it, with a ×N badge, instead of adding another copy. Six identical rows used to push everything else off the list. Different reminders stay separate rows.
+- **Clear closes the panel**, rather than leaving it open on an empty list.
+
 ## 1.27.1
 
 - **The dates stay on screen.** The day headings are pinned to the top of the grid, and the hour labels to the left, so scrolling down or across never loses track of which day or hour you're looking at. (The grid now scrolls inside itself rather than with the page — that's what makes pinning possible once it scrolls sideways.)

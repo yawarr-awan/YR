@@ -55,6 +55,8 @@ test("removing a medicine changes what a full day means, without touching past r
   ["medsBox", "mealsBox", "extrasBox", "moveBox"].forEach(tickAll);
   app.goTo("prayers");
   tickAll("prayBox");
+  // Dhikr counts towards the day too, so a full day means all of it.
+  tickAll("dhikrBox");
   app.goTo("today");
   for (let i = 0; i < 8; i++) app.click("waterPlus");
   assert.equal(app.document.getElementById("dayRingTxt").textContent, "100%");

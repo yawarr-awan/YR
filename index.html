@@ -98,6 +98,11 @@ header.top{
 .notif-item:first-of-type{border-top:none}
 .notif-item .t{font-weight:700;font-size:.86rem}
 .notif-item .b{font-size:.8rem;color:var(--muted)}
+.notif-count{
+  display:inline-block;margin-inline-start:6px;font-size:.7rem;font-weight:800;
+  color:var(--muted);background:var(--panel-2);border:1px solid var(--line);
+  border-radius:999px;padding:0 6px
+}
 .notif-item .w{font-size:.7rem;color:var(--muted);opacity:.8}
 /* Bottom icon bar: thumb-reachable on a phone, and it frees the top of the
    screen for actual content. env(safe-area-inset-bottom) keeps it clear of
@@ -4191,11 +4196,38 @@ function loadNotifs(){
 function saveNotifs(){
   try{localStorage.setItem(NOTIFKEY,JSON.stringify({items:_notifs,unread:_notifUnread}));}catch(e){}
 }
-function pushNotif(title,body){
-  _notifs.unshift({title:title,body:body||"",at:Date.now()});
+/** Adds a notification to the bell, folding a repeat into the one already
+ * there rather than stacking another copy.
+ *
+ * The same reminder legitimately fires more than once - the interval raises
+ * an unticked prayer again in a later window, reopening the app re-raises
+ * what is still outstanding - and six identical rows push everything else
+ * off the list. A repeat moves its existing entry back to the top, restamps
+ * it and counts it, so the list stays one row per thing with the latest time
+ * on it. `notifKey` is what "the same thing" means: the reminder's own key
+ * where there is one, the title otherwise. */
+function pushNotif(title,body,key){
+  var id=key||title;
+  var at=Date.now(),seen=null,i;
+  for(i=0;i<_notifs.length;i++){
+    if((_notifs[i].key||_notifs[i].title)===id){seen=_notifs.splice(i,1)[0];break;}
+  }
+  _notifs.unshift({
+    key:id,title:title,body:body||"",at:at,
+    count:(seen&&seen.count||1)+(seen?1:0),
+    firstAt:(seen&&seen.firstAt)||at,
+  });
   if(_notifs.length>NOTIF_MAX)_notifs.length=NOTIF_MAX;
   _notifUnread++;
   saveNotifs();renderNotifs();
+}
+/** What counts as "the same notification" for folding. A reminder key is
+ * per prayer *per day* (`prayer-2026-08-12-Asr`) and per task *per due time*,
+ * which is right for firing once but wrong for the list - the same prayer
+ * tomorrow would be a second row. The date/time part is dropped so the
+ * subject is what folds. */
+function notifSubject(key){
+  return String(key||"").replace(/-\d{4}-\d{2}-\d{2}/,"").replace(/-\d{10,}/,"");
 }
 function agoText(ms){
   var m=Math.round((Date.now()-ms)/60000);
@@ -4216,7 +4248,10 @@ function renderNotifs(){
   }
   _notifs.forEach(function(n){
     var row=el("div","notif-item");
-    row.appendChild(el("div","t",n.title));
+    var t=el("div","t",n.title);
+    /* A folded repeat says how many times, so nothing is hidden by folding. */
+    if(n.count>1)t.appendChild(el("span","notif-count","×"+n.count));
+    row.appendChild(t);
     if(n.body)row.appendChild(el("div","b",n.body));
     row.appendChild(el("div","w",agoText(n.at)));
     list.appendChild(row);
@@ -4241,7 +4276,7 @@ function toggleNotifPanel(open){
 function notifyOnce(key,title,body){
   /* The bell logs it either way - an unpermitted browser is exactly when
      having somewhere to look matters. */
-  if(!_loggedKeys[key]){_loggedKeys[key]=true;pushNotif(title,body);}
+  if(!_loggedKeys[key]){_loggedKeys[key]=true;pushNotif(title,body,notifSubject(key));}
   if(_notifiedKeys[key])return;
   if(!("Notification" in window)||Notification.permission!=="granted")return;
   _notifiedKeys[key]=true;
@@ -4861,10 +4896,20 @@ function renderProgress(){
   drawCompletionChart(keys);
 }
 
-/* One number for how much of a day got ticked off, on the same 18-item
-   basis as the ring at the top of the app. */
+/* One number for how much of a day got ticked off - the single definition
+   the ring at the top and the Progress chart both use, so they cannot drift
+   apart. Every tickable thing counts once, dhikr included: it is the whole
+   point of the number that a routine you have not done shows up in it.
+   The total is dynamic (the medicine, extras and dhikr lists are editable),
+   so it always reflects the routine as it stands today. */
+function dhikrTotalItems(){
+  var n=0;
+  DHIKR_PERIODS.forEach(function(p){n+=dhikrItems(p[0]).length;});
+  return n;
+}
 function dayTotalItems(){
-  return medsList().length+PRAYERS.length+MEALSLOTS.length+extrasList().length+2;
+  return medsList().length+PRAYERS.length+MEALSLOTS.length
+    +extrasList().length+dhikrTotalItems()+2;
 }
 function dayCompletion(d){
   var done=0;
@@ -4872,6 +4917,11 @@ function dayCompletion(d){
   PRAYERS.forEach(function(p){if(d.prayers&&d.prayers[p[0]])done++;});
   MEALSLOTS.forEach(function(x){if(d.meals&&d.meals[x[0]])done++;});
   extrasList().forEach(function(x){if(d.extras&&d.extras[x.id])done++;});
+  DHIKR_PERIODS.forEach(function(p){
+    var set=d.dhikr&&d.dhikr[p[0]];
+    if(!set)return;
+    dhikrItems(p[0]).forEach(function(item){if(set[item[0]])done++;});
+  });
   if(d.exercise)done++;
   if(d.water>=8)done++;
   return Math.round(done/dayTotalItems()*100);
@@ -5369,6 +5419,9 @@ document.getElementById("notifyBell").addEventListener("click",function(ev){
 document.getElementById("notifClear").addEventListener("click",function(ev){
   ev.stopPropagation();
   _notifs=[];_notifUnread=0;saveNotifs();renderNotifs();
+  /* Nothing left to look at, so the panel closes itself rather than sitting
+     open on an empty list. */
+  toggleNotifPanel(false);
 });
 /* Anywhere else closes it, the way a menu should. */
 document.addEventListener("click",function(ev){

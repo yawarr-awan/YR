@@ -23,8 +23,13 @@ const MEDS = ["pre", "after", "dinner"];
 const PRAYERS = ["fajr", "dhuhr", "asr", "maghrib", "isha"];
 const MEALS = ["breakfast", "lunch", "dinner"];
 const EXTRAS = ["collagen", "whey", "creatine", "milk", "milktea"];
+// Dhikr counts towards the day too, so a "full day" is the 18 above plus
+// every dhikr item across the three periods.
+const DHIKR = ["istighfar", "tasbih", "tahmid", "takbir", "salawat", "ayatulkursi", "threesurahs"];
+const DHIKR_PERIODS = ["morning", "afternoon", "evening"];
+const FULL_DAY = 18 + DHIKR.length * DHIKR_PERIODS.length;
 
-/** A day with `n` of the 18 tracked items ticked, in a fixed order. */
+/** A day with `n` of the tracked items ticked, in a fixed order. */
 function dayWith(n) {
   const d = {
     meds: {}, prayers: {}, meals: {}, extras: {},
@@ -39,6 +44,7 @@ function dayWith(n) {
   take(d.extras, EXTRAS);
   if (left > 0) { d.exercise = true; left--; }
   if (left > 0) { d.water = 8; left--; }
+  DHIKR_PERIODS.forEach((p) => take(d.dhikr[p], DHIKR));
   return d;
 }
 
@@ -84,8 +90,8 @@ test("with barely any history it says so instead of drawing a meaningless line",
 });
 
 test("a full day counts as 100% and the summary reports the average, best and full days", () => {
-  // 18/18, 9/18 and 0/18 -> 100%, 50%, 0% -> average 50%, best 100%, 1 full day.
-  const app = loadApp({ fetchImpl: idle, localStorageSeed: seed({ 2: 18, 1: 9, 0: 0 }) });
+  // Everything, half of it, and none -> 100%, 50%, 0%.
+  const app = loadApp({ fetchImpl: idle, localStorageSeed: seed({ 2: FULL_DAY, 1: Math.round(FULL_DAY / 2), 0: 0 }) });
   app.goTo("progress");
 
   assert.match(note(app), /^3 day\(s\) logged/);
@@ -95,13 +101,13 @@ test("a full day counts as 100% and the summary reports the average, best and fu
 });
 
 test("the trend grows with the days logged, and mentions the 7-day average once there is one", () => {
-  const short = loadApp({ fetchImpl: idle, localStorageSeed: seed({ 2: 18, 1: 18, 0: 18 }) });
+  const short = loadApp({ fetchImpl: idle, localStorageSeed: seed({ 2: FULL_DAY, 1: FULL_DAY, 0: FULL_DAY }) });
   short.goTo("progress");
   assert.match(note(short), /^3 day\(s\) logged/);
   assert.doesNotMatch(note(short), /7-day average/, "too little history for a rolling average to mean anything");
 
   const wide = {};
-  for (let i = 0; i <= 9; i++) wide[i] = 18;
+  for (let i = 0; i <= 9; i++) wide[i] = FULL_DAY;
   const long = loadApp({ fetchImpl: idle, localStorageSeed: seed(wide) });
   long.goTo("progress");
   assert.match(note(long), /^10 day\(s\) logged/, "every logged day is on the chart, not just a recent window");
@@ -109,9 +115,11 @@ test("the trend grows with the days logged, and mentions the 7-day average once 
 });
 
 test("the ring and the chart agree on what a day was worth", () => {
-  // A day with 9 of 18 items is 50% on both.
-  const app = loadApp({ fetchImpl: idle, localStorageSeed: seed({ 0: 9, 1: 9 }) });
-  assert.equal(app.document.getElementById("dayRingTxt").textContent, "50%");
+  // One definition of "how much of a day got done", used by both.
+  const half = Math.round(FULL_DAY / 2);
+  const pct = Math.round((half / FULL_DAY) * 100) + "%";
+  const app = loadApp({ fetchImpl: idle, localStorageSeed: seed({ 0: half, 1: half }) });
+  assert.equal(app.document.getElementById("dayRingTxt").textContent, pct);
   app.goTo("progress");
-  assert.match(note(app), /average 50%/);
+  assert.match(note(app), new RegExp("average " + pct));
 });
