@@ -1204,6 +1204,27 @@ Fixes:
 - `PRAY_SUMMARY_ROWS` (14) with a "Show all N days since <date>" toggle -
   the memory is kept in full, but a year of rows is not the default view.
 
+## Making the desktop calendar readable (1.26.0)
+- **The wide layout draws a text chip in every column**, not only the focused
+  one. `calMini` exists for a 74px phone peek column; at 170px it was throwing
+  the screen away. The cell-building branch is now `isMain||wide`, and
+  `.cal-daygroup.is-week .cal-cell` gets the same flex/`overflow:visible`
+  treatment `.is-main` had.
+- **`--cal-row` is 62px in `.is-week`** (34px on the phone). This is not just
+  taste: a chip's font-size is `clamp(...)` off `--cal-row * --chip-rows`,
+  because a chip may never grow to fit its text - so a short row *forces*
+  small text. Measured in Chromium: 10.2px -> 14.25px for a one-hour event.
+- **`--cal-tint` drops to 16%** in `.is-week`. 30% over a 1900px grid is what
+  turned the whole calendar into colour bands.
+- **`calSpan(centre)` replaced the ad-hoc `centre-1 .. centre+cols+1` range**
+  used by both `ensureCalWindow` and `renderCalPanels`. The wide layout starts
+  each panel on its week's **Monday**, which can be six days before the
+  panel's own date, so the old range missed it. The only visible symptom was
+  the first column having no prayer tint - `test/calendarTab.test.js` now
+  asserts every one of the seven `data-day` columns is tinted.
+- Cells carry `data-day` purely so that is testable without re-deriving the
+  column order from DOM position.
+
 ## Honest caveat
 The "Client-side sync layer," "Access + hosting," and "Current data state"
 sections above were re-verified live in this session (2026-08-09): read

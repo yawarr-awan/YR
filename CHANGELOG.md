@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.26.0
+
+**The desktop calendar is readable without zooming.** Three things were making it unreadable, and only one of them was the type size:
+
+- **Six of the seven days weren't showing text at all.** Only the focused day drew a proper chip; the other six got the narrow colour-block treatment built for a 74px column on a phone. At 170px there's room for the title, so every column now carries one.
+- **An hour was 34px tall**, which caps how big the text in a chip can be — a chip is sized to how long the event runs, so a short row means small text. An hour is now **62px** on a desktop or tablet, and the title reads at ~14px instead of ~10px.
+- **The prayer tint was doing too much.** The same 30% wash that works on a phone turns a 1900px grid into colour bands. It's 16% in the week layout — still clearly the prayer window, just quieter behind everything else.
+
+Fixed on the way: **the Monday column had no prayer colour.** The times were fetched for the focused day and the days after it, which is right for the phone's day-plus-two view but wrong for a Monday-start week — the first column can be six days *before* the focused one, so it never got any times and rendered as the one white column in a tinted grid.
+
+**Nothing about the phone layout changed.**
+
 ## 1.25.5
 
 - **A dhikr item that already has a du'a no longer appears in any other du'a's list.** An item points at one picture, so offering it elsewhere only invited you to silently take the link off the picture that had it. It still shows, ticked, on its own picture, so you can release it there and give it to another. If every item is spoken for, the list says so rather than looking broken.
