@@ -1225,6 +1225,39 @@ Fixes:
 - Cells carry `data-day` purely so that is testable without re-deriving the
   column order from DOM position.
 
+## The calendar is one scrollable week (1.27.0)
+**The day carousel is gone.** No `#calTrack`, no `#calDayPrev`/`Next`, no
+`calGoDay` slide, no `attachCalSwipe`, no `_calDragged`. `#calDayCur` is the
+only panel and it always holds a Monday-Sunday week (`buildDayPanel` builds
+the week containing `dayDate`). `calCols()` is a constant 7; `calIsWide()`
+(>=`CAL_WIDE_MIN`, 900px) is the only branch left.
+- **Wide**: `grid-template-columns` shares the width, focused column
+  `CAL_WIDE_FOCUS_FR` (2fr), `.is-wide` on the group.
+- **Narrow**: `repeat(7, var(--cal-col))` (124px) - a fixed width, so the grid
+  is wider than the screen and `.cal-viewport{overflow-x:auto}` scrolls it.
+  A column resizing under the user while they scrolled is what this replaced.
+- **`.cal-daygroup` must not have `overflow:hidden`.** It would become the
+  scrollport for the sticky hour gutter and the gutter would never stick -
+  the same trap recorded for 1.12.0. The rounded corners lose their clip;
+  that is the trade.
+- **`attachTabSwipe` ignores touches starting inside `.cal-viewport`**, or the
+  page-level tab swipe fights the week's own horizontal scroll.
+- `scrollIntoView` on the current hour passes `inline:"nearest"` - the default
+  would also scroll the week sideways and hide Monday behind the gutter.
+- **The week strip (`#calStrip`, `renderCalStrip`) is deleted.** It duplicated
+  the grid's own heading row in columns that could not line up with it, since
+  the strip was equal-width buttons and the focused grid column is wider.
+  The `.cal-gh` headings are the date row; tapping one sets `calCur`.
+- **`--cal-tint` is 82%** in both themes (was 30/34%). At 30% over a dark
+  panel the prayer colours came out olive and navy; the user asked for the
+  colours shown on the prayer modal's swatches. Chips are opaque cards, so
+  legibility comes from the chip, not from a weak tint.
+- Chip type is capped at **12px narrow / .95rem wide**: at a 124px column a
+  title wraps to two lines whatever the size, so a bigger font only pushes
+  the calendar name out of the chip.
+- Every hour cell and all-day cell carries `data-day`, which is how tests
+  address a column without re-deriving grid order from DOM position.
+
 ## Honest caveat
 The "Client-side sync layer," "Access + hosting," and "Current data state"
 sections above were re-verified live in this session (2026-08-09): read

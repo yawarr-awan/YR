@@ -50,6 +50,23 @@ const TWO_CALENDARS = [
   { id: "holidays@group.v.calendar.google.com", name: "UK holidays", color: "#616161", primary: false, writable: false },
 ];
 
+/** A YYYY-MM-DD key `n` days from today, kept inside the displayed week. */
+function addDaysKey(n) {
+  const d = new Date();
+  d.setDate(d.getDate() + n);
+  const monday = new Date();
+  monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
+  const last = new Date(monday);
+  last.setDate(last.getDate() + 6);
+  if (d > last) d.setDate(d.getDate() - 7);
+  return keyOf(d);
+}
+/** The cell for a day at an hour, found by position in the row-major grid. */
+function cellFor(app, day, hour) {
+  const cells = Array.from(app.document.querySelectorAll(`#calDayCur .cal-cell[data-day="${day}"]:not(.cal-allday)`));
+  return cells[hour];
+}
+
 async function openCalendar(app) {
   app.goTo("calendar");
   await app.flush();
@@ -322,16 +339,6 @@ test("ticking a task from the calendar marks it done on the list", async () => {
   assert.equal(app.state().profile.tasks[0].done, true);
 });
 
-test("a swipe that pages the day does not also open the editor under the finger", async () => {
-  const app = loadApp({ fetchImpl: calendarBackend().impl });
-  await openCalendar(app);
-
-  const cell = mainCells(app)[9];
-  app.swipe("calGrid", -120, 0);
-  cell.click();                      /* the click a real touch device fires next */
-  assert.equal(editorOpen(app), false, "a swipe is not a tap");
-});
-
 test("a read-only event's fields are disabled, not merely unsaveable", async () => {
   const backend = calendarBackend({
     events: [{ id: "e9", calendarId: "shared@g", writable: false, title: "Team sync", start: atToday(10, 0), calendar: "Shared" }],
@@ -373,11 +380,16 @@ test("a dateless Google Task due that day shows on the calendar as an all-day en
   assert.match(gchips[0].title, /All day/, "Google Tasks carry a date, not a time");
 });
 
-test("a Google Task due another day does not appear on this one", async () => {
-  const other = keyOf(new Date(Date.now() + 3 * 86400000));
-  const app = loadApp({ fetchImpl: backendWithTasks([{ id: "gt1", title: "Renew passport", due: other, allDay: true, list: "My Tasks" }]) });
+test("a Google Task lands in its own day's column, not in every one", async () => {
+  const other = new Date();
+  other.setDate(other.getDate() + (new Date().getDay() === 0 ? -1 : 1));   // stay inside this week
+  const otherKey = keyOf(other);
+  const app = loadApp({ fetchImpl: backendWithTasks([{ id: "gt1", title: "Renew passport", due: otherKey, allDay: true, list: "My Tasks" }]) });
   await openCalendar(app);
-  assert.equal(app.document.querySelectorAll("#calDayCur .cal-chip.is-gtask").length, 0);
+
+  const chipsFor = (day) => Array.from(app.document.querySelectorAll(`#calDayCur .cal-cell[data-day="${day}"] .cal-chip.is-gtask`));
+  assert.equal(chipsFor(otherKey).length, 1, "it shows on the day it is due");
+  assert.equal(chipsFor(keyOf(new Date())).length, 0, "and not on today as well");
 });
 
 test("a Google Task with a time sits at that hour, not in the all-day row", async () => {
@@ -484,45 +496,33 @@ test("a Google Tasks failure is reported without breaking the agenda", async () 
   assert.match(app.document.getElementById("calStatus").textContent, /Google Tasks couldn't be read/);
 });
 
-test("an empty hour in the peek columns schedules on that day, not on the focused one", async () => {
+test("an empty hour in another day's column schedules on that day, not the focused one", async () => {
   const app = loadApp({ fetchImpl: calendarBackend().impl });
   await openCalendar(app);
 
-  // Row 10 of the grid, second column = tomorrow at 10:00.
-  const row = app.document.querySelectorAll("#calDayCur .cal-cell:not(.cal-allday)");
-  const perRow = 3;
-  const tomorrow10 = row[10 * perRow + 1];
-  assert.ok(tomorrow10, "expected a cell for tomorrow at 10:00");
-  tomorrow10.click();
+  const other = addDaysKey(2);
+  const cell = app.document.querySelector(`#calDayCur .cal-cell[data-day="${other}"]:not(.cal-allday)[data-hour="10"]`)
+    || cellFor(app, other, 10);
+  assert.ok(cell, "expected a cell for that day at 10:00");
+  cell.click();
 
-  assert.ok(editorOpen(app), "the next two days must be schedulable too");
-  const t = new Date(Date.now() + 86400000);
-  assert.equal(editorField(app, "Starts").value, keyOf(t) + "T10:00");
+  assert.ok(editorOpen(app), "every column is schedulable, not just the focused one");
+  assert.equal(editorField(app, "Starts").value, other + "T10:00");
 });
 
-test("the day after tomorrow is schedulable as well", async () => {
-  const app = loadApp({ fetchImpl: calendarBackend().impl });
-  await openCalendar(app);
-
-  const cells = app.document.querySelectorAll("#calDayCur .cal-cell:not(.cal-allday)");
-  cells[15 * 3 + 2].click();
-
-  const t = new Date(Date.now() + 2 * 86400000);
-  assert.equal(editorField(app, "Starts").value, keyOf(t) + "T15:00");
-});
-
-test("tapping a chip in a peek column opens that entry rather than a new one", async () => {
-  const tomorrow = new Date(Date.now() + 86400000);
-  tomorrow.setHours(11, 0, 0, 0);
+test("tapping a chip in another day's column opens that entry rather than a new one", async () => {
+  const day = new Date();
+  day.setDate(day.getDate() + (new Date().getDay() === 0 ? -1 : 1));
+  day.setHours(11, 0, 0, 0);
   const backend = calendarBackend({
-    events: [{ id: "e5", calendarId: "primary", writable: true, title: "Dentist", start: tomorrow.toISOString(), calendar: "Yawar" }],
+    events: [{ id: "e5", calendarId: "primary", writable: true, title: "Dentist", start: day.toISOString(), calendar: "Yawar" }],
   });
   const app = loadApp({ fetchImpl: backend.impl });
   await openCalendar(app);
 
-  const mini = app.document.querySelector("#calDayCur .cal-mini");
-  assert.ok(mini, "the event should show in the peek column");
-  mini.click();
+  const chip = app.document.querySelector(`#calDayCur .cal-cell[data-day="${keyOf(day)}"] .cal-chip`);
+  assert.ok(chip, "the event should show in its own column");
+  chip.click();
   assert.match(app.document.querySelector("#modalBody h2").textContent, /Event/);
   assert.equal(editorField(app, "Title").value, "Dentist");
 });

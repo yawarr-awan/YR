@@ -65,25 +65,30 @@ function windowTracker(events) {
   return { seen, route, count: () => seen.length, last: () => seen[seen.length - 1] };
 }
 
-const panels = (app) => ["calDayPrev", "calDayCur", "calDayNext"].map((id) => app.document.getElementById(id));
 // The all-day row is also an `is-main` cell, so "hours" excludes it.
 const curHours = (app) => app.document.querySelectorAll("#calDayCur .cal-cell.is-main:not(.cal-allday)");
+const gutterHours = (app) => app.document.querySelectorAll("#calDayCur .cal-gutter:not(.cal-allday):not(.cal-gutter-head)");
+// The gutter's own heading is a .cal-gutter, not a .cal-gh, so these are
+// exactly the seven day headings.
+const dayHeads = (app) => Array.from(app.document.querySelectorAll("#calDayCur .cal-gh"));
+const dayCols = (app) => Array.from(new Set(Array.from(
+  app.document.querySelectorAll("#calDayCur .cal-cell[data-day]")).map((c) => c.getAttribute("data-day")))).sort();
 const heading = (app) => app.document.getElementById("calDayHeading").textContent;
 
-test("shows one full day at a time, with the previous and next day rendered either side", async () => {
+test("shows a whole Monday-to-Sunday week in one grid", async () => {
   const app = loadApp({ fetchImpl: fetchRouter([["/api/calendar/events", () => jsonRes({ connected: true, status: "ok", events: [] })]]) });
   app.goTo("calendar");
   await app.flush();
   await app.flush();
 
-  const [prev, cur, next] = panels(app);
-  [prev, cur, next].forEach((p) => assert.equal(p.querySelectorAll(".cal-cell.is-main").length, 24, "each panel is a whole day"));
-  assert.equal(curHours(app)[0].querySelector(".cal-hour-label").textContent, "12 AM");
-  assert.equal(curHours(app)[23].querySelector(".cal-hour-label").textContent, "11 PM");
+  assert.deepEqual(dayCols(app), Array.from({ length: 7 }, (_, i) => keyOf(addDays(thisMonday(), i))),
+    "Monday through Sunday, whatever day is focused");
+  assert.equal(curHours(app).length, 24, "the focused day is a whole day");
+  // The hour labels live in a gutter column of their own, because the focused
+  // day is somewhere inside the week rather than at its left edge.
+  assert.equal(gutterHours(app)[0].textContent, "12 AM");
+  assert.equal(gutterHours(app)[23].textContent, "11 PM");
   assert.match(heading(app), /Today/);
-  // The neighbours exist so a drag reveals a real day, not a blank panel.
-  assert.ok(prev.querySelector(".cal-cell.is-main"));
-  assert.ok(next.querySelector(".cal-cell.is-main"));
 });
 
 test("fetches a padded window once, so moving day costs no round trip", async () => {
@@ -102,56 +107,45 @@ test("fetches a padded window once, so moving day costs no round trip", async ()
   assert.equal(tracker.count(), 1, "the next day was already loaded");
 });
 
-test("swiping slides one day and the day actually changes", async () => {
+test("the day headings are the only date row, and tapping one focuses it", async () => {
+  // There used to be a separate week strip above the grid saying the same
+  // thing in columns that did not line up with the grid's own.
   const tracker = windowTracker();
   const app = loadApp({ fetchImpl: fetchRouter([tracker.route]) });
   app.goTo("calendar");
   await app.flush();
   await app.flush();
 
-  const track = app.document.getElementById("calTrack");
-  const tomorrow = keyOf(addDays(new Date(), 1));
+  assert.equal(app.document.getElementById("calStrip"), null, "no duplicate strip");
+  const heads = dayHeads(app);
+  assert.equal(heads.length, 7);
+  assert.deepEqual(heads.map((h) => h.querySelector("b").textContent),
+    Array.from({ length: 7 }, (_, i) => String(addDays(thisMonday(), i).getDate())));
 
-  app.swipe("calGrid", -90, 0);
-  // Mid-flight the track is animating toward the next panel, which is
-  // already on screen - nothing is refetched or rebuilt during the slide.
-  assert.match(track.style.transform, /-66\.6667%/);
+  const todayIdx = (new Date().getDay() + 6) % 7;
+  assert.ok(heads[todayIdx].classList.contains("is-today"));
+  assert.ok(heads[todayIdx].classList.contains("is-focus"));
 
-  await app.wait(SLIDE_MS);
-  assert.equal(app.document.getElementById("calDatePick").value, tomorrow);
-  assert.match(track.style.transform, /-33\.3333%/, "re-centred once the new day is in the middle");
-  assert.doesNotMatch(heading(app), /Today/);
+  const otherIdx = todayIdx === 0 ? 4 : 0;
+  dayHeads(app)[otherIdx].dispatchEvent(new app.window.MouseEvent("click", { bubbles: true, cancelable: true }));
+  await app.flush();
+  await app.flush();
 
-  app.swipe("calGrid", 90, 0);
-  await app.wait(SLIDE_MS);
-  assert.equal(app.document.getElementById("calDatePick").value, todayKey());
-  assert.match(heading(app), /Today/);
+  assert.equal(app.document.getElementById("calDatePick").value, keyOf(addDays(thisMonday(), otherIdx)));
+  assert.ok(dayHeads(app)[otherIdx].classList.contains("is-focus"));
+  assert.ok(dayHeads(app)[todayIdx].classList.contains("is-today"), "today is still flagged");
 });
 
-test("dragging moves the track with the finger, and a short drag springs back", async () => {
+test("a sideways drag on the grid never changes tab - the week scrolls instead", async () => {
   const tracker = windowTracker();
   const app = loadApp({ fetchImpl: fetchRouter([tracker.route]) });
   app.goTo("calendar");
   await app.flush();
   await app.flush();
 
-  const track = app.document.getElementById("calTrack");
-  const view = app.document.getElementById("calGrid");
-
-  const start = new app.window.Event("touchstart", { bubbles: true });
-  start.touches = [{ clientX: 200, clientY: 300 }];
-  view.dispatchEvent(start);
-  const move = new app.window.Event("touchmove", { bubbles: true });
-  move.touches = [{ clientX: 160, clientY: 302 }];
-  view.dispatchEvent(move);
-  assert.match(track.style.transform, /-40px/, "the track follows the finger, so you see the next day coming");
-
-  const end = new app.window.Event("touchend", { bubbles: true });
-  end.changedTouches = [{ clientX: 175, clientY: 302 }];  // only -25px: not enough
-  view.dispatchEvent(end);
-  await app.wait(SLIDE_MS);
-  assert.equal(app.document.getElementById("calDatePick").value, todayKey(), "a short drag does not change day");
-  assert.match(track.style.transform, /-33\.3333%/);
+  app.swipe("calGrid", -140, 0);
+  await app.flush();
+  assert.equal(app.document.querySelector(".view.active").id, "view-calendar");
 });
 
 test("events land in their hour with time, calendar and location", async () => {
@@ -183,9 +177,10 @@ test("events land in their hour with time, calendar and location", async () => {
   // All-day items get their own row above the hours rather than being
   // buried in 00:00, which is the part of the grid nobody scrolls back to.
   const allDay = app.document.querySelector("#calDayCur .cal-cell.is-main.cal-allday");
-  assert.ok(allDay, "an all-day event gives the day an all-day row");
-  assert.match(allDay.textContent, /All day/);
+  assert.ok(allDay, "an all-day event gives the week an all-day row");
   assert.match(allDay.textContent, /Mum's birthday/);
+  // The row is labelled once, in the hour gutter, rather than in every column.
+  assert.match(app.document.querySelector("#calDayCur .cal-gutter.cal-allday").textContent, /All day/);
   assert.equal(hours[0].textContent.includes("Mum's birthday"), false, "and it is not also in 00:00");
 });
 
@@ -312,47 +307,20 @@ test("the calendar has no ring around the current prayer window - the tint is en
   assert.ok(app.document.querySelectorAll("#prayBox label.prow.is-now").length <= 1);
 });
 
-test("the current hour is marked, with a now-line, only on today", async () => {
+test("the current hour is marked, with a now-line, and only on today's column", async () => {
   const tracker = windowTracker();
   const app = loadApp({ fetchImpl: fetchRouter([tracker.route]) });
   app.goTo("calendar");
   await app.flush();
   await app.flush();
 
-  const marked = app.document.querySelectorAll("#calDayCur .cal-cell.is-main.current-hour");
-  assert.equal(marked.length, 1);
+  const marked = app.document.querySelectorAll("#calDayCur .cal-cell.current-hour");
+  assert.equal(marked.length, 1, "one hour, in one column, out of the whole week");
+  assert.equal(marked[0].getAttribute("data-day"), todayKey());
   const h = new Date().getHours();
-  assert.equal(marked[0].querySelector(".cal-hour-label").textContent,
+  assert.equal(gutterHours(app)[h].textContent,
     (h % 12 === 0 ? 12 : h % 12) + " " + (h < 12 ? "AM" : "PM"));
   assert.ok(marked[0].querySelector(".cal-nowline"));
-
-  app.swipe("calGrid", -90, 0);
-  await app.wait(SLIDE_MS);
-  assert.equal(app.document.querySelectorAll("#calDayCur .cal-cell.is-main.current-hour").length, 0,
-    "tomorrow has no 'now'");
-});
-
-test("the week strip shows the surrounding week and jumps to a tapped day", async () => {
-  const tracker = windowTracker();
-  const app = loadApp({ fetchImpl: fetchRouter([tracker.route]) });
-  app.goTo("calendar");
-  await app.flush();
-  await app.flush();
-
-  const buttons = () => app.document.querySelectorAll("#calStrip button");
-  assert.equal(buttons().length, 7);
-  const todayIdx = (new Date().getDay() + 6) % 7;
-  assert.ok(buttons()[todayIdx].classList.contains("is-today"));
-  assert.ok(buttons()[todayIdx].classList.contains("is-sel"));
-
-  const otherIdx = todayIdx === 0 ? 4 : 0;
-  buttons()[otherIdx].click();
-  await app.flush();
-  await app.flush();
-
-  assert.equal(app.document.getElementById("calDatePick").value, keyOf(addDays(thisMonday(), otherIdx)));
-  assert.ok(buttons()[otherIdx].classList.contains("is-sel"));
-  assert.ok(buttons()[todayIdx].classList.contains("is-today"), "today is still flagged");
 });
 
 test("the arrows jump a week, and Today comes back", async () => {
@@ -392,81 +360,16 @@ test("connect / reconnect / error / empty each say something specific", async ()
   }
 });
 
-test("the next two days are full day columns beside today, not summaries", async () => {
-  const tomorrow = addDays(new Date(), 1);
-  const dayAfter = addDays(new Date(), 2);
-  const at = (d, h) => { const x = new Date(d); x.setHours(h, 0, 0, 0); return x.toISOString(); };
-  const app = loadApp({
-    fetchImpl: fetchRouter([["/api/calendar/events", () => jsonRes({
-      connected: true, status: "ok",
-      events: [
-        { title: "Physio", start: at(new Date(), 14), allDay: false, calendar: "Yawar", color: "#4285f4" },
-        { title: "School run", start: at(tomorrow, 8), allDay: false, calendar: "Family", color: "#0b8043" },
-        { title: "Dentist", start: at(dayAfter, 11), allDay: false, calendar: "Yawar", color: "#4285f4" },
-      ],
-    })]]),
-  });
-  app.goTo("calendar");
-  await app.flush();
-  await app.flush();
-
-  const cells = app.document.querySelectorAll("#calDayCur .cal-cell");
-  assert.equal(cells.length, 24 * 3, "three columns of 24 hours, sharing one grid so the rows line up");
-  const cellAt = (col, hour) => cells[hour * 3 + col];
-
-  // Each event sits in its own column at its own hour - a real day, not a list.
-  assert.match(cellAt(0, 14).textContent, /Physio/);
-  assert.match(cellAt(1, 8).textContent, /School run/);
-  assert.match(cellAt(2, 11).textContent, /Dentist/);
-  assert.equal(cellAt(1, 9).textContent, "", "empty hours stay empty in the narrow columns too");
-
-  // Headings name each day; the neighbours are tappable to bring into focus.
-  const heads = app.document.querySelectorAll("#calDayCur .cal-gh");
-  assert.equal(heads.length, 3);
-  assert.equal(heads[1].querySelector("b").textContent, String(tomorrow.getDate()));
-  heads[2].click();
-  await app.flush();
-  await app.flush();
-  assert.equal(app.document.getElementById("calDatePick").value, keyOf(dayAfter));
-});
-
-test("the narrow columns get the same prayer-window colours as the focused day", async () => {
-  const app = loadApp({
-    geolocation: { lat: 51.5, lon: -0.12 },
-    fetchImpl: fetchRouter([
-      ["/api/calendar/events", () => jsonRes({ connected: true, status: "ok", events: [] })],
-      ["/api/prayer", () => jsonRes({ source: "ummahapi", timings: { Fajr: "04:45", Sunrise: "05:50", Dhuhr: "13:00", Asr: "17:00", Maghrib: "20:30", Isha: "22:00" } })],
-    ]),
-  });
-  useMyLocation(app);
-  await app.flush();
-  await app.flush();
-  app.goTo("calendar");
-  await app.flush();
-  await app.flush();
-
-  const cells = app.document.querySelectorAll("#calDayCur .cal-cell");
-  cells.forEach((c) => assert.notEqual(c.style.background, "", "every hour of every column is tinted"));
-  const cellAt = (col, hour) => cells[hour * 3 + col];
-  [0, 1, 2].forEach((col) => {
-    assert.match(cellAt(col, 14).style.background, /--dhuhr/);
-    assert.match(cellAt(col, 0).style.background, /--isha/);
-  });
-});
-
-test("the date bar and week strip stay pinned while the day scrolls past", async () => {
-  const app = loadApp({
-    fetchImpl: fetchRouter([["/api/calendar/events", () => jsonRes({ connected: true, status: "ok", events: [] })]]),
-  });
+test("the date bar stays pinned while the week scrolls past it", async () => {
+  const tracker = windowTracker();
+  const app = loadApp({ fetchImpl: fetchRouter([tracker.route]) });
   app.goTo("calendar");
   await app.flush();
 
   const sticky = app.document.querySelector("#view-calendar .cal-sticky");
-  assert.ok(sticky, "the dates live in their own pinned strip");
-  assert.ok(sticky.querySelector("#calDatePick"), "the date bar is inside it");
-  assert.ok(sticky.querySelector("#calStrip"), "and so is the week strip");
-  // The day itself must not scroll internally - the page scrolls instead.
-  assert.equal(app.document.querySelector(".cal-hours"), null);
+  assert.ok(sticky, "the date bar is in a pinned wrapper");
+  assert.ok(sticky.querySelector("#calDateLabel"), "and it is the date bar that is pinned");
+  assert.equal(sticky.querySelector("#calStrip"), null, "the duplicate week strip is gone");
 });
 
 test("the grid is on screen before the network answers, not after", async () => {
@@ -499,47 +402,6 @@ test("the grid is on screen before the network answers, not after", async () => 
   assert.match(hours[14].style.background, /--dhuhr/,
     "and a cached day is tinted straight away rather than after a round trip");
   assert.ok(asked > 0, "the fetches did go out - they just aren't blocking the paint");
-});
-
-test("a peek column draws an event to its real length, not as a fixed label", async () => {
-  const at = (offset, h, m) => { const d = addDays(new Date(), offset); d.setHours(h, m || 0, 0, 0); return d.toISOString(); };
-  const app = loadApp({
-    fetchImpl: fetchRouter([
-      ["/api/calendar/events", () => jsonRes({ connected: true, status: "ok", events: [
-        { id: "e1", calendarId: "p", title: "Obstetric appointment", start: at(1, 9, 0), end: at(1, 10, 0), writable: true, calendar: "Family" },
-        { id: "e2", calendarId: "p", title: "Quick sync", start: at(1, 9, 30), end: at(1, 9, 45), writable: true, calendar: "Work" },
-        { id: "e3", calendarId: "p", title: "Workshop", start: at(2, 14, 30), end: at(2, 17, 0), writable: true, calendar: "Work" },
-      ] })],
-      ["/api/prayer", () => jsonRes({ source: "ummahapi", timings: { Fajr: "04:45", Sunrise: "05:50", Dhuhr: "13:00", Asr: "17:00", Maghrib: "20:30", Isha: "22:00" } })],
-    ]),
-  });
-  app.goTo("calendar");
-  await app.flush();
-  await app.flush();
-
-  const mini = (title) => [...app.document.querySelectorAll("#calDayCur .cal-mini")]
-    .find((m) => m.textContent === title);
-
-  // An hour long, starting on the hour.
-  // Measured in rows, not percentages: a percentage resolves against the
-  // cell's content box, which is a border and two paddings shorter than the
-  // row, so a four-hour event came out three rows tall.
-  const rows = (v) => Number((String(v).match(/var\(--cal-row\) \* ([\d.]+)/) || [])[1]);
-  const ob = mini("Obstetric appointment");
-  assert.ok(ob.classList.contains("is-timed"));
-  assert.equal(rows(ob.style.top), 0);
-  assert.equal(rows(ob.style.height), 1, "an hour should be one row");
-
-  // A quarter of an hour, starting halfway down it - and beside the other
-  // one rather than on top of it, since both are positioned now.
-  const qs = mini("Quick sync");
-  assert.equal(rows(qs.style.top), 0.5);
-  assert.equal(rows(qs.style.height), 0.25);
-  assert.notEqual(qs.style.insetInlineStart, ob.style.insetInlineStart);
-
-  // Two and a half hours: it runs past its own cell into the ones it covers.
-  assert.equal(rows(mini("Workshop").style.height), 2.5);
-  assert.equal(rows(mini("Workshop").style.top), 0.5);
 });
 
 test("an all-day chip is not positioned by time - there is no time to position it by", async () => {
@@ -668,20 +530,20 @@ test("on a desktop every column carries readable chips, not colour blocks", asyn
   assert.ok(titles.includes("Standup"), "and so does a day that is not focused");
 });
 
-test("the phone keeps its day-plus-two panel and its colour blocks", async () => {
+test("on a phone the week keeps its column width and scrolls sideways", async () => {
+  // Shrinking columns to fit is what made it unreadable. The grid keeps a
+  // fixed column width and the card scrolls instead.
   const app = loadApp({
-    fetchImpl: fetchRouter([["/api/calendar/events", () => jsonRes({
-      connected: true, status: "ok",
-      events: [{ title: "Standup", start: atDay(1, 9, 0), allDay: false, calendar: "Work", color: "#0b8043" }],
-    })]]),
+    fetchImpl: fetchRouter([["/api/calendar/events", () => jsonRes({ connected: true, status: "ok", events: [] })]]),
   });
   app.goTo("calendar");
   await app.flush();
   await app.flush();
 
-  const days = new Set(Array.from(app.document.querySelectorAll("#calDayCur .cal-cell[data-day]"))
-    .map((c) => c.getAttribute("data-day")));
-  assert.equal(days.size, 3, "three columns, as before");
-  assert.equal(app.document.querySelectorAll("#calDayCur .cal-mini").length, 1,
-    "and a neighbour's event is still a colour block at 74px");
+  assert.equal(dayCols(app).length, 7, "the whole week is there to scroll through");
+  const group = app.document.querySelector("#calDayCur .cal-daygroup");
+  assert.ok(group.classList.contains("is-week"));
+  assert.ok(!group.classList.contains("is-wide"), "and it is not the fitted desktop layout");
+  assert.match(group.style.gridTemplateColumns, /repeat\(7,var\(--cal-col\)\)/,
+    "seven fixed-width columns, not seven fractions of the screen");
 });
