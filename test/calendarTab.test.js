@@ -47,6 +47,14 @@ function atToday(h, m) {
   return d.toISOString();
 }
 
+/** An instant `days` days from today, at the given local time. */
+function atDay(days, h, m) {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  d.setHours(h, m || 0, 0, 0);
+  return d.toISOString();
+}
+
 function windowTracker(events) {
   const seen = [];
   const route = ["/api/calendar/events", (u) => {
@@ -597,4 +605,83 @@ test("the focused column sizes an event by its length too, not just the peeks", 
   // Inside .cal-hour-events, so it cancels that box's top padding to line up
   // with the top of its hour; a peek chip sits against the cell and doesn't.
   assert.match(bday.style.top, /var\(--cal-pad-t\)/);
+});
+
+/* --- the wide (week) layout -------------------------------------------- */
+
+test("on a desktop every one of the seven days is tinted, including the Monday", async () => {
+  // The prayer-times range used to be derived as calCur-1 .. calCur+N, which
+  // is right for the phone's day-plus-two panel but wrong for a Monday-start
+  // week: the first column can be six days *before* calCur, so it got no
+  // times and rendered as the one white column in a tinted grid.
+  const app = loadApp({
+    innerWidth: 1280,
+    localStorageSeed: {
+      yawarWellness_v1: JSON.stringify({
+        schema: 4,
+        profile: { startWeight: "", targetWeight: "", updated_at: 1, tasks: [], prayerLoc: { lat: 51.5, lon: -0.12 } },
+        days: {},
+      }),
+    },
+    fetchImpl: fetchRouter([
+      ["/api/prayer", () => jsonRes({ source: "test", timings: { Fajr: "04:45", Sunrise: "05:50", Dhuhr: "13:00", Asr: "17:00", Maghrib: "20:30", Isha: "22:00" } })],
+      ["/api/calendar/events", () => jsonRes({ connected: true, status: "ok", events: [] })],
+    ]),
+  });
+  app.goTo("calendar");
+  for (let i = 0; i < 8; i++) await app.flush();
+
+  const days = Array.from(new Set(
+    Array.from(app.document.querySelectorAll("#calDayCur .cal-cell[data-day]")).map((c) => c.getAttribute("data-day"))
+  )).sort();
+  assert.equal(days.length, 7, "a whole week of columns");
+
+  days.forEach((day) => {
+    const tinted = Array.from(app.document.querySelectorAll(`#calDayCur .cal-cell[data-day="${day}"]`))
+      .filter((c) => c.style.background);
+    assert.ok(tinted.length > 0, day + " has no prayer tint at all");
+  });
+});
+
+test("on a desktop every column carries readable chips, not colour blocks", async () => {
+  // A 74px peek column can only hold a colour bar; a 170px desktop column can
+  // hold the title, and rendering a bar there throws away the screen.
+  const start = atToday(9, 0);
+  const app = loadApp({
+    innerWidth: 1280,
+    fetchImpl: fetchRouter([["/api/calendar/events", () => jsonRes({
+      connected: true, status: "ok",
+      events: [
+        { title: "Physio", start, allDay: false, calendar: "Yawar", color: "#4285f4" },
+        { title: "Standup", start: atDay(1, 9, 0), allDay: false, calendar: "Work", color: "#0b8043" },
+      ],
+    })]]),
+  });
+  app.goTo("calendar");
+  await app.flush();
+  await app.flush();
+
+  assert.equal(app.document.querySelectorAll("#calDayCur .cal-mini").length, 0,
+    "no colour-block minis anywhere in the week layout");
+  const titles = Array.from(app.document.querySelectorAll("#calDayCur .cal-chip-title")).map((n) => n.textContent);
+  assert.ok(titles.includes("Physio"), "the focused day reads");
+  assert.ok(titles.includes("Standup"), "and so does a day that is not focused");
+});
+
+test("the phone keeps its day-plus-two panel and its colour blocks", async () => {
+  const app = loadApp({
+    fetchImpl: fetchRouter([["/api/calendar/events", () => jsonRes({
+      connected: true, status: "ok",
+      events: [{ title: "Standup", start: atDay(1, 9, 0), allDay: false, calendar: "Work", color: "#0b8043" }],
+    })]]),
+  });
+  app.goTo("calendar");
+  await app.flush();
+  await app.flush();
+
+  const days = new Set(Array.from(app.document.querySelectorAll("#calDayCur .cal-cell[data-day]"))
+    .map((c) => c.getAttribute("data-day")));
+  assert.equal(days.size, 3, "three columns, as before");
+  assert.equal(app.document.querySelectorAll("#calDayCur .cal-mini").length, 1,
+    "and a neighbour's event is still a colour block at 74px");
 });

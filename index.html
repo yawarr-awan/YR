@@ -298,6 +298,24 @@ input[type=range]{width:100%;accent-color:var(--accent)}
 .cal-gutter-head{border-top:0;min-height:0}
 .cal-daygroup.is-week .cal-cell.is-main{border-inline-start:1px solid var(--line)}
 .cal-daygroup.is-week .cal-gh.is-focus{background:var(--panel);color:var(--ink)}
+/* A desktop has the room, so use it: an hour is nearly twice as tall, which
+   is what lets every column carry readable text rather than a colour bar. */
+/* Lighter prayer tint here than on the phone: the same 30% wash over a
+   1900px-wide grid is what turns the whole calendar into colour bands and
+   makes everything on top of it harder to read. The window is still legible
+   as colour, just quieter. */
+.cal-daygroup.is-week{--cal-row:62px;--cal-gutter:62px;--cal-tint:16%}
+.cal-daygroup.is-week .cal-gh{font-size:.72rem;padding:8px 4px}
+.cal-daygroup.is-week .cal-gh b{font-size:1rem}
+.cal-daygroup.is-week .cal-hour-label{font-size:.78rem;opacity:.75}
+/* Every column lays its entries out like the focused one - the narrow
+   colour-block treatment exists for a 74px phone column, not a 150px one. */
+.cal-daygroup.is-week .cal-cell{display:flex;gap:6px;padding-inline:6px}
+.cal-daygroup.is-week .cal-cell:not(.cal-allday){overflow:visible}
+.cal-daygroup.is-week .cal-chip{padding:4px 7px;border-radius:8px}
+.cal-daygroup.is-week .cal-chip.is-timed{
+  font-size:clamp(12px,calc(var(--cal-row) * var(--chip-rows,1) * .26),.95rem)
+}
 .cal-cell{
   position:relative;border-top:1px solid var(--line);border-inline-start:1px solid var(--line);
   min-height:var(--cal-row);padding:var(--cal-pad-t) 5px 4px;overflow:hidden
@@ -3254,10 +3272,26 @@ function eventDayKey(e){
 
 /** Loads a padded window around `centre` unless the one in memory already
  * covers the days we're about to show. Returns a promise either way. */
+/** Every day the three carousel panels can put on screen, as [first,last]
+ * keys. Not simply centre-1..centre+N: the wide layout starts each panel on
+ * its week's *Monday*, which can be six days before the panel's own date, and
+ * getting this wrong is invisible except that the first column loses its
+ * prayer tint - which is exactly how it was caught. */
+function calSpan(centre){
+  var lo,hi;
+  if(calCols()===CAL_PHONE_COLS){
+    lo=addDays(centre,-1);
+    hi=addDays(centre,calCols());          /* the next panel's last column */
+  }else{
+    lo=weekStart(addDays(centre,-1));
+    hi=addDays(weekStart(addDays(centre,1)),calCols()-1);
+  }
+  return [keyOf(lo),keyOf(hi)];
+}
+
 function ensureCalWindow(centre){
-  /* -1 for the previous panel, and forward far enough for the *next* panel's
-     last column - which is calCols() days past it. */
-  var need0=keyOf(addDays(centre,-1)),need1=keyOf(addDays(centre,calCols()+1));
+  var span=calSpan(centre);
+  var need0=span[0],need1=span[1];
   if(_calWin&&need0>=_calWin.from&&need1<=_calWin.to)return Promise.resolve(_calWin);
   var from=keyOf(addDays(centre,-CAL_WINDOW_PAD)),to=keyOf(addDays(centre,CAL_WINDOW_PAD));
   var reqId=++_calReqId;
@@ -3439,7 +3473,7 @@ function placeByTime(node,x,place){
      runs. Short chips also drop the meta line - one legible title beats a
      title and a subtitle both clipped. */
   node.style.setProperty("--chip-rows",rows.toFixed(4));
-  if(rows<1.6)node.classList.add("is-short");
+  if(rows<(calCols()===CAL_PHONE_COLS?1.6:0.85))node.classList.add("is-short");
   var w=100/place.of;
   node.style.insetInlineStart="calc("+(place.index*w).toFixed(3)+"% + 1px)";
   node.style.width="calc("+w.toFixed(3)+"% - 2px)";
@@ -3899,7 +3933,7 @@ function buildDayPanel(dayDate,timesByKey){
     gutter("All day","cal-allday");
     days.forEach(function(_,i){
       var cell=el("div","cal-cell cal-allday"+(i===focusIdx?" is-main":""));
-      if(i===focusIdx){
+      if(i===focusIdx||wide){
         if(!wide)cell.appendChild(el("span","cal-hour-label","All day"));
         var box=el("div","cal-hour-events");
         allDay[i].forEach(function(x){box.appendChild(calChip(x));});
@@ -3916,19 +3950,23 @@ function buildDayPanel(dayDate,timesByKey){
     for(var i=0;i<cols;i++){
       var isMain=i===focusIdx;
       var cell=el("div","cal-cell"+(isMain?" is-main":""));
+      cell.setAttribute("data-day",keys[i]);
       var bg=calCellBackground(segs[i],h);
       if(bg)cell.style.background=bg;
       var isCurrentHour=keys[i]===tk&&Math.floor(nowMinutes/60)===h;
       if(isCurrentHour)cell.classList.add("current-hour");
 
-      if(isMain){
+      /* On a wide screen every column gets a text chip, not just the focused
+         one: the colour-block treatment below exists for a 74px phone column,
+         and at 150px+ it is throwing away the room a desktop has. */
+      if(isMain||wide){
         if(!wide)cell.appendChild(el("span","cal-hour-label",fmtHour(h)));
         var box=el("div","cal-hour-events");
         var entries=byHour[i][h]||[];
         entries.forEach(function(x,n){
           box.appendChild(calChip(x,{hour:h,index:n,of:entries.length,inset:true}));
         });
-        if(!entries.length)box.appendChild(el("div","cal-slot-hint","+ Add"));
+        if(!entries.length&&isMain)box.appendChild(el("div","cal-slot-hint","+ Add"));
         cell.appendChild(box);
       }else{
         (function(list,hour){
@@ -4026,10 +4064,14 @@ function paintCalPanels(days,timesByKey){
 function renderCalPanels(){
   var loc=state.profile&&state.profile.prayerLoc;
   var days=[addDays(calCur,-1),calCur,addDays(calCur,1)];
-  /* Each panel shows its day plus the following ones, so times are needed
-     from one day before the focused day to calCols() after it. */
-  var needed=[];
-  for(var n=-1;n<=calCols()+1;n++)needed.push(keyOf(addDays(calCur,n)));
+  /* Times for every day the three panels can show - see calSpan. */
+  var span=calSpan(calCur),needed=[],cursor=new Date(span[0]+"T00:00:00"),guard=0;
+  while(guard++<40){
+    var k=keyOf(cursor);
+    needed.push(k);
+    if(k>=span[1])break;
+    cursor.setDate(cursor.getDate()+1);
+  }
 
   var cached=cachedTimesFor(needed);
   paintCalPanels(days,cached);
