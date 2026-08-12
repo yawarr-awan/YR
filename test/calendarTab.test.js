@@ -544,6 +544,44 @@ test("on a phone the week keeps its column width and scrolls sideways", async ()
   const group = app.document.querySelector("#calDayCur .cal-daygroup");
   assert.ok(group.classList.contains("is-week"));
   assert.ok(!group.classList.contains("is-wide"), "and it is not the fitted desktop layout");
-  assert.match(group.style.gridTemplateColumns, /repeat\(7,var\(--cal-col\)\)/,
-    "seven fixed-width columns, not seven fractions of the screen");
+  // Fixed widths, not fractions of the screen - and the day you are on is
+  // the wide one, the way it is on a desktop.
+  const tpl = group.style.gridTemplateColumns;
+  assert.equal((tpl.match(/var\(--cal-col\)/g) || []).length, 6);
+  assert.equal((tpl.match(/var\(--cal-col-focus\)/g) || []).length, 1);
+  const cols = tpl.split(" ").slice(1);
+  assert.equal(cols[(new Date().getDay() + 6) % 7], "var(--cal-col-focus)",
+    "the focused column is the wide one, wherever it falls in the week");
+});
+
+test("the grid is its own scrollport, so the dates and the hours can stay put", () => {
+  // Sticky can only stick to a scrollport. With a horizontal scroller in the
+  // way the page is no longer the scrollport for anything inside the grid, so
+  // the grid has to scroll in both directions itself.
+  const app = loadApp({ fetchImpl: fetchRouter([["/api/calendar/events", () => jsonRes({ connected: true, status: "ok", events: [] })]]) });
+  const css = app.document.querySelector("style").textContent;
+  assert.match(css, /\.cal-viewport\{[^}]*overflow:auto/, "both axes, not just x");
+  assert.match(css, /\.cal-viewport\{[^}]*max-height:var\(--cal-h\)/, "and a height to scroll within");
+  assert.match(css, /\.cal-daygroup\.is-week \.cal-gh\{position:sticky;top:0/, "the date row stays at the top");
+  assert.match(css, /\.cal-gutter\{position:sticky;inset-inline-start:0/, "the hours stay at the left");
+});
+
+test("opening the tab scrolls the week sideways to the focused day", async () => {
+  // The week starts on Monday, so opening on a Thursday would otherwise show
+  // three days already gone. The earlier days stay a scroll to the left.
+  //
+  // jsdom reports every offset as 0, so this can only check that the grid is
+  // positioned at all, not where it lands. Where it lands was measured in
+  // Chromium: today's column sits against the gutter.
+  const app = loadApp({ fetchImpl: fetchRouter([["/api/calendar/events", () => jsonRes({ connected: true, status: "ok", events: [] })]]) });
+  const view = app.document.getElementById("calGrid");
+  let writes = 0;
+  Object.defineProperty(view, "scrollLeft", {
+    set() { writes++; }, get() { return 0; }, configurable: true,
+  });
+
+  app.goTo("calendar");
+  await app.flush();
+  await app.flush();
+  assert.ok(writes > 0, "the grid is scrolled to the focused day when the tab opens");
 });

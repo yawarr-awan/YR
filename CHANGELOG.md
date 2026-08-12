@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.27.1
+
+- **The dates stay on screen.** The day headings are pinned to the top of the grid, and the hour labels to the left, so scrolling down or across never loses track of which day or hour you're looking at. (The grid now scrolls inside itself rather than with the page — that's what makes pinning possible once it scrolls sideways.)
+- **Today is the wide column on the phone too**, roughly twice the width of the other days, which are a little narrower to pay for it.
+- **It opens on today.** The week runs Monday to Sunday, so opening the tab on a Thursday used to start you three days in the past. Today's column now sits against the left edge; earlier days are a scroll to the left.
+- **The phone view is back to its previous size** — hours are compact again rather than the taller desktop spacing.
+
 ## 1.27.0
 
 **The calendar is one thing now, on every screen: a Monday–Sunday week.**

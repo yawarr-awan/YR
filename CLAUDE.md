@@ -1258,6 +1258,24 @@ the week containing `dayDate`). `calCols()` is a constant 7; `calIsWide()`
 - Every hour cell and all-day cell carries `data-day`, which is how tests
   address a column without re-deriving grid order from DOM position.
 
+**Pinned dates + open-on-today (1.27.1).**
+- `.cal-viewport` scrolls **both** axes with `max-height:var(--cal-h)`. Sticky
+  can only stick to a scrollport, and once the grid scrolls horizontally the
+  page is no longer the scrollport for anything inside it - so the grid has to
+  own its vertical scrolling too for `.cal-gh{position:sticky;top:0}` to work.
+  This is the internal-scroll approach 1.13.0 removed; it is back because a
+  fixed date row requires it.
+- **The corner is `.cal-gutter-head`, not `.cal-gh:first-child`.** The gutter's
+  own heading is a `.cal-gutter`, so pinning the first `.cal-gh` pins the first
+  *day's* heading and leaves it floating over the hour labels.
+- `scrollCalToFocus()` puts the focused column's left edge against the gutter
+  (`offsetLeft - gutterWidth`) and, on today, centres the current hour. The
+  week starts on Monday, so without it a Thursday opens three days in the past.
+  jsdom reports every offset as 0, so its test only asserts the grid is
+  positioned at all - the geometry was measured in Chromium.
+- Narrow columns are `--cal-col` 92px with `--cal-col-focus` 172px, and
+  `--cal-row` is back to 36px (54px was too tall on a phone).
+
 ## Honest caveat
 The "Client-side sync layer," "Access + hosting," and "Current data state"
 sections above were re-verified live in this session (2026-08-09): read
