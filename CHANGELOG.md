@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.28.1
+
+**Dhikr is worth three items now, not thirty-seven** — one for morning, one for afternoon, one for evening. A period counts once every item in it is ticked, so finishing a period is the unit rather than each individual phrase. Dhikr no longer dominates the day's score, and the ring goes back to reading like an overall day rather than a dhikr tracker.
+
 ## 1.28.0
 
 - **Dhikr counts towards the day now.** Every item across morning, afternoon and evening is part of the completion ring and the Progress trend, so a day with the dhikr left undone reads as unfinished — which is the point of the number.
