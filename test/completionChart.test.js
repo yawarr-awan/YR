@@ -23,11 +23,12 @@ const MEDS = ["pre", "after", "dinner"];
 const PRAYERS = ["fajr", "dhuhr", "asr", "maghrib", "isha"];
 const MEALS = ["breakfast", "lunch", "dinner"];
 const EXTRAS = ["collagen", "whey", "creatine", "milk", "milktea"];
-// Dhikr counts towards the day too, so a "full day" is the 18 above plus
-// every dhikr item across the three periods.
+// Dhikr counts towards the day as one item per period - not one per phrase,
+// which would make the longest list on the app worth most of the score. A
+// period only counts once every phrase in it is ticked.
 const DHIKR = ["istighfar", "tasbih", "tahmid", "takbir", "salawat", "ayatulkursi", "threesurahs"];
 const DHIKR_PERIODS = ["morning", "afternoon", "evening"];
-const FULL_DAY = 18 + DHIKR.length * DHIKR_PERIODS.length;
+const FULL_DAY = 18 + DHIKR_PERIODS.length;
 
 /** A day with `n` of the tracked items ticked, in a fixed order. */
 function dayWith(n) {
@@ -44,7 +45,10 @@ function dayWith(n) {
   take(d.extras, EXTRAS);
   if (left > 0) { d.exercise = true; left--; }
   if (left > 0) { d.water = 8; left--; }
-  DHIKR_PERIODS.forEach((p) => take(d.dhikr[p], DHIKR));
+  // One unit of dhikr is a whole period, so it is ticked all or not at all.
+  DHIKR_PERIODS.forEach((p) => {
+    if (left > 0) { DHIKR.forEach((k) => { d.dhikr[p][k] = true; }); left--; }
+  });
   return d;
 }
 
@@ -90,12 +94,15 @@ test("with barely any history it says so instead of drawing a meaningless line",
 });
 
 test("a full day counts as 100% and the summary reports the average, best and full days", () => {
-  // Everything, half of it, and none -> 100%, 50%, 0%.
-  const app = loadApp({ fetchImpl: idle, localStorageSeed: seed({ 2: FULL_DAY, 1: Math.round(FULL_DAY / 2), 0: 0 }) });
+  // Everything, roughly half, and none. The percentages are computed rather
+  // than hardcoded: what a full day is worth moves with the routine.
+  const some = Math.round(FULL_DAY / 2);
+  const pct = (n) => Math.round((n / FULL_DAY) * 100);
+  const app = loadApp({ fetchImpl: idle, localStorageSeed: seed({ 2: FULL_DAY, 1: some, 0: 0 }) });
   app.goTo("progress");
 
   assert.match(note(app), /^3 day\(s\) logged/);
-  assert.match(note(app), /average 50%/);
+  assert.match(note(app), new RegExp("average " + Math.round((100 + pct(some)) / 3) + "%"));
   assert.match(note(app), /best 100%/);
   assert.match(note(app), /1 full day\(s\)/);
 });
@@ -122,4 +129,36 @@ test("the ring and the chart agree on what a day was worth", () => {
   assert.equal(app.document.getElementById("dayRingTxt").textContent, pct);
   app.goTo("progress");
   assert.match(note(app), new RegExp("average " + pct));
+});
+
+test("dhikr is worth three items, one per period, and only when a period is finished", () => {
+  // Counting each phrase made the longest list on the app worth two thirds of
+  // the day. A period is the unit you set out to complete.
+  const partial = dayWith(0);
+  DHIKR.slice(0, 3).forEach((k) => { partial.dhikr.morning[k] = true; });
+  const whole = dayWith(0);
+  DHIKR.forEach((k) => { whole.dhikr.morning[k] = true; });
+
+  const days = {};
+  days[dayKeyBack(1)] = partial;
+  days[dayKeyBack(0)] = whole;
+  const app = loadApp({
+    fetchImpl: idle,
+    localStorageSeed: {
+      [MAIN_KEY]: JSON.stringify({
+        schema: 4,
+        profile: { startWeight: 108, targetWeight: 88, updated_at: 1, tasks: [] },
+        days, sync: { enabled: false, since: 0, lastSyncAt: null, lastError: null },
+      }),
+    },
+  });
+
+  // Today is the finished period: 1 of FULL_DAY.
+  assert.equal(app.document.getElementById("dayRingTxt").textContent,
+    Math.round((1 / FULL_DAY) * 100) + "%");
+
+  app.goTo("progress");
+  // Yesterday's half-done period is worth nothing, so the average is half of
+  // today's single item.
+  assert.match(note(app), new RegExp("average " + Math.round(Math.round((1 / FULL_DAY) * 100) / 2) + "%"));
 });

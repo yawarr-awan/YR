@@ -4902,9 +4902,13 @@ function renderProgress(){
    point of the number that a routine you have not done shows up in it.
    The total is dynamic (the medicine, extras and dhikr lists are editable),
    so it always reflects the routine as it stands today. */
+/** Dhikr counts as one item per period, not one per phrase. Counting each
+ * phrase made the longest list on the app worth two thirds of the day; a
+ * period is the unit you actually set out to complete. A period with nothing
+ * in it is nothing to do, so it is not in the total either. */
 function dhikrTotalItems(){
   var n=0;
-  DHIKR_PERIODS.forEach(function(p){n+=dhikrItems(p[0]).length;});
+  DHIKR_PERIODS.forEach(function(p){if(dhikrItems(p[0]).length)n++;});
   return n;
 }
 function dayTotalItems(){
@@ -4918,9 +4922,10 @@ function dayCompletion(d){
   MEALSLOTS.forEach(function(x){if(d.meals&&d.meals[x[0]])done++;});
   extrasList().forEach(function(x){if(d.extras&&d.extras[x.id])done++;});
   DHIKR_PERIODS.forEach(function(p){
+    var items=dhikrItems(p[0]);
+    if(!items.length)return;
     var set=d.dhikr&&d.dhikr[p[0]];
-    if(!set)return;
-    dhikrItems(p[0]).forEach(function(item){if(set[item[0]])done++;});
+    if(items.every(function(item){return set&&set[item[0]];}))done++;
   });
   if(d.exercise)done++;
   if(d.water>=8)done++;

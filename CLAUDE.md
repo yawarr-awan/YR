@@ -1277,12 +1277,14 @@ the week containing `dayDate`). `calCols()` is a constant 7; `calIsWide()`
   `--cal-row` is back to 36px (54px was too tall on a phone).
 
 ## Dhikr in the day's score, folded reminders (1.28.0)
-- `dayTotalItems()`/`dayCompletion()` include **every dhikr item across the
-  three periods** (`dhikrTotalItems()`), the same way each medicine and each
-  prayer counts once. Dhikr is the longest list, so it dominates the ring -
-  flagged to Yawar, who can have per-period instead if he prefers. Because the
-  total is computed from the *current* lists, past days on the Progress chart
-  are re-scored too; that is existing behaviour of a dynamic total, not new.
+- `dayTotalItems()`/`dayCompletion()` count dhikr as **one item per period**
+  (`dhikrTotalItems()`), not one per phrase. Per-phrase was tried first
+  (1.28.0) and made the longest list on the app worth two thirds of the day;
+  Yawar asked for three. A period only counts once **every** item in it is
+  ticked, and a period with no items is in neither the total nor the score.
+  Because the total is computed from the *current* lists, past days on the
+  Progress chart are re-scored too; that is existing behaviour of a dynamic
+  total, not new.
 - **`pushNotif(title, body, key)` folds a repeat** into the entry already in
   the bell: it moves that row back to the top, restamps `at`, keeps `firstAt`
   and increments `count` (rendered as a `×N` badge). Without it the same
