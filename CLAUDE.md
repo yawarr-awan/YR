@@ -725,6 +725,21 @@ Found by checking the whole path in real Chromium rather than only jsdom.
 - The theme toggle now lives in Settings -> Appearance; the header holds the
   bell in its place.
 
+## Rotation: say nothing at all (1.25.5, supersedes 1.24.1 below)
+**`orientation: "any"` is not "no opinion" - it is an opinion.** A WebAPK
+translates the manifest's orientation into an Android activity orientation,
+and `any` becomes a **sensor** mode that follows the accelerometer *even when
+the phone's own rotation lock is on*. That is what the user reported after
+1.24.1. `screen.orientation.unlock()` at startup was the same mistake in
+JavaScript: asking to be unlocked is still asking for something.
+
+Both are removed. The manifest declares **no `orientation` key**, which leaves
+the activity unspecified - the only value that defers to the system setting -
+and nothing in `index.html` touches `screen.orientation`. `test/sw.test.js`
+asserts the key is absent and `test/uiShell.test.js` asserts neither `lock()`
+nor `unlock()` is ever called. **Don't "fix" rotation by adding either back.**
+The WebAPK rebuild caveat below still applies to any manifest change.
+
 ## Rotation on an installed Android copy (1.24.1)
 Same family as the stale name/icon bug above, and worth knowing before
 "fixing" it again. An installed Android PWA is a **WebAPK**, and its
@@ -734,12 +749,9 @@ until Chrome rebuilds the WebAPK: it notices `ORIENTATION_DIFFERS`, then
 waits for **every window of the app to be closed, the device charging and on
 Wi-Fi**. A day or two is normal.
 
-- The manifest says `"orientation": "any"` explicitly rather than omitting
-  the key - both mean "no lock", but there is no ambiguity in a diff.
-- `screen.orientation.unlock()` runs at startup, wrapped in try/catch
-  (Safari has no such method and throwing there would take the app down
-  before it rendered). Chrome applies orientation locks by asking Android
-  for one, so releasing it can take effect before the WebAPK is rebuilt.
+- (Both of this version's mechanisms were **reverted in 1.25.5** - see above.
+  `"orientation": "any"` and `screen.orientation.unlock()` between them made
+  the app rotate regardless of the phone's rotation lock.)
 - **The reliable fix for a user is reinstalling**, which rebuilds the WebAPK
   immediately. Don't go looking for a CSS or layout cause first.
 
@@ -1116,7 +1128,10 @@ endpoint; `test/calendarTab.test.js` for the current-window ring;
   du'a. `MAX_DUA_BYTES` is 900KB and the client downscales on a canvas first
   (`DUA_MAX_PX` 1600, JPEG); D1 is not a blob store, so an oversize image is
   refused rather than truncated. Deleting a du'a clears every link to it.
-  `renderDuas()` paints the held list and **always refetches** - a du'a added
+  A dhikr item already linked to another du'a is **left out of that du'a's
+  picker** rather than shown unticked - ticking it would have moved the link
+  silently. It stays, ticked, on its own picture, which is where it is
+  released. `renderDuas()` paints the held list and **always refetches** - a du'a added
   on another device would otherwise never appear. A linked dhikr item renders
   its own label as a `.linklike` button (same treatment as a recipe or an
   exercise) rather than carrying a separate icon; it must `stopPropagation`,

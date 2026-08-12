@@ -403,23 +403,28 @@ test("a nonsense stored scale falls back to the default rather than breaking the
   assert.equal(app.document.documentElement.style.fontSize, "15px");
 });
 
-test("any orientation lock left over from an install is released at startup", () => {
-  // An installed Android copy is a WebAPK whose orientation was baked in when
-  // it was installed; Chrome rebuilds that on its own schedule, so the
-  // manifest change alone can leave it stuck in portrait for a day or more.
-  let unlocked = false;
+test("the app never touches screen orientation - the device decides", () => {
+  // 1.24.1 called screen.orientation.unlock() at startup and declared
+  // orientation:"any" in the manifest. Both overshoot: a WebAPK turns "any"
+  // into a sensor mode that follows the accelerometer even when the phone's
+  // own rotation lock is on, and asking to be unlocked is still asking for
+  // something. Saying nothing is what respects the system setting.
+  let touched = false;
   const app = loadApp({
     beforeRun: (window) => {
-      window.screen.orientation = { unlock: () => { unlocked = true; }, type: "portrait-primary" };
+      window.screen.orientation = {
+        type: "portrait-primary",
+        unlock: () => { touched = true; },
+        lock: () => { touched = true; return Promise.resolve(); },
+      };
     },
   });
-  assert.ok(app.document.getElementById("dayRing"), "the app booted");
-  assert.equal(unlocked, true, "the lock is released rather than waited out");
+  assert.equal(touched, false, "neither locked nor unlocked");
+  assert.ok(app.document.getElementById("dayRing"), "and the app still booted");
 });
 
-test("a browser with nothing to unlock still starts", () => {
-  // Safari has no screen.orientation.unlock at all; throwing here would take
-  // the whole app down before it rendered.
+test("a browser with no screen.orientation at all still starts", () => {
+  // Safari has no screen.orientation.unlock; nothing here may assume it.
   const app = loadApp({ beforeRun: (window) => { delete window.screen.orientation; } });
   assert.ok(app.document.getElementById("dayRing"));
 });
