@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.29.0
+
+**Two new charts on Progress, and a Journal tab.**
+
+- **Prayers chart.** Prayed-per-day out of five, over every date since your first record — with a 7-day average once there's enough history. It counts *dates*, not just days that happen to have a record, so it agrees exactly with the prayer summary and the qada debt (a date you never opened the app on is five missed, not a missing point). Today is left off, because it isn't finished.
+- **Sleep chart.** Hours per night, with your logged nights as the points and a 7h reference line. A night you didn't log is left out rather than drawn as zero — that's missing data, not no sleep. The summary line gives you the average, shortest, longest, and how many nights hit 7h.
+- **Journal tab.** A text box for each day, with the same ‹ › Today date bar as Prayers, saved as you type. Underneath it, every earlier entry newest-first — tap one to jump to that day. It writes into the day record's existing `notes` field, so anything you'd already written in the old "Notes for the day" card is still there, and entries sync between devices like everything else.
+- **The daily brief reads your journal.** Today's entry plus your recent ones (up to a fortnight) go to the brief, which now ends with a short **Notes** section: things left unfinished, things you said you'd do, patterns across several days. No entries means no Notes section at all.
+
+  **Worth knowing:** this means your journal text is sent to Google's Gemini API when the brief is generated, the same way your calendar events and tasks already are. If you'd rather it didn't, say so and I'll put it behind a switch.
+
+  A journal or task read failing never stops the brief — it's recorded alongside the summary so "why did it ignore what I wrote?" is answerable.
+
 ## 1.28.1
 
 **Dhikr is worth three items now, not thirty-seven** — one for morning, one for afternoon, one for evening. A period counts once every item in it is ticked, so finishing a period is the unit rather than each individual phrase. Dhikr no longer dominates the day's score, and the ring goes back to reading like an overall day rather than a dhikr tracker.
