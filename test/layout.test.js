@@ -33,7 +33,7 @@ test("every rearrangeable tab is one container of keyed cards", () => {
   // A card can only be moved if its tab is a single list of cards. The
   // calendar is a grid of hours and Misc is three sub-panels, so neither is
   // offered - and neither should sprout a container by accident.
-  ["today", "prayers", "progress", "settings"].forEach((v) => {
+  ["today", "prayers", "progress", "journal", "settings"].forEach((v) => {
     assert.ok(cardsOn(app, v).length > 0, `${v} should have keyed cards`);
     assert.equal(app.document.querySelectorAll("#view-" + v + " > .card").length, 0,
       `${v} has a card outside its grid, which could never be reordered`);

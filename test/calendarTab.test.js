@@ -509,13 +509,18 @@ test("on a desktop every column carries readable chips, not colour blocks", asyn
   // A 74px peek column can only hold a colour bar; a 170px desktop column can
   // hold the title, and rendering a bar there throws away the screen.
   const start = atToday(9, 0);
+  // The panel is a Monday-Sunday week, so "the next day" is only in it when
+  // today isn't Sunday - on a Sunday it belongs to next week and the column
+  // genuinely isn't there. Step towards the middle of the week instead of
+  // assuming +1, or this test fails once every seven days.
+  const otherDay = new Date().getDay() === 1 ? 1 : -1;
   const app = loadApp({
     innerWidth: 1280,
     fetchImpl: fetchRouter([["/api/calendar/events", () => jsonRes({
       connected: true, status: "ok",
       events: [
         { title: "Physio", start, allDay: false, calendar: "Yawar", color: "#4285f4" },
-        { title: "Standup", start: atDay(1, 9, 0), allDay: false, calendar: "Work", color: "#0b8043" },
+        { title: "Standup", start: atDay(otherDay, 9, 0), allDay: false, calendar: "Work", color: "#0b8043" },
       ],
     })]]),
   });

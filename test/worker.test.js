@@ -1341,3 +1341,115 @@ test("removing a du'a takes it out of the list and stops serving it", async () =
   assert.equal((await (await worker.handleListDuas(env, EMAIL)).json()).duas.length, 0);
   assert.equal((await worker.handleGetDua(env, EMAIL, created.dua.id)).status, 404);
 });
+
+/* ---------- the journal in the brief ---------- */
+
+test("fetchJournal returns today's entry and the recent ones, skipping days with nothing written", async () => {
+  const { fetchJournal } = await loadWorker();
+  const d1 = createFakeD1();
+  d1.seedDay(EMAIL, "2026-08-09", { notes: "Long day. Finally booked the car service." });
+  d1.seedDay(EMAIL, "2026-08-08", { notes: "  Slept badly.  " });
+  d1.seedDay(EMAIL, "2026-08-07", { notes: "" });          // logged, but nothing written
+  d1.seedDay(EMAIL, "2026-08-06", { weight: "104" });      // no notes field at all
+  d1.seedDay(EMAIL, "2026-08-05", { notes: "Started the new routine." });
+  d1.seedDay(EMAIL, "2026-08-10", { notes: "Tomorrow's entry." }); // must not leak backwards
+
+  const j = await fetchJournal(d1.env, EMAIL, "2026-08-09");
+  assert.equal(j.error, null);
+  assert.deepEqual(j.today, { day: "2026-08-09", text: "Long day. Finally booked the car service." });
+  assert.deepEqual(j.earlier.map((e) => e.day), ["2026-08-08", "2026-08-05"], "newest first, blanks skipped");
+  assert.equal(j.earlier[0].text, "Slept badly.", "trimmed");
+});
+
+test("fetchJournal caps how far back it looks and how long one entry can be", async () => {
+  const { fetchJournal } = await loadWorker();
+  const d1 = createFakeD1();
+  // 20 consecutive entries, and one of them far longer than the per-entry cap.
+  for (let i = 0; i < 20; i++) {
+    const day = "2026-08-" + String(20 - i).padStart(2, "0");
+    d1.seedDay(EMAIL, day, { notes: i === 1 ? "x".repeat(5000) : "entry " + i });
+  }
+  const j = await fetchJournal(d1.env, EMAIL, "2026-08-20", 5);
+  assert.equal(j.earlier.length, 5, "the window is bounded, not the whole history");
+  assert.ok(j.earlier[0].text.length < 1200, "one enormous entry cannot crowd out the rest");
+  assert.ok(j.earlier[0].text.endsWith("…"), "and it says it was cut");
+});
+
+test("fetchJournal reports a database failure instead of pretending nothing was written", async () => {
+  const { fetchJournal } = await loadWorker();
+  const env = { DB: { prepare() { throw new Error("no such table: days"); } } };
+  const j = await fetchJournal(env, EMAIL, "2026-08-09");
+  assert.match(j.error, /no such table/);
+  assert.equal(j.today, null);
+  assert.deepEqual(j.earlier, []);
+});
+
+test("generateBrief feeds the journal to Gemini and asks for a Notes section", async (t) => {
+  const { generateBrief } = await loadWorker();
+  const d1 = createFakeD1();
+  d1.seedToken(EMAIL, { access_token: "tok", access_token_expires_at: Date.now() + 600000 });
+  d1.seedDay(EMAIL, "2026-08-09", { notes: "Meant to call the garage and forgot again." });
+  d1.seedDay(EMAIL, "2026-08-08", { notes: "Third short night this week." });
+
+  let prompt = null;
+  installFetch(t, async (url, opts) => {
+    const u = String(url);
+    if (u.includes("calendarList")) return jsonResponse(200, { items: [{ id: "primary", summary: "Yawar", primary: true }] });
+    if (u.includes("/events")) return jsonResponse(200, { items: [] });
+    if (u.includes("tasks.googleapis.com")) return jsonResponse(200, { items: [] });
+    if (u.includes("generativelanguage")) { prompt = JSON.parse(opts.body).contents[0].parts[0].text; return geminiOk("Today\n- Nothing scheduled"); }
+    throw new Error("unexpected fetch " + u);
+  });
+
+  const result = await generateBrief(d1.env, EMAIL, new Date("2026-08-09T10:00:00Z"));
+  assert.equal(result.status, "ok");
+  assert.match(prompt, /JOURNAL/);
+  assert.match(prompt, /Meant to call the garage/);
+  assert.match(prompt, /Third short night this week/, "previous entries go in too, not just today's");
+  assert.match(prompt, /"Notes" section of at most three bullets/);
+});
+
+test("generateBrief leaves the JOURNAL heading out entirely when nothing has been written", async (t) => {
+  // An empty heading is an invitation to invent an entry.
+  const { generateBrief } = await loadWorker();
+  const d1 = createFakeD1();
+  d1.seedToken(EMAIL, { access_token: "tok", access_token_expires_at: Date.now() + 600000 });
+
+  let prompt = null;
+  installFetch(t, async (url, opts) => {
+    const u = String(url);
+    if (u.includes("calendarList")) return jsonResponse(200, { items: [{ id: "primary", summary: "Yawar", primary: true }] });
+    if (u.includes("/events")) return jsonResponse(200, { items: [] });
+    if (u.includes("tasks.googleapis.com")) return jsonResponse(200, { items: [] });
+    if (u.includes("generativelanguage")) { prompt = JSON.parse(opts.body).contents[0].parts[0].text; return geminiOk("ok"); }
+    throw new Error("unexpected fetch " + u);
+  });
+
+  await generateBrief(d1.env, EMAIL, new Date("2026-08-09T10:00:00Z"));
+  assert.doesNotMatch(prompt, /JOURNAL/);
+});
+
+test("a journal read failure is recorded beside the summary, and never blocks the brief", async (t) => {
+  const { generateBrief } = await loadWorker();
+  const d1 = createFakeD1();
+  d1.seedToken(EMAIL, { access_token: "tok", access_token_expires_at: Date.now() + 600000 });
+  const realPrepare = d1.env.DB.prepare;
+  d1.env.DB.prepare = (sql) => {
+    if (/FROM days/.test(sql)) throw new Error("d1 unavailable");
+    return realPrepare(sql);
+  };
+
+  installFetch(t, async (url) => {
+    const u = String(url);
+    if (u.includes("calendarList")) return jsonResponse(200, { items: [{ id: "primary", summary: "Yawar", primary: true }] });
+    if (u.includes("/events")) return jsonResponse(200, { items: [] });
+    if (u.includes("tasks.googleapis.com")) return jsonResponse(200, { items: [] });
+    if (u.includes("generativelanguage")) return geminiOk("A quiet day.");
+    throw new Error("unexpected fetch " + u);
+  });
+
+  const result = await generateBrief(d1.env, EMAIL, new Date("2026-08-09T10:00:00Z"));
+  assert.equal(result.status, "ok", "the brief still generates - the journal is an enrichment");
+  assert.match(result.error, /d1 unavailable/);
+  assert.equal(d1.dailyBrief.get(`${EMAIL}|2026-08-09`).summary, "A quiet day.");
+});

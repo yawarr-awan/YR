@@ -11,6 +11,7 @@ function createFakeD1() {
   const googleTokens = new Map(); // user_email -> row
   const dailyBrief = new Map(); // `${email}|${day}` -> row
   const duas = new Map(); // `${email}|${id}` -> row
+  const days = new Map(); // `${email}|${day}` -> row
 
   // Real D1 statements support .first()/.all()/.run() directly on the
   // prepared statement (no bind() needed when there are nothing to bind),
@@ -38,6 +39,23 @@ function createFakeD1() {
       async all() {
         if (/FROM google_tokens/.test(sql)) {
           return { results: Array.from(googleTokens.keys()).map((user_email) => ({ user_email })) };
+        }
+        if (/FROM days/.test(sql)) {
+          /* Mirrors the real query's shape: rows at or before `day`, newest
+             first, and only ones whose `notes` is non-empty - which the
+             real statement expresses as a json_extract/TRIM filter. */
+          const [email, day, limit] = args;
+          return {
+            results: Array.from(days.values())
+              .filter((r) => r.user_email === email && !r.deleted && r.day <= day)
+              .filter((r) => {
+                try { return String(JSON.parse(r.data || "{}").notes || "").trim() !== ""; }
+                catch (e) { return false; }
+              })
+              .sort((a, b) => (a.day < b.day ? 1 : -1))
+              .slice(0, limit)
+              .map(({ day: d, data }) => ({ day: d, data })),
+          };
         }
         if (/FROM dua_images/.test(sql)) {
           const email = args[0];
@@ -94,6 +112,14 @@ function createFakeD1() {
         access_token: row.access_token ?? null,
         access_token_expires_at: row.access_token_expires_at ?? null,
         updated_at: row.updated_at ?? Date.now(),
+      });
+    },
+    seedDay(email, day, data, opts) {
+      days.set(`${email}|${day}`, {
+        user_email: email, day,
+        data: typeof data === "string" ? data : JSON.stringify(data),
+        updated_at: (opts && opts.updated_at) ?? Date.now(),
+        deleted: (opts && opts.deleted) ? 1 : 0,
       });
     },
     seedBrief(email, day, row) {

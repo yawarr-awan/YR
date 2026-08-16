@@ -1276,6 +1276,59 @@ the week containing `dayDate`). `calCols()` is a constant 7; `calIsWide()`
 - Narrow columns are `--cal-col` 92px with `--cal-col-focus` 172px, and
   `--cal-row` is back to 36px (54px was too tall on a phone).
 
+## Journal tab + prayer/sleep charts (1.29.0)
+- **The journal is the day record's existing `notes` field.** It has been in
+  `blankDay()` since the beginning and was kept deliberately when the Today
+  tab's "Notes for the day" card was removed in 1.17.2 - so the tab inherits
+  every word already written, syncs with everything else, and needed **no
+  migration and no schema bump**. Don't add a parallel field for it.
+- `renderJournal()` **must not rewrite the textarea while it is focused**
+  (`document.activeElement!==ta`). It is called from `renderAll()`, which runs
+  after a sync pull replaces the whole store; every keystroke is already in
+  `state`, so a focused box is never stale, but overwriting it under the
+  cursor would eat what is being typed.
+- `journalDays()` is a set of *records* - the opposite of `prayerHistoryDays()`
+  next to it, and deliberately. A day nothing was written on is not a gap in
+  the story, it is simply not an entry; a day no prayers were logged on is
+  five missed.
+- `VIEWS` is **seven** now. Measured in Chromium at 390px: 55.1px per tab, no
+  label clipped. `LAYOUT_VIEWS` gained `journal` too (it is a `> .grid` of
+  `.card[data-card]`, which is the whole precondition).
+- **`column-span:all` on the journal card at >=721px.** `.cards` is CSS
+  columns, not a grid, so a card can span the flow - writing is the point of
+  the tab and a third-width box on a desktop was the same waste the calendar
+  had.
+
+**The charts.** Both follow `drawCompletionChart`'s shape (canvas + a
+`.muted.center` note element, which is what the jsdom tests assert on since
+there is no 2D context).
+- `drawPrayerChart()` plots over **`prayerHistoryDays()`**, not
+  `Object.keys(state.days)` - the same range the prayer summary and the qada
+  debt use, so they cannot disagree. Re-read the 1.25.2 note before changing
+  this. Today is excluded because it is not finished.
+- `drawSleepChart()` plots **only nights with a number logged**. An unlogged
+  night is missing data, not zero hours, and drawing it as a trough would be a
+  lie - the exact opposite call to the prayer chart's, for the exact opposite
+  reason.
+
+**The brief reads the journal.** `fetchJournal(env, email, day)` reads the
+synced `days` table directly - the cron generates the brief with no browser
+involved, so nothing can be posted up by the client. The `notes` filter is in
+SQL (`json_extract(data,'$.notes')`) so the row budget is spent on days that
+actually have an entry; a run of logged-but-unwritten days would otherwise
+push every real entry out of the window. Bounds: `JOURNAL_DAYS` 14,
+`JOURNAL_MAX_CHARS` 900. Like `fetchTasks` it **never throws** - the journal
+enriches the brief, it is not the brief - and its error is persisted beside a
+successful summary (`softError` joins it with `tasks.error`).
+- The `JOURNAL` section is **omitted entirely when there is nothing in it**;
+  an empty heading is an invitation to invent an entry.
+- `DEFAULT_BRIEF_PROMPT` gained a trailing **Notes** section. Checked against
+  live D1 on 2026-08-16: `user_settings.brief_prompt` is NULL for this user,
+  so the new default actually applies - a saved custom prompt would have
+  overridden it silently (see the 1.18.0 note).
+- **Privacy:** journal text now goes to the Gemini API alongside the calendar
+  and task data. Flagged to Yawar in the 1.29.0 changelog entry.
+
 ## Dhikr in the day's score, folded reminders (1.28.0)
 - `dayTotalItems()`/`dayCompletion()` count dhikr as **one item per period**
   (`dhikrTotalItems()`), not one per phrase. Per-phrase was tried first

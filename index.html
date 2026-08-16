@@ -252,6 +252,27 @@ body.editing .card[data-card].is-over{outline:2px solid var(--brand)}
   border-radius:10px;padding:10px;font:inherit
 }
 .field textarea{min-height:70px;resize:vertical}
+/* The journal box is the whole card, not a labelled field in a form - so it
+   takes the card's width and a generous default height rather than the 70px
+   the .field textareas get. */
+#jrnText{
+  width:100%;border:1px solid var(--line);background:var(--panel-2);color:var(--ink);
+  border-radius:10px;padding:10px;font:inherit;line-height:1.5;resize:vertical;min-height:180px
+}
+/* Writing is the point of this tab, so on a desktop the box takes the whole
+   width rather than one column of the card flow - the same waste of a big
+   screen the calendar had. column-span works because .cards is CSS columns,
+   not a grid; the entries below simply resume flowing after it. */
+@media (min-width:721px){
+  #view-journal .card[data-card="journal"]{column-span:all}
+  #jrnText{min-height:260px}
+}
+.jrn-past{
+  display:block;width:100%;text-align:start;border:1px solid var(--line);background:var(--panel-2);
+  color:var(--ink);border-radius:10px;padding:8px 10px;margin-bottom:6px;font:inherit;cursor:pointer
+}
+.jrn-past b{display:block;font-size:.78rem;color:var(--muted);margin-bottom:2px}
+.jrn-past span{display:block;font-size:.85rem;line-height:1.4}
 .slider-val{font-weight:800;float:right}
 input[type=range]{width:100%;accent-color:var(--accent)}
 .pill-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
@@ -835,6 +856,18 @@ footer.foot{text-align:center;color:var(--muted);font-size:.78rem;margin-top:26p
       <div class="muted center" id="completionNote" style="font-size:.78rem;margin-top:8px"></div>
     </div>
 
+    <div class="card" data-collapse="prayertrend" data-card="prayertrend">
+      <h3>🕌 Prayers</h3>
+      <canvas id="prayerChart" width="900" height="320"></canvas>
+      <div class="muted center" id="prayerChartNote" style="font-size:.78rem;margin-top:8px"></div>
+    </div>
+
+    <div class="card" data-collapse="sleeptrend" data-card="sleeptrend">
+      <h3>😴 Sleep</h3>
+      <canvas id="sleepChart" width="900" height="320"></canvas>
+      <div class="muted center" id="sleepChartNote" style="font-size:.78rem;margin-top:8px"></div>
+    </div>
+
     <div class="card" data-collapse="targets" data-card="targets">
       <h3>🎯 Your targets</h3>
       <div class="grid">
@@ -846,6 +879,36 @@ footer.foot{text-align:center;color:var(--muted);font-size:.78rem;margin-top:26p
     </div>
   </section>
 
+
+
+  <!-- ===================== JOURNAL ===================== -->
+  <!-- Writes into the same per-day `notes` field the old Today "Notes for the
+       day" card used, so it already syncs, already round-trips through an
+       export, and every word written before this tab existed is still here. -->
+  <section id="view-journal" class="view">
+    <div class="datebar">
+      <button id="jrnPrevDay" title="Previous day">‹</button>
+      <div class="dlabel" id="jrnDateLabel">Today</div>
+      <button id="jrnNextDay" title="Next day">›</button>
+      <button class="today-btn" id="jrnJumpToday">Today</button>
+    </div>
+    <div class="grid cards">
+
+    <div class="card" data-card="journal">
+      <h3>📓 Journal<span class="count" id="jrnCount"></span></h3>
+      <textarea id="jrnText" rows="12" placeholder="What happened today? What went well, what didn't, anything worth remembering."></textarea>
+      <div class="muted" style="font-size:.78rem;margin-top:6px">
+        Saved as you type, and included in tomorrow's daily brief along with your recent entries.
+      </div>
+    </div>
+
+    <div class="card collapsible" data-collapse="journalpast" data-card="journalpast">
+      <h3>🗂️ Earlier entries<span class="count" id="jrnPastCount"></span></h3>
+      <div class="card-body"><div id="jrnPastBox"></div></div>
+    </div>
+
+    </div>
+  </section>
 
 
   <!-- ===================== SETTINGS ===================== -->
@@ -993,6 +1056,7 @@ footer.foot{text-align:center;color:var(--muted);font-size:.78rem;margin-top:26p
   <button data-nav="calendar"><i>🗓️</i>Calendar</button>
   <button data-nav="others"><i>🧩</i>Misc</button>
   <button data-nav="progress"><i>📈</i>Progress</button>
+  <button data-nav="journal"><i>📓</i>Journal</button>
   <button data-nav="settings"><i>⚙️</i>Settings</button>
 </nav>
 
@@ -1383,7 +1447,7 @@ var LAYOUT_KEY="yawarLayout";
 /* Only these four have a single container of interchangeable cards. The
    calendar is a grid of hours and Misc is three sub-panels; neither is a
    list of cards, so neither can take one. */
-var LAYOUT_VIEWS=["today","prayers","progress","settings"];
+var LAYOUT_VIEWS=["today","prayers","progress","journal","settings"];
 var LAYOUT_VIEW_LABEL={today:"Today",prayers:"Prayers",progress:"Progress",settings:"Settings"};
 var _editingLayout=false;
 
@@ -1974,6 +2038,7 @@ function renderAll(){
   renderProgress();
   renderPrayerChips();
   renderSettings();
+  renderJournal();
   if(currentSub==="duas")renderDuasList();   /* the links live on the profile */
   renderPrayerModal();          /* no-ops unless the modal is actually open */
   if(currentView==="calendar"){_calWin=null;renderCalendarTab();}
@@ -4870,6 +4935,71 @@ function renderPraySummary(){
   box.appendChild(el("div","muted","✓ prayed · ✗ missed · · not logged / not yet due"));
 }
 
+/* ---------- RENDER: JOURNAL ---------- */
+/* The entry lives in the day record's existing `notes` field. That field
+   has been in blankDay() since the beginning and was deliberately kept when
+   the Today tab's "Notes for the day" card was removed in 1.17.2, so this
+   tab inherits every word already written, syncs with everything else, and
+   needs no migration. */
+var JRN_PAST_ROWS=10;
+var _jrnPastAll=false;
+function journalText(k){return String((state.days[k]&&state.days[k].notes)||"");}
+function journalWords(txt){var t=String(txt||"").trim();return t?t.split(/\s+/).length:0;}
+/** Every day with something written on it, most recent first. Unlike the
+ * prayer history this is a set of records, not a date range - a day you
+ * wrote nothing on is not a gap in the story, it is simply not an entry. */
+function journalDays(){
+  return Object.keys(state.days)
+    .filter(function(k){return journalText(k).trim()!=="";})
+    .sort().reverse();
+}
+function renderJournal(){
+  var k=keyOf(cur);
+  var lbl=document.getElementById("jrnDateLabel");
+  if(lbl)lbl.textContent=(k===todayKey()?"Today · ":"")+humanShort(cur);
+  var ta=document.getElementById("jrnText");
+  var d=dayData(k);
+  /* Don't overwrite what is being typed. This also runs after a sync pull
+     replaces the whole store, and the keystroke handler has already put
+     every character into `state`, so the focused box is never stale. */
+  if(ta&&document.activeElement!==ta)ta.value=d.notes||"";
+  setCount("jrnCount",journalWords(d.notes)+" words");
+  renderJournalPast();
+}
+function renderJournalPast(){
+  var box=document.getElementById("jrnPastBox");
+  if(!box)return;
+  box.innerHTML="";
+  var k=keyOf(cur);
+  var days=journalDays().filter(function(x){return x!==k;});
+  setCount("jrnPastCount",String(days.length));
+  if(!days.length){
+    box.appendChild(el("div","muted","Nothing written on any other day yet."));
+    return;
+  }
+  var shown=_jrnPastAll?days:days.slice(0,JRN_PAST_ROWS);
+  shown.forEach(function(day){
+    var row=el("button","jrn-past");
+    row.type="button";
+    row.appendChild(el("b",null,humanShort(new Date(day+"T00:00:00"))));
+    var txt=journalText(day).replace(/\s+/g," ").trim();
+    row.appendChild(el("span",null,txt.length>140?txt.slice(0,140)+"…":txt));
+    row.addEventListener("click",function(){
+      var p=day.split("-");
+      cur=new Date(+p[0],+p[1]-1,+p[2]);cur.setHours(0,0,0,0);
+      renderJournal();window.scrollTo(0,0);
+    });
+    box.appendChild(row);
+  });
+  if(days.length>JRN_PAST_ROWS){
+    var more=el("button","linklike",_jrnPastAll?"Show fewer":("Show all "+days.length+" entries"));
+    more.type="button";
+    more.style.margin="8px 0 0";
+    more.addEventListener("click",function(){_jrnPastAll=!_jrnPastAll;renderJournalPast();});
+    box.appendChild(more);
+  }
+}
+
 /* ---------- RENDER: PROGRESS ---------- */
 function renderProgress(){
   var keys=Object.keys(state.days).sort();
@@ -4894,6 +5024,8 @@ function renderProgress(){
   drawChart(weights,start,target);
 
   drawCompletionChart(keys);
+  drawPrayerChart();
+  drawSleepChart(keys);
 }
 
 /* One number for how much of a day got ticked off - the single definition
@@ -4995,6 +5127,161 @@ function drawCompletionChart(keys){
     var full=series.filter(function(v){return v>=100;}).length;
     note.textContent=series.length+" day(s) logged · average "+mean+"% · best "+best+"%"+
       (full?" · "+full+" full day(s)":"")+(series.length>=7?" · dashed line is the 7-day average":"");
+  }
+}
+
+/** Prayers prayed per day, out of five.
+ *
+ * Deliberately plotted over prayerHistoryDays() - the continuous run of
+ * dates from the first one on record - and not over Object.keys(state.days).
+ * A date with no record is a day none were logged, which is a real zero and
+ * belongs on the chart; leaving it out would draw a flatteringly complete
+ * line and disagree with the prayer summary and the qada debt, which are
+ * derived from exactly this range. Today is excluded for the same reason it
+ * is excluded there: it isn't finished. */
+function drawPrayerChart(){
+  var c=document.getElementById("prayerChart");
+  if(!c)return;
+  var ctx=c.getContext("2d");
+  var W=c.width,H=c.height;ctx.clearRect(0,0,W,H);
+  var note=document.getElementById("prayerChartNote");
+  var css=getComputedStyle(document.body);
+  var muted=css.getPropertyValue("--muted"),brand=css.getPropertyValue("--brand"),
+      line=css.getPropertyValue("--line"),good=css.getPropertyValue("--good"),accent=css.getPropertyValue("--accent");
+
+  var days=prayerHistoryDays();
+  var series=days.map(function(k){
+    var d=state.days[k],n=0;
+    PRAYERS.forEach(function(p){if(d&&d.prayers&&d.prayers[p[0]])n++;});
+    return n;
+  });
+  if(series.length<2){
+    if(note)note.textContent="Once you have a couple of completed days, your prayer trend will build up here.";
+    ctx.fillStyle=muted;ctx.font="16px sans-serif";ctx.textAlign="center";
+    ctx.fillText("Your prayer trend will appear here.",W/2,H/2);
+    return;
+  }
+
+  var pad=44;
+  function X(i){return pad+(W-pad*2)*(series.length===1?0:i/(series.length-1));}
+  function Y(v){return pad+(H-pad*2)*(1-v/PRAYERS.length);}
+
+  ctx.strokeStyle=line;ctx.fillStyle=muted;ctx.font="12px sans-serif";ctx.textAlign="right";
+  for(var g=0;g<=PRAYERS.length;g++){
+    var y=Y(g);
+    ctx.beginPath();ctx.moveTo(pad,y);ctx.lineTo(W-pad,y);ctx.stroke();
+    ctx.fillText(String(g),pad-6,y+4);
+  }
+
+  /* All five is the line worth hitting, same treatment as 100% on the
+     completion chart and the goal weight on the weight chart. */
+  ctx.strokeStyle=good;ctx.setLineDash([6,5]);
+  ctx.beginPath();ctx.moveTo(pad,Y(PRAYERS.length));ctx.lineTo(W-pad,Y(PRAYERS.length));ctx.stroke();ctx.setLineDash([]);
+
+  ctx.strokeStyle=brand;ctx.lineWidth=3;ctx.beginPath();
+  series.forEach(function(v,i){var x=X(i),y=Y(v);if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);});
+  ctx.stroke();
+  ctx.fillStyle=brand;
+  series.forEach(function(v,i){ctx.beginPath();ctx.arc(X(i),Y(v),series.length>60?2:4,0,7);ctx.fill();});
+
+  if(series.length>=7){
+    var avg=series.map(function(_,i){
+      var from=Math.max(0,i-6),win=series.slice(from,i+1);
+      return win.reduce(function(a,b){return a+b;},0)/win.length;
+    });
+    ctx.strokeStyle=accent;ctx.lineWidth=2;ctx.setLineDash([5,4]);ctx.beginPath();
+    avg.forEach(function(v,i){var x=X(i),y=Y(v);if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);});
+    ctx.stroke();ctx.setLineDash([]);
+  }
+
+  ctx.fillStyle=muted;ctx.font="12px sans-serif";ctx.textAlign="left";
+  ctx.fillText(days[0],pad,H-pad+18);
+  ctx.textAlign="right";
+  ctx.fillText(days[days.length-1],W-pad,H-pad+18);
+
+  if(note){
+    var total=series.reduce(function(a,b){return a+b;},0);
+    var mean=(total/series.length).toFixed(1);
+    var full=series.filter(function(v){return v>=PRAYERS.length;}).length;
+    note.textContent=series.length+" completed day(s) since "+days[0]+
+      " · average "+mean+" of "+PRAYERS.length+
+      " · "+full+" full day(s) · "+(series.length*PRAYERS.length-total)+" missed in total"+
+      (series.length>=7?" · dashed line is the 7-day average":"");
+  }
+}
+
+/** Hours slept per night. Only nights with a number logged are points - an
+ * unlogged night is missing data, not zero hours of sleep, and drawing it
+ * as a trough would be a lie. That is the opposite of the prayer chart
+ * above, where a blank day genuinely means none were prayed. */
+var SLEEP_TARGET_H=7;
+function drawSleepChart(keys){
+  var c=document.getElementById("sleepChart");
+  if(!c)return;
+  var ctx=c.getContext("2d");
+  var W=c.width,H=c.height;ctx.clearRect(0,0,W,H);
+  var note=document.getElementById("sleepChartNote");
+  var css=getComputedStyle(document.body);
+  var muted=css.getPropertyValue("--muted"),brand=css.getPropertyValue("--brand"),
+      line=css.getPropertyValue("--line"),good=css.getPropertyValue("--good"),accent=css.getPropertyValue("--accent");
+
+  var pts=[];
+  keys.forEach(function(k){
+    var h=parseFloat(state.days[k].sleep);
+    if(!isNaN(h)&&h>0&&h<=24)pts.push([k,h]);
+  });
+  if(pts.length<2){
+    if(note)note.textContent="Log your sleep on at least two nights to see your sleep pattern.";
+    ctx.fillStyle=muted;ctx.font="16px sans-serif";ctx.textAlign="center";
+    ctx.fillText("Your sleep pattern will appear here.",W/2,H/2);
+    return;
+  }
+
+  var hrs=pts.map(function(p){return p[1];});
+  var top=Math.max(SLEEP_TARGET_H+2,Math.ceil(Math.max.apply(null,hrs))+1);
+  var pad=44;
+  function X(i){return pad+(W-pad*2)*(i/(pts.length-1));}
+  function Y(v){return pad+(H-pad*2)*(1-v/top);}
+
+  ctx.strokeStyle=line;ctx.fillStyle=muted;ctx.font="12px sans-serif";ctx.textAlign="right";
+  for(var g=0;g<=4;g++){
+    var v=top*g/4,y=Y(v);
+    ctx.beginPath();ctx.moveTo(pad,y);ctx.lineTo(W-pad,y);ctx.stroke();
+    ctx.fillText(v.toFixed(0)+"h",pad-6,y+4);
+  }
+
+  ctx.strokeStyle=good;ctx.setLineDash([6,5]);
+  ctx.beginPath();ctx.moveTo(pad,Y(SLEEP_TARGET_H));ctx.lineTo(W-pad,Y(SLEEP_TARGET_H));ctx.stroke();ctx.setLineDash([]);
+  ctx.fillStyle=good;ctx.textAlign="left";ctx.fillText(SLEEP_TARGET_H+"h",pad+4,Y(SLEEP_TARGET_H)-6);
+
+  ctx.strokeStyle=brand;ctx.lineWidth=3;ctx.beginPath();
+  hrs.forEach(function(v,i){var x=X(i),y=Y(v);if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);});
+  ctx.stroke();
+  ctx.fillStyle=brand;
+  hrs.forEach(function(v,i){ctx.beginPath();ctx.arc(X(i),Y(v),hrs.length>60?2:4,0,7);ctx.fill();});
+
+  if(hrs.length>=7){
+    var avg=hrs.map(function(_,i){
+      var from=Math.max(0,i-6),win=hrs.slice(from,i+1);
+      return win.reduce(function(a,b){return a+b;},0)/win.length;
+    });
+    ctx.strokeStyle=accent;ctx.lineWidth=2;ctx.setLineDash([5,4]);ctx.beginPath();
+    avg.forEach(function(v,i){var x=X(i),y=Y(v);if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);});
+    ctx.stroke();ctx.setLineDash([]);
+  }
+
+  ctx.fillStyle=muted;ctx.font="12px sans-serif";ctx.textAlign="left";
+  ctx.fillText(pts[0][0],pad,H-pad+18);
+  ctx.textAlign="right";
+  ctx.fillText(pts[pts.length-1][0],W-pad,H-pad+18);
+
+  if(note){
+    var mean=hrs.reduce(function(a,b){return a+b;},0)/hrs.length;
+    var lo=Math.min.apply(null,hrs),hi=Math.max.apply(null,hrs);
+    var met=hrs.filter(function(v){return v>=SLEEP_TARGET_H;}).length;
+    note.textContent=hrs.length+" night(s) logged · average "+mean.toFixed(1)+"h"+
+      " · shortest "+lo+"h · longest "+hi+"h · "+met+" night(s) at "+SLEEP_TARGET_H+"h or more"+
+      (hrs.length>=7?" · dashed line is the 7-day average":"");
   }
 }
 
@@ -5279,7 +5566,7 @@ function saveBriefPrompt(value){
 /* ---------- NAV ---------- */
 /* Order matters: it's both the bottom bar's left-to-right order and the
    order swiping moves through. */
-var VIEWS=["today","prayers","calendar","others","progress","settings"];
+var VIEWS=["today","prayers","calendar","others","progress","journal","settings"];
 /* Meals, recipes and movement are reference material rather than daily
    tracking, so they share one tab with their own sub-tabs. */
 var SUBVIEWS=["plan","recipes","exercises","duas"];
@@ -5302,6 +5589,7 @@ function nav(view){
   if(view==="calendar")renderCalendarTab();
   if(view==="prayers")renderPrayersTab();
   if(view==="settings")renderSettings();
+  if(view==="journal")renderJournal();
   window.scrollTo(0,0);
 }
 
@@ -5443,6 +5731,21 @@ document.getElementById("overlay").addEventListener("scroll",closeColorMenu);
 document.getElementById("prayPrevDay").addEventListener("click",function(){cur.setDate(cur.getDate()-1);renderPrayersTab();});
 document.getElementById("prayNextDay").addEventListener("click",function(){cur.setDate(cur.getDate()+1);renderPrayersTab();});
 document.getElementById("prayJumpToday").addEventListener("click",function(){cur=new Date();cur.setHours(0,0,0,0);renderPrayersTab();});
+
+document.getElementById("jrnPrevDay").addEventListener("click",function(){cur.setDate(cur.getDate()-1);renderJournal();});
+document.getElementById("jrnNextDay").addEventListener("click",function(){cur.setDate(cur.getDate()+1);renderJournal();});
+document.getElementById("jrnJumpToday").addEventListener("click",function(){cur=new Date();cur.setHours(0,0,0,0);renderJournal();});
+/* Saved on every keystroke, like every other field in the app - there is no
+   Save button anywhere here and adding one for this alone would be the odd
+   thing out. The past-entries list is refreshed too, so the first words
+   written on a day make it appear there without a tab change. */
+document.getElementById("jrnText").addEventListener("input",function(){
+  var d=dayData(keyOf(cur));
+  d.notes=this.value;d.updated_at=Date.now();
+  save();
+  setCount("jrnCount",journalWords(d.notes)+" words");
+  renderJournalPast();
+});
 
 document.getElementById("medAddBtn").addEventListener("click",addMedicine);
 document.getElementById("extraAddBtn").addEventListener("click",addExtra);
