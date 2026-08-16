@@ -12,6 +12,7 @@ function createFakeD1() {
   const dailyBrief = new Map(); // `${email}|${day}` -> row
   const duas = new Map(); // `${email}|${id}` -> row
   const days = new Map(); // `${email}|${day}` -> row
+  const profiles = new Map(); // user_email -> data JSON string
 
   // Real D1 statements support .first()/.all()/.run() directly on the
   // prepared statement (no bind() needed when there are nothing to bind),
@@ -30,6 +31,10 @@ function createFakeD1() {
           const [email, day] = args;
           return dailyBrief.get(`${email}|${day}`) || null;
         }
+        if (/FROM profile/.test(sql)) {
+          const row = profiles.get(args[0]);
+          return row ? { data: row } : null;
+        }
         if (/FROM dua_images/.test(sql)) {
           const [email, id] = args;
           return duas.get(`${email}|${id}`) || null;
@@ -41,20 +46,40 @@ function createFakeD1() {
           return { results: Array.from(googleTokens.keys()).map((user_email) => ({ user_email })) };
         }
         if (/FROM days/.test(sql)) {
-          /* Mirrors the real query's shape: rows at or before `day`, newest
-             first, and only ones whose `notes` is non-empty - which the
-             real statement expresses as a json_extract/TRIM filter. */
           const [email, day, limit] = args;
+          const upTo = Array.from(days.values())
+            .filter((r) => r.user_email === email && !r.deleted && r.day <= day);
+          const parse = (r) => { try { return JSON.parse(r.data || "{}"); } catch (e) { return null; } };
+
+          /* Two different statements read this table. The journal's asks for
+             the days with something written, newest first; the trends one
+             asks for a few fields off every day, oldest first. They are told
+             apart the same way the real SQL differs. */
+          if (/\$\.notes/.test(sql)) {
+            return {
+              results: upTo
+                .filter((r) => String(parse(r)?.notes || "").trim() !== "")
+                .sort((a, b) => (a.day < b.day ? 1 : -1))
+                .slice(0, limit)
+                .map(({ day: d, data }) => ({ day: d, data })),
+            };
+          }
           return {
-            results: Array.from(days.values())
-              .filter((r) => r.user_email === email && !r.deleted && r.day <= day)
-              .filter((r) => {
-                try { return String(JSON.parse(r.data || "{}").notes || "").trim() !== ""; }
-                catch (e) { return false; }
-              })
-              .sort((a, b) => (a.day < b.day ? 1 : -1))
+            results: upTo
+              .sort((a, b) => (a.day > b.day ? 1 : -1))
               .slice(0, limit)
-              .map(({ day: d, data }) => ({ day: d, data })),
+              .map((r) => {
+                const d = parse(r) || {};
+                /* json_extract returns the value, or NULL when the path is
+                   absent - and a JSON boolean comes back as 1/0. */
+                return {
+                  day: r.day,
+                  weight: d.weight ?? null,
+                  sleep: d.sleep ?? null,
+                  exercise: d.exercise ? 1 : 0,
+                  prayers: d.prayers ? JSON.stringify(d.prayers) : null,
+                };
+              }),
           };
         }
         if (/FROM dua_images/.test(sql)) {
@@ -121,6 +146,9 @@ function createFakeD1() {
         updated_at: (opts && opts.updated_at) ?? Date.now(),
         deleted: (opts && opts.deleted) ? 1 : 0,
       });
+    },
+    seedProfile(email, data) {
+      profiles.set(email, typeof data === "string" ? data : JSON.stringify(data));
     },
     seedBrief(email, day, row) {
       dailyBrief.set(`${email}|${day}`, {

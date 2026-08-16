@@ -603,10 +603,184 @@ async function fetchJournal(env, email, day, limit) {
   return out;
 }
 
+/* A sanity backstop, not a window: five and a half years of daily records.
+   The whole history is summarised, but it is summarised *here* - the prompt
+   carries a fixed handful of figures however long the record gets, so the
+   brief costs the same on day 2000 as on day 20. */
+const HISTORY_MAX_ROWS = 2000;
+const PRAYER_KEYS = [["fajr", "Fajr"], ["dhuhr", "Dhuhr"], ["asr", "Asr"], ["maghrib", "Maghrib"], ["isha", "Isha"]];
+const SLEEP_TARGET_H = 7;
+/* "Recently" for the trend-against-trend comparisons. Long enough to be a
+   pattern rather than one bad night, short enough to still be news. */
+const TREND_WINDOW = 7;
+
+/** The day before `day`, as YYYY-MM-DD. UTC arithmetic, like nextDay, so no
+ * DST shift can move it. */
+function prevDay(day) {
+  const d = new Date(day + "T00:00:00Z");
+  d.setUTCDate(d.getUTCDate() - 1);
+  return d.toISOString().slice(0, 10);
+}
+
+/** Every date from `from` to `to` inclusive. */
+function dateRange(from, to) {
+  const out = [];
+  let d = from;
+  while (d <= to && out.length < HISTORY_MAX_ROWS + 366) { out.push(d); d = nextDay(d); }
+  return out;
+}
+
+const num = (v) => {
+  const n = parseFloat(v);
+  return Number.isFinite(n) ? n : null;
+};
+const avg = (xs) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null);
+const kg = (n) => (n >= 0 ? "+" : "−") + Math.abs(n).toFixed(1) + "kg";
+
+/** Turn the whole record into the handful of lines the brief actually needs.
+ *
+ * Everything here is computed, never asked of the model: an LLM given 400
+ * raw days and told to work out an average will produce a plausible number
+ * rather than the right one, and the figures have to match what the Progress
+ * tab shows or the brief is contradicting the app. */
+function summariseHistory(rows, profile, day) {
+  const yesterday = prevDay(day);
+  const byDay = new Map(rows.map((r) => [r.day, r]));
+  const first = rows.length ? rows[0].day : null;
+  if (!first || first > yesterday) return null;
+
+  const lines = [];
+  const past = dateRange(first, yesterday);
+  lines.push(`Tracking since ${first} - ${past.length} day(s) of history, up to and including ${yesterday}.`);
+
+  /* --- prayers ---
+     Counted over the date *range*, not over the rows that happen to exist:
+     a date with no record is five missed, not a day that never happened.
+     This is the same rule prayerHistoryDays() uses on the client, and the
+     two must agree or the brief contradicts the app's own summary. */
+  const missedBy = {};
+  let prayed = 0;
+  PRAYER_KEYS.forEach(([k]) => { missedBy[k] = 0; });
+  const recent = past.slice(-TREND_WINDOW);
+  const isRecent = new Set(recent);
+  let recentPrayed = 0;
+  past.forEach((d) => {
+    const p = byDay.get(d)?.prayers || {};
+    PRAYER_KEYS.forEach(([k]) => {
+      if (p[k]) { prayed++; if (isRecent.has(d)) recentPrayed++; } else missedBy[k]++;
+    });
+  });
+  const total = past.length * PRAYER_KEYS.length;
+  const worst = PRAYER_KEYS.slice().sort((a, b) => missedBy[b[0]] - missedBy[a[0]])[0];
+  const pct = (n, of) => (of ? Math.round((n / of) * 100) : 0);
+  lines.push(
+    `Prayers: ${prayed} of ${total} prayed (${pct(prayed, total)}%). ` +
+    `Last ${recent.length} day(s): ${recentPrayed} of ${recent.length * PRAYER_KEYS.length} ` +
+    `(${pct(recentPrayed, recent.length * PRAYER_KEYS.length)}%). ` +
+    (missedBy[worst[0]] ? `Most often missed: ${worst[1]} (${missedBy[worst[0]]} times).` : "None missed.")
+  );
+  const qada = profile.qada || {};
+  const owed = PRAYER_KEYS
+    .map(([k, label]) => [label, Math.max(0, missedBy[k] - (parseInt(qada[k], 10) || 0))])
+    .filter(([, n]) => n > 0);
+  if (owed.length) {
+    lines.push(`Qada still owed after what has been made up: ${owed.map(([l, n]) => `${l} ${n}`).join(", ")}.`);
+  }
+
+  /* --- sleep --- only the nights with a number. An unlogged night is
+     missing data, not zero hours - the same call the Progress chart makes. */
+  const nights = past.map((d) => [d, num(byDay.get(d)?.sleep)]).filter(([, h]) => h !== null && h > 0 && h <= 24);
+  if (nights.length >= 2) {
+    const all = nights.map(([, h]) => h);
+    const last = all.slice(-TREND_WINDOW);
+    const short = last.filter((h) => h < SLEEP_TARGET_H).length;
+    lines.push(
+      `Sleep: ${avg(all).toFixed(1)}h average across ${all.length} logged night(s); ` +
+      `${avg(last).toFixed(1)}h across the last ${last.length}. ` +
+      `${short} of those ${last.length} were under ${SLEEP_TARGET_H}h. ` +
+      `Nothing logged on ${past.length - all.length} of the ${past.length} day(s).`
+    );
+  } else if (nights.length) {
+    lines.push(`Sleep: only one night logged (${nights[0][1]}h) - not enough for a pattern.`);
+  } else {
+    lines.push("Sleep: nothing logged at all.");
+  }
+
+  /* --- weight --- */
+  const weights = past.map((d) => [d, num(byDay.get(d)?.weight)]).filter(([, w]) => w !== null && w > 0);
+  const start = num(profile.startWeight);
+  const target = num(profile.targetWeight);
+  if (weights.length) {
+    const [lastDay, latest] = weights[weights.length - 1];
+    const bits = [`Weight: ${latest.toFixed(1)}kg on ${lastDay} (${weights.length} logged)`];
+    if (start !== null) bits.push(`${kg(latest - start)} against a start of ${start.toFixed(1)}kg`);
+    if (target !== null) {
+      bits.push(latest > target ? `${(latest - target).toFixed(1)}kg still to go to ${target.toFixed(1)}kg`
+                                : `already at or under the ${target.toFixed(1)}kg goal`);
+    }
+    /* Movement over the last month, which is what says whether it is going
+       anywhere - the overall figure can look fine while nothing has shifted
+       for weeks. */
+    const monthStart = past.slice(-30)[0];
+    const monthAgo = weights.filter(([d]) => d >= monthStart);
+    if (monthAgo.length >= 2) bits.push(`${kg(latest - monthAgo[0][1])} across ${monthAgo.length} weigh-ins in the last ${Math.min(30, past.length)} days`);
+    lines.push(bits.join("; ") + ".");
+  } else if (start !== null && target !== null) {
+    lines.push(`Weight: nothing logged. Start ${start.toFixed(1)}kg, goal ${target.toFixed(1)}kg.`);
+  }
+
+  /* --- movement --- */
+  const moved = past.filter((d) => byDay.get(d)?.exercise).length;
+  const movedRecent = recent.filter((d) => byDay.get(d)?.exercise).length;
+  lines.push(`Exercise: done on ${moved} of ${past.length} day(s); ${movedRecent} of the last ${recent.length}.`);
+
+  return lines.join("\n");
+}
+
+/** The whole record, reduced to figures. Never throws, for the same reason
+ * fetchTasks and fetchJournal don't: it enriches the brief rather than being
+ * it, and a brief with no trends still beats no brief. */
+async function fetchTrends(env, email, day) {
+  const out = { text: null, error: null };
+  try {
+    /* The fields are pulled out in SQL rather than shipping every day's full
+       JSON blob back: a year of records is a few KB this way and hundreds of
+       KB the other. */
+    const [res, prof] = await Promise.all([
+      env.DB.prepare(
+        `SELECT day,
+                json_extract(data,'$.weight')   AS weight,
+                json_extract(data,'$.sleep')    AS sleep,
+                json_extract(data,'$.exercise') AS exercise,
+                json_extract(data,'$.prayers')  AS prayers
+           FROM days
+          WHERE user_email = ?1 AND deleted = 0 AND day <= ?2
+          ORDER BY day
+          LIMIT ?3`
+      ).bind(email, day, HISTORY_MAX_ROWS).all(),
+      env.DB.prepare(`SELECT data FROM profile WHERE user_email = ?1`).bind(email).first(),
+    ]);
+    const rows = (res.results || []).map((r) => {
+      let prayers = {};
+      try { prayers = r.prayers ? JSON.parse(r.prayers) : {}; } catch (e) { prayers = {}; }
+      return { day: r.day, weight: r.weight, sleep: r.sleep, exercise: Boolean(r.exercise), prayers };
+    });
+    let profile = {};
+    try { profile = prof && prof.data ? JSON.parse(prof.data) : {}; } catch (e) { profile = {}; }
+    out.text = summariseHistory(rows, profile, day);
+  } catch (e) {
+    out.error = String(e.message || e);
+  }
+  return out;
+}
+
 const DEFAULT_BRIEF_PROMPT =
-  "Return a schedule list and nothing else. No sentences, no summary, no greeting, no advice, " +
-  "no commentary before or after.\n\n" +
-  "Use exactly this shape:\n" +
+  "Open with a short paragraph - two or three sentences, prose, no heading and no bullets - " +
+  "saying what to focus on today. Draw it from the HISTORY and JOURNAL sections below, and " +
+  "judge against the whole record rather than yesterday alone. Name at most two things that " +
+  "are slipping, quote the figure that shows it, and say one thing that is going well. No " +
+  "greeting, no pep talk, no advice the numbers do not support.\n\n" +
+  "Then the schedule, and nothing else. Use exactly this shape:\n" +
   "Today\n" +
   "- 09:30 Standup [Work]\n" +
   "- 14:00 Donation collection [Family]\n" +
@@ -614,12 +788,12 @@ const DEFAULT_BRIEF_PROMPT =
   "\n" +
   "Tomorrow\n" +
   "- 11:00 Dentist\n" +
-  "- All day Internet bill [My Tasks]\n" +
-  "\n" +
-  "Notes\n" +
-  "- Chase the garage about the service you booked\n" +
-  "- Third short night in a row\n\n" +
+  "- All day Internet bill [My Tasks]\n\n" +
   "Rules:\n" +
+  "- The opening paragraph is prose. Never bullet it and never give it a heading.\n" +
+  "- Use only the figures in HISTORY. Never recompute, estimate or round one, and never " +
+  "comment on something it does not measure.\n" +
+  "- If HISTORY is absent, skip the paragraph entirely and start at \"Today\".\n" +
   "- One bullet per calendar event and per task. Never merge two into one line.\n" +
   "- Start each bullet with its time exactly as given, or \"All day\" if it has none.\n" +
   "- Then the name, then its calendar or task list in square brackets if one is given.\n" +
@@ -629,10 +803,9 @@ const DEFAULT_BRIEF_PROMPT =
   "bullet is \"- Nothing scheduled\".\n" +
   "- Events that already finished today were removed on purpose; do not mention them.\n" +
   "- Cover every calendar and task list shown below, however short. Invent nothing.\n" +
-  "- Finally, a \"Notes\" section of at most three bullets drawn only from the journal " +
-  "entries below: things left unfinished, things the writer said they would do, and " +
-  "patterns running across several days. Say nothing the entries do not say, and do not " +
-  "quote them back. If there are no journal entries, leave the Notes heading out entirely.";
+  "- The journal is context for the opening paragraph only - things left unfinished, things " +
+  "the writer said they would do, patterns running across several days. Never quote it back " +
+  "and never turn it into bullets of its own.";
 
 /* The brief's instructions are user-editable (Settings tab). The data
    sections are always appended by summarizeWithGemini, so a custom prompt
@@ -760,8 +933,12 @@ async function handleDeleteDua(env, email, id) {
   return json({ ok: true });
 }
 
-async function summarizeWithGemini(env, day, events, tasks, now, instructions, tomorrow, journal) {
+/* Enough moving parts now that positional arguments stopped being readable -
+   `ctx` carries the day, the two days' events, the tasks, the journal and the
+   computed history. */
+async function summarizeWithGemini(env, ctx) {
   if (!env.GEMINI_API_KEY) throw new Error("Gemini API key not configured");
+  const { day, events, tasks, now, instructions, tomorrow, journal, trends } = ctx;
 
   const nowLabel = (now || new Date()).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: BRIEF_TIMEZONE });
 
@@ -795,10 +972,18 @@ async function summarizeWithGemini(env, day, events, tasks, now, instructions, t
     return `\n\nJOURNAL (the writer's own words - context only, never repeat it back)\n${parts.join("\n\n")}`;
   })();
 
+  /* The computed record goes in ahead of the day's schedule: it is what the
+     opening paragraph is judged against, and burying it under the events
+     invites the model to write about today instead of about the trend. */
+  const historyBlock = trends && trends.text
+    ? `\nHISTORY (already computed from the full record - use these figures as given, never recompute one)\n${trends.text}\n`
+    : "";
+
   const tm = tomorrow || {};
   const prompt =
     `${(instructions || DEFAULT_BRIEF_PROMPT)}\n\n` +
-    `It is currently ${nowLabel} on ${day}.\n\n` +
+    `It is currently ${nowLabel} on ${day}.\n` +
+    `${historyBlock}\n` +
     `TODAY (${day})\n` +
     `Remaining events:\n${eventBlock(events, "(No calendar events remaining today.)")}\n\n` +
     `${taskBlock("Tasks due today", t.dueToday)}\n\n` +
@@ -875,14 +1060,19 @@ async function generateBrief(env, email, now) {
   }
 
   const tasks = await fetchTasks(tokenResult.accessToken, day, tomorrowDay);
-  const journal = await fetchJournal(env, email, day);
+  const [journal, trends] = await Promise.all([
+    fetchJournal(env, email, day),
+    fetchTrends(env, email, day),
+  ]);
 
   let summary;
   try {
-    summary = await summarizeWithGemini(
-      env, day, events, tasks, effectiveNow, await getBriefPrompt(env, email),
-      { day: tomorrowDay, events: tomorrowEvents }, journal
-    );
+    summary = await summarizeWithGemini(env, {
+      day, events, tasks, now: effectiveNow,
+      instructions: await getBriefPrompt(env, email),
+      tomorrow: { day: tomorrowDay, events: tomorrowEvents },
+      journal, trends,
+    });
   } catch (e) {
     const detail = String(e.message || e);
     await saveBriefStatus(env, email, day, "gemini_error", null, detail);
@@ -893,7 +1083,7 @@ async function generateBrief(env, email, now) {
   /* A Tasks failure doesn't stop the brief, but it is recorded alongside the
      successful summary so "why are none of my tasks in here?" is answerable
      instead of looking identical to "you have no tasks". */
-  const softError = [tasks.error, journal.error].filter(Boolean).join(" · ") || null;
+  const softError = [tasks.error, journal.error, trends.error].filter(Boolean).join(" · ") || null;
   await saveBriefStatus(env, email, day, "ok", summary, softError);
   return { status: "ok", day, summary, generated_at: generatedAt, error: softError };
 }
@@ -1712,6 +1902,8 @@ export {
   fetchTasks,
   fetchTasksInRange,
   fetchJournal,
+  fetchTrends,
+  summariseHistory,
   generateBrief,
   handleGetBrief,
   handleRefreshBrief,
