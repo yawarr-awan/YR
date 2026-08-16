@@ -527,7 +527,14 @@ label.prow{cursor:pointer}
 .task-row{display:flex;align-items:center;gap:8px;padding:7px 4px;border-radius:10px}
 .task-row:hover{background:var(--panel-2)}
 .task-row input[type=checkbox]{width:18px;height:18px;accent-color:var(--brand);flex:0 0 auto}
-.task-row .task-title{flex:1;font-weight:600;min-width:0;overflow-wrap:anywhere}
+/* The title and its due date are one column, stacked. They used to be flex
+   siblings, and .task-due is white-space:nowrap - a flex item will not shrink
+   below its min-content width, so the date kept its full size while the title
+   (min-width:0, wrap anywhere) absorbed the entire shortfall and collapsed to
+   a single character per line. Stacking removes the competition instead of
+   trying to referee it. */
+.task-row .task-main{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:1px}
+.task-row .task-title{font-weight:600;min-width:0;overflow-wrap:anywhere}
 .task-row.done .task-title{text-decoration:line-through;color:var(--muted)}
 .task-due{font-size:.72rem;color:var(--muted);white-space:nowrap}
 .icon-btn{
@@ -537,6 +544,10 @@ label.prow{cursor:pointer}
 }
 .icon-btn.danger{color:var(--bad);border-color:var(--bad);background:transparent}
 .icon-btn.active{border-color:var(--brand);color:var(--brand)}
+/* "This is on your calendar", said by the button that put it there. It was a
+   chip of text next to the title, which cost the title the width it needed.
+   The ring is doubled so it reads as a state at a glance on a phone. */
+.icon-btn.is-on{border-color:var(--good);box-shadow:0 0 0 1px var(--good) inset}
 /* The move pair is stacked so it costs one button's width on a phone, where
    the row already carries a checkbox, the title, a date and two buttons. */
 /* touch-action:none is what makes a drag on the phone a drag rather than a
@@ -2405,17 +2416,25 @@ function renderTaskList(listEl,tasks,statusId,hiddenCount){
     var cb=el("input");cb.type="checkbox";cb.checked=!!t.done;
     cb.addEventListener("change",function(){t.done=cb.checked;t.updated_at=Date.now();state.profile.updated_at=Date.now();save();renderTasks();});
     row.appendChild(cb);
-    row.appendChild(el("span","task-title",t.title));
+    /* Title and date share one column and stack, rather than competing for
+       the row's width. The date is white-space:nowrap, so as a flex sibling
+       it refused to shrink while the title (min-width:0) absorbed the whole
+       shortfall - which is how a title ended up one character wide. */
+    var main=el("div","task-main");
+    main.appendChild(el("span","task-title",t.title));
     if(t.due){
       var due=new Date(t.due);
-      row.appendChild(el("span","task-due",
+      main.appendChild(el("span","task-due",
         due.toLocaleDateString("en-GB",{day:"numeric",month:"short"})+", "+fmtHM(due.getHours(),due.getMinutes())));
     }
-    if(t.scheduled)row.appendChild(el("span","tag","On calendar"));
+    row.appendChild(main);
 
-    var schedBtn=el("button","icon-btn","📅");
+    /* Being on the calendar is said by the button that put it there - a green
+       ring around the 📅 - rather than by a chip of text taking width off
+       the title. */
+    var schedBtn=el("button","icon-btn"+(t.scheduled?" is-on":"")+(_taskSchedOpenId===t.id?" active":""),"📅");
     schedBtn.type="button";
-    schedBtn.title=t.scheduled?"Reschedule on Google Calendar":"Schedule on Google Calendar";
+    schedBtn.title=t.scheduled?"On your calendar — tap to reschedule":"Schedule on Google Calendar";
     schedBtn.setAttribute("aria-label",schedBtn.title);
     schedBtn.addEventListener("click",function(){
       _taskSchedOpenId=(_taskSchedOpenId===t.id)?null:t.id;

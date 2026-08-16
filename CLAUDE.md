@@ -1276,6 +1276,22 @@ the week containing `dayDate`). `calCols()` is a constant 7; `calIsWide()`
 - Narrow columns are `--cal-col` 92px with `--cal-col-focus` 172px, and
   `--cal-row` is back to 36px (54px was too tall on a phone).
 
+## Task rows: the title collapse (1.30.1)
+- **A flex item will not shrink below its min-content width.** `.task-due` is
+  `white-space:nowrap`, so beside a `.task-title` carrying `min-width:0` +
+  `overflow-wrap:anywhere` the title absorbed the whole shortfall and rendered
+  one character per line. Adding the "On calendar" chip is what pushed it over.
+- Fixed by **stacking** title and date in a `.task-main` column
+  (`flex:1 1 auto;min-width:0`) rather than refereeing the competition. Don't
+  put the date back as a sibling of the title.
+- **Scheduled is a state on the button, not a chip**: `.icon-btn.is-on`
+  (green ring, `--good`), distinct from `.icon-btn.active` (brand, = the
+  inline picker is open). Both can apply at once.
+- jsdom has no layout, so `test/tasks.test.js` pins the *structure* that makes
+  the geometry impossible (a `.task-main` exists; the title is never a direct
+  flex child of the row). The widths were measured in Chromium: 188px per
+  title at 390px.
+
 ## The brief judges the whole record (1.30.0)
 - **`summariseHistory()` computes every figure; the model is told never to
   recompute one.** That is the whole design. An LLM handed 400 raw days and

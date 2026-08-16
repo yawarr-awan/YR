@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.30.1
+
+**Fixed the mangled task titles.** A scheduled task's title was wrapping to one character per line. The cause: the title, the due date and the "On calendar" chip were all competing for one row's width, and the date is `white-space: nowrap` — a flex item won't shrink below its own text, so the date and the chip kept their full size while the title (which *can* wrap anywhere) absorbed the entire shortfall.
+
+- **The "On calendar" chip is gone.** A scheduled task is now shown by a **green ring around its 📅 button** — said by the button that put it there, and costing the title no width at all.
+- **The title and its date stack** in one column instead of fighting over the row. Measured in Chromium at 390px: the title went from ~1 character wide to 188px, so "Bank statements for donations" reads across two lines instead of twenty-nine.
+
 ## 1.30.0
 
 **The brief now reads your whole record, and opens by telling you what to focus on.**
