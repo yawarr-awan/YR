@@ -969,12 +969,16 @@ test("generateBrief: tomorrow is never filtered by the current time", async (t) 
   assert.match(prompt, /Early tomorrow/, "tomorrow has not happened yet, whatever the clock says");
 });
 
-test("the default prompt asks for a bulleted Today/Tomorrow list and nothing else", async () => {
+test("the default prompt asks for a prose opener, then a bulleted Today/Tomorrow list", async () => {
   const { DEFAULT_BRIEF_PROMPT } = await loadWorker();
   assert.match(DEFAULT_BRIEF_PROMPT, /Today/);
   assert.match(DEFAULT_BRIEF_PROMPT, /Tomorrow/);
-  assert.match(DEFAULT_BRIEF_PROMPT, /No sentences/i);
   assert.match(DEFAULT_BRIEF_PROMPT, /Nothing scheduled/i, "an empty section still needs a bullet");
+  // The opener is the only prose in it, and it is pinned to the figures.
+  assert.match(DEFAULT_BRIEF_PROMPT, /two or three sentences, prose/);
+  assert.match(DEFAULT_BRIEF_PROMPT, /Never bullet it/);
+  assert.match(DEFAULT_BRIEF_PROMPT, /Use only the figures in HISTORY/);
+  assert.match(DEFAULT_BRIEF_PROMPT, /Then the schedule, and nothing else/);
 });
 
 /* ---------- prayer times ---------- */
@@ -1384,7 +1388,7 @@ test("fetchJournal reports a database failure instead of pretending nothing was 
   assert.deepEqual(j.earlier, []);
 });
 
-test("generateBrief feeds the journal to Gemini and asks for a Notes section", async (t) => {
+test("generateBrief feeds the journal to Gemini as context for the opening paragraph", async (t) => {
   const { generateBrief } = await loadWorker();
   const d1 = createFakeD1();
   d1.seedToken(EMAIL, { access_token: "tok", access_token_expires_at: Date.now() + 600000 });
@@ -1403,10 +1407,11 @@ test("generateBrief feeds the journal to Gemini and asks for a Notes section", a
 
   const result = await generateBrief(d1.env, EMAIL, new Date("2026-08-09T10:00:00Z"));
   assert.equal(result.status, "ok");
-  assert.match(prompt, /JOURNAL/);
+  assert.match(prompt, /\nJOURNAL \(the writer's own words/);
   assert.match(prompt, /Meant to call the garage/);
   assert.match(prompt, /Third short night this week/, "previous entries go in too, not just today's");
-  assert.match(prompt, /"Notes" section of at most three bullets/);
+  assert.match(prompt, /journal is context for the opening paragraph only/);
+  assert.match(prompt, /Never quote it back/);
 });
 
 test("generateBrief leaves the JOURNAL heading out entirely when nothing has been written", async (t) => {
@@ -1426,7 +1431,8 @@ test("generateBrief leaves the JOURNAL heading out entirely when nothing has bee
   });
 
   await generateBrief(d1.env, EMAIL, new Date("2026-08-09T10:00:00Z"));
-  assert.doesNotMatch(prompt, /JOURNAL/);
+  // The instructions mention JOURNAL; it is the data section that must be absent.
+  assert.doesNotMatch(prompt, /\nJOURNAL \(the writer's own words/);
 });
 
 test("a journal read failure is recorded beside the summary, and never blocks the brief", async (t) => {
@@ -1452,4 +1458,168 @@ test("a journal read failure is recorded beside the summary, and never blocks th
   assert.equal(result.status, "ok", "the brief still generates - the journal is an enrichment");
   assert.match(result.error, /d1 unavailable/);
   assert.equal(d1.dailyBrief.get(`${EMAIL}|2026-08-09`).summary, "A quiet day.");
+});
+
+/* ---------- the whole record, reduced to figures ---------- */
+
+/** A day record with only the fields the history summary reads. */
+function hday(o) {
+  return { prayers: o.prayers || {}, sleep: o.sleep ?? "", weight: o.weight ?? "", exercise: !!o.exercise, notes: o.notes || "" };
+}
+const ALL5 = { fajr: true, dhuhr: true, asr: true, maghrib: true, isha: true };
+
+test("summariseHistory counts prayers over every date in range, not just the days with a record", async () => {
+  // The same rule prayerHistoryDays() uses on the client. A date nobody
+  // opened the app on is five missed, not a day that never happened - if the
+  // two disagree the brief contradicts the app's own prayer summary.
+  const { summariseHistory } = await loadWorker();
+  const rows = [
+    { day: "2026-08-01", prayers: ALL5, sleep: null, weight: null, exercise: false },
+    // 08-02 and 08-03 have no record at all: ten missed.
+    { day: "2026-08-04", prayers: { fajr: true }, sleep: null, weight: null, exercise: false },
+  ];
+  const text = summariseHistory(rows, {}, "2026-08-05"); // yesterday is 08-04
+
+  assert.match(text, /Tracking since 2026-08-01 - 4 day\(s\) of history/);
+  assert.match(text, /Prayers: 6 of 20 prayed \(30%\)/);
+  assert.match(text, /Most often missed: Dhuhr \(3 times\)/);
+});
+
+test("summariseHistory subtracts what has already been made up from the qada owed", async () => {
+  const { summariseHistory } = await loadWorker();
+  const rows = [
+    { day: "2026-08-01", prayers: {}, sleep: null, weight: null, exercise: false },
+    { day: "2026-08-02", prayers: {}, sleep: null, weight: null, exercise: false },
+  ];
+  const text = summariseHistory(rows, { qada: { fajr: 2, dhuhr: 5 } }, "2026-08-03");
+  assert.match(text, /Qada still owed[^\n]*Asr 2/);
+  assert.doesNotMatch(text, /Qada still owed[^\n]*Fajr/, "both Fajrs already made up");
+  assert.doesNotMatch(text, /Qada still owed[^\n]*Dhuhr/, "more made up than missed never goes negative");
+});
+
+test("summariseHistory averages only the nights actually logged", async () => {
+  const { summariseHistory } = await loadWorker();
+  const rows = [
+    { day: "2026-08-01", prayers: {}, sleep: "8", weight: null, exercise: false },
+    { day: "2026-08-02", prayers: {}, sleep: "", weight: null, exercise: false },   // not zero hours
+    { day: "2026-08-03", prayers: {}, sleep: "6", weight: null, exercise: false },
+    { day: "2026-08-04", prayers: {}, sleep: "5.5", weight: null, exercise: false },
+  ];
+  const text = summariseHistory(rows, {}, "2026-08-05");
+  assert.match(text, /Sleep: 6\.5h average across 3 logged night\(s\)/);
+  assert.match(text, /2 of those 3 were under 7h/);
+  assert.match(text, /Nothing logged on 1 of the 4 day\(s\)/);
+});
+
+test("summariseHistory reports weight against the start and the goal, and says which way it is moving", async () => {
+  const { summariseHistory } = await loadWorker();
+  const rows = [
+    { day: "2026-08-01", prayers: {}, sleep: null, weight: "106", exercise: false },
+    { day: "2026-08-04", prayers: {}, sleep: null, weight: "104.2", exercise: false },
+  ];
+  const text = summariseHistory(rows, { startWeight: 108, targetWeight: 88 }, "2026-08-05");
+  assert.match(text, /Weight: 104\.2kg on 2026-08-04 \(2 logged\)/);
+  assert.match(text, /−3\.8kg against a start of 108\.0kg/);
+  assert.match(text, /16\.2kg still to go to 88\.0kg/);
+  assert.match(text, /−1\.8kg across 2 weigh-ins in the last 4 days/);
+});
+
+test("summariseHistory says nothing rather than guessing when a thing has never been logged", async () => {
+  const { summariseHistory } = await loadWorker();
+  const rows = [{ day: "2026-08-01", prayers: ALL5, sleep: null, weight: null, exercise: false }];
+  const text = summariseHistory(rows, { startWeight: 108, targetWeight: 88 }, "2026-08-03");
+  assert.match(text, /Sleep: nothing logged at all\./);
+  assert.match(text, /Weight: nothing logged\./);
+  assert.doesNotMatch(text, /average/, "no invented averages from no data");
+});
+
+test("summariseHistory returns nothing at all before there is a completed day", async () => {
+  // Today is not history: it isn't finished, so there is nothing to judge.
+  const { summariseHistory } = await loadWorker();
+  assert.equal(summariseHistory([], {}, "2026-08-05"), null);
+  assert.equal(summariseHistory([{ day: "2026-08-05", prayers: ALL5 }], {}, "2026-08-05"), null);
+});
+
+test("fetchTrends reads the whole record out of D1 and hands back computed figures", async () => {
+  const { fetchTrends } = await loadWorker();
+  const d1 = createFakeD1();
+  d1.seedProfile(EMAIL, { startWeight: 108, targetWeight: 88, qada: { fajr: 1 } });
+  d1.seedDay(EMAIL, "2026-08-01", hday({ prayers: ALL5, sleep: "7", weight: "106", exercise: true }));
+  d1.seedDay(EMAIL, "2026-08-02", hday({ prayers: { fajr: true, dhuhr: true }, sleep: "5" }));
+  d1.seedDay(EMAIL, "2026-08-03", hday({ prayers: ALL5, sleep: "8", weight: "105" }));
+
+  const trends = await fetchTrends(d1.env, EMAIL, "2026-08-04");
+  assert.equal(trends.error, null);
+  assert.match(trends.text, /Prayers: 12 of 15 prayed \(80%\)/);
+  assert.match(trends.text, /Sleep: 6\.7h average across 3 logged night\(s\)/);
+  assert.match(trends.text, /Weight: 105\.0kg on 2026-08-03/);
+  assert.match(trends.text, /Exercise: done on 1 of 3 day\(s\)/);
+});
+
+test("fetchTrends reports a failure instead of blocking the brief", async () => {
+  const { fetchTrends } = await loadWorker();
+  const env = { DB: { prepare() { throw new Error("d1 unavailable"); } } };
+  const trends = await fetchTrends(env, EMAIL, "2026-08-04");
+  assert.match(trends.error, /d1 unavailable/);
+  assert.equal(trends.text, null);
+});
+
+test("generateBrief puts the computed history in front of the schedule and asks for a prose opener", async (t) => {
+  const { generateBrief } = await loadWorker();
+  const d1 = createFakeD1();
+  d1.seedToken(EMAIL, { access_token: "tok", access_token_expires_at: Date.now() + 600000 });
+  d1.seedProfile(EMAIL, { startWeight: 108, targetWeight: 88 });
+  d1.seedDay(EMAIL, "2026-08-07", hday({ prayers: ALL5, sleep: "5", weight: "106" }));
+  d1.seedDay(EMAIL, "2026-08-08", hday({ prayers: { fajr: true }, sleep: "5.5", notes: "Skipped the gym again." }));
+
+  let prompt = null;
+  installFetch(t, async (url, opts) => {
+    const u = String(url);
+    if (u.includes("calendarList")) return jsonResponse(200, { items: [{ id: "primary", summary: "Yawar", primary: true }] });
+    if (u.includes("/events")) return jsonResponse(200, { items: [] });
+    if (u.includes("tasks.googleapis.com")) return jsonResponse(200, { items: [] });
+    if (u.includes("generativelanguage")) { prompt = JSON.parse(opts.body).contents[0].parts[0].text; return geminiOk("Sleep is the one to watch.\n\nToday\n- Nothing scheduled"); }
+    throw new Error("unexpected fetch " + u);
+  });
+
+  const result = await generateBrief(d1.env, EMAIL, new Date("2026-08-09T10:00:00Z"));
+  assert.equal(result.status, "ok");
+  assert.match(prompt, /HISTORY \(already computed from the full record/);
+  assert.match(prompt, /Prayers: 6 of 10 prayed/);
+  assert.match(prompt, /Sleep: 5\.3h average/);
+  assert.match(prompt, /short paragraph - two or three sentences, prose/);
+  assert.match(prompt, /never recompute one/);
+  // The history has to come before the day's events, or the opener is written
+  // about today instead of about the trend.
+  assert.ok(prompt.indexOf("HISTORY") < prompt.indexOf("TODAY (2026-08-09)"));
+  // The journal is context for that paragraph now, not a section of its own.
+  assert.match(prompt, /Skipped the gym again/);
+  assert.doesNotMatch(prompt, /"Notes" section/);
+});
+
+test("a history read failure is recorded beside the summary and never blocks the brief", async (t) => {
+  const { generateBrief } = await loadWorker();
+  const d1 = createFakeD1();
+  d1.seedToken(EMAIL, { access_token: "tok", access_token_expires_at: Date.now() + 600000 });
+  const realPrepare = d1.env.DB.prepare;
+  d1.env.DB.prepare = (sql) => {
+    if (/FROM profile/.test(sql)) throw new Error("profile unreadable");
+    return realPrepare(sql);
+  };
+
+  let prompt = null;
+  installFetch(t, async (url, opts) => {
+    const u = String(url);
+    if (u.includes("calendarList")) return jsonResponse(200, { items: [{ id: "primary", summary: "Yawar", primary: true }] });
+    if (u.includes("/events")) return jsonResponse(200, { items: [] });
+    if (u.includes("tasks.googleapis.com")) return jsonResponse(200, { items: [] });
+    if (u.includes("generativelanguage")) { prompt = JSON.parse(opts.body).contents[0].parts[0].text; return geminiOk("Today\n- Nothing scheduled"); }
+    throw new Error("unexpected fetch " + u);
+  });
+
+  const result = await generateBrief(d1.env, EMAIL, new Date("2026-08-09T10:00:00Z"));
+  assert.equal(result.status, "ok");
+  assert.match(result.error, /profile unreadable/);
+  assert.doesNotMatch(prompt, /HISTORY \(already computed/, "no half-built history block");
+  assert.match(prompt, /If HISTORY is absent, skip the paragraph/);
 });

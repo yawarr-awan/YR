@@ -1276,6 +1276,42 @@ the week containing `dayDate`). `calCols()` is a constant 7; `calIsWide()`
 - Narrow columns are `--cal-col` 92px with `--cal-col-focus` 172px, and
   `--cal-row` is back to 36px (54px was too tall on a phone).
 
+## The brief judges the whole record (1.30.0)
+- **`summariseHistory()` computes every figure; the model is told never to
+  recompute one.** That is the whole design. An LLM handed 400 raw days and
+  asked for an average returns a plausible number, not the right one - and the
+  brief sits directly above a Progress tab showing the real ones. The prompt
+  therefore carries a fixed handful of computed lines however long the record
+  gets, so a brief costs the same on day 2000 as on day 20.
+- **Prayers are counted over `dateRange(first, yesterday)`, not over the rows
+  that exist** - the server-side twin of `prayerHistoryDays()`. Re-read the
+  1.25.2 note: if these two ever diverge the brief contradicts the app's own
+  prayer summary and qada debt. `prevDay()` is `nextDay()`'s mirror, UTC
+  arithmetic for the same reason.
+- **Sleep uses only the nights with a number**, weight only the days with one -
+  matching `drawSleepChart`'s call, for the same reason. The summary also
+  states how many days were *not* logged, which is itself the finding when
+  most of them aren't.
+- `fetchTrends()` pulls the fields out **in SQL** (`json_extract`), not the
+  whole day blob: a year of records is a few KB that way and hundreds of KB
+  the other. Like `fetchTasks`/`fetchJournal` it **never throws** and its
+  error joins `softError`.
+- **`HISTORY` goes in the prompt ahead of the day's events.** Burying it under
+  the schedule gets an opener written about today instead of about the trend.
+- **The 1.29.0 "Notes" section is gone.** The journal now feeds the opening
+  paragraph instead of getting bullets of its own. Its data block is still
+  omitted entirely when empty.
+- `summarizeWithGemini(env, ctx)` takes an object now - it had reached eight
+  positional arguments. It is internal, so nothing outside had to change.
+- **Test gotcha:** the instructions themselves now contain the words `HISTORY`
+  and `JOURNAL`, so a test asking "is this data section present?" must match
+  the section header (`\nJOURNAL (the writer's own words`), never the bare
+  word - otherwise it matches the prompt's own rules and always passes.
+- `.brief-para:first-child:not(:last-child)` is what makes the opener read as
+  a lead paragraph. The `:not(:last-child)` matters: a status message
+  ("Connect your Google Calendar…") lands in the same element and must stay
+  plain, which it does by being the only child.
+
 ## Journal tab + prayer/sleep charts (1.29.0)
 - **The journal is the day record's existing `notes` field.** It has been in
   `blankDay()` since the beginning and was kept deliberately when the Today

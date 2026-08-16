@@ -1,5 +1,24 @@
 # Changelog
 
+## 1.30.0
+
+**The brief now reads your whole record, and opens by telling you what to focus on.**
+
+Above the Today/Tomorrow bullets there's now a short paragraph — two or three sentences, no bullets — naming at most two things that are slipping, with the figure that shows it, plus one thing going well. It's judged against the **entire history**, not yesterday: prayers, sleep, weight against your goal, exercise, and your journal entries.
+
+Run over your actual record just now, the figures it gets are:
+
+> Tracking since 2026-07-06 — 42 days. Prayers: 137 of 210 (65%), but 34 of 35 over the last week; most often missed Fajr. Sleep 7.7h average across 16 logged nights — with nothing logged on 26 of the 42. Weight 104.5kg, −3.5kg overall, **+0.7kg across the last month's weigh-ins**. Exercise on 9 of 42 days, 5 of the last 7.
+
+Two things worth knowing about how it works:
+
+- **The numbers are computed here, not by the AI.** Given 400 raw days and asked for an average, a language model produces a plausible number rather than the right one. Everything above is worked out in the Worker and handed over as fact, with the model explicitly told never to recompute one — so the brief can't contradict what the Progress tab shows.
+- **Prayers are counted over dates, not records** — the same rule the prayer summary and qada debt use, so all three agree. A day you never opened the app on is five missed.
+
+Also: the separate "Notes" section added yesterday is gone. Your journal now feeds that opening paragraph instead of getting a bulleted list of its own, which is what you asked for.
+
+**To see it today**, hit Refresh on the brief card — it otherwise regenerates at 12:01am.
+
 ## 1.29.0
 
 **Two new charts on Progress, and a Journal tab.**
