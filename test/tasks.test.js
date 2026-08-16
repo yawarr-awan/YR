@@ -70,7 +70,12 @@ test("the calendar button opens an inline time picker; confirming schedules it a
   assert.equal(sentBody.title, "Dentist");
   assert.equal(new Date(sentBody.start).getTime(), new Date("2026-08-10T09:00").getTime());
   assert.match(app.document.getElementById("taskStatus").textContent, /added to your google calendar/i);
-  assert.match(app.document.getElementById("taskList").textContent, /on calendar/i);
+  // Being on the calendar is shown by ringing the button that put it there,
+  // not by a chip of text - which used to take so much of the row's width
+  // that the title wrapped to one character per line.
+  assert.doesNotMatch(app.document.getElementById("taskList").textContent, /on calendar/i);
+  assert.ok(schedButton(app, "taskList").classList.contains("is-on"),
+    "the calendar button is marked as scheduled");
   assert.equal(app.state().profile.tasks[0].scheduled, true);
   assert.ok(app.state().profile.tasks[0].due, "the chosen time is stored on the task");
 });
@@ -151,6 +156,23 @@ test("an expanded list stays expanded while you work in it", () => {
   cb.dispatchEvent(new app.window.Event("change", { bubbles: true }));
 
   assert.equal(app.document.querySelectorAll("#taskList .task-row").length, 5, "ticking a task must not re-collapse the list");
+});
+
+test("the title and its date stack in one column, so the date cannot squeeze the title", () => {
+  // A long title beside a nowrap date used to collapse to one character per
+  // line: a flex item will not shrink below its min-content width, so the
+  // date kept its full size and the title (min-width:0, wrap anywhere) took
+  // the whole shortfall. jsdom has no layout, so this pins the structure that
+  // makes the geometry impossible rather than the pixels - the widths were
+  // measured in Chromium.
+  const app = loadApp({ fetchImpl: briefIdle });
+  addTasks(app, ["Bank statements for donations"]);
+  const r = app.document.querySelector("#taskList .task-row");
+  const main = r.querySelector(".task-main");
+  assert.ok(main, "title and date share a column");
+  assert.equal(main.querySelector(".task-title").textContent, "Bank statements for donations");
+  assert.equal(r.querySelector(":scope > .task-title"), null,
+    "the title is never a direct flex child competing with the date");
 });
 
 /* --- rearranging ---------------------------------------------------------
