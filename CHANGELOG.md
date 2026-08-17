@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.31.2
+
+**Fixed the brief ignoring your journal.** You wrote *"remind me from Thursday onwards to be conscious about the calories intake"* and the brief said nothing about it.
+
+The entry had synced fine and was in the prompt — I checked both. The bug was a rule I'd written into the prompt itself: *"never comment on something HISTORY does not measure."* It was meant to stop the AI inventing statistics, and it did that — but it also silenced every subject the app has no column for. There is no calorie figure, so it stayed quiet about calories. Your journal was being read and then overruled.
+
+- **That rule now governs numbers only.** A subject you raised in your journal is worth writing about whether or not the app measures it.
+- **What you tell yourself to do now comes first**, ahead of the statistics. A commitment, a rule you set, or a "remind me to…" is treated as the closest thing to an instruction — and it outranks a drifting figure if only one will fit.
+- **Dates you attach are honoured.** Before the date it says the thing is coming; on and after it, it says it applies today. It keeps carrying it until you write that it's done or abandoned. The brief is now told the weekday as well as the date, which is what makes "from Thursday" resolvable at all.
+
+**Hit Refresh on the brief to see it applied.**
+
 ## 1.31.1
 
 **Fixed the brief failing on Refresh.** Two separate causes, both now gone:
