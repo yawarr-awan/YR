@@ -106,6 +106,10 @@ function createFakeD1() {
           duas.set(`${user_email}|${id}`, { user_email, id, name, mime, data, created_at });
         } else if (/DELETE FROM dua_images/.test(sql)) {
           duas.delete(`${args[0]}|${args[1]}`);
+        } else if (/UPDATE daily_brief SET error/.test(sql)) {
+          const [email, day, error] = args;
+          const row = dailyBrief.get(`${email}|${day}`);
+          if (row) dailyBrief.set(`${email}|${day}`, { ...row, error });
         } else if (/INSERT INTO daily_brief/.test(sql)) {
           const [email, day, summary, status, error, generated_at] = args;
           dailyBrief.set(`${email}|${day}`, { summary, status, error, generated_at });

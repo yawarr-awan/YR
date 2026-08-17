@@ -2267,10 +2267,16 @@ function renderBrief(b){
   refreshBtn.addEventListener("click",function(){refreshBrief();});
   actions.appendChild(refreshBtn);
   if(b.status==="ok"&&b.generated_at)meta.textContent="Generated "+fmtClock(b.generated_at);
-  /* A brief can succeed while Google Tasks specifically failed. Say so -
-     otherwise a missing task list is indistinguishable from having none. */
   if(b.status==="ok"&&b.error){
-    var warn=el("div","muted","⚠️ Couldn't read your Google Tasks, so they're missing from this summary. ("+b.error+")");
+    /* Two different things can go wrong behind a brief that still reads fine.
+       `stale` means the refresh itself failed and this is the earlier brief,
+       kept rather than thrown away; otherwise it is an enrichment - usually
+       Google Tasks - that failed while the summary succeeded, which is worth
+       saying because a missing task list looks exactly like having none. */
+    var warn=el("div","muted",b.stale
+      ? "⚠️ Couldn't refresh just now, so this is the brief from earlier. Try again in a moment."
+      : "⚠️ Couldn't read your Google Tasks, so they're missing from this summary.");
+    warn.title=b.error;
     warn.style.fontSize=".7rem";warn.style.marginTop="6px";
     meta.appendChild(warn);
   }

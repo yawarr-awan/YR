@@ -136,3 +136,36 @@ test("a status message still reads as a plain line", async () => {
   assert.equal(app.document.querySelectorAll("#briefText .brief-list").length, 0);
   assert.match(app.document.getElementById("briefText").textContent, /Connect your Google Calendar/i);
 });
+
+test("a refresh that fails behind the scenes still shows the earlier brief, and says so", async () => {
+  // The Worker keeps a good summary rather than replacing it with an error;
+  // the card has to render that as a brief with a note, not as a failure.
+  const app = loadApp({
+    fetchImpl: fetchRouter([["/api/brief", () => jsonRes(briefResponse({
+      connected: true, status: "ok", summary: "Today\n- 14:00 Clinic",
+      error: "couldn't refresh (gemini_error): HTTP 503 high demand",
+      stale: true, generated_at: Date.now(),
+    }))]]),
+  });
+  await app.flush();
+
+  assert.match(app.document.getElementById("briefText").textContent, /Clinic/, "the brief is still there");
+  assert.doesNotMatch(app.document.getElementById("briefText").textContent, /failed to generate/i);
+  const note = app.document.getElementById("briefMeta").textContent;
+  assert.match(note, /couldn't refresh just now/i);
+  assert.match(note, /brief from earlier/i);
+});
+
+test("a Tasks failure alongside a good brief is reported as that, not as staleness", async () => {
+  const app = loadApp({
+    fetchImpl: fetchRouter([["/api/brief", () => jsonRes(briefResponse({
+      connected: true, status: "ok", summary: "Today\n- Nothing scheduled",
+      error: "task lists unavailable: HTTP 403", stale: false, generated_at: Date.now(),
+    }))]]),
+  });
+  await app.flush();
+
+  const note = app.document.getElementById("briefMeta").textContent;
+  assert.match(note, /couldn't read your google tasks/i);
+  assert.doesNotMatch(note, /brief from earlier/i);
+});

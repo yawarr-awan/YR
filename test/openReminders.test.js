@@ -36,11 +36,16 @@ function timingsAllPast() {
 }
 
 /** Every prayer still ahead of us, so we're before Fajr and the window we're
- * in is last night's Isha. */
+ * in is last night's Isha.
+ *
+ * The offsets are ten minutes out, not one. The app reads the real clock a
+ * moment after this builds the fixture, so a one-minute margin means a minute
+ * rolling over between the two puts Fajr in the *past* - the scenario becomes
+ * a different one and the test fails, roughly once in every sixty runs. */
 function timingsAllFuture() {
   const n = nowMinutes();
   const at = (fwd) => hhmm(n + fwd);
-  return { Fajr: at(1), Sunrise: at(2), Dhuhr: at(3), Asr: at(4), Sunset: at(5), Maghrib: at(5), Isha: at(6) };
+  return { Fajr: at(10), Sunrise: at(12), Dhuhr: at(14), Asr: at(16), Sunset: at(18), Maghrib: at(18), Isha: at(20) };
 }
 
 function backend(timings) {
@@ -98,8 +103,8 @@ test("a prayer already marked done is not brought up again", async () => {
 });
 
 test("before Fajr the window we're in is still last night's Isha, and it's checked against yesterday", async () => {
-  /* Needs a Fajr that's later today than "now"; after 23:00 there is no such
-     time, so the scenario itself can't exist then. */
+  /* Needs a Fajr that's later today than "now" - with the margin above, that
+     means before 23:00. After it, the scenario itself cannot exist. */
   if (nowMinutes() >= 1380) return;
   const yesterday = keyOf(new Date(Date.now() - 86400000));
   const days = {};

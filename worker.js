@@ -243,6 +243,16 @@ const GOOGLE_SCOPE = [
 ].join(" ");
 const BRIEF_TIMEZONE = "Europe/London";
 const GEMINI_MODEL = "gemini-flash-latest"; // Google-maintained alias for their current default Flash model
+/* Tried in order when the one before it is overloaded. Google returns 503
+   "This model is currently experiencing high demand" often enough that a
+   single attempt is not a real attempt - it is the single most common reason
+   a brief fails. The alias and the pinned model are different pools. */
+const GEMINI_FALLBACK_MODELS = ["gemini-flash-latest", "gemini-2.5-flash", "gemini-flash-lite-latest"];
+/* Overloaded, rate-limited or a transient server fault - worth trying again.
+   Anything else (400 bad request, 403 bad key) will fail identically forever,
+   so retrying it just delays the error. */
+const GEMINI_RETRY_STATUS = [429, 500, 502, 503, 504];
+const GEMINI_RETRY_DELAYS_MS = [700, 2500];
 
 function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -1014,22 +1024,85 @@ async function summarizeWithGemini(env, ctx) {
     (t.undatedCount ? `\n\n(${t.undatedCount} further task(s) have no due date and belong to neither day.)` : "") +
     journalBlock;
 
-  const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${env.GEMINI_API_KEY}`,
-    {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
+  return callGemini(env, prompt);
+}
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/** One prompt to Gemini, retried through the transient failures.
+ *
+ * Google answers 503 "experiencing high demand" regularly, and its own
+ * message says to try again later - so a single attempt was not really an
+ * attempt at all, and it was by far the commonest reason a brief failed. Each
+ * pass walks the model list, then waits and walks it again. A non-retryable
+ * status (400, 403) fails immediately: it would fail the same way forever. */
+async function callGemini(env, prompt, { models, delays } = {}) {
+  const list = models || GEMINI_FALLBACK_MODELS;
+  const waits = delays || GEMINI_RETRY_DELAYS_MS;
+  const body = JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] });
+  let last = null;
+
+  for (let round = 0; round <= waits.length; round++) {
+    if (round) await sleep(waits[round - 1]);
+    for (const model of list) {
+      let res;
+      try {
+        res = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${env.GEMINI_API_KEY}`,
+          { method: "POST", headers: { "content-type": "application/json" }, body }
+        );
+      } catch (e) {
+        last = new Error(`gemini call failed: ${String(e.message || e)}`);
+        continue;
+      }
+      if (res.ok) {
+        const data = await res.json().catch(() => null);
+        const text = ((data && data.candidates?.[0]?.content?.parts) || [])
+          .map((p) => p.text || "").join("").trim();
+        if (text) return text;
+        /* An empty candidate is usually a safety block or a truncation, and
+           another model may well answer - so it is retried like a 503 rather
+           than thrown straight out. */
+        last = new Error("gemini returned no text");
+        continue;
+      }
+      const detail = await res.text().catch(() => "");
+      const err = new Error(`gemini call failed: HTTP ${res.status} ${detail.slice(0, 200)}`);
+      if (!GEMINI_RETRY_STATUS.includes(res.status)) throw err;
+      last = err;
     }
-  );
-  if (!res.ok) {
-    const detail = await res.text().catch(() => "");
-    throw new Error(`gemini call failed: HTTP ${res.status} ${detail.slice(0, 200)}`);
   }
-  const data = await res.json();
-  const text = (data.candidates?.[0]?.content?.parts || []).map((p) => p.text || "").join("").trim();
-  if (!text) throw new Error("gemini returned no text");
-  return text;
+  throw last || new Error("gemini call failed");
+}
+
+/** Record a failure without destroying a brief that already worked.
+ *
+ * Both failure paths used to write summary = NULL, so hitting Refresh while
+ * Gemini was busy replaced a perfectly good brief with an error card - the
+ * refresh button was the thing most likely to lose you your brief. If today
+ * already has a summary it is kept, the status stays "ok", and the reason is
+ * recorded alongside it for the card to mention. */
+const STALE_PREFIX = "couldn't refresh";
+async function saveBriefFailure(env, email, day, status, detail) {
+  let existing = null;
+  try {
+    existing = await env.DB.prepare(
+      `SELECT summary, generated_at FROM daily_brief WHERE user_email = ?1 AND day = ?2`
+    ).bind(email, day).first();
+  } catch (e) { /* the write below is what matters; a failed read just means no rescue */ }
+
+  if (existing && existing.summary) {
+    const note = `${STALE_PREFIX} (${status}): ${detail}`;
+    await env.DB.prepare(
+      `UPDATE daily_brief SET error = ?3 WHERE user_email = ?1 AND day = ?2`
+    ).bind(email, day, note).run();
+    return {
+      status: "ok", day, summary: existing.summary,
+      generated_at: existing.generated_at, error: note, stale: true,
+    };
+  }
+  await saveBriefStatus(env, email, day, status, null, detail);
+  return { status, day, error: detail };
 }
 
 async function saveBriefStatus(env, email, day, status, summary, error) {
@@ -1075,8 +1148,7 @@ async function generateBrief(env, email, now) {
     });
   } catch (e) {
     const detail = String(e.message || e);
-    await saveBriefStatus(env, email, day, "calendar_error", null, detail);
-    return { status: "calendar_error", day, error: detail };
+    return await saveBriefFailure(env, email, day, "calendar_error", detail);
   }
 
   const tasks = await fetchTasks(tokenResult.accessToken, day, tomorrowDay);
@@ -1095,8 +1167,7 @@ async function generateBrief(env, email, now) {
     });
   } catch (e) {
     const detail = String(e.message || e);
-    await saveBriefStatus(env, email, day, "gemini_error", null, detail);
-    return { status: "gemini_error", day, error: detail };
+    return await saveBriefFailure(env, email, day, "gemini_error", detail);
   }
 
   const generatedAt = Date.now();
@@ -1123,6 +1194,9 @@ async function handleGetBrief(env, email, now) {
     summary: briefRow?.summary ?? null,
     status: briefRow?.status ?? (connected ? "pending" : "not_connected"),
     error: briefRow?.error ?? null,
+    /* The brief is real but a later refresh of it failed, so the card can say
+       "this is the earlier one" rather than either lying or losing it. */
+    stale: String(briefRow?.error || "").startsWith(STALE_PREFIX),
     generated_at: briefRow?.generated_at ?? null,
   });
 }
@@ -1924,6 +1998,7 @@ export {
   fetchJournal,
   fetchTrends,
   summariseHistory,
+  callGemini,
   generateBrief,
   handleGetBrief,
   handleRefreshBrief,

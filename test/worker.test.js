@@ -1694,3 +1694,114 @@ test("the prompt tells the model how far the journal reaches, and to use any of 
   assert.match(prompt, /Said I would sort the garage out/, "an entry from two months ago is in there");
   assert.match(prompt, /Draw on any entry, however old/);
 });
+
+/* ---------- the brief survives a busy Gemini ---------- */
+
+test("callGemini retries a 503 instead of giving up on the first one", async (t) => {
+  // Google answers 503 "experiencing high demand" regularly, and its own
+  // message says to try again later. One attempt was not really an attempt -
+  // it was the single commonest reason a brief failed.
+  const { callGemini } = await loadWorker();
+  const seen = [];
+  installFetch(t, async (url) => {
+    seen.push(String(url).match(/models\/([^:]+):/)[1]);
+    if (seen.length < 3) return jsonResponse(503, {}, "This model is currently experiencing high demand.");
+    return geminiOk("Here is your brief.");
+  });
+
+  const text = await callGemini({ GEMINI_API_KEY: "k" }, "prompt", { delays: [0, 0] });
+  assert.equal(text, "Here is your brief.");
+  assert.ok(seen.length >= 3, "it kept trying");
+  assert.ok(new Set(seen).size > 1, "and moved to another model rather than hammering one");
+});
+
+test("callGemini gives up immediately on an error that will never come good", async (t) => {
+  // A bad key or a malformed request fails identically forever; retrying it
+  // only delays telling the user.
+  const { callGemini } = await loadWorker();
+  let calls = 0;
+  installFetch(t, async () => { calls++; return jsonResponse(403, {}, "API key not valid"); });
+
+  await assert.rejects(
+    callGemini({ GEMINI_API_KEY: "bad" }, "prompt", { delays: [0, 0] }),
+    /HTTP 403/
+  );
+  assert.equal(calls, 1, "no pointless retries");
+});
+
+test("callGemini surfaces the real reason once every attempt is spent", async (t) => {
+  const { callGemini } = await loadWorker();
+  installFetch(t, async () => jsonResponse(503, {}, "high demand"));
+  await assert.rejects(
+    callGemini({ GEMINI_API_KEY: "k" }, "prompt", { delays: [0] }),
+    /HTTP 503.*high demand/
+  );
+});
+
+test("a failed refresh keeps the brief that already worked, rather than replacing it with an error", async (t) => {
+  // This is what made Refresh the thing most likely to lose you your brief:
+  // both failure paths wrote summary = NULL over a perfectly good summary.
+  const { generateBrief } = await loadWorker();
+  const d1 = createFakeD1();
+  d1.seedToken(EMAIL, { access_token: "tok", access_token_expires_at: Date.now() + 600000 });
+  d1.seedBrief(EMAIL, "2026-08-09", { summary: "Today\n- 14:00 Clinic", status: "ok", generated_at: 111 });
+
+  installFetch(t, async (url) => {
+    const u = String(url);
+    if (u.includes("calendarList")) return jsonResponse(200, { items: [{ id: "primary", summary: "Yawar", primary: true }] });
+    if (u.includes("/events")) return jsonResponse(200, { items: [] });
+    if (u.includes("tasks.googleapis.com")) return jsonResponse(200, { items: [] });
+    if (u.includes("generativelanguage")) return jsonResponse(503, {}, "high demand");
+    throw new Error("unexpected fetch " + u);
+  });
+
+  const result = await generateBrief(d1.env, EMAIL, new Date("2026-08-09T10:00:00Z"));
+  assert.equal(result.status, "ok", "the card still shows a brief");
+  assert.equal(result.summary, "Today\n- 14:00 Clinic", "the earlier one, kept");
+  assert.equal(result.stale, true, "flagged, so the card can say it is the earlier one");
+  assert.match(result.error, /couldn't refresh \(gemini_error\)/);
+
+  const saved = d1.dailyBrief.get(`${EMAIL}|2026-08-09`);
+  assert.equal(saved.summary, "Today\n- 14:00 Clinic", "and it is still in the database");
+  assert.equal(saved.status, "ok");
+});
+
+test("with nothing to fall back on, a failure is still reported as a failure", async (t) => {
+  const { generateBrief } = await loadWorker();
+  const d1 = createFakeD1();
+  d1.seedToken(EMAIL, { access_token: "tok", access_token_expires_at: Date.now() + 600000 });
+
+  installFetch(t, async (url) => {
+    const u = String(url);
+    if (u.includes("calendarList")) return jsonResponse(200, { items: [{ id: "primary", summary: "Yawar", primary: true }] });
+    if (u.includes("/events")) return jsonResponse(200, { items: [] });
+    if (u.includes("tasks.googleapis.com")) return jsonResponse(200, { items: [] });
+    if (u.includes("generativelanguage")) return jsonResponse(503, {}, "high demand");
+    throw new Error("unexpected fetch " + u);
+  });
+
+  const result = await generateBrief(d1.env, EMAIL, new Date("2026-08-09T10:00:00Z"));
+  assert.equal(result.status, "gemini_error");
+  assert.equal(d1.dailyBrief.get(`${EMAIL}|2026-08-09`).summary, null);
+});
+
+test("handleGetBrief tells the card when what it holds is the earlier brief", async (t) => {
+  const { handleGetBrief } = await loadWorker();
+  installFetch(t, async () => { throw new Error("handleGetBrief must never touch the network"); });
+  const d1 = createFakeD1();
+  d1.seedToken(EMAIL, {});
+  d1.seedBrief(EMAIL, "2026-08-09", {
+    summary: "Today\n- 14:00 Clinic", status: "ok",
+    error: "couldn't refresh (gemini_error): HTTP 503 high demand",
+  });
+
+  const body = await (await handleGetBrief(d1.env, EMAIL, new Date("2026-08-09T10:00:00Z"))).json();
+  assert.equal(body.status, "ok");
+  assert.equal(body.stale, true);
+
+  // A Tasks failure alongside a good summary is a different thing, and must
+  // not be reported as staleness.
+  d1.seedBrief(EMAIL, "2026-08-09", { summary: "x", status: "ok", error: "task lists unavailable: HTTP 403" });
+  const other = await (await handleGetBrief(d1.env, EMAIL, new Date("2026-08-09T10:00:00Z"))).json();
+  assert.equal(other.stale, false);
+});

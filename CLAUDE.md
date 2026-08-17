@@ -1292,6 +1292,35 @@ the week containing `dayDate`). `calCols()` is a constant 7; `calIsWide()`
   flex child of the row). The widths were measured in Chromium: 188px per
   title at 390px.
 
+## The brief's two failure bugs (1.31.1)
+Diagnosed from the persisted error, not guessed: `daily_brief.error` held
+`HTTP 503 ... "This model is currently experiencing high demand"`. **Read that
+column first** whenever a brief is reported as broken - it is why every
+failure mode is a distinct persisted status rather than one generic "failed".
+- **`callGemini()` retries.** Google returns 503 regularly and its own message
+  says to try again later, so one attempt was never really an attempt. Each
+  pass walks `GEMINI_FALLBACK_MODELS`, then waits and walks it again. Only
+  `GEMINI_RETRY_STATUS` (429/500/502/503/504) is retried - a 400 or 403 fails
+  identically forever and retrying it only delays telling the user. An empty
+  candidate (safety block, truncation) is retried like a 503, since another
+  model may answer.
+- **`saveBriefFailure()` never destroys a good summary.** Both failure paths
+  used to call `saveBriefStatus(..., null, detail)`, writing NULL over a brief
+  that had generated fine - which made **Refresh the button most likely to
+  lose you your brief**. If today already has a summary it is kept, the status
+  stays `ok`, and the reason is recorded in `error` behind the `STALE_PREFIX`
+  marker. Don't "simplify" the two paths back into one.
+- `handleGetBrief` derives `stale` from that prefix, so the card can tell a
+  failed *refresh* (show the earlier brief, say so) from a failed *enrichment*
+  like Google Tasks (show the brief, say the tasks are missing). Two different
+  warnings, one `error` column.
+- **Test-clock gotcha:** `timingsAllFuture()` in `test/openReminders.test.js`
+  built its prayer times one minute ahead of the real clock, so a minute
+  rolling over between the fixture and the app's own `Date` read moved Fajr
+  into the past and the test asserted the wrong scenario. The offsets are ten
+  minutes out now. Time-relative fixtures need a margin bigger than the thing
+  they are measuring.
+
 ## Journal reading + search (1.31.0)
 - **Tapping an entry expands it, and only that.** `_jrnOpen` holds the open
   day; `editJournalDay()` behind the pen is the only route into the textarea.

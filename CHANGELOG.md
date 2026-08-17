@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.31.1
+
+**Fixed the brief failing on Refresh.** Two separate causes, both now gone:
+
+- **Gemini was answering "this model is currently experiencing high demand" (HTTP 503) and the Worker gave up on the first try** — even though Google's own message says to retry. It now retries through a short backoff and moves between models rather than hammering one, so a busy moment no longer costs you the brief. Errors that will never come good (a bad key, a malformed request) still fail straight away instead of stalling.
+- **A failed refresh was throwing away a brief that had already generated fine.** Both failure paths wrote an empty summary over the good one, which made Refresh the thing most likely to lose you your brief. Now the earlier brief is kept and the card says *"Couldn't refresh just now, so this is the brief from earlier"* — you never end up with less than you had.
+
+Also fixed a test that failed roughly one run in sixty depending on the time of day: the prayer fixture was built one minute ahead of the clock, so a minute rolling over mid-test turned it into a different scenario.
+
 ## 1.31.0
 
 **Reading and searching the journal.**
