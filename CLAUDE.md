@@ -1292,6 +1292,31 @@ the week containing `dayDate`). `calCols()` is a constant 7; `calIsWide()`
   flex child of the row). The widths were measured in Chromium: 188px per
   title at 390px.
 
+## Journal reading + search (1.31.0)
+- **Tapping an entry expands it, and only that.** `_jrnOpen` holds the open
+  day; `editJournalDay()` behind the pen is the only route into the textarea.
+  This was deliberate: opening straight into an editable box makes it far too
+  easy to alter something you meant to read. Don't "simplify" the pen away.
+- **Search is a plain substring, not a RegExp** (`journalMatchAt` uses
+  `indexOf` on lowercased text). A query of `(` would otherwise throw.
+- `journalMarked()` builds the highlight out of **text nodes, never
+  innerHTML** - it is the user's own writing, but it is still text being put
+  on a page.
+- `journalPreview()` centres the preview on the hit. The head of a long entry
+  is rarely where the searched word is.
+- **A search shows every match** and hides the `Show all` fold - hiding
+  matches behind a fold defeats having searched.
+- **The caret is captured in `renderJournalPast()`, not in the input's own
+  handler.** The list is rebuilt on every keystroke *and* by `renderAll()`
+  after a sync pull, and the box being rebuilt is the one being typed in;
+  restoring from the render covers both. `restoreJournalCaret()` runs on every
+  exit path, early returns included.
+- **The brief's journal window is a budget, not a fortnight**: `JOURNAL_DAYS`
+  120, `JOURNAL_MAX_CHARS` 900 per entry, `JOURNAL_TOTAL_CHARS` 14000 overall,
+  spent newest-first. Today's entry is exempt from the budget. `oldest` and
+  `omitted` go into the prompt header so the model knows how far back it can
+  reach - without that it treats the block as "recent" and ignores the far end.
+
 ## The brief judges the whole record (1.30.0)
 - **`summariseHistory()` computes every figure; the model is told never to
   recompute one.** That is the whole design. An LLM handed 400 raw days and
@@ -1343,8 +1368,10 @@ the week containing `dayDate`). `calCols()` is a constant 7; `calIsWide()`
   next to it, and deliberately. A day nothing was written on is not a gap in
   the story, it is simply not an entry; a day no prayers were logged on is
   five missed.
-- `VIEWS` is **seven** now. Measured in Chromium at 390px: 55.1px per tab, no
-  label clipped. `LAYOUT_VIEWS` gained `journal` too (it is a `> .grid` of
+- `VIEWS` is **seven** now, Journal sitting straight after Calendar (moved
+  there in 1.31.0). Measured in Chromium at 390px: 55.1px per tab, no
+  label clipped. The `<section id="view-journal">` is still further down the
+  markup - order comes from `VIEWS`, never from DOM position. `LAYOUT_VIEWS` gained `journal` too (it is a `> .grid` of
   `.card[data-card]`, which is the whole precondition).
 - **`column-span:all` on the journal card at >=721px.** `.cards` is CSS
   columns, not a grid, so a card can span the flow - writing is the point of

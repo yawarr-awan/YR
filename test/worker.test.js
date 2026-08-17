@@ -1623,3 +1623,74 @@ test("a history read failure is recorded beside the summary and never blocks the
   assert.doesNotMatch(prompt, /HISTORY \(already computed/, "no half-built history block");
   assert.match(prompt, /If HISTORY is absent, skip the paragraph/);
 });
+
+test("fetchJournal reaches well past a fortnight, and says how far back it went", async () => {
+  // An intention from two months ago that never happened is worth more to the
+  // opening paragraph than yesterday's weather, so the window is a budget
+  // rather than a fixed fortnight.
+  const { fetchJournal } = await loadWorker();
+  const d1 = createFakeD1();
+  for (let i = 0; i < 40; i++) {
+    const d = new Date("2026-08-16T00:00:00Z");
+    d.setUTCDate(d.getUTCDate() - i);
+    d1.seedDay(EMAIL, d.toISOString().slice(0, 10), { notes: "entry " + i });
+  }
+  const j = await fetchJournal(d1.env, EMAIL, "2026-08-16");
+  assert.equal(j.earlier.length, 39, "not truncated at 14");
+  assert.equal(j.oldest, "2026-07-08");
+  assert.equal(j.omitted, 0);
+});
+
+test("fetchJournal spends its character budget newest-first and reports what it dropped", async () => {
+  const { fetchJournal } = await loadWorker();
+  const d1 = createFakeD1();
+  // Each entry is clipped to 900 chars, so ~16 of them fill a 14000 budget.
+  for (let i = 0; i < 40; i++) {
+    const d = new Date("2026-08-16T00:00:00Z");
+    d.setUTCDate(d.getUTCDate() - i);
+    d1.seedDay(EMAIL, d.toISOString().slice(0, 10), { notes: "e" + i + " " + "x".repeat(2000) });
+  }
+  const j = await fetchJournal(d1.env, EMAIL, "2026-08-16");
+
+  assert.ok(j.earlier.length > 5 && j.earlier.length < 40, "bounded, but not to a handful");
+  assert.ok(j.omitted > 0, "and it knows how many it left out");
+  assert.equal(j.earlier[0].day, "2026-08-15", "the freshest entries are the ones kept");
+  const spent = (j.today ? j.today.text.length : 0) + j.earlier.reduce((a, e) => a + e.text.length, 0);
+  assert.ok(spent <= 14000 + 901, "the whole block stays inside the budget");
+});
+
+test("today's entry is never dropped for budget, however much history there is", async () => {
+  const { fetchJournal } = await loadWorker();
+  const d1 = createFakeD1();
+  d1.seedDay(EMAIL, "2026-08-16", { notes: "what happened today" });
+  for (let i = 1; i < 60; i++) {
+    const d = new Date("2026-08-16T00:00:00Z");
+    d.setUTCDate(d.getUTCDate() - i);
+    d1.seedDay(EMAIL, d.toISOString().slice(0, 10), { notes: "x".repeat(2000) });
+  }
+  const j = await fetchJournal(d1.env, EMAIL, "2026-08-16");
+  assert.equal(j.today.text, "what happened today");
+});
+
+test("the prompt tells the model how far the journal reaches, and to use any of it", async (t) => {
+  const { generateBrief } = await loadWorker();
+  const d1 = createFakeD1();
+  d1.seedToken(EMAIL, { access_token: "tok", access_token_expires_at: Date.now() + 600000 });
+  d1.seedDay(EMAIL, "2026-06-02", { notes: "Said I would sort the garage out." });
+  d1.seedDay(EMAIL, "2026-08-08", { notes: "Still haven't." });
+
+  let prompt = null;
+  installFetch(t, async (url, opts) => {
+    const u = String(url);
+    if (u.includes("calendarList")) return jsonResponse(200, { items: [{ id: "primary", summary: "Yawar", primary: true }] });
+    if (u.includes("/events")) return jsonResponse(200, { items: [] });
+    if (u.includes("tasks.googleapis.com")) return jsonResponse(200, { items: [] });
+    if (u.includes("generativelanguage")) { prompt = JSON.parse(opts.body).contents[0].parts[0].text; return geminiOk("ok"); }
+    throw new Error("unexpected fetch " + u);
+  });
+
+  await generateBrief(d1.env, EMAIL, new Date("2026-08-09T10:00:00Z"));
+  assert.match(prompt, /every entry back to 2026-06-02/);
+  assert.match(prompt, /Said I would sort the garage out/, "an entry from two months ago is in there");
+  assert.match(prompt, /Draw on any entry, however old/);
+});
