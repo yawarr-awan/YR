@@ -977,8 +977,19 @@ test("the default prompt asks for a prose opener, then a bulleted Today/Tomorrow
   // The opener is the only prose in it, and it is pinned to the figures.
   assert.match(DEFAULT_BRIEF_PROMPT, /two or three sentences, prose/);
   assert.match(DEFAULT_BRIEF_PROMPT, /Never bullet it/);
-  assert.match(DEFAULT_BRIEF_PROMPT, /Use only the figures in HISTORY/);
+  assert.match(DEFAULT_BRIEF_PROMPT, /Never invent, recompute, estimate or round a figure/);
   assert.match(DEFAULT_BRIEF_PROMPT, /Then the schedule, and nothing else/);
+  /* The no-invention rule must bind numbers only. Phrased as "never comment on
+     anything HISTORY does not measure" it also suppressed the journal, which
+     is how a written-down commitment to watch calories never reached a brief:
+     there is no calorie figure, so the model stayed silent about it. */
+  assert.match(DEFAULT_BRIEF_PROMPT, /governs numbers only/);
+  assert.match(DEFAULT_BRIEF_PROMPT, /worth writing about whether or not HISTORY measures it/);
+  // And a commitment the writer made has to outrank a drifting statistic.
+  assert.match(DEFAULT_BRIEF_PROMPT, /What the writer told themselves to do/);
+  assert.match(DEFAULT_BRIEF_PROMPT, /asked to be reminded/);
+  assert.match(DEFAULT_BRIEF_PROMPT, /A commitment from the journal outranks a drifting figure/);
+  assert.match(DEFAULT_BRIEF_PROMPT, /Honour any date they attached/);
 });
 
 /* ---------- prayer times ---------- */
@@ -1410,8 +1421,8 @@ test("generateBrief feeds the journal to Gemini as context for the opening parag
   assert.match(prompt, /\nJOURNAL \(the writer's own words/);
   assert.match(prompt, /Meant to call the garage/);
   assert.match(prompt, /Third short night this week/, "previous entries go in too, not just today's");
-  assert.match(prompt, /journal is context for the opening paragraph only/);
-  assert.match(prompt, /Never quote it back/);
+  assert.match(prompt, /What the writer told themselves to do/);
+  assert.match(prompt, /Never quote the journal back word for word/);
 });
 
 test("generateBrief leaves the JOURNAL heading out entirely when nothing has been written", async (t) => {
@@ -1621,7 +1632,7 @@ test("a history read failure is recorded beside the summary and never blocks the
   assert.equal(result.status, "ok");
   assert.match(result.error, /profile unreadable/);
   assert.doesNotMatch(prompt, /HISTORY \(already computed/, "no half-built history block");
-  assert.match(prompt, /If HISTORY is absent, skip the paragraph/);
+  assert.match(prompt, /If both HISTORY and JOURNAL are absent, skip the paragraph/);
 });
 
 test("fetchJournal reaches well past a fortnight, and says how far back it went", async () => {
@@ -1804,4 +1815,63 @@ test("handleGetBrief tells the card when what it holds is the earlier brief", as
   d1.seedBrief(EMAIL, "2026-08-09", { summary: "x", status: "ok", error: "task lists unavailable: HTTP 403" });
   const other = await (await handleGetBrief(d1.env, EMAIL, new Date("2026-08-09T10:00:00Z"))).json();
   assert.equal(other.stale, false);
+});
+
+test("a dated commitment in the journal reaches the prompt, with the weekday needed to resolve it", async (t) => {
+  /* The real failure this pins: an entry saying "remind me from Thursday
+     onwards to be conscious about calorie intake" was in D1, was in the
+     prompt, and the brief still said nothing about it - because a rule meant
+     to stop invented numbers ("never comment on something HISTORY does not
+     measure") also suppressed every subject HISTORY has no column for.
+     Nothing here can prove what the model writes, so it pins the two things
+     that were actually missing: the instruction, and the weekday without
+     which "from Thursday" cannot be placed against today. */
+  const { generateBrief } = await loadWorker();
+  const d1 = createFakeD1();
+  d1.seedToken(EMAIL, { access_token: "tok", access_token_expires_at: Date.now() + 600000 });
+  d1.seedDay(EMAIL, "2026-08-17", {
+    notes: "To remind me from Thursday onwards I need to be conscious about the calories intake.",
+    prayers: { fajr: true, dhuhr: true, asr: true, maghrib: true, isha: true },
+  });
+
+  let prompt = null;
+  installFetch(t, async (url, opts) => {
+    const u = String(url);
+    if (u.includes("calendarList")) return jsonResponse(200, { items: [{ id: "primary", summary: "Yawar", primary: true }] });
+    if (u.includes("/events")) return jsonResponse(200, { items: [] });
+    if (u.includes("tasks.googleapis.com")) return jsonResponse(200, { items: [] });
+    if (u.includes("generativelanguage")) { prompt = JSON.parse(opts.body).contents[0].parts[0].text; return geminiOk("ok"); }
+    throw new Error("unexpected fetch " + u);
+  });
+
+  // 2026-08-18 is a Tuesday; the commitment starts that Thursday.
+  await generateBrief(d1.env, EMAIL, new Date("2026-08-18T08:00:00Z"));
+
+  assert.match(prompt, /conscious about the calories intake/, "the entry is in the prompt");
+  assert.match(prompt, /on Tuesday 2026-08-18/, "and today is named, not just dated");
+  assert.match(prompt, /Tomorrow is Wednesday/);
+  assert.match(prompt, /Honour any date they attached to it/);
+  assert.match(prompt, /governs numbers only/,
+    "the no-invention rule must not suppress a subject HISTORY has no column for");
+});
+
+test("the weekday is the local day's own name, not whatever UTC midnight lands on", async (t) => {
+  const { generateBrief } = await loadWorker();
+  const d1 = createFakeD1();
+  d1.seedToken(EMAIL, { access_token: "tok", access_token_expires_at: Date.now() + 600000 });
+
+  let prompt = null;
+  installFetch(t, async (url, opts) => {
+    const u = String(url);
+    if (u.includes("calendarList")) return jsonResponse(200, { items: [] });
+    if (u.includes("tasks.googleapis.com")) return jsonResponse(200, { items: [] });
+    if (u.includes("generativelanguage")) { prompt = JSON.parse(opts.body).contents[0].parts[0].text; return geminiOk("ok"); }
+    throw new Error("unexpected fetch " + u);
+  });
+
+  // 23:30 London on a Sunday in BST is already Monday in UTC. The brief is
+  // about the local day, so it must still say Sunday.
+  await generateBrief(d1.env, EMAIL, new Date("2026-08-16T22:30:00Z"));
+  assert.match(prompt, /on Sunday 2026-08-16/);
+  assert.match(prompt, /Tomorrow is Monday/);
 });

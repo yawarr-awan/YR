@@ -1292,6 +1292,35 @@ the week containing `dayDate`). `calCols()` is a constant 7; `calIsWide()`
   flex child of the row). The widths were measured in Chromium: 188px per
   title at 390px.
 
+## The prompt rule that silenced the journal (1.31.2)
+Reported as "it's not reading my journal". It was: the entry was in D1 and in
+the prompt (both verified against live D1 and the deployed script). The
+suppression was a **rule in `DEFAULT_BRIEF_PROMPT`**:
+
+> "Use only the figures in HISTORY ... and never comment on something it does
+> not measure."
+
+Written to stop invented statistics. It also silenced every *subject* HISTORY
+has no column for - so a written commitment to watch calorie intake could
+never appear, because there is no calorie figure. **Scope a no-invention rule
+to the thing being invented.** It now reads "governs numbers only - a subject
+the writer raised in JOURNAL is worth writing about whether or not HISTORY
+measures it."
+- The journal was also structurally subordinate ("context for the opening
+  paragraph only", last rule in the list). It is now **priority 1** in the
+  paragraph's construction, ahead of HISTORY, and explicitly outranks a
+  drifting figure. The `JOURNAL` block header no longer says "context only",
+  which contradicted that.
+- **Dated intentions need the weekday.** "From Thursday onwards" is
+  unresolvable against `2026-08-18` alone, so the prompt now says
+  "Tuesday 2026-08-18" and names tomorrow. `weekday()` formats from
+  `<day>T12:00:00Z` in UTC - noon is the same calendar date in every zone, so
+  the local day never gets renamed by a midnight boundary.
+- Debugging order that found it, worth repeating: check the row in `days`,
+  check the row's `updated_at` against `daily_brief.generated_at`, then grep
+  the **deployed** script (`workers_get_worker_code`) for the feature before
+  suspecting the model. Three of those four were fine, which left the prompt.
+
 ## The brief's two failure bugs (1.31.1)
 Diagnosed from the persisted error, not guessed: `daily_brief.error` held
 `HTTP 503 ... "This model is currently experiencing high demand"`. **Read that

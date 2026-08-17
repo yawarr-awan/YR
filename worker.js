@@ -800,10 +800,17 @@ async function fetchTrends(env, email, day) {
 
 const DEFAULT_BRIEF_PROMPT =
   "Open with a short paragraph - two or three sentences, prose, no heading and no bullets - " +
-  "saying what to focus on today. Draw it from the HISTORY and JOURNAL sections below, and " +
-  "judge against the whole record rather than yesterday alone. Name at most two things that " +
-  "are slipping, quote the figure that shows it, and say one thing that is going well. No " +
-  "greeting, no pep talk, no advice the numbers do not support.\n\n" +
+  "saying what to focus on today.\n\n" +
+  "Build it from two things, in this order of priority:\n" +
+  "1. What the writer told themselves to do, in JOURNAL. If they made a commitment, set " +
+  "themselves a rule, or asked to be reminded of something, that belongs in the paragraph - " +
+  "it is the closest thing to an instruction you will get. Honour any date they attached " +
+  "to it: before that date say it is coming, on and after it say it applies today. Keep " +
+  "carrying it until they write that it is done or abandoned.\n" +
+  "2. What the record shows, in HISTORY. Name at most two things that are slipping and " +
+  "quote the figure that shows it, and say one thing that is going well.\n\n" +
+  "A commitment from the journal outranks a drifting figure: if you can only fit one, use " +
+  "theirs. No greeting, no pep talk.\n\n" +
   "Then the schedule, and nothing else. Use exactly this shape:\n" +
   "Today\n" +
   "- 09:30 Standup [Work]\n" +
@@ -815,9 +822,14 @@ const DEFAULT_BRIEF_PROMPT =
   "- All day Internet bill [My Tasks]\n\n" +
   "Rules:\n" +
   "- The opening paragraph is prose. Never bullet it and never give it a heading.\n" +
-  "- Use only the figures in HISTORY. Never recompute, estimate or round one, and never " +
-  "comment on something it does not measure.\n" +
-  "- If HISTORY is absent, skip the paragraph entirely and start at \"Today\".\n" +
+  "- Never invent, recompute, estimate or round a figure. Every number you give must appear " +
+  "verbatim in HISTORY. This governs numbers only - a subject the writer raised in JOURNAL " +
+  "is worth writing about whether or not HISTORY measures it.\n" +
+  "- Never quote the journal back word for word, and never give it bullets of its own. " +
+  "Draw on any entry, however old, not just the most recent - an intention from months ago " +
+  "that never happened is worth more than yesterday's weather.\n" +
+  "- If both HISTORY and JOURNAL are absent, skip the paragraph entirely and start at " +
+  "\"Today\".\n" +
   "- One bullet per calendar event and per task. Never merge two into one line.\n" +
   "- Start each bullet with its time exactly as given, or \"All day\" if it has none.\n" +
   "- Then the name, then its calendar or task list in square brackets if one is given.\n" +
@@ -826,12 +838,7 @@ const DEFAULT_BRIEF_PROMPT =
   "- Always print both the Today and Tomorrow headings. If a section has nothing, its only " +
   "bullet is \"- Nothing scheduled\".\n" +
   "- Events that already finished today were removed on purpose; do not mention them.\n" +
-  "- Cover every calendar and task list shown below, however short. Invent nothing.\n" +
-  "- The journal is context for the opening paragraph only - things left unfinished, things " +
-  "the writer said they would do, patterns running across several days. Draw on any entry, " +
-  "however old, not just the most recent ones; an intention from months ago that never " +
-  "happened is worth more than yesterday's weather. Never quote it back and never turn it " +
-  "into bullets of its own.";
+  "- Cover every calendar and task list shown below, however short. Invent nothing.";
 
 /* The brief's instructions are user-editable (Settings tab). The data
    sections are always appended by summarizeWithGemini, so a custom prompt
@@ -967,6 +974,10 @@ async function summarizeWithGemini(env, ctx) {
   const { day, events, tasks, now, instructions, tomorrow, journal, trends } = ctx;
 
   const nowLabel = (now || new Date()).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: BRIEF_TIMEZONE });
+  /* The weekday, so a journal line like "from Thursday onwards" can actually
+     be resolved against today. Noon UTC is used to name the day because it is
+     the same calendar date in every timezone the app is used from. */
+  const weekday = (d) => new Date(d + "T12:00:00Z").toLocaleDateString("en-GB", { weekday: "long", timeZone: "UTC" });
 
   const eventBlock = (list, emptyText) => (list && list.length
     ? list.map((e) => {
@@ -999,7 +1010,10 @@ async function summarizeWithGemini(env, ctx) {
        something from months ago rather than treating it as only recent. */
     const span = j.oldest ? ` - every entry back to ${j.oldest}` : "";
     const more = j.omitted ? ` ${j.omitted} older entr(y/ies) are not shown.` : "";
-    return `\n\nJOURNAL (the writer's own words${span} - context only, never repeat it back)${more}\n${parts.join("\n\n")}`;
+    /* The header used to say "context only", which quietly contradicted the
+       instruction above it to treat a commitment here as the first thing the
+       paragraph is built from. */
+    return `\n\nJOURNAL (the writer's own words${span} - what they commit to here is the point; never quote it back verbatim)${more}\n${parts.join("\n\n")}`;
   })();
 
   /* The computed record goes in ahead of the day's schedule: it is what the
@@ -1012,7 +1026,7 @@ async function summarizeWithGemini(env, ctx) {
   const tm = tomorrow || {};
   const prompt =
     `${(instructions || DEFAULT_BRIEF_PROMPT)}\n\n` +
-    `It is currently ${nowLabel} on ${day}.\n` +
+    `It is currently ${nowLabel} on ${weekday(day)} ${day}. Tomorrow is ${weekday(tm.day || nextDay(day))}.\n` +
     `${historyBlock}\n` +
     `TODAY (${day})\n` +
     `Remaining events:\n${eventBlock(events, "(No calendar events remaining today.)")}\n\n` +
