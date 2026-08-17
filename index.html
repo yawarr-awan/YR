@@ -280,8 +280,28 @@ body.editing .card[data-card].is-over{outline:2px solid var(--brand)}
   display:block;width:100%;text-align:start;border:1px solid var(--line);background:var(--panel-2);
   color:var(--ink);border-radius:10px;padding:8px 10px;margin-bottom:6px;font:inherit;cursor:pointer
 }
-.jrn-past b{display:block;font-size:.78rem;color:var(--muted);margin-bottom:2px}
+.jrn-past b{display:flex;align-items:baseline;gap:8px;font-size:.78rem;color:var(--muted);margin-bottom:2px}
 .jrn-past span{display:block;font-size:.85rem;line-height:1.4}
+.jrn-words{margin-inline-start:auto;font-style:normal;font-size:.7rem;opacity:.75}
+.jrn-entry{margin-bottom:6px}
+.jrn-entry .jrn-past{margin-bottom:0}
+.jrn-entry.is-open .jrn-past{border-radius:10px 10px 0 0;border-bottom-color:transparent}
+/* The expanded entry is a reading view: the writing at full size, and the
+   only way from here into editing it is the pen underneath. */
+.jrn-read{
+  border:1px solid var(--line);border-top:none;border-radius:0 0 10px 10px;
+  background:var(--panel-2);padding:2px 10px 10px;font-size:.92rem;line-height:1.55
+}
+.jrn-read p{margin:0 0 8px;white-space:pre-wrap;overflow-wrap:anywhere}
+.jrn-read p:last-child{margin-bottom:0}
+.jrn-tools{display:flex;justify-content:flex-end;margin-top:6px}
+.jrn-search{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.jrn-search input{
+  flex:1 1 auto;min-width:0;border:1px solid var(--line);background:var(--panel-2);
+  color:var(--ink);border-radius:10px;padding:7px 10px;font:inherit;font-size:.9rem
+}
+.jrn-count{font-size:.78rem;margin-bottom:8px}
+.jrn-read mark,.jrn-past mark{background:var(--accent);color:var(--bg);border-radius:3px;padding:0 1px}
 .slider-val{font-weight:800;float:right}
 input[type=range]{width:100%;accent-color:var(--accent)}
 .pill-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
@@ -1074,9 +1094,9 @@ footer.foot{text-align:center;color:var(--muted);font-size:.78rem;margin-top:26p
   <button data-nav="today" class="active"><i>📋</i>Today</button>
   <button data-nav="prayers"><i>🕌</i>Prayers</button>
   <button data-nav="calendar"><i>🗓️</i>Calendar</button>
+  <button data-nav="journal"><i>📓</i>Journal</button>
   <button data-nav="others"><i>🧩</i>Misc</button>
   <button data-nav="progress"><i>📈</i>Progress</button>
-  <button data-nav="journal"><i>📓</i>Journal</button>
   <button data-nav="settings"><i>⚙️</i>Settings</button>
 </nav>
 
@@ -1467,7 +1487,7 @@ var LAYOUT_KEY="yawarLayout";
 /* Only these four have a single container of interchangeable cards. The
    calendar is a grid of hours and Misc is three sub-panels; neither is a
    list of cards, so neither can take one. */
-var LAYOUT_VIEWS=["today","prayers","progress","journal","settings"];
+var LAYOUT_VIEWS=["today","prayers","journal","progress","settings"];
 var LAYOUT_VIEW_LABEL={today:"Today",prayers:"Prayers",progress:"Progress",settings:"Settings"};
 var _editingLayout=false;
 
@@ -4971,6 +4991,12 @@ function renderPraySummary(){
    needs no migration. */
 var JRN_PAST_ROWS=10;
 var _jrnPastAll=false;
+/* Which past entry is open, the search text, and whether the search box is
+   showing. All three are modes rather than preferences, so none is persisted -
+   same call as the task reorder mode. */
+var _jrnOpen=null;
+var _jrnQuery="";
+var _jrnSearchOpen=false;
 function journalText(k){return String((state.days[k]&&state.days[k].notes)||"");}
 function journalWords(txt){var t=String(txt||"").trim();return t?t.split(/\s+/).length:0;}
 /** Every day with something written on it, most recent first. Unlike the
@@ -4994,33 +5020,162 @@ function renderJournal(){
   setCount("jrnCount",journalWords(d.notes)+" words");
   renderJournalPast();
 }
+
+/** Where `q` first appears in `txt`, or -1. Case-insensitive, and plain
+ * substring rather than a RegExp so a search for "(" isn't a syntax error. */
+function journalMatchAt(txt,q){
+  return q ? String(txt).toLowerCase().indexOf(q.toLowerCase()) : -1;
+}
+/** A one-line preview, centred on the match when there is one - the head of
+ * an entry is rarely where the thing you searched for is. */
+function journalPreview(txt,q,len){
+  var flat=String(txt).replace(/\s+/g," ").trim();
+  var at=journalMatchAt(flat,q);
+  if(at<0)return {text:flat.length>len?flat.slice(0,len)+"…":flat,at:-1};
+  var from=Math.max(0,at-Math.floor(len/3));
+  var clip=flat.slice(from,from+len);
+  return {
+    text:(from?"…":"")+clip+(from+len<flat.length?"…":""),
+    at:journalMatchAt((from?"…":"")+clip,q)
+  };
+}
+/** The preview with the matched run wrapped in a <mark>. Built out of text
+ * nodes, never innerHTML - it is the user's own writing, but it is still
+ * text being put on a page. */
+function journalMarked(host,text,q,at){
+  if(at<0||!q){host.appendChild(document.createTextNode(text));return;}
+  host.appendChild(document.createTextNode(text.slice(0,at)));
+  host.appendChild(el("mark",null,text.slice(at,at+q.length)));
+  host.appendChild(document.createTextNode(text.slice(at+q.length)));
+}
+
+/** Open the writing box on `day`. This is the only route from reading an old
+ * entry into editing it - tapping the entry itself only expands it, so a tap
+ * meant as "let me read that" can never put the cursor in it. */
+function editJournalDay(day){
+  var p=day.split("-");
+  cur=new Date(+p[0],+p[1]-1,+p[2]);cur.setHours(0,0,0,0);
+  _jrnOpen=null;
+  renderJournal();
+  window.scrollTo(0,0);
+  var ta=document.getElementById("jrnText");
+  if(ta)ta.focus();
+}
+
+function restoreJournalCaret(caret){
+  if(caret===null||caret===undefined)return;
+  var next=document.getElementById("jrnSearchIn");
+  if(!next)return;
+  next.focus();
+  try{next.setSelectionRange(caret,caret);}catch(e){}
+}
 function renderJournalPast(){
   var box=document.getElementById("jrnPastBox");
   if(!box)return;
+  /* The whole list is rebuilt on every keystroke, which throws away the input
+     the keystroke came from. Capture the caret here rather than in the input
+     handler, so a redraw from anywhere else - renderAll() after a sync pull,
+     say - restores it too. */
+  var live=document.getElementById("jrnSearchIn");
+  var caret=(live&&document.activeElement===live)?live.selectionStart:null;
   box.innerHTML="";
   var k=keyOf(cur);
-  var days=journalDays().filter(function(x){return x!==k;});
-  setCount("jrnPastCount",String(days.length));
-  if(!days.length){
+  var all=journalDays().filter(function(x){return x!==k;});
+  setCount("jrnPastCount",String(all.length));
+
+  /* The search row is always present, so the icon is findable; the input
+     itself unfolds from it. */
+  var bar=el("div","jrn-search");
+  var toggle=el("button","icon-btn"+(_jrnSearchOpen?" active":""),"🔍");
+  toggle.type="button";
+  toggle.title="Search your journal";
+  toggle.setAttribute("aria-label","Search your journal");
+  toggle.addEventListener("click",function(){
+    _jrnSearchOpen=!_jrnSearchOpen;
+    if(!_jrnSearchOpen)_jrnQuery="";
+    renderJournalPast();
+    if(_jrnSearchOpen){var i=document.getElementById("jrnSearchIn");if(i)i.focus();}
+  });
+  bar.appendChild(toggle);
+  if(_jrnSearchOpen){
+    var input=el("input");
+    input.type="search";input.id="jrnSearchIn";
+    input.placeholder="Search every entry…";
+    input.value=_jrnQuery;
+    input.addEventListener("input",function(){
+      _jrnQuery=this.value;
+      renderJournalPast();
+    });
+    bar.appendChild(input);
+  }
+  box.appendChild(bar);
+
+  var q=_jrnQuery.trim();
+  var days=q?all.filter(function(d){return journalMatchAt(journalText(d),q)>=0;}):all;
+
+  if(q){
+    box.appendChild(el("div","muted jrn-count",
+      days.length?(days.length+" of "+all.length+" entries mention “"+q+"”")
+                 :("Nothing in your "+all.length+" other entries mentions “"+q+"”")));
+  }
+  if(!all.length){
     box.appendChild(el("div","muted","Nothing written on any other day yet."));
+    restoreJournalCaret(caret);
     return;
   }
-  var shown=_jrnPastAll?days:days.slice(0,JRN_PAST_ROWS);
+  if(!days.length){restoreJournalCaret(caret);return;}
+
+  /* A search shows everything it found - hiding matches behind "show all"
+     would defeat the point of having searched. */
+  var shown=(q||_jrnPastAll)?days:days.slice(0,JRN_PAST_ROWS);
   shown.forEach(function(day){
-    var row=el("button","jrn-past");
-    row.type="button";
-    row.appendChild(el("b",null,humanShort(new Date(day+"T00:00:00"))));
-    var txt=journalText(day).replace(/\s+/g," ").trim();
-    row.appendChild(el("span",null,txt.length>140?txt.slice(0,140)+"…":txt));
-    row.addEventListener("click",function(){
-      var p=day.split("-");
-      cur=new Date(+p[0],+p[1]-1,+p[2]);cur.setHours(0,0,0,0);
-      renderJournal();window.scrollTo(0,0);
+    var open=_jrnOpen===day;
+    var wrap=el("div","jrn-entry"+(open?" is-open":""));
+    var head=el("button","jrn-past");
+    head.type="button";
+    head.setAttribute("aria-expanded",open?"true":"false");
+    var top=el("b");
+    top.appendChild(document.createTextNode(humanShort(new Date(day+"T00:00:00"))));
+    top.appendChild(el("i","jrn-words",journalWords(journalText(day))+" words"));
+    head.appendChild(top);
+    if(!open){
+      var pv=journalPreview(journalText(day),q,140);
+      var line=el("span");
+      journalMarked(line,pv.text,q,pv.at);
+      head.appendChild(line);
+    }
+    /* Tapping the entry expands it to read, and only that. Editing is the
+       pen, deliberately: opening straight into a textarea makes it far too
+       easy to change something you only meant to look at. */
+    head.addEventListener("click",function(){
+      _jrnOpen=open?null:day;
+      renderJournalPast();
     });
-    box.appendChild(row);
+    wrap.appendChild(head);
+
+    if(open){
+      var body=el("div","jrn-read");
+      journalText(day).split(/\n/).forEach(function(para){
+        var p=el("p");
+        if(para.trim())journalMarked(p,para,q,journalMatchAt(para,q));
+        else p.appendChild(document.createTextNode(" "));
+        body.appendChild(p);
+      });
+      wrap.appendChild(body);
+      var tools=el("div","jrn-tools");
+      var pen=el("button","btn","✏️ Edit this entry");
+      pen.type="button";
+      pen.addEventListener("click",function(){editJournalDay(day);});
+      tools.appendChild(pen);
+      wrap.appendChild(tools);
+    }
+    box.appendChild(wrap);
   });
-  if(days.length>JRN_PAST_ROWS){
-    var more=el("button","linklike",_jrnPastAll?"Show fewer":("Show all "+days.length+" entries"));
+
+  restoreJournalCaret(caret);
+
+  if(!q&&all.length>JRN_PAST_ROWS){
+    var more=el("button","linklike",_jrnPastAll?"Show fewer":("Show all "+all.length+" entries"));
     more.type="button";
     more.style.margin="8px 0 0";
     more.addEventListener("click",function(){_jrnPastAll=!_jrnPastAll;renderJournalPast();});
@@ -5594,7 +5749,7 @@ function saveBriefPrompt(value){
 /* ---------- NAV ---------- */
 /* Order matters: it's both the bottom bar's left-to-right order and the
    order swiping moves through. */
-var VIEWS=["today","prayers","calendar","others","progress","journal","settings"];
+var VIEWS=["today","prayers","calendar","journal","others","progress","settings"];
 /* Meals, recipes and movement are reference material rather than daily
    tracking, so they share one tab with their own sub-tabs. */
 var SUBVIEWS=["plan","recipes","exercises","duas"];

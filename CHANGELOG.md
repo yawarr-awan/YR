@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.31.0
+
+**Reading and searching the journal.**
+
+- **Tapping an old entry expands it where it is, to read** — the full text, its own paragraph breaks intact — rather than dropping you into editing it. Tap again to fold it. **✏️ Edit this entry** underneath is the only way into the writing box, so a tap meant as "let me look at that" can't change anything.
+- **A 🔍 search icon** on the Earlier entries card. It searches every entry you've ever written, not just the ten on screen, and highlights the hit. The preview is centred on the match rather than the top of the entry, since that's rarely where the thing you searched for is. Case-insensitive, and punctuation is searched literally.
+- Each entry now shows its word count next to the date.
+- **Journal moved next to Calendar** in the bottom bar.
+
+**The brief reads further back.** The journal window was a fixed fortnight; it's now as far back as the prompt budget allows — up to 120 entries or ~14,000 characters, newest first, with today's entry never dropped. The prompt is told how far back it reaches and explicitly to draw on any entry, not just recent ones: an intention from two months ago that never happened is worth more than yesterday's weather.
+
 ## 1.30.1
 
 **Fixed the mangled task titles.** A scheduled task's title was wrapping to one character per line. The cause: the title, the due date and the "On calendar" chip were all competing for one row's width, and the date is `white-space: nowrap` — a flex item won't shrink below its own text, so the date and the chip kept their full size while the title (which *can* wrap anywhere) absorbed the entire shortfall.

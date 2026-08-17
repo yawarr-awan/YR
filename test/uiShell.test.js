@@ -21,7 +21,7 @@ test("nav sits at the bottom of the page as icons, and the Guide tab is gone", (
   assert.equal(app.document.querySelector("header .tabs"), null, "and no longer in the header");
 
   const labels = Array.from(tabs.querySelectorAll("button")).map((b) => b.getAttribute("data-nav"));
-  assert.deepEqual(labels, ["today", "prayers", "calendar", "others", "progress", "journal", "settings"]);
+  assert.deepEqual(labels, ["today", "prayers", "calendar", "journal", "others", "progress", "settings"]);
   assert.equal(app.document.getElementById("view-guide"), null, "the Guide view is removed too");
   tabs.querySelectorAll("button").forEach((b) => {
     assert.ok(b.querySelector("i"), "each tab renders an icon above its label");
