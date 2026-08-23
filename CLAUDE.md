@@ -1292,6 +1292,45 @@ the week containing `dayDate`). `calCols()` is a constant 7; `calIsWide()`
   flex child of the row). The widths were measured in Chromium: 188px per
   title at 390px.
 
+## More than one person (1.33.0)
+**The Worker was always multi-tenant; the client was not.** `email` comes from
+`verifyAccess` (the signed Access JWT) and every SQL statement is keyed on it -
+audited, all of them. `handleScheduled` already loops over every row in
+`google_tokens`, so a second user's brief generates on its own with no change.
+The gap was that the browser's store carried no account, and `runSync` pushes
+everything it holds.
+- **`state.account`** is the store's owner. It is top-level in `state` but
+  **never pushed** - only `days` and `profile` go up. Where a store lives is
+  not part of a health record.
+- **The server is the enforcement point.** `handleSync` returns **409
+  `account_mismatch`** when `body.account` is set and differs from the verified
+  email, and writes nothing. A client-side check alone could not be trusted,
+  and nothing downstream can tell contaminated rows apart afterwards.
+- **An unattributed store pulls, never pushes** (`known` in `runSync`). It
+  cannot be distinguished from someone else's store by inspection, so it is
+  not credited to anyone until the server has answered. `adoptAccount` also
+  takes a one-time `quarantineLocalStore("unattributed")` snapshot first.
+- **`quarantineLocalStore()` parks, it does not delete** - `yawarWellness_v1_
+  foreign:<email>`. The alternative is eating someone's journal because an
+  email comparison went wrong.
+- **The deterministic protection is sequencing**, not code: open the app once
+  on each of your own devices (which stamps them) *before* adding a second
+  person to the Access policy. Until a store is stamped, the guard has nothing
+  to compare against.
+- `/api/brief` returns `email` too, so an existing install is stamped at
+  startup rather than waiting for a sync.
+- **Du'as are still per-user** (`dua_images` is keyed on `user_email`), so a
+  second account starts with none. Sharing them was discussed and deliberately
+  not built - it would let each person see and delete the other's uploads.
+- Adding a second person needs two dashboard steps, both manual: their email on
+  the **Access** policy, and their Google account as a **test user** on the
+  OAuth consent screen (the project is in Testing mode, so Google refuses
+  consent for anyone not listed). Testing mode also means their refresh token
+  expires every 7 days, same as the first user's.
+- Test note: `test/mockServer.js` mirrors the 409 and reports `email`;
+  `test/fakeD1.js` gained `INSERT INTO days`/`profile` with the real
+  stale-write guard, the watermark pulls, and `DB.batch`.
+
 ## The model picker is a `<select>`, not a datalist (1.32.1)
 - **`<input list=…>` is not a dropdown.** A datalist only filters as you type,
   and on Chrome for Android its arrow routinely opens nothing - it shipped that

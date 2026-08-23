@@ -134,6 +134,17 @@ async function handleSync(request, env, email) {
     return json({ error: "invalid json" }, 400);
   }
 
+  /* Whose data the client believes it is holding. The server writes rows
+     under the *verified* Access email whatever the client says, so a browser
+     carrying one person's store and signed in as another would silently file
+     his days under her name. Refusing the push is the only place that can be
+     caught - nothing downstream can tell the difference afterwards.
+     A client that has never been told who it is sends nothing here and is
+     expected to pull only; see runSync. */
+  if (typeof body.account === "string" && body.account && body.account !== email) {
+    return json({ error: "account_mismatch", email }, 409);
+  }
+
   const since = Number.isFinite(body.since) ? body.since : 0;
   const incoming = body.days && typeof body.days === "object" ? body.days : {};
   const dayKeys = Object.keys(incoming);
@@ -213,6 +224,9 @@ async function handleSync(request, env, email) {
 
   return json({
     now: Date.now(),
+    /* So a client that did not know whose store it holds can stamp itself and
+       push on the next round. */
+    email,
     days,
     profile: prof ? { data: prof.data, updated_at: prof.updated_at } : null,
     applied,
@@ -1290,6 +1304,9 @@ async function handleGetBrief(env, email, now) {
   const connected = Boolean(tokenRow);
   return json({
     connected,
+    /* The client stamps its local store with this, so an existing install
+       learns whose data it holds at startup rather than waiting for a sync. */
+    email,
     day,
     summary: briefRow?.summary ?? null,
     status: briefRow?.status ?? (connected ? "pending" : "not_connected"),
@@ -2091,6 +2108,7 @@ export default {
 // Cloudflare Access JWT for every case - verifyAccess/handleSync's own
 // coverage is unchanged and already covered separately.
 export {
+  handleSync,
   localDayBounds,
   dayBoundsForDate,
   nextDay,

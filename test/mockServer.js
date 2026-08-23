@@ -8,16 +8,24 @@
  * worker.js's handleSync, so client-side merge logic is exercised
  * end-to-end (push, pull, true last-write-wins).
  */
-function createMockServer() {
+const DEFAULT_ACCOUNT = "yawar@example.com";
+
+function createMockServer({ account = DEFAULT_ACCOUNT } = {}) {
   const days = {}; // day -> {data, updated_at}
   let profile = null; // {data, updated_at}
 
   return {
     _days: days,
+    account,
     get _profile() { return profile; },
     seedDay(day, data, updated_at) { days[day] = { data, updated_at }; },
     seedProfile(data, updated_at) { profile = { data, updated_at }; },
     handle(body) {
+      /* Mirrors the real handler: a client declaring a different account is
+         refused outright and nothing is written. */
+      if (typeof body.account === "string" && body.account && body.account !== this.account) {
+        return { _status: 409, error: "account_mismatch", email: this.account };
+      }
       const since = Number.isFinite(body.since) ? body.since : 0;
       const incoming = (body.days && typeof body.days === "object") ? body.days : {};
       let applied = 0;
@@ -55,6 +63,7 @@ function createMockServer() {
 
       return {
         now: Date.now(),
+        email: this.account,
         days: outDays,
         profile: outProfile,
         applied,
@@ -72,16 +81,20 @@ function fetchImplFor(server, { failWith } = {}) {
     // give it a harmless "not connected" response rather than letting a
     // sync-shaped mock choke on a bodyless GET.
     if (!String(url).includes("/api/sync")) {
-      return { ok: true, status: 200, json: async () => ({ connected: false, status: "not_connected" }) };
+      /* /api/brief carries the signed-in email too, which is how an existing
+         install learns whose store it holds without waiting for a sync. */
+      return { ok: true, status: 200,
+        json: async () => ({ connected: false, status: "not_connected", email: server.account }) };
     }
     const body = JSON.parse(options.body);
     const result = server.handle(body);
+    const status = result._status || 200;
     return {
-      ok: true,
-      status: 200,
+      ok: status < 400,
+      status,
       json: async () => result,
     };
   };
 }
 
-module.exports = { createMockServer, fetchImplFor };
+module.exports = { createMockServer, fetchImplFor, DEFAULT_ACCOUNT };

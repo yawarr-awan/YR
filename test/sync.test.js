@@ -9,7 +9,7 @@ const test = require("node:test");
 const { after } = require("node:test");
 const assert = require("node:assert/strict");
 const { loadApp, closeAllApps, MAIN_KEY } = require("./lib.js");
-const { createMockServer, fetchImplFor } = require("./mockServer.js");
+const { createMockServer, fetchImplFor, DEFAULT_ACCOUNT } = require("./mockServer.js");
 after(closeAllApps);
 
 function sleep(ms) { return new Promise((r) => setTimeout(r, ms)); }
@@ -30,6 +30,7 @@ test("sync is on by default, and an existing install that had it off is switched
         profile: { startWeight: 108, targetWeight: 88, tasks: [], updated_at: 0 },
         days: {},
         sync: { enabled: false, since: 0, lastSyncAt: null, lastError: null },
+    account: DEFAULT_ACCOUNT,
       }),
     },
     fetchImpl: async () => ({ ok: true, json: async () => ({ now: 1, days: {}, profile: null, more: false }) }),
@@ -61,6 +62,7 @@ test("first sync from empty: local history pushes up and populates an empty serv
       "2026-03-02": { meds: {}, prayers: {}, meals: {}, extras: {}, water: 5, weight: "105.5", sleep: "", steps: "", jointPain: null, energy: null, exercise: true, notes: "", updated_at: 43 },
     },
     sync: { enabled: false, since: 0, lastSyncAt: null, lastError: null },
+    account: DEFAULT_ACCOUNT,
   };
   const app = loadApp({
     localStorageSeed: { [MAIN_KEY]: JSON.stringify(seed) },
@@ -105,6 +107,7 @@ test("a device whose clock lags the server still pushes its own edits and pulls 
         },
         // Pretend a previous sync had already advanced the watermark to server time.
         sync: { enabled: true, since: serverNow, lastSyncAt: serverNow, lastError: null },
+    account: DEFAULT_ACCOUNT,
       }),
     },
     fetchImpl: fetchImplFor(server),
@@ -127,6 +130,7 @@ test("conflicting edits from two devices resolve by true last-write-wins", async
     profile: { startWeight: 108, targetWeight: 88, updated_at: 0 },
     days: { "2026-04-01": baselineDay() },
     sync: { enabled: true, since: T0, lastSyncAt: null, lastError: null },
+    account: DEFAULT_ACCOUNT,
   });
 
   const deviceA = loadApp({ localStorageSeed: { [MAIN_KEY]: seedFor() }, fetchImpl: fetchImplFor(server) });
@@ -165,6 +169,7 @@ test("server unreachable: local data is left completely untouched and the error 
     profile: { startWeight: 108, targetWeight: 88, updated_at: 0 },
     days: { "2026-05-01": { meds: {}, prayers: {}, meals: {}, extras: {}, water: 6, weight: "104", sleep: "", steps: "", jointPain: null, energy: null, exercise: false, notes: "still here", updated_at: 99 } },
     sync: { enabled: true, since: 50, lastSyncAt: null, lastError: null },
+    account: DEFAULT_ACCOUNT,
   };
   const before = JSON.stringify(seed);
   const app = loadApp({
@@ -191,6 +196,7 @@ test("a non-OK HTTP response is treated as a failure, not applied as if it were 
     profile: { startWeight: 108, targetWeight: 88, updated_at: 0 },
     days: { "2026-05-02": { meds: {}, prayers: {}, meals: {}, extras: {}, water: 1, weight: "103", sleep: "", steps: "", jointPain: null, energy: null, exercise: false, notes: "", updated_at: 77 } },
     sync: { enabled: true, since: 0, lastSyncAt: null, lastError: null },
+    account: DEFAULT_ACCOUNT,
   };
   const app = loadApp({
     localStorageSeed: { [MAIN_KEY]: JSON.stringify(seed) },
@@ -218,6 +224,7 @@ test("tasks ride the synced profile, so they reach every device", async () => {
         profile: { startWeight: 108, targetWeight: 88, tasks: [], updated_at: 1 },
         days: {},
         sync: { enabled: true, since: 0, lastSyncAt: null, lastError: null },
+    account: DEFAULT_ACCOUNT,
       }),
     },
     fetchImpl: fetchImplFor(server),
@@ -244,6 +251,7 @@ test("a device upgrading from the old layout carries its local tasks into the sy
         days: {},
         tasks: [{ id: "t1", title: "Old local task", due: null, done: false, scheduled: false, created_at: 1, updated_at: 1 }],
         sync: { enabled: false, since: 0, lastSyncAt: null, lastError: null },
+    account: DEFAULT_ACCOUNT,
       }),
     },
   });
@@ -281,6 +289,7 @@ test("a pulled edit reaches the tab you are on, not just the stored state", asyn
         profile: { startWeight: 108, targetWeight: 88, updated_at: 0 },
         days: { "2026-04-01": day() },
         sync: { enabled: true, since: 0, lastSyncAt: null, lastError: null },
+    account: DEFAULT_ACCOUNT,
       }),
       yawarLastTab: "prayers",
     },
@@ -324,6 +333,7 @@ test("a day holding real data always pushes, even if it somehow lost its stamp",
         profile: { startWeight: 108, targetWeight: 88, tasks: [], updated_at: 1 },
         days: { "2026-05-01": withContent, "2026-05-02": blank },
         sync: { enabled: true, since: 0, lastSyncAt: null, lastError: null },
+    account: DEFAULT_ACCOUNT,
       }),
     },
     fetchImpl: fetchImplFor(server),
@@ -339,4 +349,140 @@ test("a day holding real data always pushes, even if it somehow lost its stamp",
   assert.ok(app.state().days["2026-05-01"].updated_at > 0, "and was stamped on the way out");
   assert.equal(server._days["2026-05-02"], undefined,
     "a day that only ever got looked at says nothing and must not be spread to other devices");
+});
+
+/* --- whose data is this? -------------------------------------------------
+ * The app is used by more than one person now, each behind their own Access
+ * sign-in. The local store is per-browser, sync pushes everything it holds,
+ * and it used to carry no record of whose it was - so opening the app on a
+ * browser holding someone else's data would have filed their days and journal
+ * under whoever happened to be signed in.
+ */
+const HERS = "wife@example.com";
+
+function seedFor(account, days) {
+  return JSON.stringify({
+    schema: 4,
+    profile: { startWeight: 108, targetWeight: 88, tasks: [], updated_at: 5 },
+    days: days || {},
+    sync: { enabled: true, since: 0, lastSyncAt: null, lastError: null },
+    account,
+  });
+}
+function dayRec(weight, updated_at) {
+  return { meds: {}, prayers: {}, meals: {}, extras: {}, dhikr: { morning: {}, afternoon: {}, evening: {} },
+    water: 0, weight, sleep: "", steps: "", jointPain: null, energy: null, exercise: false,
+    notes: "his private journal entry", updated_at };
+}
+
+test("signing in as someone else never pushes this browser's data into their account", async () => {
+  // The whole point of the guard.
+  const server = createMockServer({ account: HERS });
+  const app = loadApp({
+    localStorageSeed: { [MAIN_KEY]: seedFor("yawar@example.com", { "2026-03-01": dayRec("106", 42) }) },
+    fetchImpl: fetchImplFor(server),
+  });
+  await app.flush();
+  await app.flush();
+  await app.flush();
+
+  assert.deepEqual(Object.keys(server._days), [], "not one of his days reached her account");
+  assert.equal(server._profile, null, "and not his profile either");
+});
+
+test("...and the browser starts clean for the new account, without destroying the old store", async () => {
+  const server = createMockServer({ account: HERS });
+  server.seedDay("2026-04-01", JSON.stringify(dayRec("70", 99)), 99);
+  const app = loadApp({
+    localStorageSeed: { [MAIN_KEY]: seedFor("yawar@example.com", { "2026-03-01": dayRec("106", 42) }) },
+    fetchImpl: fetchImplFor(server),
+  });
+  await app.flush();
+  await app.flush();
+  await app.flush();
+
+  const s = app.state();
+  assert.equal(s.account, HERS, "the store now belongs to whoever is signed in");
+  assert.ok(!s.days["2026-03-01"], "his day is gone from the live store");
+  assert.ok(s.days["2026-04-01"], "and hers was pulled down in its place");
+
+  // Nothing was thrown away - his copy is parked under its own key.
+  const parked = app.window.localStorage.getItem("yawarWellness_v1_foreign:yawar@example.com");
+  assert.ok(parked, "his store was kept");
+  assert.match(parked, /his private journal entry/);
+});
+
+test("an unattributed store pulls before it pushes, and keeps a snapshot when it is attributed", async () => {
+  // A device that predates the guard has data but no account. It cannot be
+  // told apart from someone else's store by looking at it, so it never pushes
+  // on the round that attributes it.
+  const server = createMockServer();
+  const seed = JSON.parse(seedFor("x", { "2026-03-01": dayRec("106", 42) }));
+  delete seed.account;
+  const app = loadApp({
+    localStorageSeed: { [MAIN_KEY]: JSON.stringify(seed) },
+    fetchImpl: fetchImplFor(server),
+  });
+  await app.flush();
+  await app.flush();
+
+  assert.equal(app.state().account, server.account, "it learned whose it is");
+  assert.ok(app.window.localStorage.getItem("yawarWellness_v1_foreign:unattributed"),
+    "with a snapshot taken before anyone was credited with it");
+});
+
+test("once attributed, the same device pushes normally", async () => {
+  const server = createMockServer();
+  const app = loadApp({
+    localStorageSeed: { [MAIN_KEY]: seedFor(server.account, { "2026-03-01": dayRec("106", 42) }) },
+    fetchImpl: fetchImplFor(server),
+  });
+  await app.flush();
+  await app.flush();
+
+  assert.deepEqual(Object.keys(server._days), ["2026-03-01"], "its own account gets its data");
+  assert.equal(JSON.parse(server._days["2026-03-01"].data).weight, "106");
+});
+
+test("the account is declared on every push, so the server can refuse a mismatch", async () => {
+  const sent = [];
+  const app = loadApp({
+    localStorageSeed: { [MAIN_KEY]: seedFor("yawar@example.com", { "2026-03-01": dayRec("106", 42) }) },
+    fetchImpl: async (url, options) => {
+      if (!String(url).includes("/api/sync")) {
+        return { ok: true, status: 200, json: async () => ({ connected: false, status: "not_connected" }) };
+      }
+      sent.push(JSON.parse(options.body));
+      return { ok: true, status: 200, json: async () => ({ now: 1, email: "yawar@example.com", days: {}, profile: null, more: false }) };
+    },
+  });
+  await app.flush();
+  await app.flush();
+
+  assert.ok(sent.length, "it synced");
+  assert.equal(sent[0].account, "yawar@example.com");
+});
+
+test("the account never rides along as synced data", async () => {
+  // Where a store belongs is not part of anyone's health record.
+  const sent = [];
+  const app = loadApp({
+    localStorageSeed: { [MAIN_KEY]: seedFor("yawar@example.com", { "2026-03-01": dayRec("106", 42) }) },
+    fetchImpl: async (url, options) => {
+      if (!String(url).includes("/api/sync")) {
+        return { ok: true, status: 200, json: async () => ({ connected: false, status: "not_connected" }) };
+      }
+      sent.push(JSON.parse(options.body));
+      return { ok: true, status: 200, json: async () => ({ now: 1, email: "yawar@example.com", days: {}, profile: null, more: false }) };
+    },
+  });
+  await app.flush();
+  await app.flush();
+
+  const pushed = sent[0];
+  assert.ok(pushed.profile, "the profile did go up");
+  assert.ok(!("account" in JSON.parse(pushed.profile.data)), "but not carrying the account inside it");
+  Object.keys(pushed.days).forEach((d) => {
+    assert.ok(!("account" in JSON.parse(pushed.days[d].data)), d + " must not carry it either");
+  });
 });
