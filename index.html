@@ -302,6 +302,18 @@ body.editing .card[data-card].is-over{outline:2px solid var(--brand)}
 }
 .jrn-count{font-size:.78rem;margin-bottom:8px}
 .jrn-read mark,.jrn-past mark{background:var(--accent);color:var(--bg);border-radius:3px;padding:0 1px}
+/* Name, calories, Add - on one line where it fits and wrapping where it does
+   not. The kcal box is a fixed narrow width so the name takes the slack
+   rather than the two competing (see the task-row note). */
+.food-add{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.food-add input[type=text]{flex:1 1 8rem;min-width:0}
+.food-add input[type=number]{flex:0 0 5rem;width:5rem}
+.food-add input{border:1px solid var(--line);background:var(--panel-2);color:var(--ink);
+  border-radius:10px;padding:8px 10px;font:inherit;font-size:.9rem}
+.food-add .btn{flex:0 0 auto}
+.food-row{display:flex;align-items:center;gap:8px;padding:6px 4px;border-radius:10px}
+.food-row .food-name{flex:1 1 auto;min-width:0;overflow-wrap:anywhere;font-weight:600;font-size:.9rem}
+.food-row .food-kcal{flex:0 0 auto;font-size:.74rem;color:var(--muted);white-space:nowrap}
 .slider-val{font-weight:800;float:right}
 input[type=range]{width:100%;accent-color:var(--accent)}
 .pill-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
@@ -704,8 +716,16 @@ footer.foot{text-align:center;color:var(--muted);font-size:.78rem;margin-top:26p
     </div>
 
       <div class="card collapsible" data-collapse="extras" data-card="extras">
-        <h3><span class="dot" style="background:var(--brand)"></span> Supplements &amp; Drinks<span class="count" id="extrasCount"></span></h3>
-        <div class="card-body"><div id="extrasBox"></div></div>
+        <h3><span class="dot" style="background:var(--brand)"></span> Supplements, Drinks &amp; Snacks<span class="count" id="extrasCount"></span></h3>
+        <div class="card-body">
+          <div id="extrasBox"></div>
+          <div id="snackAddedBox"></div>
+          <div class="food-add">
+            <input type="text" id="snackNameIn" placeholder="Add a snack…" autocapitalize="sentences">
+            <input type="number" id="snackKcalIn" placeholder="kcal" min="0" step="10" inputmode="numeric">
+            <button class="btn primary" id="snackAddBtn" type="button">Add</button>
+          </div>
+        </div>
       </div>
 
       <!-- Not full-width any more: spanning every column forced it onto a
@@ -713,7 +733,15 @@ footer.foot{text-align:center;color:var(--muted);font-size:.78rem;margin-top:26p
            desktop window. -->
       <div class="card collapsible" data-collapse="meals" data-card="meals">
         <h3><span class="dot" style="background:var(--food)"></span> Today's Meals <span class="muted" id="mealKcal" style="font-weight:600;font-size:.74rem"></span><span class="count" id="mealsCount"></span></h3>
-        <div class="card-body"><div id="mealsBox"></div></div>
+        <div class="card-body">
+          <div id="mealsBox"></div>
+          <div id="mealAddedBox"></div>
+          <div class="food-add">
+            <input type="text" id="mealNameIn" placeholder="Add another meal…" autocapitalize="sentences">
+            <input type="number" id="mealKcalIn" placeholder="kcal" min="0" step="10" inputmode="numeric">
+            <button class="btn primary" id="mealAddBtn" type="button">Add</button>
+          </div>
+        </div>
       </div>
 
       <div class="card collapsible" data-collapse="meds" data-card="meds">
@@ -896,6 +924,12 @@ footer.foot{text-align:center;color:var(--muted);font-size:.78rem;margin-top:26p
       <div class="muted center" id="completionNote" style="font-size:.78rem;margin-top:8px"></div>
     </div>
 
+    <div class="card" data-collapse="calorietrend" data-card="calorietrend">
+      <h3>🔥 Calories</h3>
+      <canvas id="calorieChart" width="900" height="320"></canvas>
+      <div class="muted center" id="calorieNote" style="font-size:.78rem;margin-top:8px"></div>
+    </div>
+
     <div class="card" data-collapse="prayertrend" data-card="prayertrend">
       <h3>🕌 Prayers</h3>
       <canvas id="prayerChart" width="900" height="320"></canvas>
@@ -978,7 +1012,7 @@ footer.foot{text-align:center;color:var(--muted);font-size:.78rem;margin-top:26p
     </div>
 
     <div class="card collapsible collapsed" data-collapse="extras-edit" data-card="extras-edit">
-      <h3>🥤 Supplements &amp; drinks</h3>
+      <h3>🥤 Supplements, drinks &amp; snacks</h3>
       <div class="card-body">
         <p class="muted" style="font-size:.8rem;margin-top:0">Your daily list. The calorie figure next to each one feeds the meal totals; leave it at 0 if you don't care.</p>
         <div id="extrasEditBox"></div>
@@ -1322,6 +1356,65 @@ function extrasList(){
 function extrasKcal(){
   return extrasList().reduce(function(a,x){return a+(Number(x.kcal)||0);},0);
 }
+
+/* ---------- ANYTHING ELSE EATEN ----------
+   The three planned meals and the supplements list already carry their own
+   kcal, so what was missing was a way to record the things that are not on
+   the plan. One list per day holds both, told apart by `kind` - a meal shows
+   in Today's Meals and a snack under Supplements, but they are the same shape
+   and the same code.
+
+   Deliberately NOT part of dayTotalItems()/dayCompletion(): these are things
+   you happened to eat, not a checklist you set out to finish. Counting them
+   would make the day's ring fall as you logged more of it, which is
+   backwards. */
+var FOOD_KINDS=["meal","snack"];
+var MAX_KCAL=20000;
+function dayFood(d,kind){
+  if(!Array.isArray(d.food))d.food=[];
+  return kind?d.food.filter(function(f){return f.kind===kind;}):d.food;
+}
+function addFood(d,kind,name,kcal){
+  var label=String(name||"").trim();
+  var n=Math.round(Number(kcal));
+  if(!label)return false;
+  if(!Number.isFinite(n)||n<0||n>MAX_KCAL)n=0;
+  if(!Array.isArray(d.food))d.food=[];
+  d.food.push({id:"f"+Date.now().toString(36)+Math.floor(Math.random()*1000).toString(36),
+               kind:FOOD_KINDS.indexOf(kind)>=0?kind:"meal",name:label,kcal:n});
+  d.updated_at=Date.now();
+  save();
+  return true;
+}
+function removeFood(d,id){
+  if(!Array.isArray(d.food))return;
+  d.food=d.food.filter(function(f){return f.id!==id;});
+  d.updated_at=Date.now();
+  save();
+}
+/** What a day's intake actually came to: the planned meals that were ticked,
+ * the supplements that were ticked, and everything added by hand. Only ticked
+ * items count - the plan's calories are what is *on offer*, not what was
+ * eaten, and totalling those would report the same number every day. */
+function dayKcal(d,key){
+  if(!d)return 0;
+  var total=0;
+  /* Which day of the week it was decides which planned meals those ticks
+     refer to, so the date has to be passed in - a day record does not carry
+     its own key. */
+  var plan=PLAN[DAYKEY[new Date(String(key||todayKey())+"T00:00:00").getDay()]];
+  MEALSLOTS.forEach(function(s){
+    if(d.meals&&d.meals[s[0]]&&plan){
+      var r=RECIPES[plan[s[0]]];
+      if(r)total+=Number(r.kcal)||0;
+    }
+  });
+  extrasList().forEach(function(x){
+    if(d.extras&&d.extras[x.id])total+=Number(x.kcal)||0;
+  });
+  (Array.isArray(d.food)?d.food:[]).forEach(function(f){total+=Number(f.kcal)||0;});
+  return total;
+}
 function dhikrItems(period){
   var d=state.profile&&state.profile.dhikr;
   if(d&&Array.isArray(d[period])&&d[period].length)return d[period];
@@ -1447,7 +1540,7 @@ var state=load();
 if(_needsResave)save();           /* heal a corrupt main key / persist migration stamps right away */
 /* Console escape hatch: window.__YRdump() returns both raw copies for manual recovery. */
 window.__YRdump=function(){var o={};try{o.main=localStorage.getItem(KEY);}catch(e){o.main="<unreadable>";}try{o.bak=localStorage.getItem(BAKKEY);}catch(e){o.bak="<unreadable>";}return o;};
-function blankDay(){return{meds:{},prayers:{},meals:{},extras:{},dhikr:{morning:{},afternoon:{},evening:{}},water:0,weight:"",sleep:"",steps:"",jointPain:null,energy:null,exercise:false,notes:""};}
+function blankDay(){return{meds:{},prayers:{},meals:{},extras:{},dhikr:{morning:{},afternoon:{},evening:{}},water:0,weight:"",sleep:"",steps:"",jointPain:null,energy:null,exercise:false,notes:"",food:[]};}
 function dayData(k){
   if(!state.days[k])state.days[k]=blankDay();
   var d=state.days[k];
@@ -1800,7 +1893,9 @@ function renderToday(){
     var rid=plan[s[0]], r=RECIPES[rid]; total+=r.kcal;
     var row=el("div","meal-row");
     var cb=el("input");cb.type="checkbox";cb.checked=!!d.meals[s[0]];
-    cb.addEventListener("change",function(){d.meals[s[0]]=cb.checked;d.updated_at=Date.now();save();updateRing();});
+    /* Re-renders, not just the ring: the card's kcal line is now the day's
+       actual intake, and ticking a planned meal changes it. */
+    cb.addEventListener("change",function(){d.meals[s[0]]=cb.checked;d.updated_at=Date.now();save();renderToday();updateRing();});
     var mid=el("div");mid.style.flex="1";
     var top=el("div");top.appendChild(el("span","tag",s[1]));top.appendChild(document.createTextNode(" "));
     top.appendChild(recipeLink(rid));
@@ -1808,13 +1903,17 @@ function renderToday(){
     mid.appendChild(el("div","meal-meta","≈ "+r.kcal+" kcal · "+r.protein+" g protein · "+r.time));
     row.appendChild(cb);row.appendChild(mid);box.appendChild(row);
   });
-  document.getElementById("mealKcal").textContent="· ≈ "+(total+extrasKcal())+" kcal incl. supplements";
+  renderFoodList("mealAddedBox",d,"meal");
+  /* What was actually eaten, not what the plan offers - the planned total was
+     the same number every day and said nothing about the day you had. */
+  document.getElementById("mealKcal").textContent="· "+dayKcal(d,keyOf(cur))+" kcal logged";
 
   // water
   renderWater(d);
 
-  // supplements & drinks
+  // supplements, drinks & snacks
   renderExtras(d);
+  renderFoodList("snackAddedBox",d,"snack");
 
   // dhikr
   renderDhikr(d);
@@ -1868,6 +1967,28 @@ function renderWater(d){
   setCount("waterCountTag",d.water+"/8");
 }
 
+/** The hand-added meals or snacks for a day. Same markup either way - only
+ * which box it lands in differs. */
+function renderFoodList(boxId,d,kind){
+  var box=document.getElementById(boxId);
+  if(!box)return;
+  box.innerHTML="";
+  dayFood(d,kind).forEach(function(f){
+    var row=el("div","food-row");
+    row.setAttribute("data-food",f.id);
+    row.appendChild(el("span","food-name",f.name));
+    row.appendChild(el("span","food-kcal",(Number(f.kcal)||0)+" kcal"));
+    var del=el("button","icon-btn danger","✕");
+    del.type="button";
+    del.setAttribute("aria-label","Remove "+f.name);
+    del.addEventListener("click",function(){
+      removeFood(d,f.id);
+      renderToday();
+    });
+    row.appendChild(del);
+    box.appendChild(row);
+  });
+}
 function renderExtras(d){
   var box=document.getElementById("extrasBox");box.innerHTML="";
   extrasList().forEach(function(x){
@@ -1996,6 +2117,7 @@ function dayHasContent(d){
   if(any)return true;
   if(d.water)return true;
   if(d.exercise)return true;
+  if(Array.isArray(d.food)&&d.food.length)return true;
   if(d.jointPain!==null&&d.jointPain!==undefined)return true;
   if(d.energy!==null&&d.energy!==undefined)return true;
   return ["weight","sleep","steps","notes"].some(function(f){
@@ -5306,6 +5428,7 @@ function renderProgress(){
   drawCompletionChart(keys);
   drawPrayerChart();
   drawSleepChart(keys);
+  drawCalorieChart(keys);
 }
 
 /* One number for how much of a day got ticked off - the single definition
@@ -5407,6 +5530,83 @@ function drawCompletionChart(keys){
     var full=series.filter(function(v){return v>=100;}).length;
     note.textContent=series.length+" day(s) logged · average "+mean+"% · best "+best+"%"+
       (full?" · "+full+" full day(s)":"")+(series.length>=7?" · dashed line is the 7-day average":"");
+  }
+}
+
+/** Calories logged per day.
+ *
+ * Only days with something logged are points. A day with nothing recorded is
+ * missing data, not a day of fasting, and drawing it as zero would be a lie -
+ * the same call drawSleepChart makes, for the same reason. There is no target
+ * line: the app has never been told one, and inventing a number to draw a
+ * line against would be exactly the kind of made-up figure the brief is
+ * forbidden from producing. */
+function drawCalorieChart(keys){
+  var c=document.getElementById("calorieChart");
+  if(!c)return;
+  var ctx=c.getContext("2d");
+  var W=c.width,H=c.height;ctx.clearRect(0,0,W,H);
+  var note=document.getElementById("calorieNote");
+  var css=getComputedStyle(document.body);
+  var muted=css.getPropertyValue("--muted"),brand=css.getPropertyValue("--brand"),
+      line=css.getPropertyValue("--line"),accent=css.getPropertyValue("--accent");
+
+  var pts=[];
+  keys.forEach(function(k){
+    var v=dayKcal(state.days[k],k);
+    if(v>0)pts.push([k,v]);
+  });
+  if(pts.length<2){
+    if(note)note.textContent="Tick your meals, or add a meal or snack with its calories, on at least two days to see this.";
+    ctx.fillStyle=muted;ctx.font="16px sans-serif";ctx.textAlign="center";
+    ctx.fillText("Your calorie intake will appear here.",W/2,H/2);
+    return;
+  }
+
+  var vals=pts.map(function(p){return p[1];});
+  var top=Math.max.apply(null,vals);
+  /* Round the axis up to a clean step so the gridline labels read as round
+     numbers rather than whatever the highest day happened to be. */
+  var step=top>2500?500:250;
+  top=Math.ceil(top/step)*step;
+  var pad=52;
+  function X(i){return pad+(W-pad*2)*(i/(pts.length-1));}
+  function Y(v){return pad+(H-pad*2)*(1-v/top);}
+
+  ctx.strokeStyle=line;ctx.fillStyle=muted;ctx.font="12px sans-serif";ctx.textAlign="right";
+  for(var g=0;g<=4;g++){
+    var v=top*g/4,y=Y(v);
+    ctx.beginPath();ctx.moveTo(pad,y);ctx.lineTo(W-pad,y);ctx.stroke();
+    ctx.fillText(String(Math.round(v)),pad-6,y+4);
+  }
+
+  ctx.strokeStyle=brand;ctx.lineWidth=3;ctx.beginPath();
+  vals.forEach(function(v,i){var x=X(i),y=Y(v);if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);});
+  ctx.stroke();
+  ctx.fillStyle=brand;
+  vals.forEach(function(v,i){ctx.beginPath();ctx.arc(X(i),Y(v),vals.length>60?2:4,0,7);ctx.fill();});
+
+  if(vals.length>=7){
+    var avg=vals.map(function(_,i){
+      var from=Math.max(0,i-6),win=vals.slice(from,i+1);
+      return win.reduce(function(a,b){return a+b;},0)/win.length;
+    });
+    ctx.strokeStyle=accent;ctx.lineWidth=2;ctx.setLineDash([5,4]);ctx.beginPath();
+    avg.forEach(function(v,i){var x=X(i),y=Y(v);if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);});
+    ctx.stroke();ctx.setLineDash([]);
+  }
+
+  ctx.fillStyle=muted;ctx.font="12px sans-serif";ctx.textAlign="left";
+  ctx.fillText(pts[0][0],pad,H-pad+18);
+  ctx.textAlign="right";
+  ctx.fillText(pts[pts.length-1][0],W-pad,H-pad+18);
+
+  if(note){
+    var mean=Math.round(vals.reduce(function(a,b){return a+b;},0)/vals.length);
+    var lo=Math.min.apply(null,vals),hi=Math.max.apply(null,vals);
+    note.textContent=vals.length+" day(s) logged · average "+mean+" kcal"+
+      " · lowest "+lo+" · highest "+hi+
+      (vals.length>=7?" · dashed line is the 7-day average":"");
   }
 }
 
@@ -6006,6 +6206,27 @@ function bindInput(id,prop,num){
     var d=dayData(keyOf(cur));d[prop]=(num?(this.value===""?"":this.value):this.value);d.updated_at=Date.now();save();
   });
 }
+/* One handler for both boxes: read the pair, add, clear, re-render. Enter in
+   either field adds too - typing a number and reaching for the mouse is the
+   slow path on a phone. */
+function wireFoodAdd(kind,nameId,kcalId,btnId){
+  var nameEl=document.getElementById(nameId),kcalEl=document.getElementById(kcalId),btn=document.getElementById(btnId);
+  if(!nameEl||!kcalEl||!btn)return;
+  function commit(){
+    var d=dayData(keyOf(cur));
+    if(!addFood(d,kind,nameEl.value,kcalEl.value))return;
+    nameEl.value="";kcalEl.value="";
+    renderToday();
+    nameEl.focus();
+  }
+  btn.addEventListener("click",commit);
+  [nameEl,kcalEl].forEach(function(input){
+    input.addEventListener("keydown",function(e){if(e.key==="Enter"){e.preventDefault();commit();}});
+  });
+}
+wireFoodAdd("meal","mealNameIn","mealKcalIn","mealAddBtn");
+wireFoodAdd("snack","snackNameIn","snackKcalIn","snackAddBtn");
+
 bindInput("weightIn","weight",true);
 bindInput("sleepIn","sleep",true);
 bindInput("stepsIn","steps",true);

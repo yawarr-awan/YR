@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.34.0
+
+**Calorie tracking.**
+
+- **Add another meal, with its calories** — a name-and-kcal row at the bottom of Today's Meals, for anything that wasn't on the plan. ✕ removes it. Enter adds it without reaching for the button.
+- **Supplements & Drinks is now Supplements, Drinks & Snacks**, with the same add-a-snack row.
+- **A Calories chart on Progress**, with a 7-day average once there's a week of it.
+
+The number in the Meals heading has changed meaning, and for the better: it used to show the *plan's* calories including every supplement — the same figure every day, whether you ate any of it or not. It now shows **what you actually logged**: the planned meals you ticked, the supplements you ticked, and anything you added by hand. So it moves as your day does.
+
+Two deliberate choices worth knowing:
+
+- **A day with nothing logged is left off the chart, not drawn as zero.** That's missing data, not a day of fasting — the same call the sleep chart makes.
+- **Adding food never moves the completion ring.** These are things you happened to eat, not a checklist you set out to finish; counting them would make the ring *fall* as you logged more of your day.
+
+There's no target line on the chart, because the app has never been told your target. Say the word and I'll add one you can set.
+
 ## 1.33.0
 
 **Groundwork for a second person using the app.** The server was already fully multi-user — every one of the 25 database queries is keyed on the email from your verified Access token — but the *browser* wasn't. The local store carried no record of whose data it held, and sync pushes everything it holds. So opening the app on a browser containing someone else's data would have filed their days and journal under whoever was signed in.
