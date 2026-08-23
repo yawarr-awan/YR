@@ -178,7 +178,7 @@ function modelRouter(state) {
     if (u.includes("/api/settings/brief-model")) {
       if (options && options.method === "PUT") {
         const body = JSON.parse(options.body);
-        if (!/^[a-zA-Z0-9._-]{1,64}$/.test(body.model) && body.model !== "") {
+        if (body.model !== "" && !/^[a-zA-Z0-9._-]{1,64}$/.test(body.model)) {
           return { ok: false, status: 400, json: async () => ({ error: "bad model id" }) };
         }
         state.model = body.model || null;
@@ -191,56 +191,112 @@ function modelRouter(state) {
   };
 }
 
-test("Settings offers the brief's model, blank meaning Google's current Flash", async () => {
-  const state = { model: null };
+async function openSettings(state) {
   const app = loadApp({ fetchImpl: modelRouter(state) });
   app.goTo("settings");
   await app.flush();
   await app.flush();
+  return app;
+}
+const sel = (app) => app.document.getElementById("briefModelSel");
+const opts = (app) => [...sel(app).options].map((o) => o.value);
 
-  const input = app.document.getElementById("briefModelIn");
-  assert.ok(input, "there is a model box");
-  assert.equal(input.value, "", "blank by default");
-  assert.match(input.placeholder, /gemini-flash-latest/, "and it says what the default is");
-  assert.match(app.document.getElementById("briefModelStatus").textContent, /current Flash model/i);
-  // The known names are offered rather than having to be remembered.
-  const opts = [...app.document.querySelectorAll("#briefModelList option")].map((o) => o.value);
-  assert.ok(opts.includes("gemini-3.7-flash"));
+test("the model picker is a real select, not a datalist", async () => {
+  /* An <input list=> only filters as you type, and on Chrome for Android its
+     arrow often opens nothing at all - which is how this shipped and was
+     reported as "the dropdown isn't working". */
+  const app = await openSettings({ model: null });
+  assert.ok(sel(app), "there is a <select>");
+  assert.equal(sel(app).tagName, "SELECT");
+  assert.equal(app.document.getElementById("briefModelList"), null, "the datalist is gone");
 });
 
-test("saving a model stores it, and Use the default clears it", async () => {
-  const state = { model: null };
-  const app = loadApp({ fetchImpl: modelRouter(state) });
-  app.goTo("settings");
-  await app.flush();
-  await app.flush();
+test("the picker offers Automatic, every known model, and an escape hatch", async () => {
+  const app = await openSettings({ model: null });
+  assert.deepEqual(opts(app), ["", "gemini-flash-latest", "gemini-3.7-flash", "__custom"]);
+  assert.equal(sel(app).value, "", "Automatic by default");
+  assert.match(sel(app).options[0].textContent, /Automatic/);
+  assert.match(sel(app).options[0].textContent, /gemini-flash-latest/, "and it names what that resolves to");
+  assert.match(app.document.getElementById("briefModelStatus").textContent, /current Flash model/i);
+  assert.ok(app.document.getElementById("briefModelCustomWrap").hidden, "the free-text box stays out of the way");
+});
 
-  app.document.getElementById("briefModelIn").value = "gemini-3.7-flash";
+test("picking a model from the list saves it", async () => {
+  const state = { model: null };
+  const app = await openSettings(state);
+  sel(app).value = "gemini-3.7-flash";
+  sel(app).dispatchEvent(new app.window.Event("change", { bubbles: true }));
   app.click("briefModelSave");
   await app.flush();
   await app.flush();
+
   assert.equal(state.model, "gemini-3.7-flash", "it reached the server");
   assert.match(app.document.getElementById("briefModelStatus").textContent, /gemini-3\.7-flash/);
+  assert.equal(sel(app).value, "gemini-3.7-flash", "and the picker still shows it");
+});
 
+test("Something else reveals a box, and what is typed there is what gets saved", async () => {
+  const state = { model: null };
+  const app = await openSettings(state);
+  sel(app).value = "__custom";
+  sel(app).dispatchEvent(new app.window.Event("change", { bubbles: true }));
+  assert.equal(app.document.getElementById("briefModelCustomWrap").hidden, false);
+
+  app.document.getElementById("briefModelIn").value = "gemini-9.9-flash";
+  app.click("briefModelSave");
+  await app.flush();
+  await app.flush();
+  assert.equal(state.model, "gemini-9.9-flash");
+});
+
+test("a saved model that is not in the list still reads as what is in use", async () => {
+  // Otherwise a model Google added after this list was written would silently
+  // display as "Automatic" while something else was actually running.
+  const app = await openSettings({ model: "gemini-4.2-flash" });
+  assert.equal(sel(app).value, "__custom");
+  assert.equal(app.document.getElementById("briefModelIn").value, "gemini-4.2-flash");
+  assert.equal(app.document.getElementById("briefModelCustomWrap").hidden, false);
+  assert.match(app.document.getElementById("briefModelStatus").textContent, /gemini-4\.2-flash/);
+});
+
+test("Use the default clears it and folds the free-text box away", async () => {
+  const state = { model: "gemini-3.7-flash" };
+  const app = await openSettings(state);
   app.click("briefModelReset");
   await app.flush();
   await app.flush();
+
   assert.equal(state.model, null);
-  assert.equal(app.document.getElementById("briefModelIn").value, "");
+  assert.equal(sel(app).value, "");
+  assert.ok(app.document.getElementById("briefModelCustomWrap").hidden);
   assert.match(app.document.getElementById("briefModelStatus").textContent, /default/i);
 });
 
 test("a model the server refuses is reported, not silently swallowed", async () => {
   const state = { model: null };
-  const app = loadApp({ fetchImpl: modelRouter(state) });
-  app.goTo("settings");
-  await app.flush();
-  await app.flush();
-
+  const app = await openSettings(state);
+  sel(app).value = "__custom";
+  sel(app).dispatchEvent(new app.window.Event("change", { bubbles: true }));
   app.document.getElementById("briefModelIn").value = "not a model";
   app.click("briefModelSave");
   await app.flush();
   await app.flush();
+
   assert.match(app.document.getElementById("briefModelStatus").textContent, /couldn't save/i);
   assert.equal(state.model, null);
+});
+
+test("the card links to Google's model list and to where the API key lives", async () => {
+  const app = await openSettings({ model: null });
+  const docs = app.document.getElementById("briefModelDocs");
+  const key = app.document.getElementById("briefModelKey");
+  assert.match(docs.href, /ai\.google\.dev\/gemini-api\/docs\/models/);
+  assert.match(key.href, /aistudio\.google\.com\/apikey/);
+  [docs, key].forEach((a) => {
+    assert.equal(a.target, "_blank");
+    assert.match(a.rel, /noopener/, "an external link must not hand over window.opener");
+  });
+  // And it says plainly that changing model needs no new key.
+  assert.match(app.document.querySelector('[data-card="briefmodel"]').textContent,
+    /don't need a new key to change model/i);
 });

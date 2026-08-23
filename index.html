@@ -256,7 +256,7 @@ body.editing .card[data-card].is-over{outline:2px solid var(--brand)}
 .glass.full{background:var(--water);opacity:1}
 .field{margin:10px 0}
 .field label{display:block;font-size:.8rem;color:var(--muted);font-weight:600;margin-bottom:4px}
-.field input[type=number],.field textarea,.field input[type=text]{
+.field input[type=number],.field textarea,.field input[type=text],.field select{
   width:100%;border:1px solid var(--line);background:var(--panel-2);color:var(--ink);
   border-radius:10px;padding:10px;font:inherit
 }
@@ -1013,17 +1013,26 @@ footer.foot{text-align:center;color:var(--muted);font-size:.78rem;margin-top:26p
     <div class="card collapsible collapsed" data-collapse="briefmodel" data-card="briefmodel">
       <h3>🤖 Today's Brief model</h3>
       <div class="card-body">
-        <p class="muted" style="font-size:.8rem;margin-top:0">Which Gemini model writes the brief. <b>Leave it blank</b> to follow Google's current Flash model automatically — that's the right answer almost always. Set one only if you want a specific model, or if Google retires one and the brief starts failing.</p>
+        <p class="muted" style="font-size:.8rem;margin-top:0">Which Gemini model writes the brief. <b>Automatic</b> follows Google's current Flash model and is the right answer almost always — pick a specific one only if you want it, or if Google retires one and the brief starts failing.</p>
         <div class="field">
-          <input type="text" id="briefModelIn" list="briefModelList" placeholder="Loading…" autocapitalize="off" autocorrect="off" spellcheck="false">
-          <datalist id="briefModelList"></datalist>
+          <label for="briefModelSel">Model</label>
+          <select id="briefModelSel"></select>
+        </div>
+        <div class="field" id="briefModelCustomWrap" hidden>
+          <label for="briefModelIn">Model id</label>
+          <input type="text" id="briefModelIn" placeholder="e.g. gemini-3.7-flash" autocapitalize="off" autocorrect="off" spellcheck="false">
         </div>
         <div class="pill-row">
           <button class="btn primary" id="briefModelSave" type="button">Save</button>
           <button class="btn" id="briefModelReset" type="button">Use the default</button>
         </div>
         <div class="muted" id="briefModelStatus" style="font-size:.78rem;margin-top:6px"></div>
-        <p class="muted" style="font-size:.72rem;margin-bottom:0">A name that turns out to be wrong or retired costs one wasted request — the brief falls back to the built-in list rather than failing.</p>
+        <p class="muted" style="font-size:.72rem">A name that turns out to be wrong or retired costs one wasted request — the brief falls back to the built-in list rather than failing.</p>
+        <div class="pill-row" style="margin-top:2px">
+          <a class="btn" id="briefModelDocs" href="https://ai.google.dev/gemini-api/docs/models" target="_blank" rel="noopener noreferrer">📋 Google's model list</a>
+          <a class="btn" id="briefModelKey" href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer">🔑 API keys</a>
+        </div>
+        <p class="muted" style="font-size:.72rem;margin-bottom:0"><b>You don't need a new key to change model.</b> One Google AI Studio key covers every Gemini model, and YR already has one. If it ever needs replacing, it's a Worker secret (<code>GEMINI_API_KEY</code>) set in the Cloudflare dashboard — the app can't change it, and neither can Claude.</p>
       </div>
     </div>
 
@@ -5777,24 +5786,60 @@ function saveBriefPrompt(value){
    text box. */
 var BRIEF_MODEL_URL="/api/settings/brief-model";
 var _briefModelDefault="";
+var BRIEF_MODEL_CUSTOM="__custom";
 function setBriefModelStatus(msg){var e=document.getElementById("briefModelStatus");if(e)e.textContent=msg||"";}
+function briefModelCustomShown(on){
+  var wrap=document.getElementById("briefModelCustomWrap");
+  if(wrap)wrap.hidden=!on;
+}
+/* A real <select>, not an <input list=>. A datalist only filters as you type
+   and on Chrome for Android its arrow frequently opens nothing at all - which
+   is exactly how this shipped and was reported as "the dropdown isn't
+   working". A native select is the one control that behaves the same on a
+   phone as on a desktop. "Something else" keeps the free-text escape hatch
+   for a model Google adds after this list was written. */
 function renderBriefModel(d){
-  var input=document.getElementById("briefModelIn");
-  if(!input)return;
+  var sel=document.getElementById("briefModelSel");
+  if(!sel)return;
   _briefModelDefault=d.default||"";
-  input.value=d.model||"";
-  input.placeholder=_briefModelDefault?("Default: "+_briefModelDefault):"";
-  var list=document.getElementById("briefModelList");
-  if(list){
-    list.innerHTML="";
-    (d.known||[]).forEach(function(m){var o=el("option");o.value=m;list.appendChild(o);});
-  }
-  setBriefModelStatus(d.model
-    ? ("Using "+d.model+". The built-in list is still the fallback.")
+  var known=d.known||[];
+  var model=d.model||"";
+  sel.innerHTML="";
+  var auto=el("option",null,"Automatic — Google's current Flash model"+(_briefModelDefault?" ("+_briefModelDefault+")":""));
+  auto.value="";
+  sel.appendChild(auto);
+  known.forEach(function(m){
+    var o=el("option",null,m+(m===_briefModelDefault?" — default":""));
+    o.value=m;
+    sel.appendChild(o);
+  });
+  var other=el("option",null,"Something else…");
+  other.value=BRIEF_MODEL_CUSTOM;
+  sel.appendChild(other);
+
+  var input=document.getElementById("briefModelIn");
+  /* A saved model Google has since added, or one typed by hand, is not in the
+     list - it must still show as what is actually in use rather than
+     silently reading as "Automatic". */
+  var isKnown=known.indexOf(model)>=0;
+  sel.value=model?(isKnown?model:BRIEF_MODEL_CUSTOM):"";
+  if(input)input.value=(model&&!isKnown)?model:"";
+  briefModelCustomShown(sel.value===BRIEF_MODEL_CUSTOM);
+
+  setBriefModelStatus(model
+    ? ("Using "+model+". The built-in list is still the fallback.")
     : ("Following Google's current Flash model"+(_briefModelDefault?" ("+_briefModelDefault+")":"")+"."));
 }
+/** Whatever the two controls currently add up to. */
+function chosenBriefModel(){
+  var sel=document.getElementById("briefModelSel");
+  if(!sel)return "";
+  if(sel.value!==BRIEF_MODEL_CUSTOM)return sel.value;
+  var input=document.getElementById("briefModelIn");
+  return input?input.value.trim():"";
+}
 function loadBriefModel(){
-  if(!document.getElementById("briefModelIn")||typeof fetch!=="function")return;
+  if(!document.getElementById("briefModelSel")||typeof fetch!=="function")return;
   fetch(BRIEF_MODEL_URL,{credentials:"same-origin"}).then(function(r){
     if(!r.ok)throw new Error("http "+r.status);
     return r.json();
@@ -6006,8 +6051,15 @@ document.getElementById("medAddBtn").addEventListener("click",addMedicine);
 document.getElementById("extraAddBtn").addEventListener("click",addExtra);
 document.getElementById("extraNewIn").addEventListener("keydown",function(e){if(e.key==="Enter")addExtra();});
 document.getElementById("medNewIn").addEventListener("keydown",function(e){if(e.key==="Enter")addMedicine();});
+document.getElementById("briefModelSel").addEventListener("change",function(){
+  briefModelCustomShown(this.value===BRIEF_MODEL_CUSTOM);
+  if(this.value===BRIEF_MODEL_CUSTOM){
+    var i=document.getElementById("briefModelIn");
+    if(i)i.focus();
+  }
+});
 document.getElementById("briefModelSave").addEventListener("click",function(){
-  saveBriefModel(document.getElementById("briefModelIn").value);
+  saveBriefModel(chosenBriefModel());
 });
 document.getElementById("briefModelReset").addEventListener("click",function(){
   saveBriefModel("");
