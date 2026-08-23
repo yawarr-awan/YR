@@ -1292,6 +1292,33 @@ the week containing `dayDate`). `calCols()` is a constant 7; `calIsWide()`
   flex child of the row). The widths were measured in Chromium: 188px per
   title at 390px.
 
+## Calories (1.34.0)
+- **`d.food` is one list per day**, entries `{id, kind:"meal"|"snack", name,
+  kcal}`. One shape, one set of functions; `kind` decides which card renders
+  it. In `blankDay()` so old exports round-trip, and `dayHasContent()` counts
+  it or a food-only day would never push.
+- **`dayKcal(d, key)` totals what was *ticked*, not what the plan offers.** The
+  planned meals and `extrasList()` already carry `kcal`; summing those
+  unconditionally is what `#mealKcal` used to do, and it reported an identical
+  number every day. **The key argument is required** - which weekday it was
+  decides which `PLAN` meals those ticks refer to, and a day record does not
+  carry its own date.
+- **Deliberately absent from `dayTotalItems()`/`dayCompletion()`.** Food logged
+  is not a checklist item; counting it would make the ring fall as more of the
+  day was recorded. `test/calories.test.js` pins that the ring does not move.
+- Ticking a planned meal now calls `renderToday()`, not just `updateRing()` -
+  the heading's kcal line depends on those ticks. Caught by a test, not by
+  reading.
+- `drawCalorieChart()` plots **only days with a non-zero total** - an unlogged
+  day is missing data, not a fast (same call as `drawSleepChart`, opposite to
+  `drawPrayerChart`). **No target line**: nothing in the app stores a calorie
+  goal, and drawing one against an invented number is the same sin the brief
+  prompt forbids.
+- `MAX_KCAL` (20000) clamps a nonsense entry to 0 rather than storing it.
+- The `.food-add` row gives the kcal box a fixed `flex:0 0 5rem` and the name
+  `flex:1 1 8rem` - the 1.30.1 task-row lesson: don't let a nowrap sibling and
+  a wrappable one compete for the same width.
+
 ## More than one person (1.33.0)
 **The Worker was always multi-tenant; the client was not.** `email` comes from
 `verifyAccess` (the signed Access JWT) and every SQL statement is keyed on it -
