@@ -169,3 +169,78 @@ test("a Tasks failure alongside a good brief is reported as that, not as stalene
   assert.match(note, /couldn't read your google tasks/i);
   assert.doesNotMatch(note, /brief from earlier/i);
 });
+
+/* ---------- choosing the model in Settings ---------- */
+
+function modelRouter(state) {
+  return async (url, options) => {
+    const u = String(url);
+    if (u.includes("/api/settings/brief-model")) {
+      if (options && options.method === "PUT") {
+        const body = JSON.parse(options.body);
+        if (!/^[a-zA-Z0-9._-]{1,64}$/.test(body.model) && body.model !== "") {
+          return { ok: false, status: 400, json: async () => ({ error: "bad model id" }) };
+        }
+        state.model = body.model || null;
+      }
+      return jsonRes({ model: state.model, default: "gemini-flash-latest", known: ["gemini-flash-latest", "gemini-3.7-flash"] });
+    }
+    if (u.includes("/api/settings/brief-prompt")) return jsonRes({ prompt: null, default: "x" });
+    if (u.includes("/api/brief")) return jsonRes(briefResponse());
+    throw new Error("unexpected fetch " + u);
+  };
+}
+
+test("Settings offers the brief's model, blank meaning Google's current Flash", async () => {
+  const state = { model: null };
+  const app = loadApp({ fetchImpl: modelRouter(state) });
+  app.goTo("settings");
+  await app.flush();
+  await app.flush();
+
+  const input = app.document.getElementById("briefModelIn");
+  assert.ok(input, "there is a model box");
+  assert.equal(input.value, "", "blank by default");
+  assert.match(input.placeholder, /gemini-flash-latest/, "and it says what the default is");
+  assert.match(app.document.getElementById("briefModelStatus").textContent, /current Flash model/i);
+  // The known names are offered rather than having to be remembered.
+  const opts = [...app.document.querySelectorAll("#briefModelList option")].map((o) => o.value);
+  assert.ok(opts.includes("gemini-3.7-flash"));
+});
+
+test("saving a model stores it, and Use the default clears it", async () => {
+  const state = { model: null };
+  const app = loadApp({ fetchImpl: modelRouter(state) });
+  app.goTo("settings");
+  await app.flush();
+  await app.flush();
+
+  app.document.getElementById("briefModelIn").value = "gemini-3.7-flash";
+  app.click("briefModelSave");
+  await app.flush();
+  await app.flush();
+  assert.equal(state.model, "gemini-3.7-flash", "it reached the server");
+  assert.match(app.document.getElementById("briefModelStatus").textContent, /gemini-3\.7-flash/);
+
+  app.click("briefModelReset");
+  await app.flush();
+  await app.flush();
+  assert.equal(state.model, null);
+  assert.equal(app.document.getElementById("briefModelIn").value, "");
+  assert.match(app.document.getElementById("briefModelStatus").textContent, /default/i);
+});
+
+test("a model the server refuses is reported, not silently swallowed", async () => {
+  const state = { model: null };
+  const app = loadApp({ fetchImpl: modelRouter(state) });
+  app.goTo("settings");
+  await app.flush();
+  await app.flush();
+
+  app.document.getElementById("briefModelIn").value = "not a model";
+  app.click("briefModelSave");
+  await app.flush();
+  await app.flush();
+  assert.match(app.document.getElementById("briefModelStatus").textContent, /couldn't save/i);
+  assert.equal(state.model, null);
+});

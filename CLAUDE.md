@@ -1292,6 +1292,34 @@ the week containing `dayDate`). `calCols()` is a constant 7; `calIsWide()`
   flex child of the row). The widths were measured in Chromium: 188px per
   title at 390px.
 
+## A pinned Gemini model retired and stopped the brief (1.32.0)
+`daily_brief.error` held `HTTP 404 "This model models/gemini-2.5-flash is no
+longer available to new users"`. Read that column first, as ever.
+- **`GEMINI_FALLBACK_MODELS` leads with aliases.** `-latest` is hot-swapped by
+  Google and cannot rot; a pinned version is a dated liability that will expire
+  underneath you. Verified current names by WebSearch (ai.google.dev is
+  EGRESS_BLOCKED from this sandbox): `gemini-3.6-flash` released 2026-07-21,
+  `gemini-3.7-flash` 2026-08-13, `gemini-flash-latest` is the alias.
+- **The worse bug was the control flow.** `callGemini` did
+  `if (!GEMINI_RETRY_STATUS.includes(status)) throw` - so a 404 on the *second*
+  model aborted the loop before the third was tried, and one retired name took
+  the whole rotation down. A non-retryable answer now means **skip this model**
+  (`dead` set, dropped from later rounds), never "give up". Only
+  `GEMINI_FATAL_STATUS` (400/401/403 - a key or request problem no model can
+  fix) stops everything.
+- The thrown error now reports **one reason per model** (`why` map). Previously
+  only the last failure survived, which hid why the *first* model failed - the
+  reason this took longer to diagnose than it should have.
+- **`brief_model` in `user_settings`** (added with a lazy
+  `ALTER TABLE ... ADD COLUMN` whose duplicate-column error is swallowed, same
+  approach as the lazy `CREATE TABLE`). `GET`/`PUT /api/settings/brief-model`.
+  `geminiModelList(preferred)` puts the user's choice **first with the built-in
+  list still behind it** - a wrong name costs one request, never the brief.
+  The id is regex-validated because it is interpolated into a URL path.
+- Test note: `test/fakeD1.js` now models `user_settings`, and its INSERT branch
+  picks the column from the SQL text - the prompt and the model are written by
+  separate statements and neither may clobber the other.
+
 ## The prompt rule that silenced the journal (1.31.2)
 Reported as "it's not reading my journal". It was: the entry was in D1 and in
 the prompt (both verified against live D1 and the deployed script). The
