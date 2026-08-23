@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.32.1
+
+**Fixed the model dropdown.** It was an `<input list=…>` (an HTML datalist), which only filters as you type and whose arrow frequently opens nothing at all on Chrome for Android — so it read as broken, correctly.
+
+- **It's a real dropdown now**, listing *Automatic* (follow Google's current Flash model), each known model, and **Something else…** which reveals a text box for a model Google adds after this list was written. A saved model that isn't in the list shows as what's actually in use rather than silently reading as "Automatic".
+- **Two links added**: Google's model list, and where API keys live.
+- **On keys, plainly:** you don't need a new one to change model. A single Google AI Studio key covers every Gemini model and YR already has one. If it ever needs replacing it's a Worker secret (`GEMINI_API_KEY`) set in the Cloudflare dashboard — the app can't change it, and neither can Claude.
+
+Only the four model names I could actually verify are listed. I left out one I couldn't confirm exists — pinning a name I'd guessed at is precisely what broke the brief yesterday.
+
 ## 1.32.0
 
 **The brief stopped generating, and the cause was a model I had pinned.** Today's brief failed with:

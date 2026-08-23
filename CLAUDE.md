@@ -1292,6 +1292,24 @@ the week containing `dayDate`). `calCols()` is a constant 7; `calIsWide()`
   flex child of the row). The widths were measured in Chromium: 188px per
   title at 390px.
 
+## The model picker is a `<select>`, not a datalist (1.32.1)
+- **`<input list=…>` is not a dropdown.** A datalist only filters as you type,
+  and on Chrome for Android its arrow routinely opens nothing - it shipped that
+  way in 1.32.0 and was reported as "the dropdown is not working". A native
+  `<select>` is the one control that behaves the same on a phone as on a
+  desktop. Don't reach for a datalist for a fixed list of choices.
+- `BRIEF_MODEL_CUSTOM` (`"__custom"`) is the free-text escape hatch, revealed
+  by `briefModelCustomShown()`; `chosenBriefModel()` is what the two controls
+  add up to. **A saved model not in `known` selects "Something else" and
+  prefills the box** - otherwise a model Google adds later would display as
+  "Automatic" while something else was actually running.
+- `hidden` on `#briefModelCustomWrap` relies on the `[hidden]{display:none
+  !important}` rule (see the 1.23.0 note) - `.field` is not a flex row, but the
+  rule is why toggling it works at all.
+- **Only verified model names are listed.** `gemini-pro-latest` was considered
+  and left out because a search could not confirm it exists; guessing a name is
+  what caused the 1.32.0 outage in the first place.
+
 ## A pinned Gemini model retired and stopped the brief (1.32.0)
 `daily_brief.error` held `HTTP 404 "This model models/gemini-2.5-flash is no
 longer available to new users"`. Read that column first, as ever.
