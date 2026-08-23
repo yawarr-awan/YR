@@ -2017,3 +2017,75 @@ test("an unreadable settings table never blocks the brief's model choice", async
   const { getBriefModel } = await loadWorker();
   assert.equal(await getBriefModel({ DB: { prepare() { throw new Error("nope"); } } }, EMAIL), null);
 });
+
+/* ---------- one Worker, more than one person ---------- */
+
+test("a push declaring a different account is refused, and writes nothing", async () => {
+  /* The server files rows under the *verified* Access email whatever the body
+     says, so a browser holding one person's store while signed in as another
+     would silently file his days under her name. Refusing the push is the only
+     place that can be caught - nothing downstream can tell afterwards. */
+  const { handleSync } = await loadWorker();
+  const d1 = createFakeD1();
+  const body = {
+    account: "yawar@example.com",
+    since: 0,
+    days: { "2026-03-01": { data: JSON.stringify({ notes: "his journal" }), updated_at: 42 } },
+    profile: { data: JSON.stringify({ startWeight: 108 }), updated_at: 42 },
+  };
+
+  const res = await handleSync({ json: async () => body }, d1.env, "wife@example.com");
+  assert.equal(res.status, 409);
+  const out = await res.json();
+  assert.equal(out.error, "account_mismatch");
+  assert.equal(out.email, "wife@example.com", "so the client knows who it is really signed in as");
+  assert.equal(d1.days.size, 0, "nothing was written under her email");
+});
+
+test("a push that declares the right account, or declares none, is accepted", async () => {
+  const { handleSync } = await loadWorker();
+  const d1 = createFakeD1();
+  const day = { "2026-03-01": { data: JSON.stringify({ notes: "mine" }), updated_at: 42 } };
+
+  const matching = await handleSync(
+    { json: async () => ({ account: EMAIL, since: 0, days: day }) }, d1.env, EMAIL);
+  assert.equal(matching.status, 200);
+  assert.equal((await matching.json()).applied, 1);
+
+  /* A client that has not yet been told who it is sends no account. It is
+     accepted - and is expected to be pulling only, which is the client's
+     side of the contract. */
+  const undeclared = await handleSync(
+    { json: async () => ({ since: 0, days: {} }) }, d1.env, EMAIL);
+  assert.equal(undeclared.status, 200);
+});
+
+test("the sync and brief responses both report who is signed in", async (t) => {
+  const { handleSync, handleGetBrief } = await loadWorker();
+  installFetch(t, async () => { throw new Error("no network needed"); });
+  const d1 = createFakeD1();
+
+  const sync = await (await handleSync({ json: async () => ({ since: 0, days: {} }) }, d1.env, EMAIL)).json();
+  assert.equal(sync.email, EMAIL);
+
+  const brief = await (await handleGetBrief(d1.env, EMAIL, new Date("2026-08-23T10:00:00Z"))).json();
+  assert.equal(brief.email, EMAIL, "so an existing install learns whose store it holds at startup");
+});
+
+test("two accounts keep entirely separate records in the same database", async () => {
+  const { handleSync } = await loadWorker();
+  const d1 = createFakeD1();
+  const his = "yawar@example.com", hers = "wife@example.com";
+
+  await handleSync({ json: async () => ({ account: his, since: 0,
+    days: { "2026-03-01": { data: JSON.stringify({ weight: "106" }), updated_at: 10 } } }) }, d1.env, his);
+  await handleSync({ json: async () => ({ account: hers, since: 0,
+    days: { "2026-03-01": { data: JSON.stringify({ weight: "70" }), updated_at: 11 } } }) }, d1.env, hers);
+
+  const hisPull = await (await handleSync({ json: async () => ({ account: his, since: 0, days: {} }) }, d1.env, his)).json();
+  const hersPull = await (await handleSync({ json: async () => ({ account: hers, since: 0, days: {} }) }, d1.env, hers)).json();
+
+  assert.equal(JSON.parse(hisPull.days["2026-03-01"].data).weight, "106");
+  assert.equal(JSON.parse(hersPull.days["2026-03-01"].data).weight, "70",
+    "the same date under two accounts is two different records, not a conflict");
+});

@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.33.0
+
+**Groundwork for a second person using the app.** The server was already fully multi-user — every one of the 25 database queries is keyed on the email from your verified Access token — but the *browser* wasn't. The local store carried no record of whose data it held, and sync pushes everything it holds. So opening the app on a browser containing someone else's data would have filed their days and journal under whoever was signed in.
+
+- **The local store now knows whose it is.** Every sync declares the account, and the server **refuses a push that doesn't match** the signed-in email — nothing gets written.
+- **When a different person signs in, the browser starts clean for them** and pulls their own data. The previous occupant's copy is *parked*, not deleted: it stays in the browser under its own key, so nothing is ever lost to a mistaken comparison.
+- **A store that predates this change pulls before it pushes.** It can't be told apart from someone else's by looking at it, so it never pushes on the round that first attributes it — and a snapshot is kept at that moment too.
+
+Two honest notes. The account tag is device-local and never travels as synced data — where a store lives is nobody's health record. And on a refused push the data does reach the Worker before being rejected; it's never stored, but if you'd rather it never left the device at all, say so and I'll add a confirm-first round.
+
 ## 1.32.1
 
 **Fixed the model dropdown.** It was an `<input list=…>` (an HTML datalist), which only filters as you type and whose arrow frequently opens nothing at all on Chrome for Android — so it read as broken, correctly.

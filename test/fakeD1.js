@@ -13,6 +13,7 @@ function createFakeD1() {
   const duas = new Map(); // `${email}|${id}` -> row
   const days = new Map(); // `${email}|${day}` -> row
   const profiles = new Map(); // user_email -> data JSON string
+  const profileRows = new Map(); // user_email -> { data, updated_at }
   const settings = new Map(); // user_email -> { brief_prompt, brief_model }
 
   // Real D1 statements support .first()/.all()/.run() directly on the
@@ -33,6 +34,10 @@ function createFakeD1() {
           return dailyBrief.get(`${email}|${day}`) || null;
         }
         if (/FROM profile/.test(sql)) {
+          if (/updated_at > \?2/.test(sql)) {
+            const r = profileRows.get(args[0]);
+            return r && r.updated_at > args[1] ? r : null;
+          }
           const row = profiles.get(args[0]);
           return row ? { data: row } : null;
         }
@@ -59,6 +64,18 @@ function createFakeD1() {
              the days with something written, newest first; the trends one
              asks for a few fields off every day, oldest first. They are told
              apart the same way the real SQL differs. */
+          /* handleSync's pull: everything newer than a watermark, oldest
+             first. Told apart from the other two `days` statements by asking
+             for updated_at, which neither of them does. */
+          if (/updated_at > \?2/.test(sql)) {
+            const [email, since] = args;
+            return {
+              results: Array.from(days.values())
+                .filter((r) => r.user_email === email && !r.deleted && r.updated_at > since)
+                .sort((a, b) => a.updated_at - b.updated_at)
+                .map(({ day: d, data, updated_at }) => ({ day: d, data, updated_at })),
+            };
+          }
           if (/\$\.notes/.test(sql)) {
             return {
               results: upTo
@@ -128,6 +145,22 @@ function createFakeD1() {
           const [email, day, error] = args;
           const row = dailyBrief.get(`${email}|${day}`);
           if (row) dailyBrief.set(`${email}|${day}`, { ...row, error });
+        } else if (/INSERT INTO days/.test(sql)) {
+          /* Mirrors the real ON CONFLICT ... WHERE excluded.updated_at >
+             days.updated_at - a stale write must be dropped, not applied. */
+          const [email, day, data, updated_at] = args;
+          const key = `${email}|${day}`;
+          const prev = days.get(key);
+          if (!prev || updated_at > prev.updated_at) {
+            days.set(key, { user_email: email, day, data, updated_at, deleted: 0 });
+          }
+        } else if (/INSERT INTO profile/.test(sql)) {
+          const [email, data, updated_at] = args;
+          const prev = profileRows.get(email);
+          if (!prev || updated_at > prev.updated_at) {
+            profileRows.set(email, { data, updated_at });
+            profiles.set(email, data);
+          }
         } else if (/INSERT INTO daily_brief/.test(sql)) {
           const [email, day, summary, status, error, generated_at] = args;
           dailyBrief.set(`${email}|${day}`, { summary, status, error, generated_at });
@@ -146,7 +179,10 @@ function createFakeD1() {
     // Worker - tests for the "not configured" case can override/delete
     // these explicitly rather than every other test having to supply them.
     env: {
-      DB: { prepare },
+      /* Real D1 batches an array of prepared statements; each one already
+         knows its own SQL and bindings, so running them in order is faithful
+         enough for these tests. */
+      DB: { prepare, batch: async (stmts) => Promise.all(stmts.map((st) => st.run())) },
       GOOGLE_CLIENT_ID: "test-client-id",
       GOOGLE_CLIENT_SECRET: "test-client-secret",
       GEMINI_API_KEY: "test-gemini-key",
@@ -170,6 +206,7 @@ function createFakeD1() {
       });
     },
     settings,
+    days,
     seedProfile(email, data) {
       profiles.set(email, typeof data === "string" ? data : JSON.stringify(data));
     },

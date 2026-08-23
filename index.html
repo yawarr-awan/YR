@@ -1362,7 +1362,11 @@ function freshState(){
        syncing is a device quietly holding a diverging copy - which is
        exactly how the prayer summaries came to disagree. The toggle stays,
        so it can still be stopped deliberately. */
-    sync:{enabled:true,since:0,lastSyncAt:null,lastError:null}
+    sync:{enabled:true,since:0,lastSyncAt:null,lastError:null},
+    /* Which signed-in account this local store belongs to. Null means "not
+       yet known", which is treated as "do not push" rather than as "mine" -
+       see runSync. Never sent up as data; only `days` and `profile` are. */
+    account:null
   };
 }
 /* schema 1 -> 2: days/profile predating sync get a one-time updated_at stamp
@@ -2112,19 +2116,66 @@ function renderAll(){
 
 /* Never touches local state on failure: a slow/unreachable/misconfigured
    server must not risk the only copy of real history on this device. */
+var FOREIGN_PREFIX="yawarWellness_v1_foreign:";
+/** Learn whose store this is, or discover that it belongs to someone else.
+ *
+ * The app is now used by more than one person, each behind their own Access
+ * sign-in. The local store is per-browser and was untagged, and sync pushes
+ * everything it holds - so opening the app on a browser carrying someone
+ * else's data would have filed their days and journal under whoever was
+ * signed in. This is the one place that can be prevented. */
+function adoptAccount(email){
+  if(!email||typeof email!=="string")return false;
+  if(state.account===email)return false;
+  if(!state.account){
+    /* First time we have been told whose this is. Nothing contradicts it, so
+       stamp it - but an unstamped store that already holds records cannot be
+       told apart from someone else's store by looking at it, so keep a
+       one-time snapshot before attributing it to anyone. The deterministic
+       protection is sequencing: stamp each of your own devices by opening the
+       app once before letting a second person past Cloudflare Access. */
+    if(Object.keys(state.days||{}).length)quarantineLocalStore("unattributed");
+    state.account=email;save();
+    return false;
+  }
+  /* A different person is signed in. Their record is safe on the server; it
+     is this browser's copy that has to step aside. */
+  quarantineLocalStore(state.account);
+  state=freshState();
+  state.account=email;
+  save();
+  return true;
+}
+/** Park the outgoing store under its own key instead of overwriting it.
+ * Nothing here is ever deleted - the alternative is eating someone's journal
+ * because an email comparison went wrong. */
+function quarantineLocalStore(forEmail){
+  try{
+    var raw=localStorage.getItem(KEY);
+    if(raw)localStorage.setItem(FOREIGN_PREFIX+(forEmail||"unknown"),raw);
+  }catch(e){}
+}
+
 function runSync(){
   if(!SAFE)return Promise.resolve(false);
   if(!state.sync||!state.sync.enabled)return Promise.resolve(false);
   if(typeof fetch!=="function")return Promise.resolve(false);
 
-  var chunks=dayChunks();
+  /* Until this browser has been told whose store it holds, it pulls and does
+     not push. Pulling is always safe - the merge is last-write-wins per day,
+     so nothing local is lost - whereas pushing an unattributed store is
+     exactly how one person's history could end up under another's name. The
+     response stamps the account, so the very next sync pushes normally. */
+  var known=!!state.account;
+  var chunks=known?dayChunks():[{}];
   var changed=false;
-  setSyncStatus("Syncing…");
+  var mismatch=false;
+  setSyncStatus(known?"Syncing…":"Checking your account…");
 
   function post(days,since){
-    var payload={since:since,days:days};
+    var payload={since:since,days:days,account:state.account||undefined};
     /* The profile carries the task list too, so it always goes up. */
-    if(state.profile.updated_at){
+    if(known&&state.profile.updated_at){
       payload.profile={data:JSON.stringify(state.profile),updated_at:state.profile.updated_at};
     }
     return fetch(SYNC_URL,{
@@ -2133,6 +2184,15 @@ function runSync(){
       credentials:"same-origin",
       body:JSON.stringify(payload)
     }).then(function(res){
+      if(res.status===409){
+        /* Signed in as someone else. Nothing was written - stand this
+           browser's copy aside and start again for the new account. */
+        return res.json().then(function(d){
+          mismatch=true;
+          adoptAccount(d&&d.email);
+          return {days:{},profile:null};
+        });
+      }
       if(!res.ok)throw new Error("server returned HTTP "+res.status);
       return res.json();
     });
@@ -2142,6 +2202,8 @@ function runSync(){
      is nothing further (only relevant past 1000 rows). */
   var step=function(i,since){
     return post(chunks[i]||{},since).then(function(resp){
+      if(resp.email&&adoptAccount(resp.email))changed=true;
+      if(mismatch)return resp;          /* the store was just replaced */
       if(applySyncResponse(resp))changed=true;
       if(i+1<chunks.length)return step(i+1,0);
       if(resp.more)return step(chunks.length,maxReceived(resp,since));
@@ -2154,6 +2216,9 @@ function runSync(){
     state.sync.lastSyncAt=Date.now();
     state.sync.lastError=null;
     save();
+    /* A mismatch replaced the whole store, so pull the new account's real
+       data straight away rather than leaving a blank app on screen. */
+    if(mismatch)return runSync();
     if(changed)renderAll();
     else updateSyncUI();
     return true;
