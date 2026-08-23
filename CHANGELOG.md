@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.35.0
+
+**Du'as are now a shared library.** All 19 pictures are visible to both accounts, and an upload or a deletion by either of you shows up for both. Everything else stays private per account — days, meals, calories, journal, prayers, weight, calendar, tasks, the daily brief.
+
+- A picture someone else added is marked **shared** in its heading, so it's clear where it came from.
+- **The links stay personal.** Which dhikr item a du'a is attached to rides your own profile, so you can each link the same picture to different items — or not at all.
+- If one of you deletes a picture the other had linked, that link quietly stops being a link rather than opening an empty popup. A link is never cleaned up on a *failed* fetch, so a device that opens offline doesn't lose its links.
+
+Worth being explicit: anyone on the Cloudflare Access policy can now see and delete these pictures. That's what "shared" means, and it's fine for the two of you — but a third person added to that policy would get the same library.
+
 ## 1.34.0
 
 **Calorie tracking.**

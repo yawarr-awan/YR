@@ -4789,7 +4789,13 @@ function duaLinks(){
 function duaLinkKey(period,itemKey){return period+"|"+itemKey;}
 function duaFor(period,itemKey){
   var id=duaLinks()[duaLinkKey(period,itemKey)];
-  return id||null;
+  if(!id)return null;
+  /* The library is shared, so the other person may have removed a picture this
+     link points at. Once the list is loaded, a link to something that is no
+     longer there is not a link - rendering it would offer a tap that opens
+     nothing. Before the list arrives we cannot know, so the link stands. */
+  if(_duas!==null&&!_duas.some(function(d){return d.id===id;}))return null;
+  return id;
 }
 function setDuaLink(period,itemKey,duaId){
   var links=duaLinks(),k=duaLinkKey(period,itemKey);
@@ -4836,8 +4842,21 @@ function loadDuas(){
     return res.json();
   }).then(function(data){
     _duas=data.duas||[];
+    pruneDeadDuaLinks();
     return _duas;
   });
+}
+/** Drop links whose picture has gone. Only ever runs against a freshly loaded
+ * list, so it cannot mistake "not fetched yet" for "deleted". */
+function pruneDeadDuaLinks(){
+  if(_duas===null)return;
+  var links=duaLinks(),changed=false;
+  var live={};
+  _duas.forEach(function(d){live[d.id]=true;});
+  Object.keys(links).forEach(function(k){
+    if(!live[links[k]]){delete links[k];changed=true;}
+  });
+  if(changed){state.profile.updated_at=Date.now();save();}
 }
 
 function uploadDua(){
@@ -4903,7 +4922,10 @@ function renderDuasList(){
   var links=duaLinks();
   _duas.forEach(function(d){
     var card=el("div","card dua-card");
-    card.appendChild(el("h3",null,d.name||"Du'a"));
+    var head=el("h3",null,d.name||"Du'a");
+    /* Shared library, so it helps to know where a picture came from. */
+    if(d.mine===false)head.appendChild(el("span","count","shared"));
+    card.appendChild(head);
     var img=el("img","dua-thumb");
     img.src="/api/duas/"+encodeURIComponent(d.id);
     img.alt=d.name||"Du'a";
