@@ -1315,15 +1315,58 @@ test("a du'a is stored, listed and served back as image bytes", async () => {
   assert.ok((await res.arrayBuffer()).byteLength > 0);
 });
 
-test("another sign-in cannot read or list a du'a that isn't theirs", async () => {
+/* Du'as are the one deliberate exception to the per-user rule: a shared family
+   library, so both people see every picture and either can add or remove one.
+   Everything else - days, profile, journal, tokens, brief - stays private to
+   the signed-in email. */
+const HER = "wife@example.com";
+
+test("a du'a uploaded by one person is visible to the other", async () => {
   const worker = await loadWorker();
   const { env } = createFakeD1();
   const created = await (await worker.handleCreateDua(duaReq({ dataUrl: PNG_1PX }), env, EMAIL)).json();
 
-  const res = await worker.handleGetDua(env, "someone.else@example.com", created.dua.id);
-  assert.equal(res.status, 404);
-  const listed = await (await worker.handleListDuas(env, "someone.else@example.com")).json();
-  assert.equal(listed.duas.length, 0);
+  const res = await worker.handleGetDua(env, HER, created.dua.id);
+  assert.equal(res.status, 200, "she can open his picture");
+
+  const listed = await (await worker.handleListDuas(env, HER)).json();
+  assert.equal(listed.duas.length, 1);
+  assert.equal(listed.duas[0].id, created.dua.id);
+  assert.equal(listed.duas[0].mine, false, "flagged as not hers, so the UI can say so");
+
+  const his = await (await worker.handleListDuas(env, EMAIL)).json();
+  assert.equal(his.duas[0].mine, true);
+});
+
+test("either person can remove a du'a, and it goes for both", async () => {
+  const worker = await loadWorker();
+  const { env } = createFakeD1();
+  const created = await (await worker.handleCreateDua(duaReq({ dataUrl: PNG_1PX }), env, EMAIL)).json();
+
+  await worker.handleDeleteDua(env, HER, created.dua.id);
+
+  assert.equal((await (await worker.handleListDuas(env, EMAIL)).json()).duas.length, 0,
+    "gone from his list too");
+  assert.equal((await worker.handleGetDua(env, EMAIL, created.dua.id)).status, 404);
+});
+
+test("both people's uploads land in the one library, oldest first", async () => {
+  const worker = await loadWorker();
+  const { env } = createFakeD1();
+  await worker.handleCreateDua(duaReq({ dataUrl: PNG_1PX, name: "his" }), env, EMAIL);
+  await worker.handleCreateDua(duaReq({ dataUrl: PNG_1PX, name: "hers" }), env, HER);
+
+  const listed = await (await worker.handleListDuas(env, EMAIL)).json();
+  assert.deepEqual(listed.duas.map((d) => d.name), ["his", "hers"]);
+  assert.deepEqual(listed.duas.map((d) => d.mine), [true, false]);
+});
+
+test("a shared du'a listing never leaks the other person's email address", async () => {
+  const worker = await loadWorker();
+  const { env } = createFakeD1();
+  await worker.handleCreateDua(duaReq({ dataUrl: PNG_1PX }), env, HER);
+  const listed = await (await worker.handleListDuas(env, EMAIL)).json();
+  assert.ok(!JSON.stringify(listed).includes(HER), "ownership is a boolean, not an address");
 });
 
 test("anything that isn't a base64 image is refused", async () => {

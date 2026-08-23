@@ -299,3 +299,71 @@ test("with every item spoken for, the list says so instead of being blank", asyn
   assert.equal(other.querySelectorAll("input[type=checkbox]").length, 0);
   assert.match(other.textContent, /already has a du'a/i);
 });
+
+/* --- a shared library ----------------------------------------------------
+ * Du'as are deliberately not per-user: both people see every picture and
+ * either can add or remove one. That means a link can point at something the
+ * other person has since deleted, which is the one sharp edge of sharing.
+ */
+
+test("a picture someone else added is shown, and marked as shared", async () => {
+  const app = loadApp({
+    fetchImpl: backend([
+      { id: "d1", name: "Mine", created_at: 1, mine: true },
+      { id: "d2", name: "Hers", created_at: 2, mine: false },
+    ]),
+  });
+  await openDuas(app);
+
+  const cards = duaCards(app);
+  assert.equal(cards.length, 2, "both are in the one library");
+  assert.doesNotMatch(cards[0].querySelector("h3").textContent, /shared/);
+  assert.match(cards[1].querySelector("h3").textContent, /shared/,
+    "so it is clear where a picture came from");
+});
+
+test("a dhikr link to a picture the other person deleted stops being a link", async () => {
+  // Rendering it would offer a tap that opens nothing.
+  const app = loadApp({
+    fetchImpl: backend([{ id: "d1", name: "Still here", created_at: 1, mine: true }]),
+    localStorageSeed: {
+      yawarWellness_v1: JSON.stringify({
+        schema: 4,
+        profile: { startWeight: 108, targetWeight: 88, tasks: [], updated_at: 1,
+          duaLinks: { "morning|istighfar": "d1", "morning|tasbih": "GONE" } },
+        days: {},
+        sync: { enabled: false, since: 0, lastSyncAt: null, lastError: null },
+        account: "me@example.com",
+      }),
+    },
+  });
+  await openDuas(app);
+  app.goTo("prayers");
+
+  const labels = Array.from(app.document.querySelectorAll("#dhikrBox .linklike")).map((n) => n.textContent);
+  assert.ok(labels.length, "the surviving link still renders");
+  const stored = app.state().profile.duaLinks;
+  assert.equal(stored["morning|istighfar"], "d1", "the good link is untouched");
+  assert.ok(!("morning|tasbih" in stored), "and the dead one was cleaned up");
+});
+
+test("a link is left alone until the library has actually been fetched", async () => {
+  // "Not loaded yet" must never be mistaken for "deleted" - that would quietly
+  // unlink everything on a device that opened offline.
+  const app = loadApp({
+    fetchImpl: backend([], { listFails: true }),
+    localStorageSeed: {
+      yawarWellness_v1: JSON.stringify({
+        schema: 4,
+        profile: { startWeight: 108, targetWeight: 88, tasks: [], updated_at: 1,
+          duaLinks: { "morning|istighfar": "d1" } },
+        days: {},
+        sync: { enabled: false, since: 0, lastSyncAt: null, lastError: null },
+        account: "me@example.com",
+      }),
+    },
+  });
+  await openDuas(app);
+  assert.equal(app.state().profile.duaLinks["morning|istighfar"], "d1",
+    "a failed fetch must not be read as an empty library");
+});

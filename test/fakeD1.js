@@ -45,8 +45,11 @@ function createFakeD1() {
           return settings.get(args[0]) || null;
         }
         if (/FROM dua_images/.test(sql)) {
-          const [email, id] = args;
-          return duas.get(`${email}|${id}`) || null;
+          /* The shared library is addressed by id alone - no user_email in the
+             statement any more, so none in the bindings either. */
+          const [id] = args;
+          for (const row of duas.values()) if (row.id === id) return row;
+          return null;
         }
         return null;
       },
@@ -104,12 +107,11 @@ function createFakeD1() {
           };
         }
         if (/FROM dua_images/.test(sql)) {
-          const email = args[0];
+          /* Every picture, whoever uploaded it - the library is shared. */
           return {
             results: Array.from(duas.values())
-              .filter((r) => r.user_email === email)
               .sort((a, b) => a.created_at - b.created_at)
-              .map(({ id, name, created_at }) => ({ id, name, created_at })),
+              .map(({ id, name, created_at, user_email }) => ({ id, name, created_at, user_email })),
           };
         }
         return { results: [] };
@@ -126,7 +128,8 @@ function createFakeD1() {
           const [user_email, id, name, mime, data, created_at] = args;
           duas.set(`${user_email}|${id}`, { user_email, id, name, mime, data, created_at });
         } else if (/DELETE FROM dua_images/.test(sql)) {
-          duas.delete(`${args[0]}|${args[1]}`);
+          /* By id, whoever uploaded it. */
+          for (const [k, row] of duas) if (row.id === args[0]) duas.delete(k);
         } else if (/CREATE TABLE IF NOT EXISTS user_settings/.test(sql)) {
           /* no-op: the map is the table */
         } else if (/ALTER TABLE user_settings ADD COLUMN/.test(sql)) {

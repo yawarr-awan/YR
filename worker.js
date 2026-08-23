@@ -968,6 +968,18 @@ async function handlePutBriefPrompt(request, env, email) {
 const MAX_DUA_BYTES = 900000;
 const DUA_MIME = /^image\/(png|jpeg|webp|gif)$/;
 
+/* The du'a pictures are the one thing in here that is deliberately NOT
+   per-user. Everything else - days, profile, journal, tokens, brief - is keyed
+   on the verified Access email and stays private to whoever signed in. These
+   are a shared family library: both people see every picture, and an upload or
+   a deletion by either shows up for both.
+
+   `user_email` is still recorded, as provenance for who uploaded a given
+   picture, but it is no longer used to decide who may see or remove one.
+   Consequence worth being explicit about: anyone on the Access policy can see
+   and delete these, so adding a third person to that policy would give them
+   the same library. The *links* from a du'a to a dhikr item stay personal -
+   they ride each person's own synced profile. */
 async function ensureDuaTable(env) {
   await env.DB.prepare(
     `CREATE TABLE IF NOT EXISTS dua_images (
@@ -985,9 +997,14 @@ async function ensureDuaTable(env) {
 async function handleListDuas(env, email) {
   await ensureDuaTable(env);
   const { results } = await env.DB.prepare(
-    `SELECT id, name, created_at FROM dua_images WHERE user_email = ?1 ORDER BY created_at ASC`
-  ).bind(email).all();
-  return json({ duas: results || [] });
+    `SELECT id, name, created_at, user_email FROM dua_images ORDER BY created_at ASC`
+  ).all();
+  /* `mine` lets the UI say who added a picture without exposing the other
+     person's address in the markup. */
+  const duas = (results || []).map((r) => ({
+    id: r.id, name: r.name, created_at: r.created_at, mine: r.user_email === email,
+  }));
+  return json({ duas });
 }
 
 async function handleCreateDua(request, env, email) {
@@ -1016,8 +1033,8 @@ async function handleCreateDua(request, env, email) {
 async function handleGetDua(env, email, id) {
   await ensureDuaTable(env);
   const row = await env.DB.prepare(
-    `SELECT mime, data FROM dua_images WHERE user_email = ?1 AND id = ?2`
-  ).bind(email, id).first();
+    `SELECT mime, data FROM dua_images WHERE id = ?1`
+  ).bind(id).first();
   if (!row) return json({ error: "not found" }, 404);
 
   const base64 = String(row.data).slice(String(row.data).indexOf(",") + 1);
@@ -1034,7 +1051,7 @@ async function handleGetDua(env, email, id) {
 
 async function handleDeleteDua(env, email, id) {
   await ensureDuaTable(env);
-  await env.DB.prepare(`DELETE FROM dua_images WHERE user_email = ?1 AND id = ?2`).bind(email, id).run();
+  await env.DB.prepare(`DELETE FROM dua_images WHERE id = ?1`).bind(id).run();
   return json({ ok: true });
 }
 

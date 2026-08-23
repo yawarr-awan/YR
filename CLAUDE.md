@@ -1292,6 +1292,26 @@ the week containing `dayDate`). `calCols()` is a constant 7; `calIsWide()`
   flex child of the row). The widths were measured in Chromium: 188px per
   title at 390px.
 
+## Du'as are shared; everything else is not (1.35.0)
+- **`dua_images` is the one deliberate exception to per-user scoping.** List,
+  fetch and delete address a picture **by id alone** - no `user_email`
+  predicate, so no `user_email` binding either (getting that wrong is how the
+  first attempt failed its own tests). Every other table stays keyed on the
+  verified Access email.
+- `user_email` is still stored, as provenance. `handleListDuas` turns it into a
+  boolean `mine` - **never return the other person's address**; a test pins
+  that.
+- **The links stay personal**: `profile.duaLinks` rides each person's own
+  synced profile, so the same picture can be attached to different dhikr items
+  by each of them.
+- **`duaFor()` returns null for an id that is not in the loaded list**, and
+  `pruneDeadDuaLinks()` drops it - the other person may have deleted the
+  picture. Both are gated on `_duas !== null`: **"not fetched yet" must never
+  be read as "deleted"**, or a device opening offline would silently unlink
+  everything. A test pins the failed-fetch case.
+- Consequence to state plainly when asked: anyone on the Access policy can see
+  and delete these. A third person on that policy gets the same library.
+
 ## Calories (1.34.0)
 - **`d.food` is one list per day**, entries `{id, kind:"meal"|"snack", name,
   kcal}`. One shape, one set of functions; `kind` decides which card renders
