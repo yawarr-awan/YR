@@ -1875,3 +1875,145 @@ test("the weekday is the local day's own name, not whatever UTC midnight lands o
   assert.match(prompt, /on Sunday 2026-08-16/);
   assert.match(prompt, /Tomorrow is Monday/);
 });
+
+/* ---------- a retired model must not take the healthy ones with it ---------- */
+
+test("a model retired by Google is skipped, not allowed to end the whole rotation", async (t) => {
+  /* The real outage: gemini-2.5-flash was pinned in the fallback list, Google
+     retired it ("no longer available to new users", HTTP 404), and because a
+     non-retryable status threw, it aborted before the models listed after it
+     were ever tried. The brief stopped generating entirely. */
+  const { callGemini } = await loadWorker();
+  const tried = [];
+  installFetch(t, async (url) => {
+    const model = String(url).match(/models\/([^:]+):/)[1];
+    tried.push(model);
+    if (model === "dead-model") {
+      return jsonResponse(404, {}, '{"error":{"code":404,"message":"This model models/dead-model is no longer available to new users."}}');
+    }
+    return geminiOk("Brief written by the survivor.");
+  });
+
+  const text = await callGemini({ GEMINI_API_KEY: "k" },
+    "p", { models: ["dead-model", "good-model"], delays: [0] });
+
+  assert.equal(text, "Brief written by the survivor.");
+  assert.deepEqual(tried, ["dead-model", "good-model"], "it moved past the dead one in the same round");
+});
+
+test("a dead model is dropped from later rounds rather than retried forever", async (t) => {
+  const { callGemini } = await loadWorker();
+  const tried = [];
+  installFetch(t, async (url) => {
+    const model = String(url).match(/models\/([^:]+):/)[1];
+    tried.push(model);
+    if (model === "dead-model") return jsonResponse(404, {}, "gone");
+    return jsonResponse(503, {}, "high demand");   // busy, so a second round happens
+  });
+
+  await assert.rejects(callGemini({ GEMINI_API_KEY: "k" }, "p",
+    { models: ["dead-model", "busy-model"], delays: [0] }));
+
+  assert.equal(tried.filter((m) => m === "dead-model").length, 1, "asked once, never again");
+  assert.equal(tried.filter((m) => m === "busy-model").length, 2, "the busy one got its retry");
+});
+
+test("when everything fails the error names what each model actually said", async (t) => {
+  // Previously only the last failure survived, so a rotation that died for two
+  // different reasons reported one of them and hid the other.
+  const { callGemini } = await loadWorker();
+  installFetch(t, async (url) => {
+    const model = String(url).match(/models\/([^:]+):/)[1];
+    return model === "a" ? jsonResponse(404, {}, "retired") : jsonResponse(503, {}, "overloaded");
+  });
+
+  await assert.rejects(
+    callGemini({ GEMINI_API_KEY: "k" }, "p", { models: ["a", "b"], delays: [0] }),
+    (e) => /a: HTTP 404/.test(e.message) && /b: HTTP 503/.test(e.message)
+  );
+});
+
+test("a bad API key stops the whole rotation, since no model can help", async (t) => {
+  const { callGemini } = await loadWorker();
+  let calls = 0;
+  installFetch(t, async () => { calls++; return jsonResponse(403, {}, "API key not valid"); });
+
+  await assert.rejects(callGemini({ GEMINI_API_KEY: "bad" }, "p",
+    { models: ["a", "b", "c"], delays: [0, 0] }), /HTTP 403/);
+  assert.equal(calls, 1, "one request, not nine");
+});
+
+test("the built-in list leads with an alias and no longer names the retired model", async () => {
+  const { geminiModelList } = await loadWorker();
+  const list = geminiModelList(null);
+  assert.match(list[0], /-latest$/, "a hot-swapped alias cannot rot; a pinned version can");
+  assert.ok(!list.includes("gemini-2.5-flash"), "the retired model is gone");
+});
+
+/* ---------- choosing the model yourself ---------- */
+
+test("a chosen model is tried first, with the built-in list still behind it", async () => {
+  // A wrong name should cost one request, never the brief.
+  const { geminiModelList } = await loadWorker();
+  const list = geminiModelList("gemini-9.9-flash");
+  assert.equal(list[0], "gemini-9.9-flash");
+  assert.ok(list.length > 1, "the defaults remain as a fallback");
+  assert.ok(list.slice(1).every((m) => m !== "gemini-9.9-flash"), "and it isn't listed twice");
+});
+
+test("blank means the default, and a duplicate choice isn't tried twice", async () => {
+  const { geminiModelList } = await loadWorker();
+  const base = geminiModelList(null);
+  assert.deepEqual(geminiModelList(""), base);
+  assert.deepEqual(geminiModelList("   "), base);
+  assert.equal(new Set(geminiModelList(base[0])).size, base.length);
+});
+
+test("the model setting round-trips through D1 and reaches the brief", async (t) => {
+  const { handlePutBriefModel, handleGetBriefModel, getBriefModel, generateBrief } = await loadWorker();
+  const d1 = createFakeD1();
+
+  const put = await (await handlePutBriefModel(
+    { json: async () => ({ model: "gemini-3.6-flash" }) }, d1.env, EMAIL)).json();
+  assert.equal(put.model, "gemini-3.6-flash");
+  assert.equal(await getBriefModel(d1.env, EMAIL), "gemini-3.6-flash");
+  assert.equal((await (await handleGetBriefModel(d1.env, EMAIL)).json()).model, "gemini-3.6-flash");
+
+  // And the brief actually asks for it first.
+  d1.seedToken(EMAIL, { access_token: "tok", access_token_expires_at: Date.now() + 600000 });
+  const asked = [];
+  installFetch(t, async (url) => {
+    const u = String(url);
+    if (u.includes("calendarList")) return jsonResponse(200, { items: [] });
+    if (u.includes("tasks.googleapis.com")) return jsonResponse(200, { items: [] });
+    if (u.includes("generativelanguage")) { asked.push(u.match(/models\/([^:]+):/)[1]); return geminiOk("ok"); }
+    throw new Error("unexpected fetch " + u);
+  });
+  await generateBrief(d1.env, EMAIL, new Date("2026-08-23T08:00:00Z"));
+  assert.equal(asked[0], "gemini-3.6-flash");
+});
+
+test("clearing the model setting goes back to the default", async () => {
+  const { handlePutBriefModel, getBriefModel } = await loadWorker();
+  const d1 = createFakeD1();
+  await handlePutBriefModel({ json: async () => ({ model: "gemini-3.6-flash" }) }, d1.env, EMAIL);
+  const cleared = await (await handlePutBriefModel({ json: async () => ({ model: "  " }) }, d1.env, EMAIL)).json();
+  assert.equal(cleared.model, null);
+  assert.equal(await getBriefModel(d1.env, EMAIL), null);
+});
+
+test("a model id is validated, since it lands in a URL path", async () => {
+  const { handlePutBriefModel } = await loadWorker();
+  const d1 = createFakeD1();
+  for (const bad of ["../../secret", "a b", "model?key=leak", "x".repeat(80)]) {
+    const res = await handlePutBriefModel({ json: async () => ({ model: bad }) }, d1.env, EMAIL);
+    assert.equal(res.status, 400, `"${bad}" should be refused`);
+  }
+  const ok = await handlePutBriefModel({ json: async () => ({ model: "gemini-3.7-flash" }) }, d1.env, EMAIL);
+  assert.equal(ok.status, 200);
+});
+
+test("an unreadable settings table never blocks the brief's model choice", async () => {
+  const { getBriefModel } = await loadWorker();
+  assert.equal(await getBriefModel({ DB: { prepare() { throw new Error("nope"); } } }, EMAIL), null);
+});

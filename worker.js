@@ -243,15 +243,27 @@ const GOOGLE_SCOPE = [
 ].join(" ");
 const BRIEF_TIMEZONE = "Europe/London";
 const GEMINI_MODEL = "gemini-flash-latest"; // Google-maintained alias for their current default Flash model
-/* Tried in order when the one before it is overloaded. Google returns 503
-   "This model is currently experiencing high demand" often enough that a
-   single attempt is not a real attempt - it is the single most common reason
-   a brief fails. The alias and the pinned model are different pools. */
-const GEMINI_FALLBACK_MODELS = ["gemini-flash-latest", "gemini-2.5-flash", "gemini-flash-lite-latest"];
-/* Overloaded, rate-limited or a transient server fault - worth trying again.
-   Anything else (400 bad request, 403 bad key) will fail identically forever,
-   so retrying it just delays the error. */
+/* Tried in order. Google returns 503 "experiencing high demand" often enough
+   that a single attempt is not a real attempt, and the alias and the pinned
+   models are different pools.
+
+   **Aliases first, pinned versions only as a net.** `gemini-2.5-flash` sat in
+   this list and was retired underneath us - Google answered 404 "no longer
+   available to new users" and the brief stopped generating. A pinned name is
+   a dated liability; `-latest` is hot-swapped by Google and cannot rot. Any
+   pinned entry here should be treated as something that will expire. */
+const GEMINI_FALLBACK_MODELS = [
+  "gemini-flash-latest",
+  "gemini-3.7-flash",
+  "gemini-3.6-flash",
+  "gemini-flash-lite-latest",
+];
+/* Overloaded, rate-limited or a transient server fault - worth trying the
+   same model again after a wait. */
 const GEMINI_RETRY_STATUS = [429, 500, 502, 503, 504];
+/* Not about the model at all - a bad key or a revoked API. Nothing in the
+   list will answer, so stop instead of working through all of them. */
+const GEMINI_FATAL_STATUS = [400, 401, 403];
 const GEMINI_RETRY_DELAYS_MS = [700, 2500];
 
 function escapeHtml(s) {
@@ -852,6 +864,12 @@ async function ensureSettingsTable(env) {
        updated_at INTEGER
      )`
   ).run();
+  /* Added after the table existed. SQLite has no ADD COLUMN IF NOT EXISTS, so
+     the duplicate-column error on every later call is the expected path and is
+     swallowed - the same lazy-DDL approach the table itself uses. */
+  try {
+    await env.DB.prepare(`ALTER TABLE user_settings ADD COLUMN brief_model TEXT`).run();
+  } catch { /* already there */ }
 }
 
 async function getBriefPrompt(env, email) {
@@ -867,6 +885,46 @@ async function getBriefPrompt(env, email) {
 
 async function handleGetBriefPrompt(env, email) {
   return json({ prompt: await getBriefPrompt(env, email), default: DEFAULT_BRIEF_PROMPT });
+}
+
+/** The model the user picked, if any. Chosen because a pinned model being
+ * retired underneath us stopped the brief working and needed a code change to
+ * fix; this makes it a setting instead of a deploy. */
+async function getBriefModel(env, email) {
+  try {
+    await ensureSettingsTable(env);
+    const row = await env.DB.prepare(`SELECT brief_model FROM user_settings WHERE user_email = ?1`).bind(email).first();
+    const m = row && row.brief_model ? String(row.brief_model).trim() : "";
+    return m || null;
+  } catch {
+    return null;                       /* never block the brief on settings */
+  }
+}
+
+async function handleGetBriefModel(env, email) {
+  return json({
+    model: await getBriefModel(env, email),
+    default: GEMINI_FALLBACK_MODELS[0],
+    known: GEMINI_FALLBACK_MODELS,
+  });
+}
+
+async function handlePutBriefModel(request, env, email) {
+  let body;
+  try { body = await request.json(); } catch { return json({ error: "invalid json" }, 400); }
+  const raw = typeof body.model === "string" ? body.model.trim() : "";
+  /* Only the shape Google's model ids take. This lands in a URL path, so it is
+     validated rather than trusted - and blank means "use the default". */
+  if (raw && !/^[a-zA-Z0-9._-]{1,64}$/.test(raw)) {
+    return json({ error: "a model id is letters, digits, dots, dashes and underscores" }, 400);
+  }
+  const model = raw || null;
+  await ensureSettingsTable(env);
+  await env.DB.prepare(
+    `INSERT INTO user_settings (user_email, brief_model, updated_at) VALUES (?1, ?2, ?3)
+     ON CONFLICT(user_email) DO UPDATE SET brief_model = excluded.brief_model, updated_at = excluded.updated_at`
+  ).bind(email, model, Date.now()).run();
+  return json({ model, default: GEMINI_FALLBACK_MODELS[0], known: GEMINI_FALLBACK_MODELS });
 }
 
 async function handlePutBriefPrompt(request, env, email) {
@@ -1038,7 +1096,7 @@ async function summarizeWithGemini(env, ctx) {
     (t.undatedCount ? `\n\n(${t.undatedCount} further task(s) have no due date and belong to neither day.)` : "") +
     journalBlock;
 
-  return callGemini(env, prompt);
+  return callGemini(env, prompt, { models: geminiModelList(ctx.model) });
 }
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -1050,43 +1108,70 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
  * attempt at all, and it was by far the commonest reason a brief failed. Each
  * pass walks the model list, then waits and walks it again. A non-retryable
  * status (400, 403) fails immediately: it would fail the same way forever. */
+/** The rotation, with the user's choice tried first.
+ *
+ * Their model goes in front but the built-in list stays behind it, so a name
+ * that turns out to be wrong or retired costs one wasted request rather than
+ * the whole brief. That is the point of the setting: the last outage needed a
+ * deploy to fix, and this needs a text box. */
+function geminiModelList(preferred) {
+  const p = preferred ? String(preferred).trim() : "";
+  if (!p) return GEMINI_FALLBACK_MODELS;
+  return [p].concat(GEMINI_FALLBACK_MODELS.filter((m) => m !== p));
+}
+
 async function callGemini(env, prompt, { models, delays } = {}) {
   const list = models || GEMINI_FALLBACK_MODELS;
   const waits = delays || GEMINI_RETRY_DELAYS_MS;
+  const url = (m) => `https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${env.GEMINI_API_KEY}`;
   const body = JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] });
-  let last = null;
 
-  for (let round = 0; round <= waits.length; round++) {
+  /* Models that answered in a way no amount of waiting will change - retired,
+     unknown, unavailable to this project. They are dropped from the rotation
+     rather than being allowed to end it: the previous version threw on the
+     first such answer, so when `gemini-2.5-flash` was retired it took the
+     healthy models listed after it down with it and the brief stopped
+     generating entirely. A dead model means "skip this one", never "give up". */
+  const dead = new Set();
+  /* One reason per model, so a total failure reports what each actually said
+     instead of only whichever happened to fail last. */
+  const why = new Map();
+  let fatal = null;
+
+  for (let round = 0; round <= waits.length && !fatal; round++) {
+    const live = list.filter((m) => !dead.has(m));
+    if (!live.length) break;
     if (round) await sleep(waits[round - 1]);
-    for (const model of list) {
+
+    for (const model of live) {
       let res;
       try {
-        res = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${env.GEMINI_API_KEY}`,
-          { method: "POST", headers: { "content-type": "application/json" }, body }
-        );
+        res = await fetch(url(model), { method: "POST", headers: { "content-type": "application/json" }, body });
       } catch (e) {
-        last = new Error(`gemini call failed: ${String(e.message || e)}`);
+        why.set(model, String(e.message || e));
         continue;
       }
+
       if (res.ok) {
         const data = await res.json().catch(() => null);
         const text = ((data && data.candidates?.[0]?.content?.parts) || [])
           .map((p) => p.text || "").join("").trim();
         if (text) return text;
         /* An empty candidate is usually a safety block or a truncation, and
-           another model may well answer - so it is retried like a 503 rather
-           than thrown straight out. */
-        last = new Error("gemini returned no text");
+           another model may well answer - so it stays in the rotation. */
+        why.set(model, "returned no text");
         continue;
       }
-      const detail = await res.text().catch(() => "");
-      const err = new Error(`gemini call failed: HTTP ${res.status} ${detail.slice(0, 200)}`);
-      if (!GEMINI_RETRY_STATUS.includes(res.status)) throw err;
-      last = err;
+
+      const detail = (await res.text().catch(() => "")).slice(0, 200);
+      why.set(model, `HTTP ${res.status} ${detail}`);
+      if (GEMINI_FATAL_STATUS.includes(res.status)) { fatal = model; break; }
+      if (!GEMINI_RETRY_STATUS.includes(res.status)) dead.add(model);
     }
   }
-  throw last || new Error("gemini call failed");
+
+  const reasons = Array.from(why, ([m, r]) => `${m}: ${r}`).join(" | ");
+  throw new Error(`gemini call failed: ${reasons || "no attempt was made"}`);
 }
 
 /** Record a failure without destroying a brief that already worked.
@@ -1166,9 +1251,10 @@ async function generateBrief(env, email, now) {
   }
 
   const tasks = await fetchTasks(tokenResult.accessToken, day, tomorrowDay);
-  const [journal, trends] = await Promise.all([
+  const [journal, trends, model] = await Promise.all([
     fetchJournal(env, email, day),
     fetchTrends(env, email, day),
+    getBriefModel(env, email),
   ]);
 
   let summary;
@@ -1177,7 +1263,7 @@ async function generateBrief(env, email, now) {
       day, events, tasks, now: effectiveNow,
       instructions: await getBriefPrompt(env, email),
       tomorrow: { day: tomorrowDay, events: tomorrowEvents },
-      journal, trends,
+      journal, trends, model,
     });
   } catch (e) {
     const detail = String(e.message || e);
@@ -1942,6 +2028,12 @@ export default {
       if (url.pathname === "/api/settings/brief-prompt" && request.method === "PUT") {
         return await handlePutBriefPrompt(request, env, email);
       }
+      if (url.pathname === "/api/settings/brief-model" && request.method === "GET") {
+        return await handleGetBriefModel(env, email);
+      }
+      if (url.pathname === "/api/settings/brief-model" && request.method === "PUT") {
+        return await handlePutBriefModel(request, env, email);
+      }
       if (url.pathname === "/api/duas" && request.method === "GET") {
         return await handleListDuas(env, email);
       }
@@ -2013,11 +2105,15 @@ export {
   fetchTrends,
   summariseHistory,
   callGemini,
+  geminiModelList,
   generateBrief,
   handleGetBrief,
   handleRefreshBrief,
   handleGetBriefPrompt,
   handlePutBriefPrompt,
+  handleGetBriefModel,
+  handlePutBriefModel,
+  getBriefModel,
   handleListDuas,
   handleCreateDua,
   handleGetDua,

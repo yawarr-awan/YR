@@ -13,6 +13,7 @@ function createFakeD1() {
   const duas = new Map(); // `${email}|${id}` -> row
   const days = new Map(); // `${email}|${day}` -> row
   const profiles = new Map(); // user_email -> data JSON string
+  const settings = new Map(); // user_email -> { brief_prompt, brief_model }
 
   // Real D1 statements support .first()/.all()/.run() directly on the
   // prepared statement (no bind() needed when there are nothing to bind),
@@ -34,6 +35,9 @@ function createFakeD1() {
         if (/FROM profile/.test(sql)) {
           const row = profiles.get(args[0]);
           return row ? { data: row } : null;
+        }
+        if (/FROM user_settings/.test(sql)) {
+          return settings.get(args[0]) || null;
         }
         if (/FROM dua_images/.test(sql)) {
           const [email, id] = args;
@@ -106,6 +110,20 @@ function createFakeD1() {
           duas.set(`${user_email}|${id}`, { user_email, id, name, mime, data, created_at });
         } else if (/DELETE FROM dua_images/.test(sql)) {
           duas.delete(`${args[0]}|${args[1]}`);
+        } else if (/CREATE TABLE IF NOT EXISTS user_settings/.test(sql)) {
+          /* no-op: the map is the table */
+        } else if (/ALTER TABLE user_settings ADD COLUMN/.test(sql)) {
+          /* The real statement throws once the column exists, and the Worker
+             swallows that. Nothing to do here either way. */
+        } else if (/INSERT INTO user_settings/.test(sql)) {
+          /* Which column is written depends on the statement, exactly as in
+             worker.js - the prompt and the model are set independently and
+             neither may clobber the other. */
+          const [email, value] = args;
+          const row = settings.get(email) || { brief_prompt: null, brief_model: null };
+          if (/brief_model/.test(sql)) row.brief_model = value;
+          else row.brief_prompt = value;
+          settings.set(email, row);
         } else if (/UPDATE daily_brief SET error/.test(sql)) {
           const [email, day, error] = args;
           const row = dailyBrief.get(`${email}|${day}`);
@@ -151,6 +169,7 @@ function createFakeD1() {
         deleted: (opts && opts.deleted) ? 1 : 0,
       });
     },
+    settings,
     seedProfile(email, data) {
       profiles.set(email, typeof data === "string" ? data : JSON.stringify(data));
     },

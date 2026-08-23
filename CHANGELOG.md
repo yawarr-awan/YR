@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.32.0
+
+**The brief stopped generating, and the cause was a model I had pinned.** Today's brief failed with:
+
+> `HTTP 404: This model models/gemini-2.5-flash is no longer available to new users. Please update your code to use models/gemini-3.6-flash`
+
+Google retired `gemini-2.5-flash`, which was sitting in the Worker's fallback list. Two fixes, and the second matters more than the first:
+
+- **A dead model no longer takes the healthy ones with it.** The retry logic threw on any non-retryable answer — so a 404 from the *second* model in the list aborted before the third was ever tried. One retired name was enough to stop the brief entirely. A dead model is now dropped from the rotation and the next one is tried immediately; only a key or permission problem stops everything, since no model would help there.
+- **The list leads with aliases, not pinned versions.** `gemini-flash-latest` is hot-swapped by Google and can't rot; a pinned name is a dated liability. `gemini-2.5-flash` is gone, `gemini-3.7-flash` and `gemini-3.6-flash` are in behind the alias.
+- When everything does fail, the error now names **what each model said** rather than only whichever failed last — which is what made this one slower to diagnose than it should have been.
+
+**You can now pick the model yourself** — Settings → *Today's Brief model*. Leave it blank to follow Google's current Flash model automatically, which is right almost always. If Google retires another one and the brief starts failing, you can point it somewhere else without waiting for a code change. A name that's wrong or retired costs one wasted request; the built-in list stays behind your choice as a fallback, so a typo can't break the brief.
+
 ## 1.31.2
 
 **Fixed the brief ignoring your journal.** You wrote *"remind me from Thursday onwards to be conscious about the calories intake"* and the brief said nothing about it.
