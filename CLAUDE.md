@@ -1324,6 +1324,27 @@ the week containing `dayDate`). `calCols()` is a constant 7; `calIsWide()`
 - `attachTabSwipe` ignores touches starting in `.canvas-viewport`, same as
   `.cal-viewport`.
 
+## The floating controls, and full screen on the calendar (1.44.0)
+- **`.fab-stack` is one fixed cluster holding both floating buttons.** They
+  were two separately-positioned fixed elements first and did not line up -
+  different sizes and different bottom offsets, each correct on its own. One
+  flex row means they share a baseline and a bottom offset by construction
+  rather than by two rules agreeing.
+- Which buttons show is CSS off **`body[data-view]`**, written by `nav()`:
+  the cluster on `tasks`/`workflow`/`calendar`, the `+` on `tasks` alone.
+  Note a hidden *parent* does not change a child's computed `display`, so a
+  test asking "is this button showing?" must read `#fabStack`, not `#fullBtn`.
+- **`FULLSCREEN_VIEWS` includes `calendar`.** `sizeTasksPanes()` gained
+  `calGrid`/`--cal-h`, so the calendar is measured like the other two panes
+  instead of a `calc()` off `--hdr-h`.
+- **`syncHeaderHeight()` forces `--hdr-h:0px` in full screen.** The header is
+  `display:none` there, so it measures 0 and the old `if(h.offsetHeight)`
+  guard left every sticky offset holding the height of a header that is no
+  longer on screen - the calendar's date row floated 66px down.
+- Zoom in/out are gone from the header menu; pinch and ctrl+wheel remain, and
+  the tests drive the wheel now. `canvasFit` stays in the menu - there is no
+  gesture for it.
+
 ## A linked task is the link (1.43.1)
 - `buildBoardTask` renders the title as a `<button class="btask-title linklike">`
   when `t.noteId` resolves, and a plain `<span>` otherwise. **Same class either

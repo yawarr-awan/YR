@@ -155,16 +155,12 @@ nav.tabs button.active{color:var(--brand)}
 body.tasks-full header.top,
 body.tasks-full nav.tabs{display:none}
 body.tasks-full .wrap{padding-bottom:12px;padding-top:calc(8px + env(safe-area-inset-top,0px))}
-/* Bottom-left, not top-right: the timeline's own "Today" button is up there,
-   and the board's + is bottom-right - this is the one corner free in both. */
-.fs-exit{
-  position:fixed;z-index:40;
-  inset-block-end:calc(14px + env(safe-area-inset-bottom,0px));
-  inset-inline-start:14px;width:38px;height:38px;border-radius:50%;
+.fs-btn{
+  width:46px;height:46px;border-radius:50%;
   border:1px solid var(--line);background:var(--panel);color:var(--ink);
-  font:inherit;font-size:1rem;cursor:pointer;box-shadow:0 3px 12px rgba(8,12,24,.3)
+  font:inherit;font-size:1.05rem;cursor:pointer;box-shadow:0 3px 14px rgba(8,12,24,.35)
 }
-body:not(.tasks-full) .fs-exit{display:none}
+.fs-btn:active{transform:scale(.94)}
 .subview{display:none}
 .subview.active{display:block;animation:viewIn .16s ease}
 @keyframes viewIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
@@ -334,14 +330,26 @@ body.editing .card[data-card].is-over{outline:2px solid var(--brand)}
    Cards are absolutely positioned in canvas coordinates and the whole plane
    is moved with one transform, so zooming and panning cost no layout - the
    browser composites a single element rather than reflowing every card. */
-/* The one control the board keeps, floating over its own bottom-right corner
-   rather than in a toolbar row above it. */
+/* The floating controls, bottom-right, in one row so they share a baseline
+   and a bottom offset by construction rather than by two rules agreeing. */
+.fab-stack{
+  position:fixed;z-index:40;display:none;align-items:center;gap:10px;
+  inset-block-end:calc(18px + env(safe-area-inset-bottom,0px));
+  inset-inline-end:16px
+}
+/* Clear of the bottom bar while it is showing; it is gone in full screen. */
+body:not(.tasks-full) .fab-stack{inset-block-end:calc(84px + env(safe-area-inset-bottom,0px))}
+/* Only the views with a pane worth filling. */
+body[data-view="tasks"] .fab-stack,
+body[data-view="workflow"] .fab-stack,
+body[data-view="calendar"] .fab-stack{display:flex}
 .fab{
-  position:absolute;inset-block-end:14px;inset-inline-end:14px;z-index:6;
   width:52px;height:52px;border-radius:50%;border:none;cursor:pointer;
   background:var(--brand);color:#fff;font:inherit;font-size:1.7rem;line-height:1;
-  box-shadow:0 6px 18px rgba(8,12,24,.35)
+  box-shadow:0 6px 18px rgba(8,12,24,.35);display:none
 }
+/* Adding a project only means something on the board. */
+body[data-view="tasks"] .fab{display:block}
 .fab:active{transform:scale(.94)}
 .canvas-viewport{
   position:relative;overflow:hidden;
@@ -1245,12 +1253,6 @@ a.btn{text-decoration:none;display:inline-block}
          resize. -->
     <div class="canvas-viewport" id="canvasViewport">
       <div class="canvas" id="board"></div>
-      <!-- The toolbar that used to sit above the canvas is gone: it cost a
-           row of the height the board is short of, and zoom belongs with the
-           other view controls in the header menu. Adding a project is the one
-           thing that needs to be one tap away. -->
-      <button class="fab" id="projectAddBtn" type="button"
-              aria-label="Add a project" title="Add a project">+</button>
     </div>
   </section>
 
@@ -1489,7 +1491,14 @@ a.btn{text-decoration:none;display:inline-block}
 
 <!-- Settings is reachable from the header ⋮ menu, so it no longer spends a
      slot down here. The order is rebuilt from `yawarTabOrder` at startup. -->
-<button class="fs-exit" id="fsExitBtn" type="button" aria-label="Leave full screen" title="Leave full screen">✕</button>
+<!-- The floating controls, as one cluster so they cannot drift out of line
+     with each other. Fixed rather than inside a pane: the three views they
+     serve lay their panes out quite differently. Full screen toggles - in
+     full screen it is the only way back - and + shows only on the board. -->
+<div class="fab-stack" id="fabStack">
+  <button class="fs-btn" id="fullBtn" type="button" aria-label="Full screen" title="Full screen">⛶</button>
+  <button class="fab" id="projectAddBtn" type="button" aria-label="Add a project" title="Add a project">+</button>
+</div>
 <nav class="tabs" id="tabs">
   <button data-nav="tasks"><i>🗂️</i>Tasks</button>
   <button data-nav="workflow"><i>📊</i>Workflow</button>
@@ -7556,6 +7565,10 @@ function hideModal(){
    ring/theme row wraps on a phone), so the calendar's own sticky date bar
    has to sit below whatever it actually measures - not a guessed constant. */
 function syncHeaderHeight(){
+  /* In full screen the header is display:none, so it measures 0 - and every
+     sticky offset keyed off --hdr-h (the calendar's date row, chiefly) would
+     otherwise hold the height of a header that is no longer there. */
+  if(_tasksFull){document.documentElement.style.setProperty("--hdr-h","0px");return;}
   var h=document.querySelector("header.top");
   if(h&&h.offsetHeight)document.documentElement.style.setProperty("--hdr-h",h.offsetHeight+"px");
 }
@@ -7899,16 +7912,22 @@ var LASTSUB_KEY="yawarLastSub";
  * same call as _editItems: waking up with the header and the bottom bar gone,
  * with no memory of having asked for it, reads as a broken app. The way back
  * out is the ⛶ button that floats over the pane. */
-var FULLSCREEN_VIEWS=["tasks","workflow"];
+var FULLSCREEN_VIEWS=["tasks","workflow","calendar"];
 var _tasksFull=false;
 function setTasksFull(on){
   _tasksFull=!!on;
   document.body.classList.toggle("tasks-full",_tasksFull);
+  var b=document.getElementById("fullBtn");
+  if(b){
+    b.textContent=_tasksFull?"✕":"⛶";
+    var label=_tasksFull?"Leave full screen":"Full screen";
+    b.title=label;b.setAttribute("aria-label",label);
+  }
   /* The header is hidden, so its measured height is stale. Everything keyed
      off --hdr-h (the calendar's sticky row, chiefly) has to be told. */
   syncHeaderHeight();
   sizeTasksPanes();
-  renderTaskViews();
+  if(currentView==="calendar")renderCalendarTab();else renderTaskViews();
 }
 /** The canvas and the Gantt fill whatever is left below the toolbars.
  * Measured rather than computed from a calc(): the sub-tab row, the board bar
@@ -7916,7 +7935,7 @@ function setTasksFull(on){
  * and a fixed subtraction is wrong in at least one of those states. */
 function sizeTasksPanes(){
   var pad=12;
-  [["canvasViewport","--canvas-h"],["wfScroll","--wf-h"]].forEach(function(pair){
+  [["canvasViewport","--canvas-h"],["wfScroll","--wf-h"],["calGrid","--cal-h"]].forEach(function(pair){
     var elm=document.getElementById(pair[0]);
     if(!elm||!elm.getBoundingClientRect)return;
     var top=elm.getBoundingClientRect().top;
@@ -8013,6 +8032,9 @@ function nav(view){
      Moving *between* the board and the timeline keeps it. */
   if(FULLSCREEN_VIEWS.indexOf(view)<0&&_tasksFull)setTasksFull(false);
   currentView=view;
+  /* The full-screen button is offered per view, and sits beside the board's +
+     only on the board - both are CSS, off this one attribute. */
+  document.body.setAttribute("data-view",view);
   var tabs=document.getElementById("tabs").children;
   for(var i=0;i<tabs.length;i++){tabs[i].classList.toggle("active",tabs[i].getAttribute("data-nav")===view);}
   VIEWS.forEach(function(v){
@@ -8207,8 +8229,8 @@ attachCanvas();
 document.getElementById("wfPrev").addEventListener("click",function(){wfShift(-1);});
 document.getElementById("wfNext").addEventListener("click",function(){wfShift(1);});
 document.getElementById("wfToday").addEventListener("click",wfScrollToToday);
-document.getElementById("fsExitBtn").addEventListener("click",function(){
-  setTasksFull(false);
+document.getElementById("fullBtn").addEventListener("click",function(){
+  setTasksFull(!_tasksFull);
 });
 /* Escape is the way out everyone tries first, and on a desktop it is the only
    obvious one once the bottom bar is gone. */
@@ -8303,15 +8325,12 @@ function openHeaderMenu(at){
 
   if(currentView==="tasks"){
     items.push({sep:true});
-    items.push({label:"➕ Zoom in ("+Math.round(_canvas.z*100)+"%)",run:function(){zoomByStep(1.2);}});
-    items.push({label:"➖ Zoom out",run:function(){zoomByStep(1/1.2);}});
+    /* Zoom in/out are gone: pinching and the trackpad already do it, and two
+       more rows for something the fingers do better was not worth the menu.
+       Fit stays - there is no gesture for "show me everything". */
     items.push({label:"⤢ Fit the whole board",run:canvasFit});
   }
-  if(FULLSCREEN_VIEWS.indexOf(currentView)>=0){
-    if(currentView!=="tasks")items.push({sep:true});
-    items.push({label:_tasksFull?"✕ Leave full screen":"⛶ Full screen",
-      run:function(){setTasksFull(!_tasksFull);}});
-  }
+
 
   items.push({sep:true});
   items.push({label:"⬇️ Export a backup",run:downloadBackup});

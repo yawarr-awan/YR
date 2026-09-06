@@ -50,6 +50,13 @@ function headerMenu(app) {
   app.click("headerMenuBtn");
   return [...app.document.querySelectorAll(".menu-pop button")];
 }
+/* ctrl+wheel is the desktop pinch. The menu's zoom rows are gone: the fingers
+   and the trackpad already do it better than two more menu items. */
+function wheelZoom(app, dir) {
+  const ev = new app.window.Event("wheel", { bubbles: true, cancelable: true });
+  ev.ctrlKey = true; ev.deltaY = dir * 100; ev.clientX = 100; ev.clientY = 100;
+  app.document.getElementById("canvasViewport").dispatchEvent(ev);
+}
 function headerMenuDo(app, re) {
   const b = menuItem(headerMenu(app), re);
   assert.ok(b, "no header menu item matching " + re);
@@ -603,7 +610,9 @@ test("dragging at half zoom moves the card by half as many canvas pixels", () =>
   // the card runs away from the finger.
   const app = openBoard(loadApp({ fetchImpl: idle }));
   newProject(app, "Zoomed");
-  for (let i = 0; i < 4; i++) headerMenuDo(app, /Zoom out/);
+  // Zoom in/out left the menu - pinching does it better - so this drives the
+  // wheel, which is the other real way in.
+  for (let i = 0; i < 4; i++) wheelZoom(app, 1);
   const z = zoomOf(app) / 100;
   assert.ok(z < 1, "we are zoomed out");
 
@@ -622,9 +631,9 @@ test("zoom is clamped, shown, and remembered per device rather than synced", () 
   newProject(app, "Anything");   // so there is a saved store to inspect
   assert.equal(zoomOf(app), 100);
 
-  for (let i = 0; i < 20; i++) headerMenuDo(app, /Zoom in/);
+  for (let i = 0; i < 20; i++) wheelZoom(app, -1);
   assert.ok(zoomOf(app) <= 250, "there is a ceiling");
-  for (let i = 0; i < 40; i++) headerMenuDo(app, /Zoom out/);
+  for (let i = 0; i < 40; i++) wheelZoom(app, 1);
   assert.ok(zoomOf(app) >= 35, "and a floor");
 
   assert.ok(app.window.localStorage.getItem("yawarBoardView"), "kept per device");
@@ -686,8 +695,10 @@ test("the board has no toolbar - just the canvas and one + button", () => {
 
   const fab = app.document.getElementById("projectAddBtn");
   assert.ok(fab, "adding a project is the one thing still one tap away");
-  assert.equal(fab.closest(".canvas-viewport")?.id, "canvasViewport", "floating over the board");
-  assert.equal(app.window.getComputedStyle(fab).position, "absolute");
+  // It floats in the fixed cluster with the full-screen button rather than
+  // inside the canvas, so the two share a bottom offset by construction.
+  assert.equal(fab.closest(".fab-stack")?.id, "fabStack");
+  assert.equal(app.window.getComputedStyle(app.document.getElementById("fabStack")).position, "fixed");
 
   fab.click();
   assert.equal(cols(app).length, 1, "and it still adds one");
@@ -750,36 +761,67 @@ test("a tap on a card still doesn't rewrite it, front or not", () => {
   assert.equal(Object.values(app.state().projects)[0].updated_at, before);
 });
 
-test("full screen hides the header and the bottom bar, and can be left again", () => {
+test("full screen is one button beside the +, and the same button comes back", () => {
   const app = openBoard(loadApp({ fetchImpl: idle }));
   const body = app.document.body;
-  assert.ok(!body.classList.contains("tasks-full"));
+  const btn = app.document.getElementById("fullBtn");
+  assert.ok(btn, "a button rather than a menu row");
+  assert.equal(btn.closest(".fab-stack")?.id, "fabStack", "in the floating cluster");
+  assert.equal(app.window.getComputedStyle(app.document.getElementById("fabStack")).position, "fixed");
+  assert.equal(menuItem(headerMenu(app), /Full screen/), undefined, "and gone from the menu");
+  app.document.querySelector(".menu-backdrop")
+    .dispatchEvent(new app.window.Event("pointerdown", { bubbles: true }));
 
-  headerMenuDo(app, /Full screen/);
+  btn.click();
   assert.ok(body.classList.contains("tasks-full"), "the chrome is out of the way");
+  assert.equal(btn.textContent, "✕", "the same button is the way back");
+  assert.match(btn.getAttribute("aria-label"), /leave full screen/i);
 
-  // A floating ✕ is the way back: there is no toolbar left to put one in.
-  const exit = app.document.getElementById("fsExitBtn");
-  assert.ok(exit, "and something to tap to come back");
-  assert.equal(app.window.getComputedStyle(exit).position, "fixed");
-  exit.click();
+  btn.click();
   assert.ok(!body.classList.contains("tasks-full"));
+  assert.equal(btn.textContent, "⛶");
 });
 
-test("full screen is offered on the timeline too, and survives moving between them", () => {
+test("full screen is offered on the timeline and the calendar, and survives moving between them", () => {
   const app = openBoard(loadApp({ fetchImpl: idle }));
-  headerMenuDo(app, /Full screen/);
+  // The buttons live in one fixed cluster, so it is the cluster that is
+  // shown or hidden - they cannot drift apart that way.
+  const shown = () => app.window.getComputedStyle(app.document.getElementById("fabStack")).display;
+  assert.notEqual(shown(), "none", "on the board");
+
+  app.document.getElementById("fullBtn").click();
   app.goTo("workflow");
   assert.ok(app.document.body.classList.contains("tasks-full"),
-    "the board and the timeline are one pair for this");
-  assert.ok(menuItem(headerMenu(app), /Leave full screen/), "and it is offered here as well");
+    "the panes worth filling are one set for this");
+  assert.notEqual(shown(), "none");
+
+  app.goTo("calendar");
+  assert.ok(app.document.body.classList.contains("tasks-full"));
+  assert.notEqual(shown(), "none", "the calendar has a pane worth filling too");
 });
 
-test("leaving both panes leaves full screen with it", () => {
+test("the buttons are not offered on a view that is just a list of cards", () => {
+  const app = loadApp({ fetchImpl: idle });
+  app.goTo("today");
+  assert.equal(app.window.getComputedStyle(app.document.getElementById("fabStack")).display, "none");
+});
+
+test("+ is only on the board; full screen is on all three", () => {
+  const app = loadApp({ fetchImpl: idle });
+  const add = () => app.window.getComputedStyle(app.document.getElementById("projectAddBtn")).display;
+  openBoard(app);
+  assert.notEqual(add(), "none", "adding a project means something here");
+  app.goTo("workflow");
+  assert.equal(add(), "none", "and nothing on the timeline");
+  app.goTo("calendar");
+  assert.equal(add(), "none");
+});
+
+test("leaving those panes leaves full screen with it", () => {
   // Otherwise the header and the bottom bar stay hidden on a view that has no
   // button to bring them back.
   const app = openBoard(loadApp({ fetchImpl: idle }));
-  headerMenuDo(app, /Full screen/);
+  app.document.getElementById("fullBtn").click();
   app.goTo("today");
   assert.ok(!app.document.body.classList.contains("tasks-full"));
 });
@@ -787,7 +829,7 @@ test("leaving both panes leaves full screen with it", () => {
 test("full screen is a mode, not a remembered preference", () => {
   const app = openBoard(loadApp({ fetchImpl: idle }));
   newProject(app, "Anything");
-  headerMenuDo(app, /Full screen/);
+  app.document.getElementById("fullBtn").click();
   assert.ok(!JSON.stringify(app.state()).includes("tasks-full"));
   const stored = JSON.stringify(Object.entries(app.window.localStorage));
   assert.ok(!/tasksFull|tasks-full/.test(stored), "not written to storage at all");
