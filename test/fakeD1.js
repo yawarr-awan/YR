@@ -15,6 +15,8 @@ function createFakeD1() {
   const profiles = new Map(); // user_email -> data JSON string
   const profileRows = new Map(); // user_email -> { data, updated_at }
   const settings = new Map(); // user_email -> { brief_prompt, brief_model }
+  /* The board's own tables, keyed `${email}|${id}` like the rest. */
+  const boardItems = { projects: new Map(), tasks: new Map() };
 
   // Real D1 statements support .first()/.all()/.run() directly on the
   // prepared statement (no bind() needed when there are nothing to bind),
@@ -106,6 +108,16 @@ function createFakeD1() {
               }),
           };
         }
+        if (/FROM (projects|tasks)\b/.test(sql)) {
+          const table = /FROM projects/.test(sql) ? "projects" : "tasks";
+          const [email, since] = args;
+          return {
+            results: Array.from(boardItems[table].values())
+              .filter((r) => r.user_email === email && r.updated_at > since)
+              .sort((a, b) => a.updated_at - b.updated_at)
+              .map(({ id, data, updated_at, deleted }) => ({ id, data, updated_at, deleted })),
+          };
+        }
         if (/FROM dua_images/.test(sql)) {
           /* Every picture, whoever uploaded it - the library is shared. */
           return {
@@ -130,6 +142,17 @@ function createFakeD1() {
         } else if (/DELETE FROM dua_images/.test(sql)) {
           /* By id, whoever uploaded it. */
           for (const [k, row] of duas) if (row.id === args[0]) duas.delete(k);
+        } else if (/CREATE TABLE IF NOT EXISTS (projects|tasks)/.test(sql)) {
+          /* no-op: the maps are the tables */
+        } else if (/INSERT INTO (projects|tasks)/.test(sql)) {
+          const table = /INSERT INTO projects/.test(sql) ? "projects" : "tasks";
+          const [email, id, data, updated_at, deleted] = args;
+          const key = `${email}|${id}`;
+          const prev = boardItems[table].get(key);
+          /* Mirrors the real ON CONFLICT ... WHERE excluded.updated_at > ... */
+          if (!prev || updated_at > prev.updated_at) {
+            boardItems[table].set(key, { user_email: email, id, data, updated_at, deleted: deleted ? 1 : 0 });
+          }
         } else if (/CREATE TABLE IF NOT EXISTS user_settings/.test(sql)) {
           /* no-op: the map is the table */
         } else if (/ALTER TABLE user_settings ADD COLUMN/.test(sql)) {

@@ -116,6 +116,21 @@ async function verifyAccess(request, env) {
 
 const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
 const MAX_DAYS_PER_PUSH = 500;
+/* Projects and tasks are their own rows rather than fields on the profile
+   blob, for two reasons that both bite hard.
+
+   The profile is pushed as one JSON string and **silently dropped above
+   MAX_DAY_BYTES** - no error, no `skipped` entry, the client reports success.
+   A board of projects and tasks would have grown past that ceiling and simply
+   stopped syncing without saying so.
+
+   And the profile is last-write-wins as a *whole*, so two devices editing
+   different projects lose one side's work. A row per item makes the merge
+   per item, which is what a shared board needs. */
+const MAX_ITEMS_PER_PUSH = 2000;
+const MAX_ITEM_BYTES = 20000;
+const ITEM_TABLES = ["projects", "tasks"];
+const ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
 const MAX_DAY_BYTES = 20000;
 
 /**
@@ -126,6 +141,70 @@ const MAX_DAY_BYTES = 20000;
  * Last-write-wins per day on updated_at. Server never deletes; the client
  * is authoritative about what it sends and we only ever move forward.
  */
+/* Created lazily, like user_settings and dua_images - no manual DDL step. */
+async function ensureItemTables(env) {
+  for (const t of ITEM_TABLES) {
+    await env.DB.prepare(
+      `CREATE TABLE IF NOT EXISTS ${t} (
+         user_email TEXT NOT NULL,
+         id TEXT NOT NULL,
+         data TEXT NOT NULL,
+         updated_at INTEGER NOT NULL,
+         deleted INTEGER NOT NULL DEFAULT 0,
+         PRIMARY KEY (user_email, id)
+       )`
+    ).run();
+  }
+}
+
+/** One table's worth of incoming rows, as statements. Same stale-write guard
+ * the days table uses: an older edit never overwrites a newer one.
+ *
+ * A delete is a **tombstone**, not a missing row. Without that, deleting a
+ * task on one device and syncing from another would simply resurrect it -
+ * the second device still holds it and would push it back. */
+function itemStatements(env, email, table, incoming, skipped) {
+  const stmts = [];
+  if (!incoming || typeof incoming !== "object") return stmts;
+  for (const id of Object.keys(incoming)) {
+    const rec = incoming[id];
+    const ts = Number(rec && rec.updated_at);
+    if (!ID_RE.test(id) || !rec || typeof rec.data !== "string" ||
+        rec.data.length > MAX_ITEM_BYTES || !Number.isFinite(ts) || ts <= 0) {
+      skipped.push(`${table}:${id}`);
+      continue;
+    }
+    stmts.push(
+      env.DB.prepare(
+        `INSERT INTO ${table} (user_email, id, data, updated_at, deleted)
+         VALUES (?1, ?2, ?3, ?4, ?5)
+         ON CONFLICT(user_email, id) DO UPDATE SET
+           data = excluded.data,
+           updated_at = excluded.updated_at,
+           deleted = excluded.deleted
+         WHERE excluded.updated_at > ${table}.updated_at`
+      ).bind(email, id, rec.data, ts, rec.deleted ? 1 : 0)
+    );
+  }
+  return stmts;
+}
+
+/** Everything in one table the client has not seen. Tombstones are returned
+ * too - a client that has never heard of a deleted row ignores it, and one
+ * that still holds it needs to be told to drop it. */
+async function pullItems(env, email, table, since) {
+  const { results } = await env.DB.prepare(
+    `SELECT id, data, updated_at, deleted FROM ${table}
+     WHERE user_email = ?1 AND updated_at > ?2
+     ORDER BY updated_at ASC LIMIT 2000`
+  ).bind(email, since).all();
+  const out = {};
+  for (const r of results || []) {
+    out[r.id] = { data: r.data, updated_at: r.updated_at, deleted: r.deleted ? 1 : 0 };
+  }
+  return out;
+}
+
 async function handleSync(request, env, email) {
   let body;
   try {
@@ -153,9 +232,27 @@ async function handleSync(request, env, email) {
     return json({ error: `too many days in one push (max ${MAX_DAYS_PER_PUSH})` }, 413);
   }
 
+  await ensureItemTables(env);
+
   let applied = 0;
   const skipped = [];
   const stmts = [];
+
+  /* Projects and tasks: their own rows, merged per item rather than as one
+     blob. Bounded the same way the day push is. */
+  let itemCount = 0;
+  for (const t of ITEM_TABLES) {
+    const incoming = body[t] && typeof body[t] === "object" ? body[t] : {};
+    itemCount += Object.keys(incoming).length;
+  }
+  if (itemCount > MAX_ITEMS_PER_PUSH) {
+    return json({ error: `too many items in one push (max ${MAX_ITEMS_PER_PUSH})` }, 413);
+  }
+  for (const t of ITEM_TABLES) {
+    const made = itemStatements(env, email, t, body[t], skipped);
+    applied += made.length;
+    stmts.push(...made);
+  }
 
   for (const day of dayKeys) {
     const rec = incoming[day];
@@ -222,11 +319,16 @@ async function handleSync(request, env, email) {
     .bind(email, since)
     .first();
 
+  const items = {};
+  for (const t of ITEM_TABLES) items[t] = await pullItems(env, email, t, since);
+
   return json({
     now: Date.now(),
     /* So a client that did not know whose store it holds can stamp itself and
        push on the next round. */
     email,
+    projects: items.projects,
+    tasks: items.tasks,
     days,
     profile: prof ? { data: prof.data, updated_at: prof.updated_at } : null,
     applied,

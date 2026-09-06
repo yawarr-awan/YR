@@ -2132,3 +2132,90 @@ test("two accounts keep entirely separate records in the same database", async (
   assert.equal(JSON.parse(hersPull.days["2026-03-01"].data).weight, "70",
     "the same date under two accounts is two different records, not a conflict");
 });
+
+/* ---------- the board's own rows ---------- */
+
+test("projects and tasks sync as rows, merged per item rather than as one blob", async () => {
+  /* The profile is pushed as a single JSON string that the server silently
+     drops above MAX_DAY_BYTES, and it merges as a whole - two devices editing
+     different projects would lose one side. A row per item fixes both. */
+  const { handleSync } = await loadWorker();
+  const d1 = createFakeD1();
+  const body = (extra) => ({ json: async () => Object.assign({ account: EMAIL, since: 0, days: {} }, extra) });
+
+  await handleSync(body({
+    projects: { p1: { data: JSON.stringify({ id: "p1", name: "House" }), updated_at: 10 } },
+    tasks: { t1: { data: JSON.stringify({ id: "t1", projectId: "p1", title: "Book the van" }), updated_at: 10 } },
+  }), d1.env, EMAIL);
+
+  const pulled = await (await handleSync(body({}), d1.env, EMAIL)).json();
+  assert.equal(JSON.parse(pulled.projects.p1.data).name, "House");
+  assert.equal(JSON.parse(pulled.tasks.t1.data).title, "Book the van");
+});
+
+test("a stale edit never overwrites a newer one, per item", async () => {
+  const { handleSync } = await loadWorker();
+  const d1 = createFakeD1();
+  const push = (tasks) => handleSync({ json: async () => ({ account: EMAIL, since: 0, days: {}, tasks }) }, d1.env, EMAIL);
+
+  await push({ t1: { data: JSON.stringify({ title: "newer" }), updated_at: 200 } });
+  await push({ t1: { data: JSON.stringify({ title: "older" }), updated_at: 100 } });
+
+  const pulled = await (await handleSync({ json: async () => ({ account: EMAIL, since: 0, days: {} }) }, d1.env, EMAIL)).json();
+  assert.equal(JSON.parse(pulled.tasks.t1.data).title, "newer", "the older edit was dropped");
+});
+
+test("a delete travels as a tombstone, so another device cannot resurrect it", async () => {
+  const { handleSync } = await loadWorker();
+  const d1 = createFakeD1();
+  const push = (tasks) => handleSync({ json: async () => ({ account: EMAIL, since: 0, days: {}, tasks }) }, d1.env, EMAIL);
+
+  await push({ t1: { data: JSON.stringify({ title: "Gone" }), updated_at: 10 } });
+  await push({ t1: { data: JSON.stringify({ title: "Gone" }), updated_at: 20, deleted: 1 } });
+
+  const pulled = await (await handleSync({ json: async () => ({ account: EMAIL, since: 0, days: {} }) }, d1.env, EMAIL)).json();
+  assert.ok(pulled.tasks.t1, "the row still comes back");
+  assert.equal(pulled.tasks.t1.deleted, 1, "flagged as deleted rather than simply absent");
+});
+
+test("a malformed or oversized item is skipped without taking the push down", async () => {
+  const { handleSync } = await loadWorker();
+  const d1 = createFakeD1();
+  const res = await handleSync({ json: async () => ({
+    account: EMAIL, since: 0, days: {},
+    tasks: {
+      good: { data: JSON.stringify({ title: "fine" }), updated_at: 10 },
+      "bad id!": { data: "{}", updated_at: 10 },
+      nodate: { data: "{}" },
+      huge: { data: "x".repeat(20001), updated_at: 10 },
+    },
+  }) }, d1.env, EMAIL);
+
+  const out = await res.json();
+  assert.equal(res.status, 200);
+  assert.ok(out.skipped.some((s) => s.includes("bad id!")));
+  assert.ok(out.skipped.some((s) => s.includes("nodate")));
+  assert.ok(out.skipped.some((s) => s.includes("huge")));
+
+  const pulled = await (await handleSync({ json: async () => ({ account: EMAIL, since: 0, days: {} }) }, d1.env, EMAIL)).json();
+  assert.deepEqual(Object.keys(pulled.tasks), ["good"], "the good one still landed");
+});
+
+test("two people's boards stay entirely separate", async () => {
+  const { handleSync } = await loadWorker();
+  const d1 = createFakeD1();
+  const his = "yawar@example.com", hers = "wife@example.com";
+  const push = (who, name) => handleSync({ json: async () => ({
+    account: who, since: 0, days: {},
+    projects: { p1: { data: JSON.stringify({ name }), updated_at: 10 } },
+  }) }, d1.env, who);
+
+  await push(his, "His project");
+  await push(hers, "Her project");
+
+  const hisPull = await (await handleSync({ json: async () => ({ account: his, since: 0, days: {} }) }, d1.env, his)).json();
+  const hersPull = await (await handleSync({ json: async () => ({ account: hers, since: 0, days: {} }) }, d1.env, hers)).json();
+  assert.equal(JSON.parse(hisPull.projects.p1.data).name, "His project");
+  assert.equal(JSON.parse(hersPull.projects.p1.data).name, "Her project",
+    "the same id under two accounts is two rows, not a conflict");
+});

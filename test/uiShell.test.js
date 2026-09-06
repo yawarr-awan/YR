@@ -21,7 +21,7 @@ test("nav sits at the bottom of the page as icons, and the Guide tab is gone", (
   assert.equal(app.document.querySelector("header .tabs"), null, "and no longer in the header");
 
   const labels = Array.from(tabs.querySelectorAll("button")).map((b) => b.getAttribute("data-nav"));
-  assert.deepEqual(labels, ["today", "prayers", "calendar", "journal", "others", "progress", "settings"]);
+  assert.deepEqual(labels, ["tasks", "today", "prayers", "calendar", "journal", "others", "progress", "settings"]);
   assert.equal(app.document.getElementById("view-guide"), null, "the Guide view is removed too");
   tabs.querySelectorAll("button").forEach((b) => {
     assert.ok(b.querySelector("i"), "each tab renders an icon above its label");
@@ -50,13 +50,17 @@ test("swiping left/right moves through the tabs in bottom-bar order, stopping at
   app.swipe(".wrap", 120, 0);
   assert.equal(activeView(), "view-today");
 
+  // Tasks now sits before Today, so there is one more step to the left.
+  app.swipe(".wrap", 120, 0);
+  assert.equal(activeView(), "view-tasks");
+
   // Already on the first tab: swiping further right must not wrap around.
   app.swipe(".wrap", 120, 0);
-  assert.equal(activeView(), "view-today");
+  assert.equal(activeView(), "view-tasks");
 
-  // A mostly-vertical drag is a scroll, not a tab change.
+  // A mostly-vertical drag is a scroll, not a tab change - so we stay put.
   app.swipe(".wrap", 30, 200);
-  assert.equal(activeView(), "view-today");
+  assert.equal(activeView(), "view-tasks");
 });
 
 test("meals, recipes and movement share one Others tab with its own sub-tabs", () => {

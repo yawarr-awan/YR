@@ -314,6 +314,65 @@ body.editing .card[data-card].is-over{outline:2px solid var(--brand)}
 .food-row{display:flex;align-items:center;gap:8px;padding:6px 4px;border-radius:10px}
 .food-row .food-name{flex:1 1 auto;min-width:0;overflow-wrap:anywhere;font-weight:600;font-size:.9rem}
 .food-row .food-kcal{flex:0 0 auto;font-size:.74rem;color:var(--muted);white-space:nowrap}
+/* ---------- THE BOARD ----------
+   A row of project columns that scrolls sideways. Columns are a fixed width
+   so the board keeps its shape and you scroll to reach the rest, rather than
+   columns shrinking as you add projects (the lesson from the calendar week). */
+.board-bar{display:flex;align-items:center;gap:8px;margin:12px 0 8px}
+.board-bar .muted{margin-inline-start:auto}
+.board-scroll{
+  display:flex;gap:10px;align-items:flex-start;
+  overflow-x:auto;overflow-y:visible;-webkit-overflow-scrolling:touch;
+  padding-bottom:10px;scroll-snap-type:x proximity
+}
+.board{display:flex;gap:10px;align-items:flex-start}
+.board-col{
+  flex:0 0 var(--board-col,280px);width:var(--board-col,280px);
+  background:var(--panel);border:1px solid var(--line);border-radius:14px;
+  padding:10px;scroll-snap-align:start
+}
+@media (max-width:520px){.board-scroll{--board-col:264px}}
+.board-col-head{display:flex;align-items:center;gap:6px;margin-bottom:8px}
+.board-col-head .board-name{
+  flex:1 1 auto;min-width:0;font-weight:800;font-size:.95rem;
+  background:none;border:none;color:var(--ink);font-family:inherit;padding:2px 0;
+  overflow-wrap:anywhere;text-align:start
+}
+.board-col-head .board-n{flex:0 0 auto;font-size:.72rem;color:var(--muted);font-weight:700}
+.board-addcol{flex:0 0 auto;padding-top:10px}
+.board-tasks{display:flex;flex-direction:column;gap:2px;margin-bottom:8px}
+.board-empty{font-size:.8rem;color:var(--muted);padding:6px 2px}
+.btask{display:flex;align-items:flex-start;gap:8px;padding:6px 4px;border-radius:9px}
+.btask:hover{background:var(--panel-2)}
+.btask input[type=checkbox]{width:17px;height:17px;accent-color:var(--brand);flex:0 0 auto;margin-top:2px}
+.btask .btask-main{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:1px}
+.btask .btask-title{font-size:.88rem;font-weight:600;overflow-wrap:anywhere}
+.btask.done .btask-title{text-decoration:line-through;color:var(--muted)}
+.btask .btask-meta{font-size:.7rem;color:var(--muted)}
+.btask-menu{flex:0 0 auto;border:none;background:none;color:var(--muted);
+  cursor:pointer;font-size:1rem;line-height:1;padding:2px 4px;border-radius:7px;font-family:inherit}
+.btask-menu:hover{background:var(--panel-2);color:var(--ink)}
+.board-add{display:flex;gap:6px}
+.board-add input{flex:1 1 auto;min-width:0;border:1px solid var(--line);background:var(--panel-2);
+  color:var(--ink);border-radius:9px;padding:7px 9px;font:inherit;font-size:.85rem}
+/* The three-dot menu. Fixed-position so it is never clipped by the column's
+   own horizontal scrolling - an absolutely positioned menu inside .board-scroll
+   would be cut off at the column edge. */
+.menu-sheet{position:fixed;inset:0;z-index:60;background:rgba(8,12,24,.45);display:flex;
+  align-items:flex-end;justify-content:center}
+.menu-sheet .menu-inner{
+  background:var(--panel);border:1px solid var(--line);border-radius:16px 16px 0 0;
+  width:100%;max-width:460px;padding:8px 8px calc(12px + env(safe-area-inset-bottom,0px));
+  max-height:70vh;overflow-y:auto
+}
+.menu-sheet h4{margin:6px 10px 8px;font-size:.8rem;color:var(--muted);font-weight:700}
+.menu-sheet button{
+  display:block;width:100%;text-align:start;background:none;border:none;color:var(--ink);
+  font:inherit;font-size:.95rem;padding:12px 12px;border-radius:10px;cursor:pointer
+}
+.menu-sheet button:hover{background:var(--panel-2)}
+.menu-sheet button.danger{color:var(--bad)}
+.menu-sheet .menu-sep{height:1px;background:var(--line);margin:6px 10px}
 .slider-val{font-weight:800;float:right}
 input[type=range]{width:100%;accent-color:var(--accent)}
 .pill-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
@@ -703,18 +762,6 @@ footer.foot{text-align:center;color:var(--muted);font-size:.78rem;margin-top:26p
       <div class="pill-row" id="briefActions"></div>
       <div class="muted" id="briefMeta" style="font-size:.72rem;margin-top:6px"></div>
     </div>
-<div class="card collapsible" id="taskCard" data-collapse="tasks" data-card="tasks">
-      <h3>✅ Tasks<span class="count" id="taskCount"></span></h3>
-      <div class="card-body">
-        <div style="display:flex;gap:8px;margin:0 0 8px">
-          <input type="text" id="taskTitleIn" placeholder="Add a task…" style="flex:1;min-width:0;border:1px solid var(--line);background:var(--panel-2);color:var(--ink);border-radius:10px;padding:9px;font:inherit">
-          <button class="btn primary" id="taskAddBtn">Add</button>
-        </div>
-        <div id="taskList"></div>
-        <div class="muted" id="taskStatus" style="font-size:.76rem;margin-top:6px"></div>
-      </div>
-    </div>
-
       <div class="card collapsible" data-collapse="extras" data-card="extras">
         <h3><span class="dot" style="background:var(--brand)"></span> Supplements, Drinks &amp; Snacks<span class="count" id="extrasCount"></span></h3>
         <div class="card-body">
@@ -955,6 +1002,22 @@ footer.foot{text-align:center;color:var(--muted);font-size:.78rem;margin-top:26p
 
 
 
+  <!-- ===================== TASKS (the board) ===================== -->
+  <!-- A canvas of project cards that scrolls sideways. Each card is one
+       project and holds its own task list. -->
+  <section id="view-tasks" class="view">
+    <div class="board-bar">
+      <div class="section-title" style="margin:0">Projects</div>
+      <span class="muted" id="boardCount" style="font-size:.78rem"></span>
+    </div>
+    <div class="board-scroll" id="boardScroll">
+      <div class="board" id="board"></div>
+      <div class="board-addcol">
+        <button class="btn" id="projectAddBtn" type="button">+ New project</button>
+      </div>
+    </div>
+  </section>
+
   <!-- ===================== JOURNAL ===================== -->
   <!-- Writes into the same per-day `notes` field the old Today "Notes for the
        day" card used, so it already syncs, already round-trips through an
@@ -1151,6 +1214,7 @@ footer.foot{text-align:center;color:var(--muted);font-size:.78rem;margin-top:26p
 </div>
 
 <nav class="tabs" id="tabs">
+  <button data-nav="tasks"><i>🗂️</i>Tasks</button>
   <button data-nav="today" class="active"><i>📋</i>Today</button>
   <button data-nav="prayers"><i>🕌</i>Prayers</button>
   <button data-nav="calendar"><i>🗓️</i>Calendar</button>
@@ -1447,7 +1511,7 @@ function showSaved(){
 
 function freshState(){
   return {
-    schema:4,
+    schema:5,
     profile:{startWeight:108,targetWeight:88,tasks:[],updated_at:0},
     days:{},
     /* On by default. This app is one person's record across their own
@@ -1455,6 +1519,14 @@ function freshState(){
        syncing is a device quietly holding a diverging copy - which is
        exactly how the prayer summaries came to disagree. The toggle stays,
        so it can still be stopped deliberately. */
+    /* Projects and their tasks. Maps of id -> item, each item carrying its own
+       updated_at and a `deleted` tombstone, so sync merges per item instead of
+       replacing one big blob. They are top-level and NOT on the profile: the
+       profile is pushed as a single JSON string that the server silently drops
+       above 20KB, which a growing board would have sailed past without ever
+       saying so. */
+    projects:{},
+    tasks:{},
     sync:{enabled:true,since:0,lastSyncAt:null,lastError:null},
     /* Which signed-in account this local store belongs to. Null means "not
        yet known", which is treated as "do not push" rather than as "mine" -
@@ -1492,6 +1564,35 @@ function migrate(s){
   if(s.schema<4){
     if(s.sync&&!s.sync.enabled)s.sync.enabled=true;
     s.schema=4;
+    _needsResave=true;
+  }
+  /* 4 -> 5: the flat task list on the profile becomes a board. The tasks are
+     *copied* into their own store rather than moved: profile.tasks is left
+     behind, unread, as a backstop in case this migration got something wrong.
+     It costs a couple of KB and can be dropped in a later version once the
+     board has proved itself. (Note the schema-3 branch above deletes an older,
+     unrelated top-level s.tasks first, so the name is free by the time we get
+     here.) */
+  if(s.schema<5){
+    var now=Date.now();
+    if(!s.projects||typeof s.projects!=="object")s.projects={};
+    if(!s.tasks||typeof s.tasks!=="object")s.tasks={};
+    var legacy=Array.isArray(s.profile&&s.profile.tasks)?s.profile.tasks:[];
+    if(legacy.length&&!Object.keys(s.tasks).length){
+      var gid="p_general";
+      s.projects[gid]={id:gid,name:"General",color:"",order:0,updated_at:now,deleted:0};
+      legacy.forEach(function(t,i){
+        var id="t_"+String(t.id||("m"+i)).replace(/[^A-Za-z0-9_-]/g,"").slice(0,48);
+        s.tasks[id]={
+          id:id,projectId:gid,title:String(t.title||"Untitled"),done:!!t.done,
+          order:typeof t.order==="number"?t.order:i,
+          due:t.due||null,start:null,end:null,
+          calendarEventId:t.calendarEventId||null,scheduled:!!t.scheduled,
+          noteId:null,updated_at:now,deleted:0
+        };
+      });
+    }
+    s.schema=5;
     _needsResave=true;
   }
   return s;
@@ -2154,8 +2255,27 @@ function dayChunks(){
 }
 
 /* True last-write-wins: a remote record only overwrites the local one if it is strictly newer. */
+/** Merge one item table from the server. Per item, newest wins - including a
+ * tombstone, which is how a delete on one device reaches the others. */
+function applyItems(resp,name){
+  var incoming=resp[name];
+  if(!incoming||typeof incoming!=="object")return false;
+  var store=itemStore(name),changed=false;
+  Object.keys(incoming).forEach(function(id){
+    var row=incoming[id],remote;
+    try{remote=JSON.parse(row.data);}catch(e){return;}
+    remote.updated_at=row.updated_at;
+    remote.deleted=row.deleted?1:0;
+    var local=store[id];
+    if(!local||!local.updated_at||row.updated_at>local.updated_at){
+      store[id]=remote;changed=true;
+    }
+  });
+  return changed;
+}
 function applySyncResponse(resp){
   var changed=false;
+  ITEM_STORES.forEach(function(name){if(applyItems(resp,name))changed=true;});
   if(resp.days){
     Object.keys(resp.days).forEach(function(k){
       var incoming=resp.days[k];
@@ -2225,12 +2345,12 @@ function updateSyncUI(){
  * Add any new view that reads state here, not to runSync. */
 function renderAll(){
   renderToday();
-  renderTasks();
   renderPrayersTab();
   renderProgress();
   renderPrayerChips();
   renderSettings();
   renderJournal();
+  renderBoard();
   if(currentSub==="duas")renderDuasList();   /* the links live on the profile */
   renderPrayerModal();          /* no-ops unless the modal is actually open */
   if(currentView==="calendar"){_calWin=null;renderCalendarTab();}
@@ -2238,6 +2358,88 @@ function renderAll(){
 
 /* Never touches local state on failure: a slow/unreachable/misconfigured
    server must not risk the only copy of real history on this device. */
+/* ---------- THE BOARD: PROJECTS AND TASKS ----------
+   Both are id -> item maps on `state`, each item carrying its own updated_at
+   and a `deleted` tombstone. A delete has to leave a tombstone behind: drop
+   the row instead and the next sync from another device, which still holds
+   it, simply pushes it back. */
+var ITEM_STORES=["projects","tasks"];
+function itemStore(name){
+  if(!state[name]||typeof state[name]!=="object")state[name]={};
+  return state[name];
+}
+function newItemId(prefix){
+  return prefix+"_"+Date.now().toString(36)+Math.floor(Math.random()*46656).toString(36);
+}
+function liveItems(name){
+  var store=itemStore(name),out=[];
+  Object.keys(store).forEach(function(k){if(store[k]&&!store[k].deleted)out.push(store[k]);});
+  return out;
+}
+function touchItem(item){
+  item.updated_at=Date.now();
+  save();
+}
+/** Tombstone, not removal - see the note above. */
+function deleteItem(name,id){
+  var it=itemStore(name)[id];
+  if(!it)return;
+  it.deleted=1;
+  touchItem(it);
+}
+function projectList(){
+  return liveItems("projects").sort(function(a,b){return (a.order||0)-(b.order||0);});
+}
+function tasksIn(projectId){
+  return liveItems("tasks").filter(function(t){return t.projectId===projectId;})
+    .sort(function(a,b){
+      if(!!a.done!==!!b.done)return a.done?1:-1;   /* done sink to the bottom */
+      return (a.order||0)-(b.order||0);
+    });
+}
+function addProject(name){
+  var label=String(name||"").trim();
+  if(!label)return null;
+  var id=newItemId("p");
+  itemStore("projects")[id]={id:id,name:label,color:"",
+    order:projectList().length,updated_at:Date.now(),deleted:0};
+  save();
+  return id;
+}
+function addTask(projectId,title){
+  var label=String(title||"").trim();
+  if(!label||!projectId)return null;
+  var id=newItemId("t");
+  itemStore("tasks")[id]={id:id,projectId:projectId,title:label,done:false,
+    order:tasksIn(projectId).length,due:null,start:null,end:null,
+    calendarEventId:null,scheduled:false,noteId:null,
+    updated_at:Date.now(),deleted:0};
+  save();
+  return id;
+}
+/** Move or copy a task to another project. A copy is a new item, so the two
+ * diverge from then on - that is what "duplicate" means. */
+function moveTaskTo(taskId,projectId){
+  var t=itemStore("tasks")[taskId];
+  if(!t||!projectId||t.projectId===projectId)return false;
+  t.projectId=projectId;
+  t.order=tasksIn(projectId).length;
+  touchItem(t);
+  return true;
+}
+function duplicateTaskTo(taskId,projectId){
+  var t=itemStore("tasks")[taskId];
+  if(!t||!projectId)return null;
+  var id=addTask(projectId,t.title);
+  if(!id)return null;
+  var copy=itemStore("tasks")[id];
+  copy.due=t.due;copy.start=t.start;copy.end=t.end;copy.noteId=t.noteId;
+  /* Deliberately not copied: the calendar event. Two tasks pointing at one
+     Google event would fight over it - a duplicate is unscheduled. */
+  save();
+  return id;
+}
+
 var FOREIGN_PREFIX="yawarWellness_v1_foreign:";
 /** Learn whose store this is, or discover that it belongs to someone else.
  *
@@ -2296,10 +2498,22 @@ function runSync(){
 
   function post(days,since){
     var payload={since:since,days:days,account:state.account||undefined};
-    /* The profile carries the task list too, so it always goes up. */
     if(known&&state.profile.updated_at){
       payload.profile={data:JSON.stringify(state.profile),updated_at:state.profile.updated_at};
     }
+    /* Projects and tasks go up as their own rows, tombstones included. Like
+       the days, everything is sent every time - the server's per-item
+       last-write-wins makes re-sending an unchanged item a no-op, and it means
+       no client-clock watermark to get wrong (see the 1.11.0 note). */
+    if(known)ITEM_STORES.forEach(function(name){
+      var store=itemStore(name),out={};
+      Object.keys(store).forEach(function(id){
+        var it=store[id];
+        if(!it||!it.updated_at)return;
+        out[id]={data:JSON.stringify(it),updated_at:it.updated_at,deleted:it.deleted?1:0};
+      });
+      payload[name]=out;
+    });
     return fetch(SYNC_URL,{
       method:"POST",
       headers:{"content-type":"application/json"},
@@ -2512,264 +2726,25 @@ function refreshBrief(){
   }).then(renderBrief).catch(function(){renderBrief(null);});
 }
 
-/* ---------- TASKS (local; not yet part of cloud sync) ----------
-   The list starts short - the few most pressing tasks - and expands in
-   place to the full list when you tap the "+N more" line, so the Today tab
-   stays a dashboard by default without hiding anything behind another tab.
-   Adding a task never asks for a time: a task is just a task until you
-   deliberately put it on the calendar with the 📅 button on its row. */
-var TASK_TODAY_LIMIT=3;
-var _taskSchedOpenId=null;   /* which task's inline date picker is showing */
-var _tasksExpanded=false;
+/* ---------- TASKS ----------
+   The Today tab's task card is gone; tasks live on the Tasks board, in their
+   own synced rows. This is the one accessor the rest of the app reads them
+   through - the calendar grid and both reminder paths - so repointing it at
+   the board carried all three across without touching them.
 
-function ensureTasks(){if(!Array.isArray(state.profile.tasks))state.profile.tasks=[];return state.profile.tasks;}
-function taskId(){return "t"+Date.now()+"_"+Math.random().toString(36).slice(2,8);}
-
-/** Gives every task an explicit `order`, which is what the list sorts on once
- * you can move rows by hand - a list you have arranged has to stay arranged,
- * so a manual position outranks any automatic rule. Tasks from before this
- * existed are numbered in the order they were already showing (due date, then
- * age), so nothing jumps the first time. Returns whether anything changed;
- * the caller decides whether that is worth a save. */
-function ensureTaskOrder(){
-  var list=ensureTasks(),missing=false,i;
-  for(i=0;i<list.length;i++){if(typeof list[i].order!=="number"){missing=true;break;}}
-  if(!missing)return false;
-  list.slice().sort(function(a,b){
-    if(typeof a.order==="number"&&typeof b.order==="number")return a.order-b.order;
-    var ad=String(a.due||"9999"),bd=String(b.due||"9999");
-    if(ad!==bd)return ad.localeCompare(bd);
-    return (a.created_at||0)-(b.created_at||0);
-  }).forEach(function(t,idx){t.order=idx;});
-  return true;
-}
-function nextTaskOrder(){
-  return ensureTasks().reduce(function(m,t){
-    return typeof t.order==="number"&&t.order>=m?t.order+1:m;
-  },0);
-}
-function sortedTasks(){
-  ensureTaskOrder();
-  return ensureTasks().slice().sort(function(a,b){
-    if(!!a.done!==!!b.done)return a.done?1:-1;
-    if(a.order!==b.order)return a.order-b.order;
-    return (a.created_at||0)-(b.created_at||0);
-  });
+   `profile.tasks` still holds the pre-board list. Nothing reads it; it is a
+   backstop in case the schema-5 migration got something wrong, and can be
+   dropped in a later version. */
+function ensureTasks(){
+  return liveItems("tasks");
 }
 
-/** Drops a task before or after another one and renumbers the lot. Insertion,
- * not a swap: a drag is "put it here", not "move it one place". Ticked tasks
- * still gather at the bottom afterwards - the sort is stable, so dropping an
- * open task among them lands it at the end of the open block rather than
- * pretending it is done. */
-function reorderTask(id,targetId,before){
-  if(id===targetId)return;
-  var list=sortedTasks(),moving=null,rest=[];
-  list.forEach(function(t){ if(t.id===id)moving=t; else rest.push(t); });
-  if(!moving)return;
-  var at=rest.length,k;
-  for(k=0;k<rest.length;k++)if(rest[k].id===targetId)at=before?k:k+1;
-  rest.splice(at,0,moving);
-  rest.sort(function(a,b){return (a.done?1:0)-(b.done?1:0);});
-  rest.forEach(function(t,i){
-    if(t.order!==i){t.order=i;t.updated_at=Date.now();}
-  });
-  state.profile.updated_at=Date.now();
-  save();renderTasks();
-}
-
-/* Dragging is pointer events, not HTML5 drag-and-drop, which does not fire on
- * touch at all - the same grip has to work on the phone and with a mouse. The
- * row is not moved while you drag; only the row under the pointer is marked,
- * above or below depending on which half you are over. Move/up are bound to
- * the document rather than the grip, because grabbing a grip expands a
- * collapsed list and that replaces the element you started on. */
-var _taskDrag=null;
-function taskRowUnder(x,y){
-  if(typeof document.elementFromPoint!=="function")return null;
-  var n=document.elementFromPoint(x,y);
-  return n&&n.closest?n.closest("#taskList .task-row[data-task]"):null;
-}
-function clearTaskDropMarks(){
-  document.querySelectorAll("#taskList .task-row.drop-before,#taskList .task-row.drop-after")
-    .forEach(function(r){r.classList.remove("drop-before","drop-after");});
-}
-function taskDragMove(ev){
-  if(!_taskDrag)return;
-  ev.preventDefault();
-  var row=taskRowUnder(ev.clientX,ev.clientY);
-  clearTaskDropMarks();
-  _taskDrag.overId=null;
-  if(!row||row.getAttribute("data-task")===_taskDrag.id)return;
-  var r=row.getBoundingClientRect();
-  _taskDrag.overId=row.getAttribute("data-task");
-  _taskDrag.before=ev.clientY<r.top+r.height/2;
-  row.classList.add(_taskDrag.before?"drop-before":"drop-after");
-}
-function taskDragEnd(){
-  if(!_taskDrag)return;
-  var d=_taskDrag;
-  _taskDrag=null;
-  clearTaskDropMarks();
-  document.removeEventListener("pointermove",taskDragMove);
-  document.removeEventListener("pointerup",taskDragEnd);
-  document.removeEventListener("pointercancel",taskDragEnd);
-  var row=document.querySelector('#taskList .task-row[data-task="'+d.id+'"]');
-  if(row)row.classList.remove("is-dragging");
-  if(d.overId)reorderTask(d.id,d.overId,d.before);
-}
-function startTaskDrag(id,ev){
-  ev.preventDefault();
-  /* You cannot drop a task onto a row that is not on screen, so grabbing a
-     grip opens the list in full for the duration. */
-  if(!_tasksExpanded&&sortedTasks().length>TASK_TODAY_LIMIT){
-    _tasksExpanded=true;
-    renderTasks();
-  }
-  _taskDrag={id:id,overId:null,before:true};
-  var row=document.querySelector('#taskList .task-row[data-task="'+id+'"]');
-  if(row)row.classList.add("is-dragging");
-  document.addEventListener("pointermove",taskDragMove);
-  document.addEventListener("pointerup",taskDragEnd);
-  document.addEventListener("pointercancel",taskDragEnd);
-}
+/** A Date as the value a <input type="datetime-local"> expects. Used by the
+ * calendar editor as well as by task scheduling, which is why it outlived the
+ * Today card it was first written for. */
 function localDatetimeValue(d){
   var p=function(n){return ("0"+n).slice(-2);};
   return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate())+"T"+p(d.getHours())+":"+p(d.getMinutes());
-}
-
-function renderTaskList(listEl,tasks,statusId,hiddenCount){
-  listEl.innerHTML="";
-  if(!tasks.length){
-    listEl.appendChild(el("p","muted","No tasks yet — add one above."));
-    return;
-  }
-  tasks.forEach(function(t){
-    var row=el("div","task-row"+(t.done?" done":""));
-    row.setAttribute("data-task",t.id);
-    var grip=el("span","task-grip","⠿");
-    grip.title="Drag to move";
-    grip.setAttribute("aria-label","Drag to move: "+t.title);
-    grip.addEventListener("pointerdown",function(ev){startTaskDrag(t.id,ev);});
-    row.appendChild(grip);
-    var cb=el("input");cb.type="checkbox";cb.checked=!!t.done;
-    cb.addEventListener("change",function(){t.done=cb.checked;t.updated_at=Date.now();state.profile.updated_at=Date.now();save();renderTasks();});
-    row.appendChild(cb);
-    /* Title and date share one column and stack, rather than competing for
-       the row's width. The date is white-space:nowrap, so as a flex sibling
-       it refused to shrink while the title (min-width:0) absorbed the whole
-       shortfall - which is how a title ended up one character wide. */
-    var main=el("div","task-main");
-    main.appendChild(el("span","task-title",t.title));
-    if(t.due){
-      var due=new Date(t.due);
-      main.appendChild(el("span","task-due",
-        due.toLocaleDateString("en-GB",{day:"numeric",month:"short"})+", "+fmtHM(due.getHours(),due.getMinutes())));
-    }
-    row.appendChild(main);
-
-    /* Being on the calendar is said by the button that put it there - a green
-       ring around the 📅 - rather than by a chip of text taking width off
-       the title. */
-    var schedBtn=el("button","icon-btn"+(t.scheduled?" is-on":"")+(_taskSchedOpenId===t.id?" active":""),"📅");
-    schedBtn.type="button";
-    schedBtn.title=t.scheduled?"On your calendar — tap to reschedule":"Schedule on Google Calendar";
-    schedBtn.setAttribute("aria-label",schedBtn.title);
-    schedBtn.addEventListener("click",function(){
-      _taskSchedOpenId=(_taskSchedOpenId===t.id)?null:t.id;
-      renderTasks();
-    });
-    row.appendChild(schedBtn);
-
-    var delBtn=el("button","icon-btn danger","✕");
-    delBtn.type="button";delBtn.setAttribute("aria-label","Delete task");
-    delBtn.addEventListener("click",function(){
-      if(_taskSchedOpenId===t.id)_taskSchedOpenId=null;
-      state.profile.tasks=ensureTasks().filter(function(x){return x.id!==t.id;});
-      state.profile.updated_at=Date.now();save();renderTasks();
-    });
-    row.appendChild(delBtn);
-    listEl.appendChild(row);
-
-    if(_taskSchedOpenId===t.id){
-      var panel=el("div","task-sched");
-      var when=el("input");when.type="datetime-local";
-      var seed=t.due?new Date(t.due):new Date(Date.now()+60*60*1000);
-      seed.setSeconds(0,0);
-      when.value=localDatetimeValue(seed);
-      panel.appendChild(when);
-      var go=el("button","btn primary","Add to calendar");
-      go.type="button";
-      go.addEventListener("click",function(){
-        if(!when.value)return;
-        scheduleTaskAt(t,new Date(when.value).toISOString(),statusId);
-      });
-      panel.appendChild(go);
-      listEl.appendChild(panel);
-    }
-  });
-  if(hiddenCount>0||(_tasksExpanded&&tasks.length>TASK_TODAY_LIMIT)){
-    var more=el("button","linklike task-more",hiddenCount>0?("+"+hiddenCount+" more — show all"):"Show fewer");
-    more.type="button";
-    more.style.margin="6px 0 0";
-    more.addEventListener("click",function(){_tasksExpanded=!_tasksExpanded;renderTasks();});
-    listEl.appendChild(more);
-  }
-}
-
-function renderTasks(){
-  var all=sortedTasks();
-  var open=all.filter(function(t){return !t.done;}).length;
-  var todayList=document.getElementById("taskList");
-  if(!todayList)return;
-  var shown=_tasksExpanded?all:all.slice(0,TASK_TODAY_LIMIT);
-  renderTaskList(todayList,shown,"taskStatus",Math.max(0,all.length-shown.length));
-  setCount("taskCount",all.length?(open+" open"):"");
-}
-
-function addTask(inputId){
-  var titleIn=document.getElementById(inputId);
-  if(!titleIn)return;
-  var title=(titleIn.value||"").trim();
-  if(!title)return;
-  ensureTaskOrder();
-  ensureTasks().push({id:taskId(),title:title,due:null,done:false,scheduled:false,calendarEventId:null,order:nextTaskOrder(),created_at:Date.now(),updated_at:Date.now()});
-  state.profile.updated_at=Date.now();
-  titleIn.value="";
-  save();renderTasks();
-}
-
-/** Puts a task on the real Google Calendar at the chosen time. Requires the
- * calendar.events (write) scope - an older read-only token surfaces as
- * reconnect_required from the server, not a generic error. */
-function scheduleTaskAt(t,startIso,statusId){
-  var statusEl=document.getElementById(statusId||"taskStatus");
-  if(statusEl)statusEl.textContent="Scheduling…";
-  fetch("/api/google/calendar/events",{
-    method:"POST",
-    credentials:"same-origin",
-    headers:{"content-type":"application/json"},
-    /* Onto whichever calendar was last chosen in the editor, so scheduling a
-       task doesn't quietly disagree with where events go. */
-    body:JSON.stringify({title:t.title,start:startIso,durationMinutes:30,calendarId:defaultCalendarId()}),
-  }).then(function(res){
-    if(!res.ok)throw new Error("http "+res.status);
-    return res.json();
-  }).then(function(resp){
-    if(resp.status==="ok"){
-      t.due=startIso;t.scheduled=true;t.calendarEventId=resp.eventId||null;t.updated_at=Date.now();
-      state.profile.updated_at=Date.now();
-      _taskSchedOpenId=null;
-      save();renderTasks();
-      if(statusEl)statusEl.textContent="Added to your Google Calendar.";
-    }else if(resp.status==="reconnect_required"||resp.status==="not_connected"){
-      if(statusEl)statusEl.textContent="Connect Google Calendar (Today's Brief card) to schedule tasks.";
-    }else{
-      if(statusEl)statusEl.textContent="Couldn't schedule that task — try again in a bit.";
-    }
-  }).catch(function(){
-    if(statusEl)statusEl.textContent="Couldn't reach the server to schedule that task.";
-  });
 }
 
 /* ---------- PRAYER TIMES (Aladhan API + geolocation) ---------- */
@@ -3991,9 +3966,8 @@ function openCalEditor(o){
     var doneWrap=el("label","chk"+(task.done?" done":""));
     var doneCb=el("input");doneCb.type="checkbox";doneCb.checked=!!task.done;
     doneCb.addEventListener("change",function(){
-      task.done=doneCb.checked;task.updated_at=Date.now();
-      state.profile.updated_at=Date.now();
-      save();renderTasks();
+      task.done=doneCb.checked;
+      touchItem(task);renderBoard();
       doneWrap.className="chk"+(task.done?" done":"");
     });
     var dtxt=el("div");dtxt.appendChild(el("div","lbl","Done"));
@@ -4097,9 +4071,7 @@ function calEditorSave(f,btn){
       task.title=f.title;
       if(startIso){task.due=startIso;task.scheduled=true;}
       if(resp.eventId)task.calendarEventId=resp.eventId;
-      task.updated_at=Date.now();
-      state.profile.updated_at=Date.now();
-      save();renderTasks();
+      touchItem(task);renderBoard();
     }
     hideModal();
     _calWin=null;                                  /* the day changed - refetch */
@@ -4120,9 +4092,8 @@ function calEditorDelete(entry,btn){
 
   var done=function(){
     if(task){
-      task.due=null;task.scheduled=false;task.calendarEventId=null;task.updated_at=Date.now();
-      state.profile.updated_at=Date.now();
-      save();renderTasks();
+      task.due=null;task.scheduled=false;task.calendarEventId=null;
+      touchItem(task);renderBoard();
     }
     hideModal();
     _calWin=null;
@@ -5224,6 +5195,237 @@ function renderPraySummary(){
   box.appendChild(el("div","muted","✓ prayed · ✗ missed · · not logged / not yet due"));
 }
 
+/* ---------- RENDER: THE BOARD ---------- */
+/* A bottom sheet rather than a popup anchored to the button: the board scrolls
+   sideways, and an absolutely-positioned menu inside it gets clipped at the
+   column edge. A sheet is also a far bigger tap target on a phone. */
+function closeMenuSheet(){
+  var open=document.querySelector(".menu-sheet");
+  if(open&&open.parentNode)open.parentNode.removeChild(open);
+}
+function openMenuSheet(title,actions){
+  closeMenuSheet();
+  var sheet=el("div","menu-sheet");
+  var inner=el("div","menu-inner");
+  if(title)inner.appendChild(el("h4",null,title));
+  actions.forEach(function(a){
+    if(a.sep){inner.appendChild(el("div","menu-sep"));return;}
+    var b=el("button",a.danger?"danger":null,a.label);
+    b.type="button";
+    b.addEventListener("click",function(){closeMenuSheet();a.run();});
+    inner.appendChild(b);
+  });
+  sheet.appendChild(inner);
+  sheet.addEventListener("click",function(e){if(e.target===sheet)closeMenuSheet();});
+  document.body.appendChild(sheet);
+}
+
+function renderBoard(){
+  var box=document.getElementById("board");
+  if(!box)return;
+  box.innerHTML="";
+  var projects=projectList();
+  var count=document.getElementById("boardCount");
+  if(count){
+    var open=liveItems("tasks").filter(function(t){return !t.done;}).length;
+    count.textContent=projects.length+" project(s) · "+open+" open";
+  }
+  if(!projects.length){
+    box.appendChild(el("div","board-empty","No projects yet — add one to get started."));
+    return;
+  }
+  projects.forEach(function(p){box.appendChild(buildProjectColumn(p));});
+}
+
+function buildProjectColumn(p){
+  var col=el("div","board-col");
+  col.setAttribute("data-project",p.id);
+
+  var head=el("div","board-col-head");
+  /* The heading is the rename field - one tap, no separate edit mode. */
+  var name=el("button","board-name",p.name);
+  name.type="button";
+  name.addEventListener("click",function(){renameProject(p);});
+  head.appendChild(name);
+  var tasks=tasksIn(p.id);
+  head.appendChild(el("span","board-n",tasks.filter(function(t){return !t.done;}).length+"/"+tasks.length));
+  var menu=el("button","btask-menu","⋯");
+  menu.type="button";
+  menu.setAttribute("aria-label","Project options: "+p.name);
+  menu.addEventListener("click",function(){openProjectMenu(p);});
+  head.appendChild(menu);
+  col.appendChild(head);
+
+  var list=el("div","board-tasks");
+  if(!tasks.length)list.appendChild(el("div","board-empty","Nothing here yet."));
+  tasks.forEach(function(t){list.appendChild(buildBoardTask(t));});
+  col.appendChild(list);
+
+  var add=el("div","board-add");
+  var input=el("input");
+  input.type="text";
+  input.placeholder="Add a task…";
+  input.setAttribute("data-add-for",p.id);
+  var go=el("button","btn primary","Add");
+  go.type="button";
+  function commit(){
+    if(!addTask(p.id,input.value))return;
+    input.value="";
+    renderBoard();
+    /* Keep typing: re-rendering replaced the input, so find the new one. */
+    var next=document.querySelector('.board-add input[data-add-for="'+p.id+'"]');
+    if(next)next.focus();
+  }
+  go.addEventListener("click",commit);
+  input.addEventListener("keydown",function(e){if(e.key==="Enter"){e.preventDefault();commit();}});
+  add.appendChild(input);add.appendChild(go);
+  col.appendChild(add);
+  return col;
+}
+
+function buildBoardTask(t){
+  var row=el("div","btask"+(t.done?" done":""));
+  row.setAttribute("data-task",t.id);
+  var cb=el("input");cb.type="checkbox";cb.checked=!!t.done;
+  cb.addEventListener("change",function(){
+    t.done=cb.checked;touchItem(t);renderBoard();
+  });
+  row.appendChild(cb);
+
+  var main=el("div","btask-main");
+  main.appendChild(el("span","btask-title",t.title));
+  var bits=[];
+  if(t.due){
+    var d=new Date(t.due);
+    bits.push(d.toLocaleDateString("en-GB",{day:"numeric",month:"short"})+
+      (t.scheduled?" · on calendar":""));
+  }else if(t.scheduled){bits.push("on calendar");}
+  if(bits.length)main.appendChild(el("span","btask-meta",bits.join(" ")));
+  row.appendChild(main);
+
+  var menu=el("button","btask-menu","⋮");
+  menu.type="button";
+  menu.setAttribute("aria-label","Options for "+t.title);
+  menu.addEventListener("click",function(){openTaskMenu(t);});
+  row.appendChild(menu);
+  return row;
+}
+
+/* The task menu. "Add to workflow" and "Link to a note" are the next two
+   slices; they are listed but say so rather than being silently absent, so the
+   menu does not change shape underneath you later. */
+function openTaskMenu(t){
+  var others=projectList().filter(function(p){return p.id!==t.projectId;});
+  var actions=[
+    {label:t.done?"Mark as not done":"Mark as done",run:function(){
+      t.done=!t.done;touchItem(t);renderBoard();
+    }},
+    {label:"Rename…",run:function(){
+      var name=window.prompt("Task",t.title);
+      if(name===null)return;
+      name=name.trim();
+      if(!name)return;
+      t.title=name;touchItem(t);renderBoard();
+    }},
+    {label:t.scheduled?"Reschedule on calendar…":"Add to calendar…",run:function(){
+      openTaskSchedule(t);
+    }},
+    {sep:true},
+    {label:"Move to…",run:function(){
+      if(!others.length){boardNote("There is nowhere else to move it yet.");return;}
+      openMenuSheet("Move \u201C"+t.title+"\u201D to",others.map(function(p){
+        return {label:p.name,run:function(){moveTaskTo(t.id,p.id);renderBoard();}};
+      }));
+    }},
+    {label:"Duplicate to…",run:function(){
+      var targets=projectList();
+      openMenuSheet("Copy \u201C"+t.title+"\u201D to",targets.map(function(p){
+        return {label:p.name,run:function(){duplicateTaskTo(t.id,p.id);renderBoard();}};
+      }));
+    }},
+    {sep:true},
+    {label:"Delete",danger:true,run:function(){
+      deleteItem("tasks",t.id);renderBoard();
+    }}
+  ];
+  openMenuSheet(t.title,actions);
+}
+
+function openProjectMenu(p){
+  openMenuSheet(p.name,[
+    {label:"Rename…",run:function(){renameProject(p);}},
+    {label:"Move left",run:function(){shiftProject(p,-1);}},
+    {label:"Move right",run:function(){shiftProject(p,1);}},
+    {sep:true},
+    {label:"Delete project and its tasks",danger:true,run:function(){
+      var n=tasksIn(p.id).length;
+      if(n&&!window.confirm("Delete \u201C"+p.name+"\u201D and its "+n+" task(s)?"))return;
+      tasksIn(p.id).forEach(function(t){deleteItem("tasks",t.id);});
+      deleteItem("projects",p.id);
+      renderBoard();
+    }}
+  ]);
+}
+
+function renameProject(p){
+  var name=window.prompt("Project name",p.name);
+  if(name===null)return;
+  name=name.trim();
+  if(!name)return;
+  p.name=name;touchItem(p);renderBoard();
+}
+/** Reordering is by swapping the two neighbours' order values, so only the
+ * pair that actually moved is restamped - a full renumber would push every
+ * project through sync on every nudge. */
+function shiftProject(p,delta){
+  var list=projectList(),at=list.indexOf(p),to=at+delta;
+  if(at<0||to<0||to>=list.length)return;
+  var other=list[to];
+  var mine=p.order||0;
+  p.order=other.order||0;
+  other.order=mine;
+  if(p.order===other.order){p.order=to;other.order=at;}
+  touchItem(p);touchItem(other);
+  renderBoard();
+}
+/** Schedule a board task onto Google Calendar. Separate from the old
+ * scheduleTaskAt: a board task is its own synced row, so it is stamped with
+ * touchItem rather than by bumping the whole profile. */
+function openTaskSchedule(t){
+  var seed=t.due?new Date(t.due):new Date(Date.now()+60*60*1000);
+  seed.setSeconds(0,0);
+  var when=window.prompt("Date and time (YYYY-MM-DD HH:MM)",
+    localDatetimeValue(seed).replace("T"," "));
+  if(when===null)return;
+  var iso=new Date(String(when).trim().replace(" ","T"));
+  if(isNaN(iso.getTime())){boardNote("That date didn't make sense.");return;}
+  boardNote("Scheduling…");
+  fetch("/api/google/calendar/events",{
+    method:"POST",credentials:"same-origin",
+    headers:{"content-type":"application/json"},
+    body:JSON.stringify({title:t.title,start:iso.toISOString(),
+      durationMinutes:30,calendarId:defaultCalendarId()})
+  }).then(function(res){
+    if(!res.ok)throw new Error("http "+res.status);
+    return res.json();
+  }).then(function(resp){
+    if(resp.status==="ok"){
+      t.due=iso.toISOString();t.scheduled=true;t.calendarEventId=resp.eventId||null;
+      touchItem(t);renderBoard();
+      boardNote("Added to your Google Calendar.");
+    }else if(resp.status==="reconnect_required"||resp.status==="not_connected"){
+      boardNote("Connect Google Calendar in Settings to schedule tasks.");
+    }else{
+      boardNote("Couldn't add that to the calendar.");
+    }
+  }).catch(function(){boardNote("Couldn't reach the calendar just now.");});
+}
+
+function boardNote(msg){
+  var c=document.getElementById("boardCount");
+  if(c)c.textContent=msg;
+}
+
 /* ---------- RENDER: JOURNAL ---------- */
 /* The entry lives in the day record's existing `notes` field. That field
    has been in blankDay() since the beginning and was deliberately kept when
@@ -6153,7 +6355,7 @@ function saveBriefModel(value){
 /* ---------- NAV ---------- */
 /* Order matters: it's both the bottom bar's left-to-right order and the
    order swiping moves through. */
-var VIEWS=["today","prayers","calendar","journal","others","progress","settings"];
+var VIEWS=["tasks","today","prayers","calendar","journal","others","progress","settings"];
 /* Meals, recipes and movement are reference material rather than daily
    tracking, so they share one tab with their own sub-tabs. */
 var SUBVIEWS=["plan","recipes","exercises","duas"];
@@ -6177,6 +6379,7 @@ function nav(view){
   if(view==="prayers")renderPrayersTab();
   if(view==="settings")renderSettings();
   if(view==="journal")renderJournal();
+  if(view==="tasks")renderBoard();
   window.scrollTo(0,0);
 }
 
@@ -6294,9 +6497,7 @@ document.getElementById("clearBtn").addEventListener("click",function(){
   }
 });
 
-document.getElementById("taskAddBtn").addEventListener("click",function(){addTask("taskTitleIn");});
 document.getElementById("duaAddBtn").addEventListener("click",function(){uploadDua();});
-document.getElementById("taskTitleIn").addEventListener("keydown",function(e){if(e.key==="Enter")addTask("taskTitleIn");});
 
 PCHIP_IDS.forEach(function(id){
   var b=document.getElementById(id);
@@ -6339,6 +6540,21 @@ document.getElementById("overlay").addEventListener("scroll",closeColorMenu);
 document.getElementById("prayPrevDay").addEventListener("click",function(){cur.setDate(cur.getDate()-1);renderPrayersTab();});
 document.getElementById("prayNextDay").addEventListener("click",function(){cur.setDate(cur.getDate()+1);renderPrayersTab();});
 document.getElementById("prayJumpToday").addEventListener("click",function(){cur=new Date();cur.setHours(0,0,0,0);renderPrayersTab();});
+
+/* Creates the project straight away and puts the cursor in its name, rather
+   than opening a dialog first - one fewer step, and the heading is the rename
+   control anyway. */
+document.getElementById("projectAddBtn").addEventListener("click",function(){
+  var id=addProject("New project");
+  if(!id)return;
+  renderBoard();
+  var col=document.querySelector('.board-col[data-project="'+id+'"]');
+  if(col){
+    var input=col.querySelector('.board-add input');
+    if(input)input.focus();
+    col.scrollIntoView({behavior:"smooth",inline:"end",block:"nearest"});
+  }
+});
 
 document.getElementById("jrnPrevDay").addEventListener("click",function(){cur.setDate(cur.getDate()-1);renderJournal();});
 document.getElementById("jrnNextDay").addEventListener("click",function(){cur.setDate(cur.getDate()+1);renderJournal();});
@@ -6477,7 +6693,6 @@ renderScaleSeg();
 renderPlan();renderRecipes();renderExercises();renderToday();
 updateInstallUI();
 loadBrief();
-renderTasks();
 renderPrayerChips();startPrayerChipTick();
 updateNotifyUI();
 loadNotifs();renderNotifs();
