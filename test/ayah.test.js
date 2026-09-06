@@ -41,11 +41,45 @@ const alquranOk = (u) => ok({ data: [
 
 test("the rotation is a curated list of references, not a random ayah", async () => {
   const { AYAH_REFS, ayahRefForDay } = await load();
-  assert.ok(AYAH_REFS.length >= 20, "enough for a rotation of several weeks");
+  assert.ok(AYAH_REFS.length >= 90, "enough that the rotation is months, not days");
   AYAH_REFS.forEach((r) => assert.match(r, /^\d+:\d+(-\d+)?$/, r + " is a reference"));
   // A verse pulled at random out of 6236 is routinely a fragment mid-narrative,
   // which is not something to hand someone as a morning reflection.
   assert.equal(new Set(AYAH_REFS).size, AYAH_REFS.length, "and no duplicates");
+});
+
+/* Curating the list by hand is the whole design, so the invariants a hand-edit
+   can quietly break are worth pinning: a reference outside the mushaf, a range
+   that overlaps another entry (the same verse arriving twice under two names),
+   and the ordering that makes a duplicate visible when reading the source. */
+test("every reference is inside the mushaf, in order, and covers no verse twice", async () => {
+  const { AYAH_REFS } = await load();
+  const parsed = AYAH_REFS.map((r) => {
+    const m = r.match(/^(\d+):(\d+)(?:-(\d+))?$/);
+    assert.ok(m, r + " is a reference");
+    return { ref: r, surah: +m[1], from: +m[2], to: m[3] ? +m[3] : +m[2] };
+  });
+
+  for (const p of parsed) {
+    assert.ok(p.surah >= 1 && p.surah <= 114, p.ref + ": there are 114 surahs");
+    assert.ok(p.from >= 1, p.ref + ": ayah numbering starts at 1");
+    assert.ok(p.to >= p.from, p.ref + ": a range must not run backwards");
+  }
+
+  for (let i = 1; i < parsed.length; i++) {
+    const a = parsed[i - 1], b = parsed[i];
+    assert.ok(
+      a.surah < b.surah || (a.surah === b.surah && a.from < b.from),
+      `${b.ref} is out of order after ${a.ref} - keep the list sorted so a duplicate is visible`,
+    );
+  }
+
+  for (const a of parsed) {
+    for (const b of parsed) {
+      if (a === b || a.surah !== b.surah) continue;
+      assert.ok(a.to < b.from || b.to < a.from, `${a.ref} and ${b.ref} cover the same verse`);
+    }
+  }
 });
 
 test("a day gets three different verses, the same three every time", async () => {
