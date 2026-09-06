@@ -2,6 +2,10 @@
 
 ## 1.45.1
 
+- **The Workflow tab has a drawn Gantt icon** — three offset bars, in the same teal/blue/amber the board gives its projects. No emoji is a Gantt chart, so this one isn't an emoji: it's a small inline SVG, which also means it stays crisp at any size and any text scale.
+
+## 1.45.1
+
 - **A new Workflow icon** — ⏳. Distinct in silhouette from every other tab in the bar, which is what the last two attempts weren't.
 
 ## 1.45.0

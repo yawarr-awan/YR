@@ -26,6 +26,15 @@ test("nav sits at the bottom of the page as icons, and the Guide tab is gone", (
   tabs.querySelectorAll("button").forEach((b) => {
     assert.ok(b.querySelector("i"), "each tab renders an icon above its label");
   });
+
+  /* Workflow's icon is drawn rather than an emoji: a Gantt chart is what the
+     tab is, and no emoji is one. Three offset bars, in the palette the board
+     gives its projects. */
+  const gantt = tabs.querySelector('[data-nav="workflow"] .ico-gantt svg');
+  assert.ok(gantt, "Workflow draws its own icon");
+  assert.equal(gantt.querySelectorAll("rect").length, 3, "three bars");
+  const xs = [...gantt.querySelectorAll("rect")].map((r) => parseFloat(r.getAttribute("x")));
+  assert.notDeepEqual(xs, [xs[0], xs[0], xs[0]], "offset from each other, or it is not a Gantt");
 });
 
 test("tapping a tab's icon switches tab, not just tapping the button itself", () => {

@@ -1324,6 +1324,19 @@ the week containing `dayDate`). `calCols()` is a constant 7; `calIsWide()`
 - `attachTabSwipe` ignores touches starting in `.canvas-viewport`, same as
   `.cal-viewport`.
 
+## The Workflow icon is drawn, not an emoji (1.45.1)
+- 📊, 🗺️, 🧭, ⏳ and a shortlist of eight more were each turned down; what was
+  actually wanted was **a Gantt chart**, and no emoji is one. `.ico-gantt` is a
+  small inline SVG in the bottom bar - three offset rounded bars in the same
+  teal/blue/amber `PROJECT_COLORS` gives a board - so it stays crisp at any
+  `yawarScale` and is literally the thing the tab shows.
+- The ⋮ menu items lost their icon rather than gaining a second, different
+  one: `openMenuSheet` sets `textContent`, so a label cannot hold an SVG, and
+  the wording already says "workflow".
+- Lesson for the next taste call: after two misses, **render the candidates in
+  the real component and show them** rather than guessing again - and read
+  "something better" as a hint that the category is wrong, not the choice.
+
 ## Verse of the day, and the workflow in the brief (1.45.0)
 **The rule the ayah feature exists around: the model never supplies the verse.**
 Arabic and translation are fetched from a canonical source and passed to Gemini
