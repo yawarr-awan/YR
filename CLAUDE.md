@@ -1324,6 +1324,18 @@ the week containing `dayDate`). `calCols()` is a constant 7; `calIsWide()`
 - `attachTabSwipe` ignores touches starting in `.canvas-viewport`, same as
   `.cal-viewport`.
 
+## What a task title says it is attached to (1.44.1)
+- The title is **one link with an order**: a linked note (`.linklike`, brand
+  green) **beats** being on the timeline (`.btask-wf`, `--wf-link` blue), and
+  a task with neither is a plain `<span>`. `taskTitleLink()` builds all the
+  link cases so they can only differ in colour and destination.
+- **Why the note wins:** it is somewhere to go and read, where the timeline is
+  a state the dates on the line below already spell out. Putting the timeline
+  on the *dates* instead was tried first - it lets both show at once, but the
+  user asked for one indicator with the note prevailing.
+- `--wf-link` is `#2563eb` light / `#60a5fa` dark. It must stay distinct from
+  `--brand` in both themes, since the whole point is telling them apart.
+
 ## The floating controls, and full screen on the calendar (1.44.0)
 - **`.fab-stack` is one fixed cluster holding both floating buttons.** They
   were two separately-positioned fixed elements first and did not line up -

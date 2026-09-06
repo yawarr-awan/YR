@@ -251,10 +251,62 @@ test("a linked task IS the link - its own title, not a second line under it", ()
   assert.equal(openCard(app).querySelector(".note-title-in").value, "The plan");
 });
 
-test("an unlinked task's title is plain text, not a button", () => {
+test("an unattached task's title is plain text, not a button", () => {
   const app = openNotes(loadApp({ fetchImpl: idle }));
   addTask(app, newProject(app, "P"), "Nothing attached");
-  assert.equal(app.document.querySelector(".btask .btask-title").tagName, "SPAN");
+  const title = app.document.querySelector(".btask .btask-title");
+  assert.equal(title.tagName, "SPAN");
+  assert.equal(title.classList.contains("linklike"), false);
+  assert.equal(title.classList.contains("btask-wf"), false);
+});
+
+test("a note wins over the timeline when a task is on both", () => {
+  // A task can only be one link, and the note is the one with somewhere to go
+  // and read; being on the timeline is a state its dates already spell out.
+  const app = openNotes(loadApp({ fetchImpl: idle }));
+  newNote(app, "The plan", "");
+  addTask(app, newProject(app, "P"), "Both at once");
+
+  // Put it on the timeline first...
+  pick(taskMenu(app), /Set dates/).click();
+  const pop = app.document.querySelector(".menu-pop");
+  const [from, to] = [...pop.querySelectorAll("input[type=date]")];
+  from.value = "2026-09-01"; to.value = "2026-09-08";
+  [...pop.querySelectorAll("button")].find((b) => /^Save$/.test(b.textContent)).click();
+
+  let title = app.document.querySelector(".btask .btask-title");
+  assert.ok(title.classList.contains("btask-wf"), "blue while it is only on the timeline");
+  assert.equal(title.classList.contains("linklike"), false);
+
+  // ...then link a note as well.
+  pick(taskMenu(app), /Link a note/).click();
+  pick([...app.document.querySelectorAll(".menu-pop button")], /The plan/).click();
+
+  title = app.document.querySelector(".btask .btask-title");
+  assert.ok(title.classList.contains("linklike"), "the note's green prevails");
+  assert.equal(title.classList.contains("btask-wf"), false, "and not both at once");
+  assert.match(title.title, /The plan/, "tapping it opens the note, not the timeline");
+
+  // The dates are still there, as plain text on the line below.
+  const meta = app.document.querySelector(".btask .btask-meta");
+  assert.equal(meta.tagName, "SPAN");
+  assert.match(meta.textContent, /→/);
+});
+
+test("a task on the timeline reads as a link to it", () => {
+  const app = loadApp({ fetchImpl: idle });
+  addTask(app, newProject(app, "P"), "Plotted");
+  pick(taskMenu(app), /Set dates/).click();
+  const pop = app.document.querySelector(".menu-pop");
+  const [from, to] = [...pop.querySelectorAll("input[type=date]")];
+  from.value = "2026-09-01"; to.value = "2026-09-08";
+  [...pop.querySelectorAll("button")].find((b) => /^Save$/.test(b.textContent)).click();
+
+  const title = app.document.querySelector(".btask .btask-title");
+  assert.equal(title.tagName, "BUTTON");
+  assert.ok(title.classList.contains("btask-wf"));
+  title.click();
+  assert.equal(app.document.querySelector(".view.active").id, "view-workflow");
 });
 
 test("the notes tab adds one with a + rather than a labelled button", () => {
