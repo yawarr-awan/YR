@@ -1,5 +1,24 @@
 # Changelog
 
+## 1.38.0
+
+**The board is a real canvas now**, not a row of fixed columns.
+
+- **Pinch to zoom** in and out, or use **− / +**, or **Fit** to frame everything at once. Trackpad pinch works too.
+- **Drag a card anywhere** — grab it by its header (the project name included) and put it where you like.
+- **Resize from the bottom-right corner.**
+- **Drag the background to pan.**
+
+Where each card sits and how big it is **syncs** — how you've arranged a board *is* the board, so it should look the same on your phone and your laptop. The zoom and pan are per-device, like the UI scale: those are how you're looking at it, not what it is.
+
+**Three other fixes you asked for:**
+
+- **Swiping sideways on the Tasks tab no longer jumps to the next tab.** The canvas owns its gestures now.
+- **The ⋮ menu opens right where you tapped**, like a desktop context menu, instead of sliding up from the bottom. It flips left or up near an edge so it's never half off-screen.
+- **The 📅 calendar button is back on every task row**, with the green ring when something's on your calendar — same as it was on the old Today card.
+
+One bug worth mentioning because only a real browser caught it: the project name button covers nearly the whole card header, so my first version — which ignored drags starting on a button — left about four pixels of grabbable header. The jsdom test passed anyway, because it aimed at the header directly rather than at what a finger actually lands on. Dragging by the name now works, and tapping it still renames.
+
 ## 1.37.0
 
 **The Workflow timeline** — second slice of the project rework. A **Board / Workflow** switch at the top of the Tasks tab.
