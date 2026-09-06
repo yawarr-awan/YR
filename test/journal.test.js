@@ -379,3 +379,131 @@ test("a sync pull mid-search keeps what was typed and where the caret was", () =
   assert.equal(app.document.activeElement, after, "still typing where they were");
   assert.equal(after.selectionStart, 3, "and the caret did not jump to the start");
 });
+
+/* ---------------- the verse of the day (Prayers tab) ---------------- */
+/* The Arabic and the English are canonical text the Worker fetched; only the
+   reflection is written. The card's job is to keep that distinction visible -
+   it names its source, and it never renders anything in place of a verse. */
+
+function ayahApp(body) {
+  return loadApp({
+    fetchImpl: async (url) => {
+      const u = String(url);
+      if (u.includes("/api/ayah")) return { ok: true, status: 200, json: async () => body };
+      return { ok: true, status: 200, json: async () => ({ connected: false, status: "not_connected" }) };
+    },
+  });
+}
+const ayahBox = (app) => app.document.getElementById("ayahBox");
+
+test("the verse card lives on the Prayers tab, not on Today", async () => {
+  const app = ayahApp({ status: "pending", day: "2026-09-06" });
+  await app.flush();
+  const card = app.document.getElementById("ayahCard");
+  assert.ok(card);
+  assert.equal(card.closest("section.view").id, "view-prayers");
+  assert.equal(card.getAttribute("data-card"), "ayah", "and it can be rearranged like any other");
+});
+
+const THREE = {
+  status: "ok", day: "2026-09-06", generated_at: Date.now(), error: null,
+  items: [
+    { ref: "94:5-6", arabic: "فَإِنَّ مَعَ ٱلْعُسْرِ يُسْرًا",
+      translation: "For indeed, with hardship [will be] ease.",
+      reflection: "You have three things running late today.",
+      source: "alquran.cloud · Sahih International" },
+    { ref: "2:153", arabic: "AR TWO", translation: "Seek help through patience and prayer.",
+      reflection: "Second reflection.", source: "alquran.cloud · Sahih International" },
+    { ref: "14:7", arabic: "AR THREE", translation: "If you are grateful, I will surely increase you.",
+      reflection: "Third reflection.", source: "alquran.cloud · Sahih International" },
+  ],
+};
+const ayahDots = (app) => [...app.document.querySelectorAll("#ayahDots button")];
+
+test("a verse renders its Arabic, its translation and the reflection, and names the source", async () => {
+  const app = ayahApp(THREE);
+  await app.flush();
+
+  assert.match(ayahBox(app).querySelector(".ayah-ar").textContent, /ٱلْعُسْرِ/);
+  assert.match(ayahBox(app).querySelector(".ayah-en").textContent, /with hardship/);
+  assert.match(ayahBox(app).querySelector(".ayah-reflect").textContent, /three things running late/);
+  assert.match(app.document.getElementById("ayahRef").textContent, /94:5-6/);
+  // Naming the source is what says the verse was fetched rather than written.
+  assert.match(app.document.getElementById("ayahMeta").textContent, /alquran\.cloud/);
+});
+
+test("three a day, and a dot moves between them", async () => {
+  const app = ayahApp(THREE);
+  await app.flush();
+  const dots = ayahDots(app);
+  assert.equal(dots.length, 3);
+  assert.ok(dots[0].classList.contains("on"));
+
+  dots[2].click();
+  assert.match(ayahBox(app).querySelector(".ayah-en").textContent, /grateful/);
+  assert.match(app.document.getElementById("ayahRef").textContent, /14:7/);
+  assert.ok(ayahDots(app)[2].classList.contains("on"));
+});
+
+test("swiping the card moves between them, and never changes tab", async () => {
+  const app = ayahApp(THREE);
+  await app.flush();
+  app.goTo("prayers");
+
+  app.swipe("ayahBox", -80, 0);
+  assert.match(ayahBox(app).querySelector(".ayah-en").textContent, /patience and prayer/,
+    "left goes forward");
+  assert.equal(app.document.querySelector(".view.active").id, "view-prayers",
+    "and the page-level tab swipe never also fires");
+
+  app.swipe("ayahBox", 80, 0);
+  assert.match(ayahBox(app).querySelector(".ayah-en").textContent, /with hardship/, "right goes back");
+});
+
+test("a mostly-vertical drag on the card is a scroll, not a change", async () => {
+  const app = ayahApp(THREE);
+  await app.flush();
+  app.swipe("ayahBox", 20, 160);
+  assert.match(ayahBox(app).querySelector(".ayah-en").textContent, /with hardship/);
+});
+
+test("the card moves on by itself, and wraps round", async () => {
+  const app = ayahApp(THREE);
+  await app.flush();
+  // Three minutes is the interval; drive it rather than waiting for it.
+  const seen = [];
+  for (let i = 0; i < 4; i++) {
+    seen.push(app.document.getElementById("ayahRef").textContent);
+    ayahDots(app)[(i + 1) % 3].click();
+  }
+  assert.deepEqual(seen.map((s) => s.replace("Qur'an ", "")), ["94:5-6", "2:153", "14:7", "94:5-6"],
+    "it comes back round rather than stopping at the end");
+});
+
+test("no verse means the card says so - never something in its place", async () => {
+  const app = ayahApp({ status: "verse_error", day: "2026-09-06", items: [],
+    error: "alquran.cloud: HTTP 500 · quran.com: HTTP 500" });
+  await app.flush();
+
+  assert.equal(ayahBox(app).querySelector(".ayah-ar"), null, "nothing was substituted");
+  assert.equal(ayahBox(app).querySelector(".ayah-en"), null);
+  assert.match(ayahBox(app).textContent, /Nothing is ever made up here/);
+  assert.equal(app.document.getElementById("ayahRef").textContent, "",
+    "and it does not claim a reference it cannot show");
+  assert.equal(ayahDots(app).length, 0);
+});
+
+test("a verse with no reflection still shows the verse", async () => {
+  // The reflection is enrichment; the verse is the thing itself.
+  const app = ayahApp({
+    status: "ok", day: "2026-09-06", error: "reflection: gemini call failed",
+    items: [{ ref: "94:5", arabic: "AR", translation: "EN", reflection: null,
+      source: "quran.com · Sahih International" }],
+  });
+  await app.flush();
+
+  assert.ok(ayahBox(app).querySelector(".ayah-ar"));
+  assert.match(ayahBox(app).textContent, /reflection didn't generate/);
+  assert.match(app.document.getElementById("ayahMeta").textContent, /quran\.com/);
+  assert.equal(ayahDots(app).length, 0, "one item needs no dots");
+});

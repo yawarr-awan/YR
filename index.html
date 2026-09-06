@@ -250,6 +250,25 @@ body.editing .card[data-card].is-over{outline:2px solid var(--brand)}
    this treatment when it really is first - a status message ("Connect your
    Google Calendar…") lands in the same element and should stay plain, which
    it does, because it is then the only child rather than the lead. */
+/* ---------- VERSE OF THE DAY ---------- */
+.ayah-ar{
+  direction:rtl;text-align:right;font-size:1.35rem;line-height:2.1;
+  color:var(--ink);margin:2px 0 10px;font-family:"Traditional Arabic","Scheherazade New",serif
+}
+.ayah-en{font-size:.92rem;line-height:1.55;color:var(--ink);margin:0 0 10px}
+.ayah-reflect{
+  font-size:.88rem;line-height:1.55;color:var(--muted);
+  border-inline-start:3px solid var(--brand);padding-inline-start:10px;margin:0
+}
+.ayah-box .muted{font-size:.86rem}
+/* Three a day, so the card moves between them: swipe, tap a dot, or wait. */
+.ayah-box{touch-action:pan-y}
+.ayah-dots{display:flex;gap:7px;justify-content:center;margin:2px 0 8px}
+.ayah-dots button{
+  width:8px;height:8px;border-radius:50%;padding:0;border:none;cursor:pointer;
+  background:var(--line);font-size:0
+}
+.ayah-dots button.on{background:var(--brand);transform:scale(1.25)}
 .brief-para:first-child:not(:last-child){
   margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--line);
   line-height:1.5
@@ -1099,6 +1118,17 @@ a.btn{text-decoration:none;display:inline-block}
       <button class="today-btn" id="prayJumpToday">Today</button>
     </div>
     <div class="grid cards">
+      <!-- A verse, its translation, and a reflection on the day. The Arabic and
+           the English come from a canonical source through the Worker - the
+           model is only ever shown them and asked to reflect, never asked for
+           a verse. -->
+      <div class="card" id="ayahCard" data-card="ayah">
+        <h3>🕌 Verse of the day<span class="count" id="ayahRef"></span></h3>
+        <div id="ayahBox" class="ayah-box"></div>
+        <div class="ayah-dots" id="ayahDots"></div>
+        <div class="pill-row" id="ayahActions"></div>
+        <div class="muted" id="ayahMeta" style="font-size:.72rem;margin-top:6px"></div>
+      </div>
       <div class="card collapsible" data-collapse="prayers" data-card="prayers">
         <h3><span class="dot" style="background:var(--pray)"></span> Prayers (Salah)<span class="count" id="prayCount"></span></h3>
         <!-- Just the checklist. The location, the countdown, the calculation
@@ -1507,7 +1537,7 @@ a.btn{text-decoration:none;display:inline-block}
 </div>
 <nav class="tabs" id="tabs">
   <button data-nav="tasks"><i>🗂️</i>Tasks</button>
-  <button data-nav="workflow"><i>🗺️</i>Workflow</button>
+  <button data-nav="workflow"><i>🧭</i>Workflow</button>
   <button data-nav="today" class="active"><i>📋</i>Today</button>
   <button data-nav="prayers"><i>🕌</i>Prayers</button>
   <button data-nav="calendar"><i>🗓️</i>Calendar</button>
@@ -3124,6 +3154,136 @@ function refreshBrief(){
     if(!res.ok)throw new Error("http "+res.status);
     return res.json();
   }).then(renderBrief).catch(function(){renderBrief(null);});
+}
+
+/* ---------- VERSE OF THE DAY ----------
+   The Arabic and the English are canonical text the Worker fetched; only the
+   reflection is written. That split is the whole point, so the card names its
+   source and never renders a reflection as though it were the verse. */
+var AYAH_URL="/api/ayah",AYAH_REFRESH_URL="/api/ayah/refresh";
+/* Three verses a day, one on screen at a time. It moves on by itself every
+   few minutes, and a swipe or a dot moves it now - the timer restarts either
+   way, so it never slides out from under a finger that has just chosen. */
+var AYAH_ROTATE_MS=3*60*1000;
+var _ayah=null,_ayahAt=0,_ayahTimer=null;
+
+function ayahStatusText(a){
+  if(!a)return "Couldn't load today's verses just now.";
+  if(a.status==="pending")return "Today's verses haven't been prepared yet.";
+  if(a.status==="verse_error")return "Couldn't reach the Qur'an source, so there's nothing to show. Nothing is ever made up here — try again in a moment.";
+  return "Couldn't load today's verses just now.";
+}
+function ayahItems(){return (_ayah&&Array.isArray(_ayah.items))?_ayah.items:[];}
+function setAyahIndex(i,manual){
+  var n=ayahItems().length;
+  if(!n)return;
+  _ayahAt=((i%n)+n)%n;
+  paintAyah();
+  if(manual)startAyahTimer();
+}
+function startAyahTimer(){
+  stopAyahTimer();
+  if(ayahItems().length<2)return;
+  _ayahTimer=setInterval(function(){setAyahIndex(_ayahAt+1);},AYAH_ROTATE_MS);
+}
+function stopAyahTimer(){if(_ayahTimer){clearInterval(_ayahTimer);_ayahTimer=null;}}
+
+function renderAyah(a){
+  _ayah=a;_ayahAt=0;
+  paintAyah();
+  startAyahTimer();
+}
+function paintAyah(){
+  var box=document.getElementById("ayahBox"),
+      dots=document.getElementById("ayahDots"),
+      actions=document.getElementById("ayahActions"),
+      meta=document.getElementById("ayahMeta"),
+      ref=document.getElementById("ayahRef");
+  if(!box)return;
+  box.innerHTML="";dots.innerHTML="";actions.innerHTML="";meta.textContent="";
+
+  var items=ayahItems(),it=items[_ayahAt]||null;
+  if(ref)ref.textContent=it&&it.ref?("Qur'an "+it.ref):"";
+
+  if(!it){
+    box.appendChild(el("p","muted",ayahStatusText(_ayah)));
+  }else{
+    if(it.arabic)box.appendChild(el("p","ayah-ar",it.arabic));
+    if(it.translation)box.appendChild(el("p","ayah-en","\u201C"+it.translation+"\u201D"));
+    if(it.reflection)box.appendChild(el("p","ayah-reflect",it.reflection));
+    else box.appendChild(el("p","muted","The reflection didn't generate for this one — the verse above is unaffected."));
+  }
+
+  if(items.length>1){
+    items.forEach(function(_,i){
+      var d=el("button",i===_ayahAt?"on":null,String(i+1));
+      d.type="button";
+      d.setAttribute("aria-label","Verse "+(i+1)+" of "+items.length);
+      d.addEventListener("click",function(){setAyahIndex(i,true);});
+      dots.appendChild(d);
+    });
+  }
+
+  var btn=el("button","btn","\uD83D\uDD04 "+(items.length?"New reflections":"Try again"));
+  btn.type="button";
+  btn.addEventListener("click",refreshAyah);
+  actions.appendChild(btn);
+
+  var bits=[];
+  /* Naming the source is the point: it is what says the verse was fetched
+     rather than written. */
+  if(it&&it.source)bits.push(it.source);
+  if(_ayah&&_ayah.generated_at)bits.push(fmtClock(_ayah.generated_at));
+  meta.textContent=bits.join(" \u00B7 ");
+  if(_ayah&&_ayah.status==="ok"&&_ayah.error){
+    var warn=el("div","muted","\u26A0\uFE0F Not everything came through today.");
+    warn.title=_ayah.error;
+    warn.style.fontSize=".7rem";warn.style.marginTop="6px";
+    meta.appendChild(warn);
+  }
+}
+
+/** Swipe the card itself. It stops the touch propagating so the page-level
+ * tab swipe never also fires - the same rule the calendar grid follows. */
+function attachAyahSwipe(){
+  var box=document.getElementById("ayahBox");
+  if(!box)return;
+  var x0=null,y0=null;
+  box.addEventListener("touchstart",function(e){
+    var t=e.touches&&e.touches[0];
+    if(!t)return;
+    x0=t.clientX;y0=t.clientY;
+    e.stopPropagation();
+  },{passive:true});
+  box.addEventListener("touchmove",function(e){e.stopPropagation();},{passive:true});
+  box.addEventListener("touchend",function(e){
+    e.stopPropagation();
+    if(x0==null)return;
+    var t=e.changedTouches&&e.changedTouches[0];
+    var sx=x0,sy=y0;x0=null;y0=null;
+    if(!t)return;
+    var dx=t.clientX-sx,dy=t.clientY-sy;
+    /* Mostly sideways, and far enough to be a decision rather than a scroll. */
+    if(Math.abs(dx)<40||Math.abs(dx)<Math.abs(dy)*1.5)return;
+    setAyahIndex(_ayahAt+(dx<0?1:-1),true);
+  },{passive:true});
+}
+
+function loadAyah(){
+  if(typeof fetch!=="function")return;
+  fetch(AYAH_URL,{credentials:"same-origin"}).then(function(res){
+    if(!res.ok)throw new Error("http "+res.status);
+    return res.json();
+  }).then(renderAyah).catch(function(){renderAyah(null);});
+}
+function refreshAyah(){
+  var box=document.getElementById("ayahBox");
+  if(box)box.textContent="Fetching\u2026";
+  stopAyahTimer();
+  fetch(AYAH_REFRESH_URL,{method:"POST",credentials:"same-origin"}).then(function(res){
+    if(!res.ok)throw new Error("http "+res.status);
+    return res.json();
+  }).then(renderAyah).catch(function(){renderAyah(null);});
 }
 
 /* ---------- TASKS ----------
@@ -6228,7 +6388,7 @@ function openTaskMenu(t,at){
     /* Named for what it does rather than for the fields it shows: giving a
        task a span *is* putting it on the workflow, and "Set dates…" never
        said so. */
-    {label:taskHasSpan(t)?"🗺️ Change workflow dates…":"🗺️ Add to the workflow…",
+    {label:taskHasSpan(t)?"🧭 Change workflow dates…":"🧭 Add to the workflow…",
       run:function(){openTaskDates(t,at);}},
     {label:t.scheduled?"Reschedule on calendar…":"Add to calendar…",run:function(){
       openTaskSchedule(t,at);
@@ -6276,8 +6436,11 @@ function openTaskDates(t,at){
     form.appendChild(wrap);
     return input;
   }
-  var startIn=field("Starts",taskStart(t));
-  var endIn=field("Ends",taskEnd(t));
+  /* A task being put on the workflow for the first time starts today, not on
+     a blank field - nothing is ever planned to have begun in the past, and
+     the date is there to be changed if it should be later. */
+  var startIn=field("Starts",taskStart(t)||todayKey());
+  var endIn=field("Ends",taskEnd(t)||todayKey());
 
   var row=el("div","pill-row");
   var save=el("button","btn primary","Save");
@@ -8507,6 +8670,8 @@ renderScaleSeg();
 renderPlan();renderRecipes();renderExercises();renderToday();
 updateInstallUI();
 loadBrief();
+loadAyah();
+attachAyahSwipe();
 renderPrayerChips();startPrayerChipTick();
 updateNotifyUI();
 loadNotifs();renderNotifs();

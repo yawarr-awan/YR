@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.45.0
+
+**Verse of the day** — a new card at the top of the **Prayers** tab. Three verses a day, each with its English translation and a short reflection tying it to your day: what's overdue on the workflow, what your record shows. The card moves on by itself every few minutes, and you can swipe it left or right or tap a dot to move now.
+
+**How this is built, because it matters:** the Arabic and the English are fetched from a canonical Qur'an source (alquran.cloud, with quran.com behind it) and handed to the AI as fixed text it is explicitly told never to reproduce, re-translate, extend or paraphrase. **Only the reflection is written.** If both sources are unreachable, the card says so — it never falls back to anything generated. A misquoted Qur'an is not a rounding error.
+
+**No hadith yet, deliberately.** Every free hadith API I could find is either unofficial and unverifiable or needs an approved key (sunnah.com). I'm not willing to have the model produce hadith text from memory, which is the only other way to do it. If you get a sunnah.com key I'll wire it in the same way — canonical text fetched, reflection written.
+
+**The daily brief now reads your workflow.** Anything overdue on the timeline, anything running today, and anything starting in the next week goes into the brief alongside your journal and your record — so a project slipping gets the same attention a slipping figure does.
+
+**Also:**
+- **The workflow date sheet starts today** rather than empty when you first put a task on the timeline. Nothing is ever planned to have begun in the past.
+- **A new Workflow icon** — 🧭.
+
 ## 1.44.2
 
 - **"Set dates…" is now "🗺️ Add to the workflow…"** in a task's ⋮ menu — giving a task a span *is* putting it on the workflow, which the old wording never said. Once it's on there, it reads **"Change workflow dates…"**, and the sheet's second button says **"Take off the workflow"** rather than "Clear dates".

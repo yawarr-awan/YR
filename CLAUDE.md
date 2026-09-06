@@ -1324,6 +1324,45 @@ the week containing `dayDate`). `calCols()` is a constant 7; `calIsWide()`
 - `attachTabSwipe` ignores touches starting in `.canvas-viewport`, same as
   `.cal-viewport`.
 
+## Verse of the day, and the workflow in the brief (1.45.0)
+**The rule the ayah feature exists around: the model never supplies the verse.**
+Arabic and translation are fetched from a canonical source and passed to Gemini
+as fixed text it may only comment on; `AYAH_REFLECTION_PROMPT` forbids
+reproducing, re-translating, extending or paraphrasing either, forbids quoting
+any other verse or any hadith, and forbids speaking as a scholar. If both
+sources fail the row is `verse_error` and the card says so - **never a
+generated verse**. Do not "simplify" this by asking the model for the text.
+- **No hadith.** Every free hadith API is either unofficial and unverifiable or
+  needs an approved key (sunnah.com, a manual step like the Worker secrets).
+  Producing hadith text from an LLM is the one thing this design refuses, so
+  the feature is Qur'an-only until a real source is wired in.
+- **`AYAH_REFS` is a curated, verified rotation**, not a random ayah out of
+  6236: a random verse is routinely a fragment mid-narrative. Each reference
+  was checked against canonical text before being listed. Three a day
+  (`AYAH_PER_DAY`), consecutive in the list, so a day never repeats itself.
+- Two providers, `alquran.cloud` then `quran.com`, both read **shape-tolerantly**
+  - neither contract could be exercised from the build sandbox (its egress
+  proxy blocks both), the same position the prayer-time normaliser was in.
+  quran.com marks footnotes up in the translation; the markup is stripped.
+- `daily_ayah` stores the day's three as **one JSON blob** in `items`. The
+  table is created lazily like the others.
+- **`weekday()` moved to module scope** - it was local to
+  `summarizeWithGemini` and the reflection prompt needs it too. A reflection
+  failing does not cost the verse; a verse failing skips that one and the
+  others still render.
+- **`fetchWorkflow()` reads `projects`/`tasks` straight from D1**, because the
+  cron generates all this with no browser involved - the same reason
+  `fetchJournal`/`fetchTrends` read `days` directly. Like them it **never
+  throws**; its error joins `softError` beside a successful brief. It feeds
+  both the brief's `WORKFLOW` block and each ayah reflection.
+- The client card is a carousel: `AYAH_ROTATE_MS` (3 min), dots, and
+  `attachAyahSwipe()` which **stops touch propagation** so the page-level tab
+  swipe never also fires - the same rule the calendar grid follows. A manual
+  move restarts the timer, so it cannot slide out from under a finger.
+- `test/fakeD1.js` gained `seedItem()` and its board-row read now handles a
+  query with no `since` watermark and an explicit `deleted = 0` - the sync
+  pull and the brief's workflow read are different shapes over one table.
+
 ## Naming the workflow route (1.44.2)
 - The ⋮ item is named for **what it does**, not for the fields it shows:
   "🗺️ Add to the workflow…" / "🗺️ Change workflow dates…", and the sheet's
