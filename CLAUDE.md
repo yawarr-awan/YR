@@ -1324,6 +1324,17 @@ the week containing `dayDate`). `calCols()` is a constant 7; `calIsWide()`
 - `attachTabSwipe` ignores touches starting in `.canvas-viewport`, same as
   `.cal-viewport`.
 
+## Naming the workflow route (1.44.2)
+- The ⋮ item is named for **what it does**, not for the fields it shows:
+  "🗺️ Add to the workflow…" / "🗺️ Change workflow dates…", and the sheet's
+  clear button is "Take off the workflow" once there is a span. Giving a task
+  a start and end *is* putting it on the timeline; "Set dates…" never said so.
+  There is deliberately **no second one-tap route** - it was built and then
+  dropped, because the sheet already is the route and two ways in is clutter.
+- `openMenuSheet` now **skips a falsy entry**, so a conditional item can be
+  written `cond ? {...} : null` inline instead of building the array in three
+  statements.
+
 ## What a task title says it is attached to (1.44.1)
 - The title is **one link with an order**: a linked note (`.linklike`, brand
   green) **beats** being on the timeline (`.btask-wf`, `--wf-link` blue), and

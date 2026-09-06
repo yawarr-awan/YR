@@ -268,7 +268,7 @@ test("a note wins over the timeline when a task is on both", () => {
   addTask(app, newProject(app, "P"), "Both at once");
 
   // Put it on the timeline first...
-  pick(taskMenu(app), /Set dates/).click();
+  pick(taskMenu(app), /Add to the workflow/).click();
   const pop = app.document.querySelector(".menu-pop");
   const [from, to] = [...pop.querySelectorAll("input[type=date]")];
   from.value = "2026-09-01"; to.value = "2026-09-08";
@@ -296,7 +296,7 @@ test("a note wins over the timeline when a task is on both", () => {
 test("a task on the timeline reads as a link to it", () => {
   const app = loadApp({ fetchImpl: idle });
   addTask(app, newProject(app, "P"), "Plotted");
-  pick(taskMenu(app), /Set dates/).click();
+  pick(taskMenu(app), /Add to the workflow/).click();
   const pop = app.document.querySelector(".menu-pop");
   const [from, to] = [...pop.querySelectorAll("input[type=date]")];
   from.value = "2026-09-01"; to.value = "2026-09-08";

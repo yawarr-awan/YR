@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.44.2
+
+- **"Set dates…" is now "🗺️ Add to the workflow…"** in a task's ⋮ menu — giving a task a span *is* putting it on the workflow, which the old wording never said. Once it's on there, it reads **"Change workflow dates…"**, and the sheet's second button says **"Take off the workflow"** rather than "Clear dates".
+- **The Workflow tab has a new icon** — 🗺️.
+
 ## 1.44.1
 
 **A task's title says what it's attached to.** It was already green and underlined when a note was linked to it; now it's **blue and underlined when the task is on the timeline**, and tapping it opens Workflow.

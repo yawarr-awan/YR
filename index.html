@@ -1507,7 +1507,7 @@ a.btn{text-decoration:none;display:inline-block}
 </div>
 <nav class="tabs" id="tabs">
   <button data-nav="tasks"><i>🗂️</i>Tasks</button>
-  <button data-nav="workflow"><i>📊</i>Workflow</button>
+  <button data-nav="workflow"><i>🗺️</i>Workflow</button>
   <button data-nav="today" class="active"><i>📋</i>Today</button>
   <button data-nav="prayers"><i>🕌</i>Prayers</button>
   <button data-nav="calendar"><i>🗓️</i>Calendar</button>
@@ -5640,6 +5640,10 @@ function openMenuSheet(title,actions,at){
   var pop=el("div","menu-pop");
   if(title)pop.appendChild(el("h4",null,title));
   actions.forEach(function(a){
+    /* A falsy entry is a conditional item that did not apply - letting the
+       caller write `cond ? {...} : null` inline beats building the array in
+       three statements. */
+    if(!a)return;
     if(a.sep){pop.appendChild(el("div","menu-sep"));return;}
     var b=el("button",a.danger?"danger":null,a.label);
     b.type="button";
@@ -6221,7 +6225,11 @@ function openTaskMenu(t,at){
       if(!name)return;
       t.title=name;touchItem(t);renderBoard();
     }},
-    {label:taskHasSpan(t)?"Change dates…":"Set dates…",run:function(){openTaskDates(t,at);}},
+    /* Named for what it does rather than for the fields it shows: giving a
+       task a span *is* putting it on the workflow, and "Set dates…" never
+       said so. */
+    {label:taskHasSpan(t)?"🗺️ Change workflow dates…":"🗺️ Add to the workflow…",
+      run:function(){openTaskDates(t,at);}},
     {label:t.scheduled?"Reschedule on calendar…":"Add to calendar…",run:function(){
       openTaskSchedule(t,at);
     }},
@@ -6279,7 +6287,7 @@ function openTaskDates(t,at){
     closeMenuSheet();
     renderTaskViews();
   });
-  var clear=el("button","btn","Clear dates");
+  var clear=el("button","btn",taskHasSpan(t)?"Take off the workflow":"Clear dates");
   clear.type="button";
   clear.addEventListener("click",function(){
     setTaskSpan(t,null,null);
