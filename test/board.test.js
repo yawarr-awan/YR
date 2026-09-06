@@ -493,7 +493,11 @@ test("the board row shows the span, and the menu offers to change it", () => {
 
   app.document.querySelector(".btask .btask-menu").click();
   const items = [...app.document.querySelectorAll(".menu-pop button")].map((b) => b.textContent);
-  assert.ok(items.some((t) => /Change dates/.test(t)), "already dated, so it offers a change");
+  // Named for what it does - giving a task a span is putting it on the
+  // workflow, which "Set dates…" never said.
+  assert.ok(items.some((t) => /Change workflow dates/.test(t)),
+    "already dated, so it offers a change");
+  assert.equal(items.some((t) => /Add to the workflow/.test(t)), false);
 });
 
 test("a device that remembers the old Workflow sub-tab lands on the new tab", () => {
@@ -1183,4 +1187,30 @@ test("a press that moves nothing still opens the task menu", () => {
   app.document.dispatchEvent(barPointer(app, "pointerup", 0));
   bar.click();
   assert.ok(app.document.querySelector(".menu-pop"), "the menu still opens");
+});
+
+test("an undated task is offered the workflow by name, not by its fields", () => {
+  const app = openBoard(loadApp({ fetchImpl: idle }));
+  addTaskTo(app, newProject(app, "P"), "Not plotted");
+  const items = openTaskMenu(app, colNamed(app, "P"), "Not plotted").map((b) => b.textContent);
+  assert.ok(items.some((t) => /Add to the workflow/.test(t)));
+  assert.equal(items.some((t) => /Set dates/.test(t)), false, "the old wording is gone");
+});
+
+test("the sheet offers to take a plotted task back off the workflow", () => {
+  const app = loadApp({ fetchImpl: idle,
+    localStorageSeed: boardSeed([{ title: "Plotted", start: dayKeyFrom(1), end: dayKeyFrom(4) }]) });
+  openBoard(app);
+  menuItem(openTaskMenu(app, cols(app)[0], "Plotted"), /Change workflow dates/).click();
+
+  const pop = app.document.querySelector(".menu-pop");
+  const off = [...pop.querySelectorAll("button")].find((b) => /Take off the workflow/.test(b.textContent));
+  assert.ok(off, "and says so, rather than 'Clear dates'");
+  off.click();
+
+  const t = JSON.parse(app.window.localStorage.getItem(MAIN_KEY)).tasks.t1;
+  assert.equal(t.start, null);
+  assert.equal(t.end, null);
+  assert.equal(app.document.querySelector(".btask .btask-title").tagName, "SPAN",
+    "and the title stops reading as a link to it");
 });
