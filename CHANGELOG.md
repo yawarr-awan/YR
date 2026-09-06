@@ -1,5 +1,23 @@
 # Changelog
 
+## 1.37.0
+
+**The Workflow timeline** — second slice of the project rework. A **Board / Workflow** switch at the top of the Tasks tab.
+
+Workflow is a Gantt across a fortnight: task names pinned in a left gutter, a column per day scrolling sideways, and a bar for each task spanning its dates. Project headings group the rows, today's column is marked, and weekends are shaded.
+
+- **Tasks now have a start and an end.** Set them from **⋮ → Set dates…**, or from the timeline. An end before a start is swapped rather than refused.
+- **Bars read at a glance**: green for open, **red when overdue**, grey and struck through when done.
+- **"Not on the timeline"** lists everything open without dates, with a Dates… button on each. A fresh board has no dates at all, so without this the timeline would be an empty grid with no way in.
+- **‹ ›** page a week at a time; **Today** comes back. A span running past the window is clamped to the edge rather than disappearing.
+- The board rows now show the span (`7 Sept → 9 Sept`) instead of a single date.
+
+**Scheduling keeps the two views honest**: putting a task on the calendar moves its end date to that day, so the timeline and the calendar can't disagree about when something is due. Reminders still read the precise instant.
+
+Workflow is a sub-tab rather than a ninth tab in the bottom bar — eight already measure 48px each at phone width, which is the floor for a tappable label.
+
+**Still to come:** the Notes sub-tab under Journal, with task↔note linking.
+
 ## 1.36.0
 
 **A Tasks board — the first slice of the project-management rework.**
