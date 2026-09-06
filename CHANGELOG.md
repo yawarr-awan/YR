@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.44.0
+
+- **Full screen is a button, not a menu row.** It sits next to the **+** in the bottom-right corner and toggles — in full screen it becomes ✕, which is the way back. The two share one floating cluster, so they always line up.
+- **Full screen works on the Calendar too**, not just Tasks and Workflow. On a phone that takes the grid from about nine hours visible to eighteen.
+- **Zoom in / Zoom out left the ⋮ menu.** Pinching and the trackpad already do it better than two menu rows. **Fit the whole board** stays — there's no gesture for "show me everything".
+
 ## 1.43.1
 
 - **A task linked to a note *is* the link.** Its own title is underlined and tappable, instead of a second line underneath repeating the note's name. That line cost the row height and said little — the task is what you'd tap anyway. Hovering names the note it opens.
