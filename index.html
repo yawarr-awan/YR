@@ -1537,7 +1537,7 @@ a.btn{text-decoration:none;display:inline-block}
 </div>
 <nav class="tabs" id="tabs">
   <button data-nav="tasks"><i>🗂️</i>Tasks</button>
-  <button data-nav="workflow"><i>🧭</i>Workflow</button>
+  <button data-nav="workflow"><i>⏳</i>Workflow</button>
   <button data-nav="today" class="active"><i>📋</i>Today</button>
   <button data-nav="prayers"><i>🕌</i>Prayers</button>
   <button data-nav="calendar"><i>🗓️</i>Calendar</button>
@@ -6388,7 +6388,7 @@ function openTaskMenu(t,at){
     /* Named for what it does rather than for the fields it shows: giving a
        task a span *is* putting it on the workflow, and "Set dates…" never
        said so. */
-    {label:taskHasSpan(t)?"🧭 Change workflow dates…":"🧭 Add to the workflow…",
+    {label:taskHasSpan(t)?"⏳ Change workflow dates…":"⏳ Add to the workflow…",
       run:function(){openTaskDates(t,at);}},
     {label:t.scheduled?"Reschedule on calendar…":"Add to calendar…",run:function(){
       openTaskSchedule(t,at);

@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.45.1
+
+- **A new Workflow icon** — ⏳. Distinct in silhouette from every other tab in the bar, which is what the last two attempts weren't.
+
 ## 1.45.0
 
 **Verse of the day** — a new card at the top of the **Prayers** tab. Three verses a day, each with its English translation and a short reflection tying it to your day: what's overdue on the workflow, what your record shows. The card moves on by itself every few minutes, and you can swipe it left or right or tap a dot to move now.
