@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.39.0
+
+**A better board, and a timeline that isn't boxed in.**
+
+- **The Workflow timeline is week by week, and scrolls as far as you like** — a year back, two years forward. A project runs for weeks, and a day-wide column meant scrolling for an hour to see a month. The ‹ › arrows now scroll rather than page a fixed window, and **Today** brings you back.
+- **Every project has its own colour**, on its timeline bars *and* as a band across the top of its card on the board, so a card and its bars are recognisable as the same thing. New projects get an unused colour automatically; **⋮ → Colour…** changes it.
+- **Full screen.** The ⛶ button at the top of the Tasks tab hides the header and the bottom bar so the board or the timeline gets the whole screen. Tap ✕ (or press Escape) to come back; leaving the tab drops out of it too.
+- **Scrolling the timeline sideways no longer jumps to the next tab**, same as the board.
+- **The hint line under the board is gone.**
+- **Dragging a card needs a short hold now** (about half a second with a finger; a mouse still drags straight away). Brushing a card header while moving around the board used to pick it up. The card squeezes slightly while you hold, then lifts.
+- **The card you drag comes to the front**, and stays there — which card sits on top is part of the board, so it syncs with the position.
+- **"on calendar" is gone from task rows.** The green ring on the 📅 button already says it, and the extra label was squeezing the title — the same collapse that was fixed on the old Today card.
+
+Two things a real browser caught that the tests could not: the today line on the timeline was drawn a gutter's width to the left of where it belonged, and the leftmost week heading slid out from under the pinned task names with nothing behind it. Both fixed, and both now pinned by tests.
+
 ## 1.38.0
 
 **The board is a real canvas now**, not a row of fixed columns.
