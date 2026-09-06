@@ -149,17 +149,22 @@ nav.tabs button.active{color:var(--brand)}
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis
 }
 .subtabs button.active{background:var(--brand);border-color:var(--brand);color:#fff}
-.subtabs .subtab-full{flex:0 0 auto;width:40px;padding:8px 0;font-size:1rem}
-/* is-on, not active: navTaskSub() clears `active` from every child of the row
-   that isn't the current sub-tab, and this button is not one. */
-.subtabs .subtab-full.is-on{background:var(--brand);border-color:var(--brand);color:#fff}
 /* Full screen for the board and the timeline: the header and the bottom bar
-   are what a canvas is competing with for height, so both go. The sub-tab row
-   stays - it carries the way back out. */
+   are what a canvas is competing with for height, so both go. A floating ✕ is
+   what carries the way back out - there is no toolbar left to put it in. */
 body.tasks-full header.top,
 body.tasks-full nav.tabs{display:none}
-body.tasks-full .wrap{padding-bottom:12px}
-body.tasks-full #view-tasks .subtabs{margin-top:calc(8px + env(safe-area-inset-top,0px))}
+body.tasks-full .wrap{padding-bottom:12px;padding-top:calc(8px + env(safe-area-inset-top,0px))}
+/* Bottom-left, not top-right: the timeline's own "Today" button is up there,
+   and the board's + is bottom-right - this is the one corner free in both. */
+.fs-exit{
+  position:fixed;z-index:40;
+  inset-block-end:calc(14px + env(safe-area-inset-bottom,0px));
+  inset-inline-start:14px;width:38px;height:38px;border-radius:50%;
+  border:1px solid var(--line);background:var(--panel);color:var(--ink);
+  font:inherit;font-size:1rem;cursor:pointer;box-shadow:0 3px 12px rgba(8,12,24,.3)
+}
+body:not(.tasks-full) .fs-exit{display:none}
 .subview{display:none}
 .subview.active{display:block;animation:viewIn .16s ease}
 @keyframes viewIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
@@ -565,6 +570,7 @@ input[type=range]{width:100%;accent-color:var(--accent)}
    doesn't - that natural width is what gives the phone something to scroll. */
 .cal-daygroup.is-wide{width:100%}
 .cal-gh{
+  height:var(--cal-head-h);box-sizing:border-box;
   padding:6px 3px;text-align:center;font-size:.58rem;font-weight:800;line-height:1.2;
   color:var(--muted);background:var(--panel-2);border-inline-start:1px solid var(--line);
   cursor:pointer;overflow:hidden
@@ -584,7 +590,7 @@ input[type=range]{width:100%;accent-color:var(--accent)}
    all-day toggle appeared to do nothing in a real browser while passing in
    jsdom, which reads the property rather than the cascade. */
 [hidden]{display:none!important}
-.cal-daygroup{--cal-row:34px;--cal-pad-t:3px;--cal-gutter:46px}
+.cal-daygroup{--cal-row:34px;--cal-pad-t:3px;--cal-gutter:46px;--cal-head-h:38px}
 /* The wide layout puts the hour labels in a column of their own, because the
    focused day is somewhere inside the week rather than at its left edge. */
 .cal-gutter{
@@ -600,7 +606,7 @@ input[type=range]{width:100%;accent-color:var(--accent)}
    markers you scroll to. The grid is wider than the screen either way, so
    nothing has to shrink to fit. */
 .cal-daygroup.is-week{--cal-row:36px;--cal-gutter:46px;--cal-col:92px;--cal-col-focus:172px}
-.cal-daygroup.is-wide{--cal-row:62px;--cal-gutter:62px}
+.cal-daygroup.is-wide{--cal-row:62px;--cal-gutter:62px;--cal-head-h:44px}
 
 .cal-daygroup.is-week .cal-gh{font-size:.66rem;padding:6px 4px}
 .cal-daygroup.is-week .cal-gh b{font-size:.9rem}
@@ -612,6 +618,10 @@ input[type=range]{width:100%;accent-color:var(--accent)}
    and the hour gutter stays at the left while the week scrolls across. The
    corner where they meet has to do both, above both. */
 .cal-daygroup.is-week .cal-gh{position:sticky;top:0;z-index:6}
+/* Deliberately no .is-week rule for .cal-allday: the base one already pins
+   it, and a week-scoped copy outranks `.cal-gutter.cal-allday` on
+   specificity, which is what left the "All day" label painted over by the
+   hour gutter scrolling under it. */
 .cal-gutter{position:sticky;inset-inline-start:0;z-index:5}
 /* The corner is the gutter's own heading, not the first day's - pinning the
    wrong one leaves a day heading floating over the hour labels. */
@@ -642,8 +652,26 @@ input[type=range]{width:100%;accent-color:var(--accent)}
    stays because opening the tab scrolls to it. */
 /* All-day items and Google Tasks sit here rather than in the 00:00 row,
    which is the one part of a 24-hour grid nobody scrolls back to. */
-.cal-allday{background:var(--panel-2)}
-.cal-allday .cal-hour-label{opacity:.8;font-size:.6rem}
+/* Pinned directly under the date row, so an all-day item stays in view as
+   the hours scroll past. `top` is the heading's own height - a fixed value on
+   .cal-gh rather than a measured one, because sticky needs a number and the
+   row it sits under is the same height in every layout. It scrolls sideways
+   with the week, so only `top` is pinned, never `left`. */
+.cal-allday{
+  background:var(--panel-2);position:sticky;top:var(--cal-head-h);z-index:5;
+  min-height:0;padding-block:2px
+}
+.cal-allday .cal-hour-label{opacity:.8;font-size:.6rem;padding-top:0}
+/* Squeezed: an all-day chip is a name, not a block of time, so it gets one
+   tight line and the row is only ever as tall as it needs to be. */
+.cal-allday .cal-hour-events{gap:2px}
+.cal-allday .cal-chip{
+  padding:2px 6px;border-radius:6px;font-size:.68rem;line-height:1.25;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis
+}
+.cal-allday .cal-chip-meta{display:none}
+/* Above the hour cells it is pinned over, and below the date row above it. */
+.cal-gutter.cal-allday{z-index:7}
 .cal-hour-label{font-size:.66rem;font-weight:800;color:var(--ink);opacity:.65;flex:0 0 34px;padding-top:2px}
 .cal-hour-events{display:flex;flex-direction:column;gap:3px;flex:1;min-width:0;position:relative}
 .cal-chip{
@@ -832,6 +860,16 @@ body.editing-items #dhikrBox{
 .note-links{padding:0 14px 10px;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 .note-links-head{font-size:.72rem;color:var(--muted);font-weight:700;width:100%}
 .btask-note{font-size:.72rem;text-align:start;overflow-wrap:anywhere;padding:0;margin-top:2px}
+/* .menu-pop button is display:block;width:100% - which in a flex row makes
+   the grip take the whole width and squeeze the name to nothing. */
+.menu-pop .drag-grip{display:inline-flex;width:auto;flex:0 0 auto;padding:6px 2px}
+.tabbar-edit{padding:2px 6px 8px}
+.tabbar-row{
+  display:flex;align-items:center;gap:10px;padding:7px 6px;border-radius:9px;
+  font-size:.88rem;font-weight:600
+}
+.tabbar-row:hover{background:var(--panel-2)}
+.tabbar-name{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .task-grip,.drag-grip{
   cursor:grab;font-size:1rem;color:var(--muted);line-height:1;flex:0 0 auto;
   padding:6px 2px;touch-action:none;user-select:none;-webkit-user-select:none
@@ -1198,47 +1236,37 @@ footer.foot{text-align:center;color:var(--muted);font-size:.78rem;margin-top:26p
   <!-- A canvas of project cards that scrolls sideways. Each card is one
        project and holds its own task list. -->
   <section id="view-tasks" class="view">
-    <nav class="subtabs" id="taskSubTabs">
-      <button data-tsub="board" class="active">🗂️ Board</button>
-      <button data-tsub="workflow">📊 Workflow</button>
-      <!-- Deliberately in the sub-tab row rather than in either sub-view's own
-           toolbar: it is the one control that must stay reachable in full
-           screen, whichever sub-tab is showing. -->
-      <button class="subtab-full" id="tasksFullBtn" type="button"
-              aria-label="Full screen" title="Full screen">⛶</button>
-    </nav>
-
-    <div class="subview active" id="tsub-board">
-      <!-- A real canvas: pinch or the buttons to zoom, drag the background to
-           pan, drag a card by its header to move it, drag its corner to
-           resize. -->
-      <div class="canvas-viewport" id="canvasViewport">
-        <div class="canvas" id="board"></div>
-        <!-- The toolbar that used to sit above the canvas is gone: it cost a
-             row of the height the board is short of, and zoom belongs with
-             the other view controls in the header menu. Adding a project is
-             the one thing that needs to be one tap away. -->
-        <button class="fab" id="projectAddBtn" type="button"
-                aria-label="Add a project" title="Add a project">+</button>
-      </div>
+    <!-- A real canvas: pinch or the header menu to zoom, drag the background
+         to pan, drag a card by its header to move it, drag its corner to
+         resize. -->
+    <div class="canvas-viewport" id="canvasViewport">
+      <div class="canvas" id="board"></div>
+      <!-- The toolbar that used to sit above the canvas is gone: it cost a
+           row of the height the board is short of, and zoom belongs with the
+           other view controls in the header menu. Adding a project is the one
+           thing that needs to be one tap away. -->
+      <button class="fab" id="projectAddBtn" type="button"
+              aria-label="Add a project" title="Add a project">+</button>
     </div>
+  </section>
 
-    <!-- The Gantt. Task names sit in a sticky gutter and the timeline scrolls
-         sideways underneath, so a phone can still show a fortnight. -->
-    <div class="subview" id="tsub-workflow">
-      <div class="datebar">
-        <button id="wfPrev" title="Earlier">‹</button>
-        <div class="dlabel" id="wfLabel">Timeline</div>
-        <button id="wfNext" title="Later">›</button>
-        <button class="today-btn" id="wfToday">Today</button>
-      </div>
-      <div class="wf-scroll" id="wfScroll"><div class="wf" id="wfGrid"></div></div>
-      <div class="muted center" id="wfNote" style="font-size:.78rem;margin-top:8px"></div>
-      <div class="card" data-card="wfundated" style="margin-top:12px">
-        <h3>📥 Not on the timeline<span class="count" id="wfUndatedCount"></span></h3>
-        <p class="muted" style="font-size:.78rem;margin-top:0">Give a task a start and end date to plot it.</p>
-        <div id="wfUndated"></div>
-      </div>
+  <!-- ===================== WORKFLOW (the Gantt) =====================
+       Its own tab rather than a sub-tab of Tasks: the board and the timeline
+       are two ways of working, not two views of one screen, and a sub-tab row
+       cost a line of height on both. -->
+  <section id="view-workflow" class="view">
+    <div class="datebar">
+      <button id="wfPrev" title="Earlier">‹</button>
+      <div class="dlabel" id="wfLabel">Timeline</div>
+      <button id="wfNext" title="Later">›</button>
+      <button class="today-btn" id="wfToday">Today</button>
+    </div>
+    <div class="wf-scroll" id="wfScroll"><div class="wf" id="wfGrid"></div></div>
+    <div class="muted center" id="wfNote" style="font-size:.78rem;margin-top:8px"></div>
+    <div class="card" data-card="wfundated" style="margin-top:12px">
+      <h3>📥 Not on the timeline<span class="count" id="wfUndatedCount"></span></h3>
+      <p class="muted" style="font-size:.78rem;margin-top:0">Give a task a start and end date to plot it.</p>
+      <div id="wfUndated"></div>
     </div>
   </section>
 
@@ -1456,15 +1484,18 @@ footer.foot{text-align:center;color:var(--muted);font-size:.78rem;margin-top:26p
   <footer class="foot">Built for you, Yawar — one small tick at a time. 🌿</footer>
 </div>
 
+<!-- Settings is reachable from the header ⋮ menu, so it no longer spends a
+     slot down here. The order is rebuilt from `yawarTabOrder` at startup. -->
+<button class="fs-exit" id="fsExitBtn" type="button" aria-label="Leave full screen" title="Leave full screen">✕</button>
 <nav class="tabs" id="tabs">
   <button data-nav="tasks"><i>🗂️</i>Tasks</button>
+  <button data-nav="workflow"><i>📊</i>Workflow</button>
   <button data-nav="today" class="active"><i>📋</i>Today</button>
   <button data-nav="prayers"><i>🕌</i>Prayers</button>
   <button data-nav="calendar"><i>🗓️</i>Calendar</button>
   <button data-nav="journal"><i>📓</i>Journal</button>
   <button data-nav="others"><i>🧩</i>Misc</button>
   <button data-nav="progress"><i>📈</i>Progress</button>
-  <button data-nav="settings"><i>⚙️</i>Settings</button>
 </nav>
 
 <!-- ===================== MODAL ===================== -->
@@ -4082,7 +4113,11 @@ function calChip(x,place){
      a title that reads and one that is cut off. The full detail, times
      included, is in the tooltip and in the editor. */
   chip.appendChild(el("span","cal-chip-title",x.title));
-  var meta=[calEntryKindLabel(x),x.gtask&&x.gtask.list,x.event&&x.event.calendar,x.event&&x.event.location]
+  /* Deliberately no calendar name: which of your own calendars an event
+     lives on is not what you are reading the grid for, and in a column this
+     narrow it was pushing the title out. It is still in the tooltip and in
+     the editor, which is where you would go to change it. */
+  var meta=[calEntryKindLabel(x),x.gtask&&x.gtask.list,x.event&&x.event.location]
     .filter(Boolean).join(" · ");
   if(meta)chip.appendChild(el("span","cal-chip-meta",meta));
   chip.title=calEntryDetail(x);
@@ -4800,10 +4835,13 @@ function attachTabSwipe(){
       var j=JOURNAL_SUBVIEWS.indexOf(currentJournalSub)+dir;
       if(j>=0&&j<JOURNAL_SUBVIEWS.length){navJournalSub(JOURNAL_SUBVIEWS[j]);return;}
     }
-    var i=VIEWS.indexOf(currentView);
+    /* The bar's own order, not VIEWS - the bar can be rearranged, and a
+       swipe that went somewhere else than the tab beside it would be wrong. */
+    var order=tabOrder();
+    var i=order.indexOf(currentView);
     var next=i+dir;
-    if(next<0||next>=VIEWS.length)return;              /* no wrap-around at the ends */
-    nav(VIEWS[next]);
+    if(i<0||next<0||next>=order.length)return;         /* no wrap-around at the ends */
+    nav(order[next]);
   },{passive:true});
 }
 
@@ -7829,16 +7867,19 @@ function saveBriefModel(value){
 /* ---------- NAV ---------- */
 /* Order matters: it's both the bottom bar's left-to-right order and the
    order swiping moves through. */
-var VIEWS=["tasks","today","prayers","calendar","journal","others","progress","settings"];
+var VIEWS=["tasks","workflow","today","prayers","calendar","journal","others","progress","settings"];
+/* What the bottom bar carries, in order, and what a sideways swipe steps
+   through. Settings is not among them - it lives in the header ⋮ menu, which
+   is reachable from every tab, and a slot in the bar is worth more to a view
+   you open several times a day. It is still a view, so nav("settings") and
+   the swipe-past-the-end guard both behave. */
+var BAR_VIEWS=["tasks","workflow","today","prayers","calendar","journal","others","progress"];
 /* Meals, recipes and movement are reference material rather than daily
    tracking, so they share one tab with their own sub-tabs. */
 var SUBVIEWS=["plan","recipes","exercises","duas"];
 /* The Tasks tab has its own two panes. Deliberately sub-tabs rather than a
    ninth entry in the bottom bar: eight tabs already measure 48px each at
    390px, which is the practical floor for a tappable label. */
-var TASK_SUBVIEWS=["board","workflow"];
-var currentTaskSub="board";
-var LASTTASKSUB_KEY="yawarLastTaskSub";
 var JOURNAL_SUBVIEWS=["journal","notes"];
 var currentJournalSub="journal";
 var LASTJOURNALSUB_KEY="yawarLastJournalSub";
@@ -7848,25 +7889,20 @@ var currentView="today",currentSub="plan";
 var LASTTAB_KEY="yawarLastTab";
 var LASTSUB_KEY="yawarLastSub";
 
-/** Full screen for the Tasks tab. A mode, never persisted - the same call as
- * _tasksReorder: waking up with the header and the bottom bar gone, with no
- * memory of having asked for it, reads as a broken app. */
+/** Full screen for the board and the timeline. A mode, never persisted - the
+ * same call as _editItems: waking up with the header and the bottom bar gone,
+ * with no memory of having asked for it, reads as a broken app. The way back
+ * out is the ⛶ button that floats over the pane. */
+var FULLSCREEN_VIEWS=["tasks","workflow"];
 var _tasksFull=false;
 function setTasksFull(on){
   _tasksFull=!!on;
   document.body.classList.toggle("tasks-full",_tasksFull);
-  var b=document.getElementById("tasksFullBtn");
-  if(b){
-    b.classList.toggle("is-on",_tasksFull);
-    b.textContent=_tasksFull?"✕":"⛶";
-    var label=_tasksFull?"Exit full screen":"Full screen";
-    b.title=label;b.setAttribute("aria-label",label);
-  }
   /* The header is hidden, so its measured height is stale. Everything keyed
      off --hdr-h (the calendar's sticky row, chiefly) has to be told. */
   syncHeaderHeight();
   sizeTasksPanes();
-  if(currentTaskSub==="workflow")renderWorkflow();else renderBoard();
+  renderTaskViews();
 }
 /** The canvas and the Gantt fill whatever is left below the toolbars.
  * Measured rather than computed from a calc(): the sub-tab row, the board bar
@@ -7888,11 +7924,88 @@ function sizeTasksPanes(){
   });
 }
 
+/* ---------- THE BOTTOM BAR'S ORDER ----------
+   Per device, in its own key - the same reasoning as the card layout and the
+   text scale. Which tabs you want nearest your thumb is a display preference
+   and has no business in a health record. */
+var TABORDER_KEY="yawarTabOrder";
+function tabOrder(){
+  var stored=null;
+  try{stored=JSON.parse(localStorage.getItem(TABORDER_KEY)||"null");}catch(e){}
+  if(!Array.isArray(stored))return BAR_VIEWS.slice();
+  /* Only names we recognise, then anything the stored order has not heard of -
+     so a tab added by a later version appears rather than disappearing. */
+  var out=stored.filter(function(v){return BAR_VIEWS.indexOf(v)>=0;});
+  BAR_VIEWS.forEach(function(v){if(out.indexOf(v)<0)out.push(v);});
+  return out;
+}
+function saveTabOrder(order){
+  try{localStorage.setItem(TABORDER_KEY,JSON.stringify(order));}catch(e){}
+  applyTabOrder();
+}
+function applyTabOrder(){
+  var bar=document.getElementById("tabs");
+  if(!bar)return;
+  tabOrder().forEach(function(v){
+    var b=bar.querySelector('[data-nav="'+v+'"]');
+    if(b)bar.appendChild(b);          /* moving, not rebuilding: the listeners stay */
+  });
+}
+function tabLabel(view){
+  var b=document.querySelector('#tabs [data-nav="'+view+'"]');
+  return b?b.textContent.trim():view;
+}
+/** Reorder the bar by dragging, through the one row-drag the rest of the app
+ * uses. Opened from the header menu; the bar itself is too small to drag
+ * within, and dragging a tab would fight the tap that changes tab. */
+function openTabBarEditor(at){
+  closeMenuSheet();
+  var backdrop=el("div","menu-backdrop");
+  backdrop.addEventListener("pointerdown",function(){closeMenuSheet();});
+  document.body.appendChild(backdrop);
+
+  var pop=el("div","menu-pop");
+  pop.appendChild(el("h4",null,"Bottom bar order"));
+  var list=el("div","tabbar-edit");
+  list.setAttribute("data-droplist","tabbar");
+  tabOrder().forEach(function(v){
+    var row=el("div","tabbar-row");
+    row.setAttribute("data-row",v);
+    row.appendChild(dragGrip("tabbar",v,function(id,overId,before){
+      var next=insertBeside(tabOrder(),function(x){return x;},id,overId,before);
+      if(!next)return;
+      saveTabOrder(next);
+      openTabBarEditor(at);        /* rebuilt in the new order, still open */
+    }));
+    row.appendChild(el("span","tabbar-name",tabLabel(v)));
+    list.appendChild(row);
+  });
+  pop.appendChild(list);
+
+  var tools=el("div","pill-row");tools.style.padding="0 10px 10px";
+  var reset=el("button","btn","Reset");
+  reset.type="button";
+  reset.addEventListener("click",function(){
+    try{localStorage.removeItem(TABORDER_KEY);}catch(e){}
+    applyTabOrder();
+    openTabBarEditor(at);
+  });
+  var done=el("button","btn primary","Done");
+  done.type="button";
+  done.addEventListener("click",closeMenuSheet);
+  tools.appendChild(reset);tools.appendChild(done);
+  pop.appendChild(tools);
+
+  document.body.appendChild(pop);
+  positionMenuPop(pop,at);
+}
+
 function nav(view){
   if(VIEWS.indexOf(view)<0)return;
-  /* Leaving the tab takes full screen with it - otherwise the header and the
-     bottom bar stay hidden on a view with no way to bring them back. */
-  if(view!=="tasks"&&_tasksFull)setTasksFull(false);
+  /* Leaving both panes takes full screen with it - otherwise the header and
+     the bottom bar stay hidden on a view with no way to bring them back.
+     Moving *between* the board and the timeline keeps it. */
+  if(FULLSCREEN_VIEWS.indexOf(view)<0&&_tasksFull)setTasksFull(false);
   currentView=view;
   var tabs=document.getElementById("tabs").children;
   for(var i=0;i<tabs.length;i++){tabs[i].classList.toggle("active",tabs[i].getAttribute("data-nav")===view);}
@@ -7905,26 +8018,9 @@ function nav(view){
   if(view==="prayers")renderPrayersTab();
   if(view==="settings")renderSettings();
   if(view==="journal"){if(currentJournalSub==="notes")renderNotes();else renderJournal();}
-  if(view==="tasks"){
-    if(currentTaskSub==="workflow")renderWorkflow();else renderBoard();
-    sizeTasksPanes();
-  }
+  if(view==="tasks"){renderBoard();sizeTasksPanes();}
+  if(view==="workflow"){renderWorkflow();sizeTasksPanes();}
   window.scrollTo(0,0);
-}
-
-function navTaskSub(sub){
-  if(TASK_SUBVIEWS.indexOf(sub)<0)return;
-  currentTaskSub=sub;
-  var tabs=document.getElementById("taskSubTabs").children;
-  for(var i=0;i<tabs.length;i++){
-    tabs[i].classList.toggle("active",tabs[i].getAttribute("data-tsub")===sub);
-  }
-  TASK_SUBVIEWS.forEach(function(v){
-    document.getElementById("tsub-"+v).classList.toggle("active",v===sub);
-  });
-  try{localStorage.setItem(LASTTASKSUB_KEY,sub);}catch(e){}
-  if(sub==="workflow")renderWorkflow();else renderBoard();
-  sizeTasksPanes();
 }
 
 function navJournalSub(sub){
@@ -7962,19 +8058,17 @@ function navSub(sub){
 document.addEventListener("click",function(ev){
   var t=ev.target;
   if(!t||!t.closest)return;
-  var hit=t.closest("[data-recipe],[data-exercise],[data-nav],[data-sub],[data-tsub],[data-jsub]");
+  var hit=t.closest("[data-recipe],[data-exercise],[data-nav],[data-sub],[data-jsub]");
   if(!hit)return;
   var rec=hit.getAttribute("data-recipe");
   var exc=hit.getAttribute("data-exercise");
   var nv=hit.getAttribute("data-nav");
   var sub=hit.getAttribute("data-sub");
-  var tsub=hit.getAttribute("data-tsub");
   var jsub=hit.getAttribute("data-jsub");
   if(rec){ev.preventDefault();openRecipe(rec);}
   else if(exc){ev.preventDefault();openExercise(exc);}
   else if(nv){nav(nv);}
   else if(sub){navSub(sub);}
-  else if(tsub){navTaskSub(tsub);}
   else if(jsub){navJournalSub(jsub);}
 });
 document.getElementById("modalClose").addEventListener("click",hideModal);
@@ -8107,8 +8201,8 @@ attachCanvas();
 document.getElementById("wfPrev").addEventListener("click",function(){wfShift(-1);});
 document.getElementById("wfNext").addEventListener("click",function(){wfShift(1);});
 document.getElementById("wfToday").addEventListener("click",wfScrollToToday);
-document.getElementById("tasksFullBtn").addEventListener("click",function(){
-  setTasksFull(!_tasksFull);
+document.getElementById("fsExitBtn").addEventListener("click",function(){
+  setTasksFull(false);
 });
 /* Escape is the way out everyone tries first, and on a desktop it is the only
    obvious one once the bottom bar is gone. */
@@ -8199,14 +8293,16 @@ function openHeaderMenu(at){
     items.push({label:_editItems?"✓ Done editing":"✏️ Edit what's on these cards",
       run:function(){setEditItems(!_editItems);}});
   }
+  items.push({label:"↔️ Rearrange the bottom bar",run:function(){openTabBarEditor(at);}});
 
   if(currentView==="tasks"){
     items.push({sep:true});
-    if(currentTaskSub==="board"){
-      items.push({label:"➕ Zoom in ("+Math.round(_canvas.z*100)+"%)",run:function(){zoomByStep(1.2);}});
-      items.push({label:"➖ Zoom out",run:function(){zoomByStep(1/1.2);}});
-      items.push({label:"⤢ Fit the whole board",run:canvasFit});
-    }
+    items.push({label:"➕ Zoom in ("+Math.round(_canvas.z*100)+"%)",run:function(){zoomByStep(1.2);}});
+    items.push({label:"➖ Zoom out",run:function(){zoomByStep(1/1.2);}});
+    items.push({label:"⤢ Fit the whole board",run:canvasFit});
+  }
+  if(FULLSCREEN_VIEWS.indexOf(currentView)>=0){
+    if(currentView!=="tasks")items.push({sep:true});
     items.push({label:_tasksFull?"✕ Leave full screen":"⛶ Full screen",
       run:function(){setTasksFull(!_tasksFull);}});
   }
@@ -8350,6 +8446,7 @@ document.getElementById("headerMenuBtn").addEventListener("click",function(ev){
 });
 
 /* ---------- INIT ---------- */
+applyTabOrder();
 syncHeaderHeight();
 sizeTasksPanes();
 /* Before initCollapsibles, so a card that moved tab still finds its own fold
@@ -8372,9 +8469,11 @@ openingReminders();
      has one stored should land on the sub-tab it means, not on Today. */
   if(SUBVIEWS.indexOf(saved)>=0){savedSub=saved;saved="others";}
   if(SUBVIEWS.indexOf(savedSub)>=0)navSub(savedSub);
+  /* Workflow was a sub-tab of Tasks before it earned a tab of its own; a
+     device that still has that stored should land on the tab it means. */
   var savedTaskSub=null;
-  try{savedTaskSub=localStorage.getItem(LASTTASKSUB_KEY);}catch(e){}
-  if(TASK_SUBVIEWS.indexOf(savedTaskSub)>=0)navTaskSub(savedTaskSub);
+  try{savedTaskSub=localStorage.getItem("yawarLastTaskSub");}catch(e){}
+  if(savedTaskSub==="workflow"&&saved==="tasks")saved="workflow";
   var savedJrnSub=null;
   try{savedJrnSub=localStorage.getItem(LASTJOURNALSUB_KEY);}catch(e){}
   if(JOURNAL_SUBVIEWS.indexOf(savedJrnSub)>=0)navJournalSub(savedJrnSub);

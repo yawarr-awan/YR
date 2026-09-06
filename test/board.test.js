@@ -58,11 +58,13 @@ function headerMenuDo(app, re) {
 
 /* ---------------- the tab ---------------- */
 
-test("Tasks is the first tab, before Today", () => {
+test("Tasks and Workflow are the first two tabs, before Today", () => {
   const app = loadApp({ fetchImpl: idle });
   const labels = [...app.document.querySelectorAll("#tabs button")].map((b) => b.getAttribute("data-nav"));
   assert.equal(labels[0], "tasks");
-  assert.equal(labels[1], "today");
+  assert.equal(labels[1], "workflow");
+  assert.equal(labels[2], "today");
+  assert.equal(labels.includes("settings"), false, "Settings lives in the header menu now");
 });
 
 test("the Today tab no longer carries a task card", () => {
@@ -249,8 +251,7 @@ test("the migration runs once, not on every load", () => {
 const wfCells = (app) => [...app.document.querySelectorAll("#wfGrid .wf-cell")];
 const wfBars = (app) => [...app.document.querySelectorAll("#wfGrid .wf-bar")];
 function openWorkflow(app) {
-  app.goTo("tasks");
-  app.document.querySelector('[data-tsub="workflow"]').click();
+  app.goTo("workflow");
   return app;
 }
 function dayKeyFrom(offset) {
@@ -275,16 +276,20 @@ function boardSeed(tasks) {
   }) };
 }
 
-test("Workflow is a sub-tab of Tasks, not a ninth tab in the bar", () => {
-  // Eight tabs already measure 48px each at 390px.
+test("Workflow is its own tab, beside Tasks rather than inside it", () => {
+  // The board and the timeline are two ways of working, not two views of one
+  // screen - and the sub-tab row cost a line of height on both. It fits
+  // because Settings gave up its slot; eight tabs still measure 48px each at
+  // 390px, which is the floor for a tappable label.
   const app = loadApp({ fetchImpl: idle });
   const bar = [...app.document.querySelectorAll("#tabs button")].map((b) => b.dataset.nav);
   assert.equal(bar.length, 8);
-  assert.ok(!bar.includes("workflow"));
+  assert.ok(bar.includes("workflow"));
+  assert.equal(app.document.getElementById("taskSubTabs"), null, "no sub-tab row left");
 
   openWorkflow(app);
-  assert.ok(app.document.getElementById("tsub-workflow").classList.contains("active"));
-  assert.ok(!app.document.getElementById("tsub-board").classList.contains("active"));
+  assert.ok(app.document.getElementById("view-workflow").classList.contains("active"));
+  assert.ok(!app.document.getElementById("view-tasks").classList.contains("active"));
 });
 
 test("a bar is as wide as the span is long, in weeks", () => {
@@ -484,10 +489,10 @@ test("the board row shows the span, and the menu offers to change it", () => {
   assert.ok(items.some((t) => /Change dates/.test(t)), "already dated, so it offers a change");
 });
 
-test("the remembered sub-tab comes back", () => {
-  const app = loadApp({ fetchImpl: idle, localStorageSeed: { yawarLastTaskSub: "workflow" } });
-  app.goTo("tasks");
-  assert.ok(app.document.getElementById("tsub-workflow").classList.contains("active"));
+test("a device that remembers the old Workflow sub-tab lands on the new tab", () => {
+  const app = loadApp({ fetchImpl: idle,
+    localStorageSeed: { yawarLastTaskSub: "workflow", yawarLastTab: "tasks" } });
+  assert.equal(app.document.querySelector(".view.active").id, "view-workflow");
 });
 
 /* ---------------- the canvas ---------------- */
@@ -665,11 +670,9 @@ test("the canvas keeps its own gestures, so a pan never changes tab", () => {
 test("scrolling the timeline sideways never changes tab either", () => {
   // The Gantt is a long horizontal scroll; a drag along it is a scroll
   // through the weeks, not a request for the next tab.
-  const app = loadApp({ fetchImpl: idle });
-  app.goTo("tasks");
-  app.document.querySelector('[data-tsub="workflow"]').click();
+  const app = openWorkflow(loadApp({ fetchImpl: idle }));
   app.swipe("wfScroll", -180, 0);
-  assert.equal(app.document.querySelector(".view.active").id, "view-tasks");
+  assert.equal(app.document.querySelector(".view.active").id, "view-workflow");
 });
 
 test("the board has no toolbar - just the canvas and one + button", () => {
@@ -752,33 +755,31 @@ test("full screen hides the header and the bottom bar, and can be left again", (
   const body = app.document.body;
   assert.ok(!body.classList.contains("tasks-full"));
 
-  app.click("tasksFullBtn");
+  headerMenuDo(app, /Full screen/);
   assert.ok(body.classList.contains("tasks-full"), "the chrome is out of the way");
-  assert.ok(app.document.getElementById("tasksFullBtn").classList.contains("is-on"));
 
-  app.click("tasksFullBtn");
+  // A floating ✕ is the way back: there is no toolbar left to put one in.
+  const exit = app.document.getElementById("fsExitBtn");
+  assert.ok(exit, "and something to tap to come back");
+  assert.equal(app.window.getComputedStyle(exit).position, "fixed");
+  exit.click();
   assert.ok(!body.classList.contains("tasks-full"));
 });
 
-test("full screen keeps the sub-tab row, which is the way back out", () => {
+test("full screen is offered on the timeline too, and survives moving between them", () => {
   const app = openBoard(loadApp({ fetchImpl: idle }));
-  app.click("tasksFullBtn");
-  const row = app.document.getElementById("taskSubTabs");
-  assert.notEqual(app.window.getComputedStyle(row).display, "none");
-  assert.ok(app.document.getElementById("tasksFullBtn").offsetParent !== undefined);
-
-  // Switching sub-tab must not clear the button's own state: navTaskSub
-  // strips `active` from every child that isn't the current sub-tab.
-  app.document.querySelector('[data-tsub="workflow"]').click();
-  assert.ok(app.document.body.classList.contains("tasks-full"), "still full screen");
-  assert.ok(app.document.getElementById("tasksFullBtn").classList.contains("is-on"));
+  headerMenuDo(app, /Full screen/);
+  app.goTo("workflow");
+  assert.ok(app.document.body.classList.contains("tasks-full"),
+    "the board and the timeline are one pair for this");
+  assert.ok(menuItem(headerMenu(app), /Leave full screen/), "and it is offered here as well");
 });
 
-test("leaving the Tasks tab leaves full screen with it", () => {
+test("leaving both panes leaves full screen with it", () => {
   // Otherwise the header and the bottom bar stay hidden on a view that has no
   // button to bring them back.
   const app = openBoard(loadApp({ fetchImpl: idle }));
-  app.click("tasksFullBtn");
+  headerMenuDo(app, /Full screen/);
   app.goTo("today");
   assert.ok(!app.document.body.classList.contains("tasks-full"));
 });
@@ -786,7 +787,7 @@ test("leaving the Tasks tab leaves full screen with it", () => {
 test("full screen is a mode, not a remembered preference", () => {
   const app = openBoard(loadApp({ fetchImpl: idle }));
   newProject(app, "Anything");
-  app.click("tasksFullBtn");
+  headerMenuDo(app, /Full screen/);
   assert.ok(!JSON.stringify(app.state()).includes("tasks-full"));
   const stored = JSON.stringify(Object.entries(app.window.localStorage));
   assert.ok(!/tasksFull|tasks-full/.test(stored), "not written to storage at all");
