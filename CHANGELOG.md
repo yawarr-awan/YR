@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.46.1
+
+**The verse rotation goes from 28 references to 100.** At three a day that's a hundred days before a day's set comes round again, instead of about ten.
+
+To be clear about what is and isn't prefilled: the *references* are a curated list in the code; the *Arabic and the English are fetched live* from a canonical source every time, and only the reflection is written by the AI. That hasn't changed — this just widens the list it draws from.
+
+Every one of the 72 new references was read against canonical text (Sahih International) before being added, and the bar wasn't just "does this verse exist" — it was "does this stand on its own on a card". A fair number were checked and left out: verses that open mid-narrative on a pronoun or a speaker, anything framed by warfare even where the lesson isn't, and one very famous clause that sits at the tail of a ruling about divorce. The reasons are recorded in the code so nobody re-proposes them later.
+
+Still no hadith, for the reason given in 1.45.0 — no verifiable free source, and I won't have the model produce hadith text from memory.
+
 ## 1.46.0
 
 **The brief was missing your journal, and there were three separate reasons.** You said something you'd written about the coming weeks wasn't reaching the briefing. It wasn't one bug:

@@ -1474,13 +1474,38 @@ const ALWAYS_RULES = [
 
    The references are a fixed, curated rotation rather than a random ayah out
    of 6236: a verse picked at random is routinely a fragment mid-narrative,
-   which is not something to hand someone as a morning reflection. Each one
-   below was checked against canonical text before being listed. */
+   which is not something to hand someone as a morning reflection.
+
+   **Every reference below was read against canonical text before being listed**
+   (Sahih International, via quran.com), and the bar is not just "does it
+   exist" - it is "does this stand on its own on a card". Rejected on that
+   basis, so they are not re-proposed:
+     - Mid-narrative fragments that open on a pronoun or a speaker: 12:87 and
+       15:56 ("He said, ..."), 11:88, 7:156, 2:201 ("But among them is he who
+       says"), 35:28, 2:83.
+     - Anything framed by warfare, even where the lesson is not: 2:216, 3:146,
+       3:173, 8:46, 9:40, 60:8.
+     - Verses that need tafsir to not read alarmingly on a family dashboard:
+       64:14.
+     - A famous clause sitting at the tail of a legal ruling on another
+       subject: 65:2-3 (the "way out" verse, inside divorce law).
+   At 3 a day, 100 references is about 33 days before the rotation comes
+   round. Add to it the same way: verify the text first, then ask whether a
+   reader who saw only this card would be served by it. */
 const AYAH_REFS = [
-  "2:45", "2:152", "2:153", "2:286", "3:139", "3:190-191", "3:200", "4:36",
-  "7:31", "13:11", "14:7", "16:97", "17:23-24", "20:114", "25:63", "29:69",
-  "31:18-19", "39:53", "42:43", "49:13", "53:39", "57:20", "59:18", "64:16",
-  "76:8-9", "93:4-5", "94:5-6", "103:1-3",
+  "2:45", "2:152", "2:153", "2:155-157", "2:168", "2:186", "2:261", "2:267",
+  "2:269", "2:286", "3:92", "3:103", "3:133-134", "3:139", "3:159", "3:185",
+  "3:190-191", "3:200", "4:36", "4:58", "4:110", "4:135", "5:8", "6:152",
+  "7:31", "7:55", "7:199", "8:2", "9:51", "9:105", "9:119", "11:6", "11:90",
+  "13:11", "13:28", "14:7", "16:90", "16:97", "17:23-24", "17:29", "17:36",
+  "17:37", "17:53", "17:78-79", "18:46", "20:14", "20:114", "20:131", "21:47",
+  "23:1-2", "24:22", "25:58", "25:63", "25:67", "25:72", "25:74", "28:77",
+  "29:45", "29:69", "30:21", "31:14", "31:18-19", "32:16", "33:3", "33:21",
+  "33:41-42", "33:70-71", "39:9", "39:10", "39:53", "40:60", "41:34", "42:40",
+  "42:43", "46:15", "49:10", "49:11", "49:12", "49:13", "53:39", "55:7-9",
+  "57:18", "57:20", "58:11", "59:18", "62:10", "63:9-10", "64:16", "65:7",
+  "68:4", "76:8-9", "87:16-17", "92:5-7", "93:4-5", "94:5-6", "94:7-8",
+  "96:1-5", "99:7-8", "102:1-2", "103:1-3",
 ];
 const AYAH_TIMEOUT_MS = 8000;
 

@@ -1353,6 +1353,24 @@ generated verse**. Do not "simplify" this by asking the model for the text.
   6236: a random verse is routinely a fragment mid-narrative. Each reference
   was checked against canonical text before being listed. Three a day
   (`AYAH_PER_DAY`), consecutive in the list, so a day never repeats itself.
+  **100 references as of 1.46.1** (was 28), which is 100 days before a day's
+  triple comes round - `gcd(3, 100) = 1`, so the starting index walks the whole
+  list rather than cycling early. Verified against Sahih International through
+  the Qura_ai MCP, whose grounding rules say plainly that the model must never
+  supply this text from memory - that is the same rule the runtime feature is
+  built around, and it applies at authoring time too.
+  - **The bar is not "does the verse exist" but "does it stand alone on a
+    card".** The rejects are listed in the comment above the array so they are
+    not re-proposed: mid-narrative fragments opening on a pronoun or a speaker
+    (12:87, 15:56, 11:88, 7:156, 2:201, 35:28, 2:83), anything framed by
+    warfare even where the lesson is not (2:216, 3:146, 3:173, 8:46, 9:40,
+    60:8), a verse needing tafsir to not read alarmingly on a family dashboard
+    (64:14), and a famous clause sitting at the tail of a ruling on another
+    subject (65:2-3, the "way out" verse, inside divorce law).
+  - The list is kept **sorted and non-overlapping**, and `test/ayah.test.js`
+    pins both plus the surah/ayah bounds. Sorted is what makes a duplicate
+    visible when reading the source; non-overlapping is what stops the same
+    verse arriving twice under two references (`17:23-24` and a bare `17:24`).
 - Two providers, `alquran.cloud` then `quran.com`, both read **shape-tolerantly**
   - neither contract could be exercised from the build sandbox (its egress
   proxy blocks both), the same position the prayer-time normaliser was in.
