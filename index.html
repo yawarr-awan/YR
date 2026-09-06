@@ -17,7 +17,7 @@
   --good:#16a34a; --warn:#d97706; --bad:#dc2626; --gold:#b45309;
   --pray:#6d28d9; --med:#0369a1; --water:#0891b2; --food:#c2410c; --move:#15803d;
   --fajr:#818cf8; --sunrise:#fbbf24; --dhuhr:#06b6d4; --asr:#22c55e; --maghrib:#fb7185; --isha:#7c3aed;
-  --cal-tint:82%;
+  --cal-tint:82%; --wf-link:#2563eb;
   --shadow:0 1px 2px rgba(16,24,40,.06),0 6px 20px rgba(16,24,40,.06);
   --radius:16px;
 }
@@ -39,7 +39,7 @@
   --good:#4ade80; --warn:#fbbf24; --bad:#f87171; --gold:#fbbf24;
   --pray:#c4b5fd; --med:#7dd3fc; --water:#67e8f9; --food:#fdba74; --move:#86efac;
   --fajr:#93c5fd; --sunrise:#fcd34d; --dhuhr:#22d3ee; --asr:#4ade80; --maghrib:#fda4af; --isha:#d8b4fe;
-  --cal-tint:82%;
+  --cal-tint:82%; --wf-link:#60a5fa;
   --shadow:0 1px 2px rgba(0,0,0,.3),0 8px 26px rgba(0,0,0,.35);
   color-scheme:dark;
 }
@@ -867,6 +867,12 @@ body.editing-items #dhikrBox{
 .note-card .pill-row{padding:0 14px 12px}
 .note-links{padding:0 14px 10px;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 .note-links-head{font-size:.72rem;color:var(--muted);font-weight:700;width:100%}
+/* Blue and underlined: already plotted on the timeline. Deliberately a
+   different colour from .linklike - that one is a note you can go and read,
+   this one is a state - and a task carrying both shows the note's green,
+   since that is the one with somewhere to go. */
+.btask-wf{color:var(--wf-link);text-decoration:underline;text-underline-offset:2px}
+.btask-wf:hover{filter:brightness(1.15)}
 /* The title as a link: a button has to be reset back to looking like the
    span it replaces, or it inherits the browser's own button metrics. */
 button.btask-title{
@@ -6127,6 +6133,15 @@ function shortDay(key){
   return new Date(+p[0],+p[1]-1,+p[2])
     .toLocaleDateString("en-GB",{day:"numeric",month:"short"});
 }
+/** The task's own title as a link. One shape, so the note and the timeline
+ * versions can only differ in colour and in where they go. */
+function taskTitleLink(t,cls,tip,go){
+  var b=el("button","btask-title "+cls,t.title);
+  b.type="button";
+  b.title=tip;
+  b.addEventListener("click",function(ev){ev.preventDefault();ev.stopPropagation();go();});
+  return b;
+}
 function buildBoardTask(t,projectId){
   var row=el("div","btask"+(t.done?" done":""));
   row.setAttribute("data-task",t.id);
@@ -6143,30 +6158,31 @@ function buildBoardTask(t,projectId){
   row.appendChild(cb);
 
   var main=el("div","btask-main");
-  /* A task with a note linked to it *is* the link - its own title, underlined,
-     rather than a second line repeating the note's name underneath. Same
-     treatment a du'a gets on a dhikr row, and it costs the row no height. */
+  /* The title is where a task says what it is attached to, underlined and in
+     the colour of whichever that is - rather than a second line repeating the
+     name underneath. It costs the row no height, and a task can only be one
+     link, so there is an order: **a linked note wins over being on the
+     timeline**. The note is somewhere to go and read; the timeline is a state
+     the dates already spell out on the line below. */
   var note=noteById(t.noteId);
   if(note){
-    var titleBtn=el("button","btask-title linklike",t.title);
-    titleBtn.type="button";
-    titleBtn.title="Open “"+noteTitle(note)+"”";
-    titleBtn.addEventListener("click",function(ev){
-      ev.preventDefault();ev.stopPropagation();openNote(note.id);
-    });
-    main.appendChild(titleBtn);
+    main.appendChild(taskTitleLink(t,"linklike","Open “"+noteTitle(note)+"”",function(){
+      openNote(note.id);
+    }));
+  }else if(taskHasSpan(t)){
+    main.appendChild(taskTitleLink(t,"btask-wf","On the timeline — tap to open Workflow",function(){
+      nav("workflow");
+    }));
   }else{
     main.appendChild(el("span","btask-title",t.title));
-  }
-  var bits=[];
-  if(taskHasSpan(t)){
-    var a=taskStart(t),b=taskEnd(t);
-    bits.push(a===b?shortDay(a):(shortDay(a)+" → "+shortDay(b)));
   }
   /* Deliberately no "on calendar" text: that is what the button's green ring
      says, and the 1.30.1 lesson is that a second label here competes with the
      title for a width neither of them has. */
-  if(bits.length)main.appendChild(el("span","btask-meta",bits.join(" ")));
+  if(taskHasSpan(t)){
+    var a=taskStart(t),b=taskEnd(t);
+    main.appendChild(el("span","btask-meta",a===b?shortDay(a):(shortDay(a)+" → "+shortDay(b))));
+  }
   row.appendChild(main);
 
   /* The calendar button, back where it was on the old Today card: a green

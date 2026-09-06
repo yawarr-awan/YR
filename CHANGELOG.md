@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.44.1
+
+**A task's title says what it's attached to.** It was already green and underlined when a note was linked to it; now it's **blue and underlined when the task is on the timeline**, and tapping it opens Workflow.
+
+If a task is both — on the timeline *and* linked to a note — **the note wins** and the title stays green. The note is somewhere to go and read; being on the timeline is a state the dates on the line below already spell out.
+
 ## 1.44.0
 
 - **Full screen is a button, not a menu row.** It sits next to the **+** in the bottom-right corner and toggles — in full screen it becomes ✕, which is the way back. The two share one floating cluster, so they always line up.
