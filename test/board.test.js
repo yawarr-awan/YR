@@ -273,23 +273,47 @@ test("Workflow is a sub-tab of Tasks, not a ninth tab in the bar", () => {
   assert.ok(!app.document.getElementById("tsub-board").classList.contains("active"));
 });
 
-test("a task with a start and an end gets a bar spanning those days", () => {
-  const app = loadApp({ fetchImpl: idle,
-    localStorageSeed: boardSeed([{ title: "Book the van", start: dayKeyFrom(1), end: dayKeyFrom(3) }]) });
+test("a bar is as wide as the span is long, in weeks", () => {
+  // Columns are weeks now: a project runs for weeks, and a day-wide column
+  // meant scrolling for an hour to see a month.
+  const app = loadApp({ fetchImpl: idle, localStorageSeed: boardSeed([
+    { title: "Short", start: dayKeyFrom(1), end: dayKeyFrom(2) },
+    { title: "Long", start: dayKeyFrom(1), end: dayKeyFrom(29) },
+  ]) });
   openWorkflow(app);
 
   const bars = wfBars(app);
-  assert.equal(bars.length, 1);
-  assert.equal(bars[0].textContent, "Book the van");
-  assert.match(bars[0].style.width, /3 \* var\(--wf-day\)/, "three days wide");
-  assert.match(bars[0].title, /→/, "and says its span on hover");
+  assert.equal(bars.length, 2);
+  // A short bar carries no text, so a bar is addressed by its title.
+  const named = (t) => bars.find((b) => b.title.indexOf(t) === 0);
+  const w = (title) => parseFloat(named(title).style.width);
+  assert.ok(w("Long") > w("Short") * 5, "a month reads as far longer than two days");
+  assert.match(bars[0].title, /→/, "and each says its span on hover");
 });
 
-test("a single-day task is one column wide", () => {
+test("even a single-day task is wide enough to see and tap", () => {
   const app = loadApp({ fetchImpl: idle,
     localStorageSeed: boardSeed([{ title: "Dentist", start: dayKeyFrom(2), end: dayKeyFrom(2) }]) });
   openWorkflow(app);
-  assert.match(wfBars(app)[0].style.width, /1 \* var\(--wf-day\)/);
+  assert.ok(parseFloat(wfBars(app)[0].style.width) >= 18, "not a zero-width sliver");
+});
+
+test("each project's bars carry its own colour", () => {
+  const app = loadApp({ fetchImpl: idle, localStorageSeed: (() => {
+    const seed = JSON.parse(boardSeed([{ title: "A", start: dayKeyFrom(0), end: dayKeyFrom(1) }])[MAIN_KEY]);
+    seed.projects.p2 = { id: "p2", name: "Work", color: "", order: 1, updated_at: 1, deleted: 0 };
+    seed.tasks.t2 = { id: "t2", projectId: "p2", title: "B", done: false, order: 0, due: null,
+      start: dayKeyFrom(0), end: dayKeyFrom(1), calendarEventId: null, scheduled: false,
+      noteId: null, updated_at: 1, deleted: 0 };
+    return { [MAIN_KEY]: JSON.stringify(seed) };
+  })() });
+  openWorkflow(app);
+
+  const bars = wfBars(app);
+  const a = bars.find((b) => b.title.indexOf("A") === 0).style.background;
+  const b = bars.find((b) => b.title.indexOf("B") === 0).style.background;
+  assert.ok(a, "a bar is coloured by its project");
+  assert.notEqual(a, b, "and two projects do not look alike");
 });
 
 test("an overdue task reads differently from a finished one", () => {
@@ -299,8 +323,8 @@ test("an overdue task reads differently from a finished one", () => {
   ]) });
   openWorkflow(app);
 
-  const late = wfBars(app).find((b) => b.textContent === "Late thing");
-  const done = wfBars(app).find((b) => b.textContent === "Done thing");
+  const late = wfBars(app).find((b) => b.title.indexOf("Late thing") === 0);
+  const done = wfBars(app).find((b) => b.title.indexOf("Done thing") === 0);
   assert.ok(late.classList.contains("is-late"));
   assert.ok(!done.classList.contains("is-late"), "finished work is not overdue");
   assert.ok(done.classList.contains("is-done"));
@@ -355,30 +379,60 @@ test("an end before a start is swapped rather than refused", () => {
   assert.equal(t.end, dayKeyFrom(5));
 });
 
-test("paging moves the window a week at a time, and Today comes back", () => {
-  const app = loadApp({ fetchImpl: idle,
-    localStorageSeed: boardSeed([{ title: "This week", start: dayKeyFrom(0), end: dayKeyFrom(1) }]) });
+test("the timeline is a long scroll, not a fortnight window", () => {
+  /* It used to page a fortnight at a time, which made planning anything
+     further out feel boxed in. The grid now spans years and simply scrolls. */
+  const app = loadApp({ fetchImpl: idle, localStorageSeed: boardSeed([
+    { title: "Way back", start: dayKeyFrom(-200), end: dayKeyFrom(-190) },
+    { title: "Far ahead", start: dayKeyFrom(300), end: dayKeyFrom(330) },
+  ]) });
   openWorkflow(app);
-  assert.equal(wfBars(app).length, 1);
-  const label = () => app.document.getElementById("wfLabel").textContent;
-  const first = label();
 
-  app.click("wfNext");
-  app.click("wfNext");
-  assert.notEqual(label(), first, "the window moved");
-  assert.equal(wfBars(app).length, 0, "and the task is behind us");
+  const bars = wfBars(app);
+  assert.equal(bars.length, 2, "both ends of the year are on the same timeline");
+  const left = (t) => parseFloat(bars.find((b) => b.textContent === t).style.left);
+  assert.ok(left("Far ahead") > left("Way back"), "laid out in order");
 
-  app.click("wfToday");
-  assert.equal(label(), first);
-  assert.equal(wfBars(app).length, 1);
+  const grid = app.document.getElementById("wfGrid");
+  assert.ok(parseFloat(grid.style.width) > 5000, "and it is genuinely long, so it scrolls");
 });
 
-test("a span running past the window is clamped, not dropped", () => {
-  // A bar that vanished when you paged would be worse than one visibly cut off.
+test("today is marked, and the view opens near it", () => {
   const app = loadApp({ fetchImpl: idle,
-    localStorageSeed: boardSeed([{ title: "Long haul", start: dayKeyFrom(-40), end: dayKeyFrom(40) }]) });
+    localStorageSeed: boardSeed([{ title: "Now", start: dayKeyFrom(0), end: dayKeyFrom(2) }]) });
   openWorkflow(app);
-  assert.equal(wfBars(app).length, 1, "still on the timeline");
+  assert.ok(app.document.querySelector("#wfGrid .wf-now"), "a line marking today");
+  assert.ok(app.document.querySelector("#wfGrid .wf-wk.is-thisweek"), "and this week's heading stands out");
+
+  /* The line and the bars must share one coordinate system. They did not: the
+     rows start after the name gutter and the line is a child of the grid, so
+     it marked a week earlier until it was given the same offset. */
+  const bar = app.document.querySelector("#wfGrid .wf-bar");
+  assert.equal(app.document.querySelector("#wfGrid .wf-now").style.left, bar.style.left,
+    "a task starting today begins exactly at the today line");
+});
+
+test("the week headings have a corner over the name gutter to scroll under", () => {
+  const app = loadApp({ fetchImpl: idle,
+    localStorageSeed: boardSeed([{ title: "Now", start: dayKeyFrom(0), end: dayKeyFrom(2) }]) });
+  openWorkflow(app);
+  assert.ok(app.document.querySelector("#wfGrid .wf-head-row .wf-corner"),
+    "otherwise the leftmost week label slides out from behind the names");
+});
+
+test("a bar too short to hold its title carries none - the name is in the gutter", () => {
+  const app = loadApp({ fetchImpl: idle, localStorageSeed: boardSeed([
+    { title: "Two days", start: dayKeyFrom(0), end: dayKeyFrom(1) },
+    { title: "Two months", start: dayKeyFrom(0), end: dayKeyFrom(60) },
+  ]) });
+  openWorkflow(app);
+
+  const bars = wfBars(app);
+  const short = bars.find((b) => /Two days/.test(b.title));
+  const long = bars.find((b) => /Two months/.test(b.title));
+  assert.equal(short.textContent, "", "clipped to one letter would be worse than blank");
+  assert.equal(long.textContent, "Two months");
+  assert.match(short.title, /Two days/, "the full detail is still on the element");
 });
 
 test("the board row shows the span, and the menu offers to change it", () => {
@@ -404,11 +458,18 @@ test("the remembered sub-tab comes back", () => {
 
 const viewport = (app) => app.document.getElementById("canvasViewport");
 const plane = (app) => app.document.getElementById("board");
-function pointer(app, type, id, x, y, target) {
+/* pointerType matters: a card only drags straight away under a mouse. With a
+   finger it has to be held first (see the hold tests below), so a synthetic
+   event with no type at all would silently take the wrong path. */
+function pointer(app, type, id, x, y, target, pointerType) {
   const ev = new app.window.Event(type, { bubbles: true, cancelable: true });
   ev.pointerId = id; ev.clientX = x; ev.clientY = y;
+  ev.pointerType = pointerType || "mouse";
   (target || viewport(app)).dispatchEvent(ev);
   return ev;
+}
+function touch(app, type, id, x, y, target) {
+  return pointer(app, type, id, x, y, target, "touch");
 }
 
 test("cards are placed on a canvas, each with its own position and size", () => {
@@ -567,6 +628,118 @@ test("the canvas keeps its own gestures, so a pan never changes tab", () => {
   assert.equal(app.document.querySelector(".view.active").id, "view-tasks");
 });
 
+test("scrolling the timeline sideways never changes tab either", () => {
+  // The Gantt is a long horizontal scroll; a drag along it is a scroll
+  // through the weeks, not a request for the next tab.
+  const app = loadApp({ fetchImpl: idle });
+  app.goTo("tasks");
+  app.document.querySelector('[data-tsub="workflow"]').click();
+  app.swipe("wfScroll", -180, 0);
+  assert.equal(app.document.querySelector(".view.active").id, "view-tasks");
+});
+
+test("the board hint is gone - the gestures are not worth a permanent caption", () => {
+  const app = openBoard(loadApp({ fetchImpl: idle }));
+  newProject(app, "Anything");
+  assert.equal(app.document.getElementById("canvasHint"), null);
+  assert.equal(app.document.querySelector(".canvas-hint"), null);
+});
+
+/* ---------------- colour, stacking, full screen ---------------- */
+
+test("a card carries its project's colour, and no two new projects share one", () => {
+  const app = openBoard(loadApp({ fetchImpl: idle }));
+  newProject(app, "One");
+  newProject(app, "Two");
+  const [a, b] = Object.values(app.state().projects);
+  assert.ok(a.color, "given a colour at creation, so reordering cannot repaint it");
+  assert.notEqual(a.color, b.color);
+
+  const painted = cols(app).map((c) => c.style.getPropertyValue("--proj"));
+  assert.ok(painted.every(Boolean), "and the card is painted with it");
+  assert.notEqual(painted[0], painted[1]);
+});
+
+test("the colour a project is given is the colour its timeline bars use", () => {
+  const app = openBoard(loadApp({ fetchImpl: idle }));
+  const col = newProject(app, "Coloured");
+  const p = Object.values(app.state().projects)[0];
+  assert.equal(col.style.getPropertyValue("--proj"), p.color);
+});
+
+test("dragging a card brings it to the front, and that is part of the board", () => {
+  const app = openBoard(loadApp({ fetchImpl: idle }));
+  newProject(app, "Under");
+  newProject(app, "Over");
+  const under = colNamed(app, "Under");
+
+  pointer(app, "pointerdown", 1, 100, 100, under.querySelector(".board-col-head"));
+  pointer(app, "pointermove", 1, 150, 140, app.document);
+  pointer(app, "pointerup", 1, 150, 140, app.document);
+
+  const moved = Object.values(app.state().projects).find((p) => p.name === "Under");
+  const other = Object.values(app.state().projects).find((p) => p.name === "Over");
+  assert.ok((moved.z || 0) > (other.z || 0), "the one you handled is on top");
+  // Painted by DOM order, so the drag class's own z-index still wins mid-drag.
+  const order = cols(app).map((c) => c.querySelector(".board-name").textContent);
+  assert.equal(order[order.length - 1], "Under");
+});
+
+test("a tap on a card still doesn't rewrite it, front or not", () => {
+  const app = openBoard(loadApp({ fetchImpl: idle }));
+  newProject(app, "Still");
+  const before = Object.values(app.state().projects)[0].updated_at;
+  const head = cols(app)[0].querySelector(".board-col-head");
+  pointer(app, "pointerdown", 1, 100, 100, head);
+  pointer(app, "pointerup", 1, 100, 100, app.document);
+  assert.equal(Object.values(app.state().projects)[0].updated_at, before);
+});
+
+test("full screen hides the header and the bottom bar, and can be left again", () => {
+  const app = openBoard(loadApp({ fetchImpl: idle }));
+  const body = app.document.body;
+  assert.ok(!body.classList.contains("tasks-full"));
+
+  app.click("tasksFullBtn");
+  assert.ok(body.classList.contains("tasks-full"), "the chrome is out of the way");
+  assert.ok(app.document.getElementById("tasksFullBtn").classList.contains("is-on"));
+
+  app.click("tasksFullBtn");
+  assert.ok(!body.classList.contains("tasks-full"));
+});
+
+test("full screen keeps the sub-tab row, which is the way back out", () => {
+  const app = openBoard(loadApp({ fetchImpl: idle }));
+  app.click("tasksFullBtn");
+  const row = app.document.getElementById("taskSubTabs");
+  assert.notEqual(app.window.getComputedStyle(row).display, "none");
+  assert.ok(app.document.getElementById("tasksFullBtn").offsetParent !== undefined);
+
+  // Switching sub-tab must not clear the button's own state: navTaskSub
+  // strips `active` from every child that isn't the current sub-tab.
+  app.document.querySelector('[data-tsub="workflow"]').click();
+  assert.ok(app.document.body.classList.contains("tasks-full"), "still full screen");
+  assert.ok(app.document.getElementById("tasksFullBtn").classList.contains("is-on"));
+});
+
+test("leaving the Tasks tab leaves full screen with it", () => {
+  // Otherwise the header and the bottom bar stay hidden on a view that has no
+  // button to bring them back.
+  const app = openBoard(loadApp({ fetchImpl: idle }));
+  app.click("tasksFullBtn");
+  app.goTo("today");
+  assert.ok(!app.document.body.classList.contains("tasks-full"));
+});
+
+test("full screen is a mode, not a remembered preference", () => {
+  const app = openBoard(loadApp({ fetchImpl: idle }));
+  newProject(app, "Anything");
+  app.click("tasksFullBtn");
+  assert.ok(!JSON.stringify(app.state()).includes("tasks-full"));
+  const stored = JSON.stringify(Object.entries(app.window.localStorage));
+  assert.ok(!/tasksFull|tasks-full/.test(stored), "not written to storage at all");
+});
+
 /* ---------------- the menu, and the calendar button ---------------- */
 
 test("the menu opens beside what was tapped, not as a sheet at the bottom", () => {
@@ -613,6 +786,11 @@ test("every task row carries a calendar button, ringed when it is scheduled", ()
   assert.ok(cal(booked).classList.contains("is-on"), "green ring when on the calendar");
   assert.ok(!cal(free).classList.contains("is-on"));
   assert.match(cal(booked).title, /on your calendar/i);
+
+  /* The ring is the whole point - a second "on calendar" label beside the
+     title is the 1.30.1 collapse all over again. */
+  const meta = booked.querySelector(".btask-meta");
+  assert.ok(!meta || !/on calendar/i.test(meta.textContent));
 });
 
 test("a drag that starts on the project name still moves the card", () => {
@@ -648,6 +826,40 @@ test("a drag that started on the name does not also open the rename prompt", () 
 
   assert.equal(asked, false, "a drag is not a rename");
   assert.equal(Object.values(app.state().projects)[0].name, "Keep my name");
+});
+
+test("a finger has to hold the header before the card moves", async () => {
+  /* Otherwise brushing a heading while scrolling the board drags the card. */
+  const app = openBoard(loadApp({ fetchImpl: idle }));
+  newProject(app, "Held");
+  const before = Object.values(app.state().projects)[0];
+  const head = cols(app)[0].querySelector(".board-col-head");
+
+  touch(app, "pointerdown", 1, 100, 100, head);
+  await app.wait(500);                       // held past the threshold
+  touch(app, "pointermove", 1, 180, 160, app.document);
+  touch(app, "pointerup", 1, 180, 160, app.document);
+
+  const after = Object.values(app.state().projects)[0];
+  assert.equal(after.x, before.x + 80, "held, so it dragged");
+  assert.equal(after.y, before.y + 60);
+});
+
+test("a finger that moves before the hold completes does not drag the card", async () => {
+  const app = openBoard(loadApp({ fetchImpl: idle }));
+  newProject(app, "Brushed");
+  const before = Object.values(app.state().projects)[0];
+  const head = cols(app)[0].querySelector(".board-col-head");
+
+  touch(app, "pointerdown", 1, 100, 100, head);
+  touch(app, "pointermove", 1, 160, 100, app.document);   // moved straight away
+  await app.wait(500);                                    // past the threshold
+  touch(app, "pointermove", 1, 220, 140, app.document);
+  touch(app, "pointerup", 1, 220, 140, app.document);
+
+  const after = Object.values(app.state().projects)[0];
+  assert.equal(after.x, before.x, "the card stayed put");
+  assert.equal(after.y, before.y);
 });
 
 test("tapping the name without moving still renames", () => {

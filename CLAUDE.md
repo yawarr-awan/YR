@@ -1324,6 +1324,55 @@ the week containing `dayDate`). `calCols()` is a constant 7; `calIsWide()`
 - `attachTabSwipe` ignores touches starting in `.canvas-viewport`, same as
   `.cal-viewport`.
 
+## Weeks, colours, full screen (1.39.0)
+- **The Gantt's columns are weeks and the window is enormous** (`WF_WEEKS_BACK`
+  52, `WF_WEEKS_FWD` 104) - it scrolls rather than pages. The arrows
+  `scrollBy`; `wfScrollToToday()` opens near today unless the user has already
+  scrolled (`_wfScrolled`). `wfWeekPos(key)` is a **fractional** week from
+  `wfOrigin()`, so a bar starts mid-week rather than snapping to Monday.
+- **A row is one element, not a cell per week.** The week lines are a
+  `repeating-linear-gradient` and the bar is absolutely positioned over it -
+  ~150 columns times every task would be thousands of nodes for a grid that is
+  mostly empty.
+- **Every row and the head row start after the gutter** (`margin-inline-start:
+  var(--wf-gutter)`), so anything drawn in grid coordinates needs the same
+  offset. `.wf-now` did not have it and marked a week too early; on an
+  absolutely positioned element the margin adds to `left`. A test pins that a
+  task starting today has the same `left` as the line.
+- **`.wf-corner`** is the sticky block above the gutter. Without it the
+  leftmost week heading scrolls out from behind the pinned names with nothing
+  covering it - same sticky + negative-margin trick the row labels use.
+- **A bar under 64px carries no text.** The task's name is already in the
+  gutter beside it, and one clipped letter is worse than none. Tests therefore
+  address a bar by its `title`, never its text.
+- **A project's colour is stored at creation** (`nextProjectColor()` takes the
+  first unused one). `projectColor()`'s index fallback exists only for projects
+  made before colours - deriving it from `projectList()` order would repaint a
+  project whenever the board was reordered. The colour is on the card as a band
+  (`--proj`) and on its bars, so the two views agree.
+- **Dragging a card needs a hold with a finger** (`beginCardPress`,
+  `CARD_HOLD_MS` 400, `CARD_HOLD_SLOP` 8) - a mouse still drags immediately.
+  jsdom's synthetic events have no `pointerType`, so `test/lib.js`-style
+  helpers must set one or every drag test silently takes the wrong path.
+- **Bring-to-front moves the node, then stores `z`.** Re-rendering mid-drag
+  would replace the element the gesture is holding; `renderBoard` paints in `z`
+  order so DOM order alone decides stacking and `.is-dragging`'s own z-index
+  still wins.
+- **`sizeTasksPanes()` measures rather than calculates.** `--canvas-h`/`--wf-h`
+  used a `calc()` off `--hdr-h`, which is wrong in at least one of: full
+  screen, a wrapped toolbar, a changed text scale. It reads the pane's own
+  `getBoundingClientRect().top` and subtracts the fixed bottom bar's height (0
+  when it is hidden), and bails when the pane measures 0 - a hidden sub-view
+  must keep its last good value.
+- **Full screen is a mode, never persisted** (`_tasksFull`, `body.tasks-full`),
+  same call as `_tasksReorder`: waking with the header and bottom bar gone and
+  no memory of asking for it reads as a broken app. The button lives in the
+  **sub-tab row**, the one place that survives in full screen, and is marked
+  `is-on` rather than `active` because `navTaskSub()` strips `active` from
+  every child of that row that is not the current sub-tab. `nav()` drops out of
+  full screen on leaving the tab.
+- `attachTabSwipe` now also ignores touches starting in `.wf-scroll`.
+
 ## The Workflow timeline (1.37.0)
 - **Two date notions, kept in step on purpose.** `start`/`end` are plain
   `YYYY-MM-DD` (a bar is a span of days); `due` stays a full ISO instant and is

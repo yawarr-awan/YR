@@ -149,6 +149,17 @@ nav.tabs button.active{color:var(--brand)}
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis
 }
 .subtabs button.active{background:var(--brand);border-color:var(--brand);color:#fff}
+.subtabs .subtab-full{flex:0 0 auto;width:40px;padding:8px 0;font-size:1rem}
+/* is-on, not active: navTaskSub() clears `active` from every child of the row
+   that isn't the current sub-tab, and this button is not one. */
+.subtabs .subtab-full.is-on{background:var(--brand);border-color:var(--brand);color:#fff}
+/* Full screen for the board and the timeline: the header and the bottom bar
+   are what a canvas is competing with for height, so both go. The sub-tab row
+   stays - it carries the way back out. */
+body.tasks-full header.top,
+body.tasks-full nav.tabs{display:none}
+body.tasks-full .wrap{padding-bottom:12px}
+body.tasks-full #view-tasks .subtabs{margin-top:calc(8px + env(safe-area-inset-top,0px))}
 .subview{display:none}
 .subview.active{display:block;animation:viewIn .16s ease}
 @keyframes viewIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
@@ -318,8 +329,12 @@ body.editing .card[data-card].is-over{outline:2px solid var(--brand)}
    Cards are absolutely positioned in canvas coordinates and the whole plane
    is moved with one transform, so zooming and panning cost no layout - the
    browser composites a single element rather than reflowing every card. */
-.board-bar{display:flex;align-items:center;gap:6px;margin:10px 0 8px;flex-wrap:wrap}
-.board-bar .muted:last-child{margin-inline-start:auto}
+/* One line, always: wrapping this bar costs the canvas a whole row of height,
+   which is the thing the tab is short of. The count is the first thing to go
+   when there isn't room - the board itself says how many projects there are. */
+.board-bar{display:flex;align-items:center;gap:6px;margin:8px 0 6px;flex-wrap:nowrap}
+.board-bar .muted:last-child{margin-inline-start:auto;white-space:nowrap}
+@media(max-width:560px){.board-bar #boardCount{display:none}}
 .canvas-viewport{
   position:relative;overflow:hidden;
   height:var(--canvas-h,calc(100vh - var(--hdr-h) - 210px));min-height:320px;
@@ -331,16 +346,23 @@ body.editing .card[data-card].is-over{outline:2px solid var(--brand)}
 .canvas-viewport.is-panning{cursor:grabbing}
 .canvas{position:absolute;inset-block-start:0;inset-inline-start:0;
   transform-origin:0 0;width:0;height:0}
-.canvas-hint{
-  position:absolute;inset-block-end:8px;inset-inline-start:0;inset-inline-end:0;
-  text-align:center;font-size:.72rem;color:var(--muted);pointer-events:none
-}
 .board-col{
   position:absolute;display:flex;flex-direction:column;
   background:var(--panel);border:1px solid var(--line);border-radius:14px;
   padding:10px;overflow:hidden;box-shadow:0 2px 10px rgba(8,12,24,.18)
 }
+/* The project's own colour, the same one its bars carry on the timeline, as a
+   band along the top - so a card is identifiable in either sub-tab without
+   reading the name. */
+.board-col::before{
+  content:"";position:absolute;inset-block-start:0;inset-inline:0;height:4px;
+  background:var(--proj,var(--brand))
+}
 .board-col.is-dragging{box-shadow:0 8px 22px rgba(8,12,24,.4);z-index:5}
+/* Held, about to lift: a brief squeeze so the hold is visibly working rather
+   than feeling like nothing happened. */
+.board-col.is-holding{transition:transform .18s ease;transform:scale(.985)}
+.board-col.is-lifted{transform:scale(1.02);transition:transform .12s ease}
 .board-col-head{display:flex;align-items:center;gap:6px;margin-bottom:8px;
   cursor:grab;touch-action:none}
 .board-col.is-dragging .board-col-head{cursor:grabbing}
@@ -386,6 +408,8 @@ body.editing .card[data-card].is-over{outline:2px solid var(--brand)}
 .menu-pop button:hover{background:var(--panel-2)}
 .menu-pop button.danger{color:var(--bad)}
 .menu-pop .menu-sep{height:1px;background:var(--line);margin:4px 8px}
+.menu-swatch{display:inline-block;width:14px;height:14px;border-radius:4px;
+  margin-inline-end:9px;vertical-align:-2px;border:1px solid rgba(0,0,0,.25)}
 .menu-backdrop{position:fixed;inset:0;z-index:69}
 .sheet-form{padding:4px 10px 8px}
 .sheet-form .field{margin:8px 0}
@@ -395,44 +419,81 @@ body.editing .card[data-card].is-over{outline:2px solid var(--brand)}
 .sheet-form .pill-row{margin-top:10px}
 
 /* ---------- THE GANTT ----------
-   One CSS grid: a sticky name gutter plus a column per day. The whole thing
-   scrolls sideways, and the gutter stays put - the same shape the calendar
-   week settled on, and for the same reason (a fixed column width so the grid
-   keeps its proportions and you scroll, rather than days shrinking as the
-   window widens). */
-.wf-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain;
-  border:1px solid var(--line);border-radius:12px;background:var(--panel)}
-.wf{display:grid;--wf-gutter:118px;--wf-day:30px;--wf-row:30px;min-width:max-content}
-.wf-cell{border-inline-start:1px solid var(--line);min-height:var(--wf-row);position:relative}
-.wf-head{
-  position:sticky;top:0;z-index:3;background:var(--panel);
-  font-size:.62rem;color:var(--muted);text-align:center;font-weight:700;
-  padding:4px 0 3px;border-bottom:1px solid var(--line);line-height:1.15
+   Columns are weeks. Each row is a single element with the week lines painted
+   on as a repeating gradient and the bar positioned over it - a cell per week
+   per row would be ~150 columns times every task, thousands of nodes for a
+   grid that is mostly empty. The label sits in a sticky gutter. */
+.wf-scroll{
+  overflow:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;
+  border:1px solid var(--line);border-radius:12px;background:var(--panel);
+  max-height:var(--wf-h,calc(100vh - var(--hdr-h) - 250px));min-height:220px;
+  /* The Gantt scrolls itself in both directions; the page-level tab swipe
+     must not also claim the gesture. */
+  overscroll-behavior-x:contain
 }
-.wf-head.is-today{color:var(--brand)}
-.wf-head .wf-dow{display:block;opacity:.7;font-weight:600}
-.wf-gutter{
-  position:sticky;inset-inline-start:0;z-index:4;background:var(--panel);
-  border-inline-end:1px solid var(--line);padding:5px 8px;
-  font-size:.76rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap
+.wf{position:relative;--wf-col:92px;--wf-gutter:120px;--wf-row:32px}
+.wf-head-row{
+  position:sticky;top:0;z-index:5;height:34px;
+  background:var(--panel);border-bottom:1px solid var(--line);
+  margin-inline-start:var(--wf-gutter)
 }
-.wf-gutter.wf-head{z-index:6}
+.wf-wk{
+  position:absolute;top:0;width:var(--wf-col);height:34px;
+  border-inline-start:1px solid var(--line);
+  font-size:.62rem;color:var(--muted);text-align:center;padding-top:4px;line-height:1.2
+}
+.wf-wk b{display:block;font-size:.66rem;color:var(--ink);font-weight:700}
+.wf-wk.is-thisweek b{color:var(--brand)}
+.wf-wk .wf-dow{display:block;opacity:.7}
+.wf-row{
+  position:relative;height:var(--wf-row);
+  margin-inline-start:var(--wf-gutter);
+  background-image:repeating-linear-gradient(to right,
+    var(--line) 0 1px,transparent 1px var(--wf-col));
+  border-bottom:1px solid var(--line)
+}
+.wf-projrow{background-color:var(--panel-2);height:26px}
+.wf-rowlabel{
+  position:absolute;inset-block:0;inset-inline-start:calc(-1 * var(--wf-gutter));
+  width:var(--wf-gutter);z-index:4;
+  background:var(--panel);border-inline-start:3px solid transparent;
+  border-inline-end:1px solid var(--line);
+  display:flex;align-items:center;padding:0 8px;
+  overflow:hidden;white-space:nowrap
+}
+.wf-projrow .wf-rowlabel{background:var(--panel-2)}
+/* Sticky is on the label so the names stay put while the weeks scroll. */
+.wf-row .wf-rowlabel{position:sticky;inset-inline-start:0;
+  margin-inline-start:calc(-1 * var(--wf-gutter));float:left}
 .wf-proj{font-weight:800;font-size:.74rem;color:var(--ink)}
-.wf-projrow{background:var(--panel-2)}
 .wf-taskname{cursor:pointer;color:var(--ink);background:none;border:none;font:inherit;
   font-size:.76rem;width:100%;text-align:start;padding:0;
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.wf-weekend{background:var(--panel-2)}
-.wf-todaycol{box-shadow:inset 1px 0 0 var(--brand)}
 .wf-bar{
-  position:absolute;inset-block:4px;inset-inline-start:2px;
-  background:var(--brand);color:#fff;border-radius:7px;font-size:.66rem;font-weight:700;
-  padding:0 6px;display:flex;align-items:center;overflow:hidden;white-space:nowrap;
+  position:absolute;inset-block:5px;
+  background:var(--brand);color:#08101f;border-radius:7px;
+  font-size:.68rem;font-weight:700;padding:0 7px;
+  display:flex;align-items:center;overflow:hidden;white-space:nowrap;
   cursor:pointer;border:none;font-family:inherit;z-index:2
 }
-.wf-bar.is-done{background:var(--muted);text-decoration:line-through}
-.wf-bar.is-late{background:var(--bad)}
-.wf-empty{padding:14px;color:var(--muted);font-size:.82rem;text-align:center}
+.wf-bar.is-done{background:var(--muted);color:var(--panel);text-decoration:line-through}
+.wf-bar.is-late{background:var(--bad);color:#fff}
+/* The line is a child of the grid, but every row's coordinates start after
+   the gutter - so it needs the same offset, or it marks the wrong week. On an
+   absolutely positioned element the margin adds to `left`. */
+.wf-now{position:absolute;inset-block:34px 0;width:2px;background:var(--brand);
+  margin-inline-start:var(--wf-gutter);
+  opacity:.65;z-index:3;pointer-events:none}
+/* The corner above the gutter. Without it the leftmost week label scrolls out
+   from under the names with nothing covering it. Same sticky + negative
+   margin trick the row labels use. */
+.wf-corner{
+  position:sticky;inset-inline-start:0;float:left;
+  margin-inline-start:calc(-1 * var(--wf-gutter));
+  width:var(--wf-gutter);height:34px;z-index:6;
+  background:var(--panel);border-inline-end:1px solid var(--line)
+}
+.wf-empty{padding:18px;color:var(--muted);font-size:.82rem;text-align:center}
 .wf-undated-row{display:flex;align-items:center;gap:8px;padding:6px 2px}
 .wf-undated-row .u-title{flex:1 1 auto;min-width:0;font-size:.86rem;overflow-wrap:anywhere}
 .wf-undated-row .u-proj{flex:0 0 auto;font-size:.68rem;color:var(--muted)}
@@ -1079,6 +1140,11 @@ footer.foot{text-align:center;color:var(--muted);font-size:.78rem;margin-top:26p
     <nav class="subtabs" id="taskSubTabs">
       <button data-tsub="board" class="active">🗂️ Board</button>
       <button data-tsub="workflow">📊 Workflow</button>
+      <!-- Deliberately in the sub-tab row rather than in either sub-view's own
+           toolbar: it is the one control that must stay reachable in full
+           screen, whichever sub-tab is showing. -->
+      <button class="subtab-full" id="tasksFullBtn" type="button"
+              aria-label="Full screen" title="Full screen">⛶</button>
     </nav>
 
     <div class="subview active" id="tsub-board">
@@ -1095,7 +1161,6 @@ footer.foot{text-align:center;color:var(--muted);font-size:.78rem;margin-top:26p
            resize. -->
       <div class="canvas-viewport" id="canvasViewport">
         <div class="canvas" id="board"></div>
-        <div class="canvas-hint" id="canvasHint"></div>
       </div>
     </div>
 
@@ -2531,7 +2596,7 @@ function addProject(name){
   var label=String(name||"").trim();
   if(!label)return null;
   var id=newItemId("p"),spot=nextCardSpot();
-  itemStore("projects")[id]={id:id,name:label,color:"",
+  itemStore("projects")[id]={id:id,name:label,color:nextProjectColor(),
     order:projectList().length,x:spot.x,y:spot.y,w:CARD_W,h:CARD_H,
     updated_at:Date.now(),deleted:0};
   save();
@@ -4596,6 +4661,9 @@ function attachTabSwipe(){
        inside it belongs to the canvas. Without this a pan sideways jumped to
        the next tab. */
     if(e.target&&e.target.closest&&e.target.closest(".canvas-viewport"))return;
+    /* Same for the Gantt: it is a long horizontal scroll, so a drag along it
+       is a scroll through the weeks, never a tab change. */
+    if(e.target&&e.target.closest&&e.target.closest(".wf-scroll"))return;
     startX=t.clientX;startY=t.clientY;
   },{passive:true});
   wrap.addEventListener("touchend",function(e){
@@ -5400,6 +5468,11 @@ function openMenuSheet(title,actions,at){
     if(a.sep){pop.appendChild(el("div","menu-sep"));return;}
     var b=el("button",a.danger?"danger":null,a.label);
     b.type="button";
+    if(a.swatch){
+      var dot=el("span","menu-swatch");
+      dot.style.background=a.swatch;
+      b.insertBefore(dot,b.firstChild);
+    }
     b.addEventListener("click",function(){closeMenuSheet();a.run();});
     pop.appendChild(b);
   });
@@ -5490,6 +5563,13 @@ var _cardDrag=null;               /* {p, mode, ...} while moving or resizing */
 /* True for one tick after a drag that actually moved, so the click it
    generates does not also open the rename prompt. */
 var _cardDragged=false;
+/* A touch has to be held before it becomes a drag. Without it, brushing the
+   header while panning the canvas moved the card - the finger is a blunt
+   instrument and the header is most of the card's top edge. A mouse is exempt:
+   a press with a mouse is already deliberate, and there is no accidental-scroll
+   case to protect against. */
+var CARD_HOLD_MS=400,CARD_HOLD_SLOP=8;
+var _cardHold=null;
 
 function canvasPointers(){
   return Object.keys(_pointers).map(function(k){return _pointers[k];});
@@ -5569,6 +5649,44 @@ function attachCanvas(){
 /** Moving and resizing a card. Bound to the document rather than the handle:
  * the pointer routinely leaves the small grab area mid-drag, and a re-render
  * would replace the element the gesture started on. */
+/** A press on the header. With a finger it arms a timer and only becomes a
+ * drag once held; with a mouse it starts immediately. */
+function beginCardPress(p,mode,ev){
+  if(ev.pointerType==="mouse"){startCardDrag(p,mode,ev);return;}
+  cancelCardHold();
+  var col=document.querySelector('.board-col[data-project="'+p.id+'"]');
+  _cardHold={p:p,mode:mode,x:ev.clientX,y:ev.clientY,pointerId:ev.pointerId,
+    ev:{clientX:ev.clientX,clientY:ev.clientY,pointerType:ev.pointerType,
+        preventDefault:function(){},stopPropagation:function(){}},
+    timer:setTimeout(function(){
+      var held=_cardHold;
+      _cardHold=null;
+      if(!held)return;
+      if(col)col.classList.add("is-lifted");
+      startCardDrag(held.p,held.mode,held.ev);
+    },CARD_HOLD_MS)};
+  if(col)col.classList.add("is-holding");
+  document.addEventListener("pointermove",cardHoldMove);
+  document.addEventListener("pointerup",cancelCardHold);
+  document.addEventListener("pointercancel",cancelCardHold);
+}
+function cardHoldMove(ev){
+  if(!_cardHold)return;
+  /* Moved before the hold completed - that was a scroll or a pan, not a grab. */
+  if(Math.abs(ev.clientX-_cardHold.x)>CARD_HOLD_SLOP||
+     Math.abs(ev.clientY-_cardHold.y)>CARD_HOLD_SLOP)cancelCardHold();
+}
+function cancelCardHold(){
+  document.removeEventListener("pointermove",cardHoldMove);
+  document.removeEventListener("pointerup",cancelCardHold);
+  document.removeEventListener("pointercancel",cancelCardHold);
+  if(!_cardHold)return;
+  clearTimeout(_cardHold.timer);
+  var col=document.querySelector('.board-col[data-project="'+_cardHold.p.id+'"]');
+  if(col)col.classList.remove("is-holding");
+  _cardHold=null;
+}
+
 function startCardDrag(p,mode,ev){
   /* Not preventDefault on a move: the header carries the name button, and
      suppressing the default would take its click with it. stopPropagation is
@@ -5579,7 +5697,13 @@ function startCardDrag(p,mode,ev){
   _cardDrag={p:p,mode:mode,startX:ev.clientX,startY:ev.clientY,
     ox:box.x,oy:box.y,ow:box.w,oh:box.h,moved:false};
   var col=document.querySelector('.board-col[data-project="'+p.id+'"]');
-  if(col)col.classList.add("is-dragging");
+  if(col){
+    col.classList.add("is-dragging");
+    /* Bring it to the front now, by moving the node rather than re-rendering -
+       a re-render would replace the element this gesture is holding. The
+       stored z is written at the end of the drag to match. */
+    if(col.parentNode&&col.parentNode.lastChild!==col)col.parentNode.appendChild(col);
+  }
   document.addEventListener("pointermove",cardDragMove);
   document.addEventListener("pointerup",cardDragEnd);
   document.addEventListener("pointercancel",cardDragEnd);
@@ -5608,8 +5732,9 @@ function cardDragEnd(){
   if(!_cardDrag)return;
   var d=_cardDrag;_cardDrag=null;
   var col=document.querySelector('.board-col[data-project="'+d.p.id+'"]');
-  if(col)col.classList.remove("is-dragging");
+  if(col){col.classList.remove("is-dragging");col.classList.remove("is-lifted");col.classList.remove("is-holding");}
   if(!d.moved)return;
+  bringCardToFront(d.p);
   _cardDragged=true;
   setTimeout(function(){_cardDragged=false;},0);
   /* Commit what the element ended up at, so the stored value and the pixels
@@ -5637,12 +5762,6 @@ function renderBoard(){
     var open=liveItems("tasks").filter(function(t){return !t.done;}).length;
     count.textContent=projects.length+" project(s) · "+open+" open";
   }
-  var hint=document.getElementById("canvasHint");
-  if(hint){
-    hint.textContent=projects.length
-      ? "Drag a card to move it · pinch or +/− to zoom · drag the corner to resize"
-      : "";
-  }
   if(!projects.length){
     var empty=el("div","board-empty","No projects yet — add one to get started.");
     empty.style.position="absolute";empty.style.left="16px";empty.style.top="16px";
@@ -5650,7 +5769,12 @@ function renderBoard(){
     box.appendChild(empty);
     return;
   }
-  projects.forEach(function(p){box.appendChild(buildProjectColumn(p));});
+  /* Cards overlap on a canvas, so which is on top is part of the board - and
+     it rides the project row with the position, for the same reason. Painted
+     by DOM order rather than a z-index, so nothing has to be renumbered and
+     the drag class's own z-index still wins while a card is being moved. */
+  projects.slice().sort(function(a,b){return (a.z||0)-(b.z||0);})
+    .forEach(function(p){box.appendChild(buildProjectColumn(p));});
   applyCanvasTransform();
 }
 
@@ -5660,6 +5784,9 @@ function buildProjectColumn(p){
   var box=projectBox(p);
   col.style.left=box.x+"px";col.style.top=box.y+"px";
   col.style.width=box.w+"px";col.style.height=box.h+"px";
+  /* Same colour the project's bars carry on the timeline, so a card is
+     recognisable in either sub-tab without reading its name. */
+  col.style.setProperty("--proj",projectColor(p));
 
   var head=el("div","board-col-head");
   /* The whole header is the grab handle, the name included.
@@ -5673,7 +5800,7 @@ function buildProjectColumn(p){
      drag that started on it does not also fire a rename. */
   head.addEventListener("pointerdown",function(ev){
     if(ev.target.closest&&ev.target.closest(".btask-menu"))return;
-    startCardDrag(p,"move",ev);
+    beginCardPress(p,"move",ev);
   });
   /* The heading is the rename field - one tap, no separate edit mode. */
   var name=el("button","board-name",p.name);
@@ -5748,7 +5875,9 @@ function buildBoardTask(t){
     var a=taskStart(t),b=taskEnd(t);
     bits.push(a===b?shortDay(a):(shortDay(a)+" → "+shortDay(b)));
   }
-  if(t.scheduled)bits.push("on calendar");
+  /* Deliberately no "on calendar" text: that is what the button's green ring
+     says, and the 1.30.1 lesson is that a second label here competes with the
+     title for a width neither of them has. */
   if(bits.length)main.appendChild(el("span","btask-meta",bits.join(" ")));
   row.appendChild(main);
 
@@ -5861,6 +5990,7 @@ function openTaskDates(t,at){
 function openProjectMenu(p,at){
   openMenuSheet(p.name,[
     {label:"Rename…",run:function(){renameProject(p);}},
+    {label:"Colour…",run:function(){chooseProjectColour(p);}},
     {label:"Move left",run:function(){shiftProject(p,-1);}},
     {label:"Move right",run:function(){shiftProject(p,1);}},
     {sep:true},
@@ -5872,6 +6002,22 @@ function openProjectMenu(p,at){
       renderBoard();
     }}
   ],at);
+}
+
+/** The card you just handled belongs on top of the ones it overlaps. Only
+ * called from a drag that actually moved, so a tap never rewrites the row. */
+function bringCardToFront(p){
+  var top=0;
+  projectList().forEach(function(o){if((o.z||0)>top)top=o.z||0;});
+  if((p.z||0)===top&&top>0)return;
+  p.z=top+1;
+}
+function chooseProjectColour(p){
+  openMenuSheet("Colour · "+p.name,PROJECT_COLORS.map(function(c){
+    return {label:(projectColor(p)===c?"Current":"Use this"),swatch:c,run:function(){
+      p.color=c;touchItem(p);renderBoard();renderWorkflow();
+    }};
+  }));
 }
 
 function renameProject(p){
@@ -5942,8 +6088,18 @@ function boardNote(msg){
    One grid: a sticky name gutter, then a column per day. Rows are project
    headings followed by their dated tasks. The window is a fortnight, which is
    what fits a phone at a readable column width; the arrows page by a week. */
-var WF_DAYS=14;
-var _wfStart=null;                 /* the Monday the window opens on */
+/* ---------- THE WORKFLOW (GANTT) ----------
+   Columns are weeks, not days: a project runs for weeks and a day-wide column
+   made you scroll for an hour to see a month. The window is deliberately
+   enormous (a year back, two forward) and simply scrolls - paging a fortnight
+   at a time was the thing that made it feel boxed in.
+
+   Rows are drawn as ONE element each with the week lines painted on as a
+   repeating gradient, and the bar absolutely positioned over it. A cell per
+   week per row would be ~150 columns x every task, which is thousands of
+   nodes for a grid that is mostly empty. */
+var WF_WEEKS_BACK=52,WF_WEEKS_FWD=104;
+var WF_COL=92;                     /* px per week; also in the CSS gradient */
 
 function wfMonday(d){
   var x=new Date(d.getFullYear(),d.getMonth(),d.getDate());
@@ -5952,105 +6108,151 @@ function wfMonday(d){
   x.setDate(x.getDate()-((x.getDay()+6)%7));
   return x;
 }
-function wfWindow(){
-  if(!_wfStart)_wfStart=wfMonday(new Date());
-  var out=[],d=new Date(_wfStart);
-  for(var i=0;i<WF_DAYS;i++){out.push(keyOf(d));d.setDate(d.getDate()+1);}
-  return out;
+function wfOrigin(){
+  var m=wfMonday(new Date());
+  m.setDate(m.getDate()-WF_WEEKS_BACK*7);
+  return m;
 }
-function wfShift(weeks){
-  if(!_wfStart)_wfStart=wfMonday(new Date());
-  _wfStart=new Date(_wfStart.getFullYear(),_wfStart.getMonth(),_wfStart.getDate()+weeks*7);
-  renderWorkflow();
+function wfTotalWeeks(){return WF_WEEKS_BACK+WF_WEEKS_FWD;}
+/** Which column a date falls in, as a fractional week from the origin, so a
+ * bar can start mid-week rather than snapping to Monday. */
+function wfWeekPos(key){
+  if(!key)return null;
+  var p=String(key).split("-");
+  var d=new Date(+p[0],+p[1]-1,+p[2]);
+  return (d-wfOrigin())/(7*86400000);
+}
+function wfWeekKey(i){
+  var d=wfOrigin();
+  d.setDate(d.getDate()+i*7);
+  return keyOf(d);
+}
+
+/* A colour per project, so a bar says which project it belongs to without
+   being read. Assigned from the palette by creation order and then stored, so
+   it never changes under you as projects come and go. */
+var PROJECT_COLORS=["#2dd4bf","#60a5fa","#f472b6","#fbbf24","#a78bfa","#34d399","#fb7185","#38bdf8"];
+function projectColor(p){
+  if(p&&p.color)return p.color;
+  /* Only for a project made before colours existed. A new one is given its
+     colour at creation, so reordering the board can never repaint it. */
+  var list=projectList(),i=list.indexOf(p);
+  return PROJECT_COLORS[(i<0?0:i)%PROJECT_COLORS.length];
+}
+function nextProjectColor(){
+  var used={};
+  projectList().forEach(function(p){used[projectColor(p)]=1;});
+  var free=PROJECT_COLORS.filter(function(c){return !used[c];});
+  if(free.length)return free[0];
+  return PROJECT_COLORS[projectList().length%PROJECT_COLORS.length];
 }
 
 function renderWorkflow(){
   var grid=document.getElementById("wfGrid");
   if(!grid)return;
   grid.innerHTML="";
-  var days=wfWindow(),today=todayKey();
-  var lbl=document.getElementById("wfLabel");
-  if(lbl)lbl.textContent=shortDay(days[0])+" – "+shortDay(days[days.length-1]);
+  var weeks=wfTotalWeeks(),today=todayKey(),todayPos=wfWeekPos(today);
+  grid.style.setProperty("--wf-col",WF_COL+"px");
+  grid.style.width=(weeks*WF_COL)+"px";
 
-  grid.style.gridTemplateColumns="var(--wf-gutter) repeat("+days.length+",var(--wf-day))";
-
-  /* Heading row: the gutter's own corner, then one cell per day. */
-  var corner=el("div","wf-cell wf-gutter wf-head","");
-  grid.appendChild(corner);
-  days.forEach(function(k){
-    var p=k.split("-");
-    var d=new Date(+p[0],+p[1]-1,+p[2]);
-    var cell=el("div","wf-cell wf-head"+(k===today?" is-today":"")+
-      ((d.getDay()===0||d.getDay()===6)?" wf-weekend":""));
-    cell.appendChild(document.createTextNode(String(d.getDate())));
-    cell.appendChild(el("span","wf-dow",["S","M","T","W","T","F","S"][d.getDay()]));
-    cell.setAttribute("data-day",k);
-    grid.appendChild(cell);
-  });
+  /* Heading: one label per week, and a line marking this week. */
+  var head=el("div","wf-head-row");
+  head.appendChild(el("div","wf-corner"));
+  for(var i=0;i<weeks;i++){
+    var k=wfWeekKey(i);
+    var cell=el("div","wf-wk"+(k===wfMondayKeyOfToday()?" is-thisweek":""));
+    cell.style.left=(i*WF_COL)+"px";
+    cell.appendChild(el("b",null,shortDay(k)));
+    cell.appendChild(el("span","wf-dow","wk "+wfWeekNumber(k)));
+    cell.setAttribute("data-week",k);
+    head.appendChild(cell);
+  }
+  grid.appendChild(head);
 
   var plotted=0;
   projectList().forEach(function(p){
-    var tasks=tasksIn(p.id).filter(function(t){
-      /* On the timeline only if its span overlaps the window at all. */
-      return taskHasSpan(t)&&taskStart(t)<=days[days.length-1]&&taskEnd(t)>=days[0];
-    });
+    var tasks=tasksIn(p.id).filter(taskHasSpan);
     if(!tasks.length)return;
+    var color=projectColor(p);
 
-    var head=el("div","wf-cell wf-gutter wf-proj wf-projrow",p.name);
-    grid.appendChild(head);
-    days.forEach(function(k){
-      grid.appendChild(el("div","wf-cell wf-projrow"+(k===today?" wf-todaycol":"")));
-    });
+    var prow=el("div","wf-row wf-projrow");
+    var plabel=el("div","wf-rowlabel wf-proj",p.name);
+    plabel.style.borderInlineStartColor=color;
+    prow.appendChild(plabel);
+    grid.appendChild(prow);
 
     tasks.forEach(function(t){
       plotted++;
-      var name=el("div","wf-cell wf-gutter");
+      var row=el("div","wf-row");
+      var label=el("div","wf-rowlabel");
       var btn=el("button","wf-taskname",t.title);
       btn.type="button";
       btn.addEventListener("click",function(ev){openTaskMenu(t,ev);});
-      name.appendChild(btn);
-      grid.appendChild(name);
+      label.style.borderInlineStartColor=color;
+      label.appendChild(btn);
+      row.appendChild(label);
 
-      var from=days.indexOf(taskStart(t)),to=days.indexOf(taskEnd(t));
-      /* A span running off either edge is clamped to the window rather than
-         dropped - a bar that vanished when you paged would be worse than one
-         that is visibly cut off. */
-      if(from<0)from=taskStart(t)<days[0]?0:days.length-1;
-      if(to<0)to=taskEnd(t)>days[days.length-1]?days.length-1:0;
+      var from=wfWeekPos(taskStart(t)),to=wfWeekPos(taskEnd(t));
+      if(from===null||to===null)return;
+      /* Inclusive of the end day, so a one-day task is still a visible block
+         rather than a zero-width sliver. */
+      var span=Math.max(1/7,(to-from)+1/7);
       var late=!t.done&&taskEnd(t)<today;
-
-      days.forEach(function(k,i){
-        var cell=el("div","wf-cell"+(k===today?" wf-todaycol":""));
-        cell.setAttribute("data-day",k);
-        if(i===from){
-          var bar=el("button","wf-bar"+(t.done?" is-done":(late?" is-late":"")),t.title);
-          bar.type="button";
-          bar.title=t.title+" · "+shortDay(taskStart(t))+" → "+shortDay(taskEnd(t));
-          /* Spans the days it covers, plus the gaps between those columns. */
-          var n=Math.max(1,to-from+1);
-          bar.style.width="calc("+n+" * var(--wf-day) - 4px)";
-          bar.addEventListener("click",function(ev){ev.stopPropagation();openTaskMenu(t,ev);});
-          cell.appendChild(bar);
-        }
-        grid.appendChild(cell);
-      });
+      /* A short span has no room for a title, and the name is already in the
+         gutter beside it - a clipped word is worse than none. */
+      var wide=span*WF_COL>=64;
+      var bar=el("button","wf-bar"+(t.done?" is-done":(late?" is-late":"")),wide?t.title:"");
+      bar.type="button";
+      bar.title=t.title+" · "+shortDay(taskStart(t))+" → "+shortDay(taskEnd(t));
+      bar.style.left=(from*WF_COL)+"px";
+      bar.style.width=Math.max(18,span*WF_COL-3)+"px";
+      if(!t.done&&!late)bar.style.background=color;
+      bar.addEventListener("click",function(ev){ev.stopPropagation();openTaskMenu(t,ev);});
+      row.appendChild(bar);
+      grid.appendChild(row);
     });
   });
 
   if(!plotted){
-    grid.innerHTML="";
-    grid.style.gridTemplateColumns="1fr";
-    grid.appendChild(el("div","wf-empty","Nothing plotted in these two weeks. Give a task a start and end date to see it here."));
+    grid.appendChild(el("div","wf-empty","Nothing plotted yet. Give a task a start and end date to see it here."));
+  }
+  /* The "now" line, drawn once over the whole grid rather than per row. */
+  if(todayPos!==null&&plotted){
+    var now=el("div","wf-now");
+    now.style.left=(todayPos*WF_COL)+"px";
+    grid.appendChild(now);
   }
 
   var note=document.getElementById("wfNote");
-  if(note)note.textContent=plotted?(plotted+" task(s) in this fortnight"):"";
+  if(note)note.textContent=plotted?(plotted+" task(s) on the timeline"):"";
   renderWorkflowUndated();
+  if(!_wfScrolled)wfScrollToToday();
+}
+function wfMondayKeyOfToday(){return keyOf(wfMonday(new Date()));}
+/** ISO-ish week number, only ever shown as a label. */
+function wfWeekNumber(key){
+  var p=String(key).split("-");
+  var d=new Date(Date.UTC(+p[0],+p[1]-1,+p[2]));
+  d.setUTCDate(d.getUTCDate()+4-(d.getUTCDay()||7));
+  var start=new Date(Date.UTC(d.getUTCFullYear(),0,1));
+  return Math.ceil(((d-start)/86400000+1)/7);
+}
+var _wfScrolled=false;
+function wfScrollToToday(){
+  var sc=document.getElementById("wfScroll");
+  if(!sc)return;
+  var pos=wfWeekPos(todayKey());
+  if(pos===null)return;
+  /* A little to the left of today, so what is coming up is what you see. */
+  sc.scrollLeft=Math.max(0,pos*WF_COL-WF_COL);
+}
+function wfShift(weeks){
+  var sc=document.getElementById("wfScroll");
+  if(!sc)return;
+  _wfScrolled=true;
+  sc.scrollBy({left:weeks*WF_COL*4,behavior:"smooth"});
 }
 
-/** Everything without a span, so it can be given one without hunting the
- * board for it. This is the whole reason the timeline is usable on day one:
- * a fresh board has no dates at all. */
 function renderWorkflowUndated(){
   var box=document.getElementById("wfUndated");
   if(!box)return;
@@ -6718,6 +6920,7 @@ function syncHeaderHeight(){
 var _calColsAt=calCols();
 window.addEventListener("resize",function(){
   syncHeaderHeight();
+  sizeTasksPanes();
   var n=calCols();
   if(n===_calColsAt)return;
   _calColsAt=n;
@@ -7021,8 +7224,51 @@ var currentView="today",currentSub="plan";
 var LASTTAB_KEY="yawarLastTab";
 var LASTSUB_KEY="yawarLastSub";
 
+/** Full screen for the Tasks tab. A mode, never persisted - the same call as
+ * _tasksReorder: waking up with the header and the bottom bar gone, with no
+ * memory of having asked for it, reads as a broken app. */
+var _tasksFull=false;
+function setTasksFull(on){
+  _tasksFull=!!on;
+  document.body.classList.toggle("tasks-full",_tasksFull);
+  var b=document.getElementById("tasksFullBtn");
+  if(b){
+    b.classList.toggle("is-on",_tasksFull);
+    b.textContent=_tasksFull?"✕":"⛶";
+    var label=_tasksFull?"Exit full screen":"Full screen";
+    b.title=label;b.setAttribute("aria-label",label);
+  }
+  /* The header is hidden, so its measured height is stale. Everything keyed
+     off --hdr-h (the calendar's sticky row, chiefly) has to be told. */
+  syncHeaderHeight();
+  sizeTasksPanes();
+  if(currentTaskSub==="workflow")renderWorkflow();else renderBoard();
+}
+/** The canvas and the Gantt fill whatever is left below the toolbars.
+ * Measured rather than computed from a calc(): the sub-tab row, the board bar
+ * and the header all change height with the text scale and with full screen,
+ * and a fixed subtraction is wrong in at least one of those states. */
+function sizeTasksPanes(){
+  var pad=12;
+  [["canvasViewport","--canvas-h"],["wfScroll","--wf-h"]].forEach(function(pair){
+    var elm=document.getElementById(pair[0]);
+    if(!elm||!elm.getBoundingClientRect)return;
+    var top=elm.getBoundingClientRect().top;
+    /* A hidden sub-view measures 0 - leave its last good value alone. */
+    if(!top)return;
+    /* The bottom bar is fixed and overlaps the page, so its height comes off
+       too - and reads 0 in full screen, where it is display:none. */
+    var bar=document.querySelector("nav.tabs");
+    var h=Math.max(240,(window.innerHeight||640)-top-pad-(bar?bar.offsetHeight:0));
+    document.documentElement.style.setProperty(pair[1],Math.round(h)+"px");
+  });
+}
+
 function nav(view){
   if(VIEWS.indexOf(view)<0)return;
+  /* Leaving the tab takes full screen with it - otherwise the header and the
+     bottom bar stay hidden on a view with no way to bring them back. */
+  if(view!=="tasks"&&_tasksFull)setTasksFull(false);
   currentView=view;
   var tabs=document.getElementById("tabs").children;
   for(var i=0;i<tabs.length;i++){tabs[i].classList.toggle("active",tabs[i].getAttribute("data-nav")===view);}
@@ -7035,7 +7281,10 @@ function nav(view){
   if(view==="prayers")renderPrayersTab();
   if(view==="settings")renderSettings();
   if(view==="journal")renderJournal();
-  if(view==="tasks"){if(currentTaskSub==="workflow")renderWorkflow();else renderBoard();}
+  if(view==="tasks"){
+    if(currentTaskSub==="workflow")renderWorkflow();else renderBoard();
+    sizeTasksPanes();
+  }
   window.scrollTo(0,0);
 }
 
@@ -7051,6 +7300,7 @@ function navTaskSub(sub){
   });
   try{localStorage.setItem(LASTTASKSUB_KEY,sub);}catch(e){}
   if(sub==="workflow")renderWorkflow();else renderBoard();
+  sizeTasksPanes();
 }
 
 function navSub(sub){
@@ -7224,8 +7474,14 @@ document.getElementById("zoomFitBtn").addEventListener("click",canvasFit);
 
 document.getElementById("wfPrev").addEventListener("click",function(){wfShift(-1);});
 document.getElementById("wfNext").addEventListener("click",function(){wfShift(1);});
-document.getElementById("wfToday").addEventListener("click",function(){
-  _wfStart=wfMonday(new Date());renderWorkflow();
+document.getElementById("wfToday").addEventListener("click",wfScrollToToday);
+document.getElementById("tasksFullBtn").addEventListener("click",function(){
+  setTasksFull(!_tasksFull);
+});
+/* Escape is the way out everyone tries first, and on a desktop it is the only
+   obvious one once the bottom bar is gone. */
+document.addEventListener("keydown",function(e){
+  if(e.key==="Escape"&&_tasksFull)setTasksFull(false);
 });
 
 document.getElementById("projectAddBtn").addEventListener("click",function(){
@@ -7368,6 +7624,7 @@ document.getElementById("themeToggle").addEventListener("click",function(){
 
 /* ---------- INIT ---------- */
 syncHeaderHeight();
+sizeTasksPanes();
 /* Before initCollapsibles, so a card that moved tab still finds its own fold
    state - both are keyed on the card, not on where it sits. */
 applyLayout();
