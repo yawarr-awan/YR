@@ -8,7 +8,7 @@
 const test = require("node:test");
 const { after } = require("node:test");
 const assert = require("node:assert/strict");
-const { loadApp, closeAllApps, MAIN_KEY, BAK_KEY } = require("./lib.js");
+const { loadApp, closeAllApps, MAIN_KEY, BAK_KEY, SCHEMA } = require("./lib.js");
 after(closeAllApps);
 
 // Mirrors index.html's keyOf(): local-time Y-M-D, not UTC.
@@ -43,7 +43,7 @@ test("existing good (legacy, pre-sync) data loads, migrates to the current schem
   const app = loadApp({ localStorageSeed: { [MAIN_KEY]: JSON.stringify(legacy) } });
 
   const s = app.state();
-  assert.equal(s.schema, 4, "migration should bump the schema and persist it immediately");
+  assert.equal(s.schema, SCHEMA, "migration should bump the schema and persist it immediately");
   const d = s.days["2026-01-01"];
   assert.equal(d.weight, "119.5");
   assert.equal(d.notes, "felt okay");

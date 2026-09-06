@@ -222,17 +222,22 @@ test("a write the server refuses leaves the editor open and says why", async () 
 /* ---------- scheduled tasks on the grid ---------- */
 
 test("a scheduled task shows on the calendar even when its event isn't in the feed", async () => {
-  const app = loadApp({ fetchImpl: calendarBackend().impl });
-  app.setInput("taskTitleIn", "Call the GP");
-  app.click("taskAddBtn");
-  const rows = app.document.querySelectorAll("#taskList .task-row");
-  Array.from(rows[0].querySelectorAll("button")).find((b) => b.textContent === "📅").click();
-  const when = app.document.querySelector("#taskList .task-sched input");
+  /* Seeded rather than driven through the UI: tasks live on the Tasks board
+     now, and this test is about the calendar's half of the deal. The old
+     pre-board shape is used on purpose, so the schema-5 migration carrying it
+     across is exercised too. */
   const at = new Date();
   at.setHours(16, 0, 0, 0);
-  when.value = keyOf(at) + "T16:00";
-  Array.from(app.document.querySelectorAll("#taskList .task-sched button")).find((b) => /Add to calendar/.test(b.textContent)).click();
-  await app.flush();
+  const app = loadApp({
+    fetchImpl: calendarBackend().impl,
+    localStorageSeed: { yawarWellness_v1: JSON.stringify({
+      schema: 3,
+      profile: { startWeight: "", targetWeight: "", updated_at: 1,
+        tasks: [{ id: "t1", title: "Call the GP", due: at.toISOString(),
+          done: false, scheduled: true, calendarEventId: null, updated_at: 1 }] },
+      days: {},
+    }) },
+  });
   await app.flush();
 
   await openCalendar(app);
@@ -286,7 +291,9 @@ test("removing a scheduled task from the calendar unschedules it but keeps the t
   await app.flush();
   await app.flush();
 
-  const tasks = app.state().profile.tasks;
+  /* The board is where a task lives now; profile.tasks is only the dormant
+     pre-board backstop. */
+  const tasks = Object.values(app.state().tasks).filter((t) => !t.deleted);
   assert.equal(tasks.length, 1, "the task itself survives");
   assert.equal(tasks[0].due, null);
   assert.equal(tasks[0].scheduled, false);
@@ -315,7 +322,7 @@ test("editing a scheduled task from the calendar renames the task too", async ()
   await app.flush();
   await app.flush();
 
-  assert.equal(app.state().profile.tasks[0].title, "Call the GP about results");
+  assert.equal(Object.values(app.state().tasks)[0].title, "Call the GP about results");
 });
 
 test("ticking a task from the calendar marks it done on the list", async () => {
@@ -336,7 +343,7 @@ test("ticking a task from the calendar marks it done on the list", async () => {
   done.checked = true;
   done.dispatchEvent(new app.window.Event("change", { bubbles: true }));
 
-  assert.equal(app.state().profile.tasks[0].done, true);
+  assert.equal(Object.values(app.state().tasks)[0].done, true);
 });
 
 test("a read-only event's fields are disabled, not merely unsaveable", async () => {

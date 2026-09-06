@@ -1,5 +1,25 @@
 # Changelog
 
+## 1.36.0
+
+**A Tasks board — the first slice of the project-management rework.**
+
+A new **Tasks** tab, first in the bar, holding a canvas of project cards you scroll sideways through. Each project has its own task list. Your 12 existing tasks arrive as a **General** project.
+
+- **⋮ on every task**: mark done, rename, add to / reschedule on calendar, **Move to…**, **Duplicate to…**, delete. Move and Duplicate open a picker of your projects — no clipboard to hold in your head across screens.
+- **⋯ on every project**: rename, move left/right, delete (with its tasks).
+- Ticking a task sinks it below the open ones. Done/total shows on each card.
+- **The Today tab's Tasks card is gone.** Tasks live in one place now. The calendar and both reminder paths were repointed at the board, so a task scheduled from either place still behaves the same.
+
+**Underneath: projects and tasks are their own synced rows, not fields on the profile.** Two reasons, and the first is a live hazard I found while planning this:
+
+- The profile is pushed as a single JSON string and **silently dropped above 20,000 bytes** — no error, no warning, the app reports a successful sync. Yours is already 8,939 bytes. A board would have grown past that and quietly stopped syncing.
+- The profile merges as a *whole*, so two devices editing different projects lose one side's work. A row per item merges per item, which is what a board across three people's devices needs. Deletes travel as tombstones, so deleting on one device isn't undone by another pushing it back.
+
+Your old `profile.tasks` list is **kept, unread**, as a backstop in case the migration got anything wrong. It can be dropped in a later version.
+
+**Still to come** (agreed order): the Workflow/Gantt view, and the Notes sub-tab with task↔note linking.
+
 ## 1.35.0
 
 **Du'as are now a shared library.** All 19 pictures are visible to both accounts, and an upload or a deletion by either of you shows up for both. Everything else stays private per account — days, meals, calories, journal, prayers, weight, calendar, tasks, the daily brief.

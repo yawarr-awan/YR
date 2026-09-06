@@ -13,9 +13,13 @@ const DEFAULT_ACCOUNT = "yawar@example.com";
 function createMockServer({ account = DEFAULT_ACCOUNT } = {}) {
   const days = {}; // day -> {data, updated_at}
   let profile = null; // {data, updated_at}
+  /* Projects and tasks are their own rows, merged per item, with tombstones -
+     mirrors the real handler. */
+  const items = { projects: {}, tasks: {} };
 
   return {
     _days: days,
+    _items: items,
     account,
     get _profile() { return profile; },
     seedDay(day, data, updated_at) { days[day] = { data, updated_at }; },
@@ -45,6 +49,19 @@ function createMockServer({ account = DEFAULT_ACCOUNT } = {}) {
         applied++;
       });
 
+      Object.keys(items).forEach((table) => {
+        const incoming = (body[table] && typeof body[table] === "object") ? body[table] : {};
+        Object.keys(incoming).forEach((id) => {
+          const rec = incoming[id];
+          const ts = Number(rec && rec.updated_at);
+          if (!rec || typeof rec.data !== "string" || !Number.isFinite(ts) || ts <= 0) return;
+          const prev = items[table][id];
+          if (!prev || ts > prev.updated_at) {
+            items[table][id] = { data: rec.data, updated_at: ts, deleted: rec.deleted ? 1 : 0 };
+          }
+        });
+      });
+
       if (body.profile && typeof body.profile.data === "string") {
         const ts = Number(body.profile.updated_at);
         if (Number.isFinite(ts) && ts > 0 && (!profile || ts > profile.updated_at)) {
@@ -61,9 +78,19 @@ function createMockServer({ account = DEFAULT_ACCOUNT } = {}) {
 
       const outProfile = (profile && profile.updated_at > since) ? profile : null;
 
+      const outItems = {};
+      Object.keys(items).forEach((table) => {
+        outItems[table] = {};
+        Object.keys(items[table]).forEach((id) => {
+          if (items[table][id].updated_at > since) outItems[table][id] = items[table][id];
+        });
+      });
+
       return {
         now: Date.now(),
         email: this.account,
+        projects: outItems.projects,
+        tasks: outItems.tasks,
         days: outDays,
         profile: outProfile,
         applied,

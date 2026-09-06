@@ -8,7 +8,7 @@
 const test = require("node:test");
 const { after } = require("node:test");
 const assert = require("node:assert/strict");
-const { loadApp, closeAllApps, MAIN_KEY } = require("./lib.js");
+const { loadApp, closeAllApps, MAIN_KEY, SCHEMA } = require("./lib.js");
 const { createMockServer, fetchImplFor, DEFAULT_ACCOUNT } = require("./mockServer.js");
 after(closeAllApps);
 
@@ -36,7 +36,7 @@ test("sync is on by default, and an existing install that had it off is switched
     fetchImpl: async () => ({ ok: true, json: async () => ({ now: 1, days: {}, profile: null, more: false }) }),
   });
   assert.equal(old.state().sync.enabled, true, "the upgrade turns it on");
-  assert.equal(old.state().schema, 4, "and records that it has done so");
+  assert.equal(old.state().schema, SCHEMA, "and records that it has done so");
 });
 
 test("turning sync off still sticks - the upgrade runs once, not on every load", () => {
@@ -213,9 +213,11 @@ test("a non-OK HTTP response is treated as a failure, not applied as if it were 
   assert.match(app.syncStatusText(), /sync failed/i);
 });
 
-test("tasks ride the synced profile, so they reach every device", async () => {
-  // They used to sit at the top level of state and were never in the payload
-  // at all - which is why a task added on the phone never showed on the desktop.
+test("tasks push as their own rows, not inside the profile blob", async () => {
+  /* They started at the top level and were never in the payload, then moved
+     onto the profile - which the server silently drops above 20KB, and which
+     is last-write-wins as a whole. A board needs neither of those, so tasks
+     are their own rows with a per-item merge. */
   const server = createMockServer();
   const app = loadApp({
     localStorageSeed: {
@@ -224,25 +226,38 @@ test("tasks ride the synced profile, so they reach every device", async () => {
         profile: { startWeight: 108, targetWeight: 88, tasks: [], updated_at: 1 },
         days: {},
         sync: { enabled: true, since: 0, lastSyncAt: null, lastError: null },
-    account: DEFAULT_ACCOUNT,
+        account: DEFAULT_ACCOUNT,
       }),
     },
     fetchImpl: fetchImplFor(server),
   });
   await app.flush();
 
-  app.setInput("taskTitleIn", "Call the pharmacy");
-  app.click("taskAddBtn");
+  app.goTo("tasks");
+  app.click("projectAddBtn");
+  const add = app.document.querySelector(".board-add input");
+  add.value = "Call the pharmacy";
+  add.dispatchEvent(new app.window.KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }));
+
+  app.goTo("settings");
   app.click("syncNowBtn");
   await app.flush();
   await app.flush();
 
-  assert.ok(server._profile, "the profile went up");
-  const pushed = JSON.parse(server._profile.data);
-  assert.deepEqual(pushed.tasks.map((t) => t.title), ["Call the pharmacy"]);
+  const names = Object.values(server._items.projects).map((r) => JSON.parse(r.data).name);
+  assert.deepEqual(names, ["New project"], "the project went up as its own row");
+  const titles = Object.values(server._items.tasks).map((r) => JSON.parse(r.data).title);
+  assert.deepEqual(titles, ["Call the pharmacy"], "and so did its task");
+  const pushedProfile = JSON.parse(server._profile.data);
+  assert.ok(!pushedProfile.projects, "the board is not stuffed into the profile blob");
 });
 
-test("a device upgrading from the old layout carries its local tasks into the synced profile", () => {
+test("an old device's local tasks travel all the way to the board", () => {
+  /* Two migrations in a row: 2 -> 3 moved the list off the top level onto the
+     synced profile, and 4 -> 5 copies it into the board's own item store.
+     profile.tasks is deliberately kept behind as a backstop rather than
+     deleted - it is a couple of KB, and it is the only copy if the board
+     migration ever got something wrong. */
   const app = loadApp({
     localStorageSeed: {
       [MAIN_KEY]: JSON.stringify({
@@ -256,10 +271,20 @@ test("a device upgrading from the old layout carries its local tasks into the sy
     },
   });
   const s = app.state();
-  assert.equal(s.schema, 4);
-  assert.deepEqual(s.profile.tasks.map((t) => t.title), ["Old local task"], "nothing is dropped in the move");
-  assert.equal(s.tasks, undefined, "and it no longer lives at the top level");
-  assert.match(app.document.getElementById("taskList").textContent, /Old local task/);
+  assert.equal(s.schema, SCHEMA);
+  assert.deepEqual(s.profile.tasks.map((t) => t.title), ["Old local task"],
+    "kept on the profile as a backstop");
+
+  const board = Object.values(s.tasks);
+  assert.equal(board.length, 1, "and copied onto the board");
+  assert.equal(board[0].title, "Old local task");
+  assert.ok(board[0].updated_at > 0, "stamped, so it syncs");
+  assert.equal(board[0].deleted, 0);
+
+  const projects = Object.values(s.projects).filter((p) => !p.deleted);
+  assert.equal(projects.length, 1, "into a project of their own");
+  assert.equal(projects[0].name, "General");
+  assert.equal(board[0].projectId, projects[0].id);
 });
 
 /* A sync that pulls another device's data has to redraw the tab you are

@@ -257,4 +257,8 @@ function loadApp(opts = {}) {
   };
 }
 
-module.exports = { loadApp, closeAllApps, MAIN_KEY, BAK_KEY };
+/* The schema the app migrates a store up to. Kept here so a bump is one edit
+   rather than a hunt through assertions in three files. */
+const SCHEMA = 5;
+
+module.exports = { loadApp, closeAllApps, MAIN_KEY, BAK_KEY, SCHEMA };

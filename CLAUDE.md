@@ -1292,6 +1292,47 @@ the week containing `dayDate`). `calCols()` is a constant 7; `calIsWide()`
   flex child of the row). The widths were measured in Chromium: 188px per
   title at 390px.
 
+## The Tasks board (1.36.0)
+First slice of the project-management rework. Agreed scope with Yawar: board
+first on new storage; Notes = task-to-note links only (no `[[wikilinks]]`);
+Move/Duplicate pickers rather than a clipboard; the Today task card removed.
+
+- **Projects and tasks are their own D1 rows** (`projects`, `tasks`, created
+  lazily like `user_settings`), NOT fields on the profile. Two reasons:
+  1. **`handleSync` silently drops a profile over `MAX_DAY_BYTES` (20000)** -
+     no error, no `skipped` entry, the client reports success. Yawar's profile
+     was already 8939 bytes. A board on the profile would have stopped syncing
+     without saying so. Re-read that branch before ever putting a growing
+     structure on the profile again.
+  2. The profile is last-write-wins as a **whole**; a row per item merges per
+     item, which is what a board across several devices needs.
+- **Deletes are tombstones** (`deleted=1`), never removals. Drop the row and
+  the next device that still holds it simply pushes it back.
+- `ITEM_STORES` / `itemStatements` / `pullItems` are the generic path; adding a
+  third table is one entry in the array on both sides.
+- **`ensureTasks()` is the one accessor** the rest of the app reads tasks
+  through - the calendar grid, `checkReminders`, `openingReminders`. Repointing
+  that single function at `liveItems("tasks")` carried all three onto the board
+  without touching them. Keep it that way.
+- **`profile.tasks` is deliberately kept, unread**, as a backstop for the
+  schema 4->5 migration. `localDatetimeValue` had to be rescued out of the
+  deleted Today-card block - the calendar editor uses it too, and deleting it
+  broke 20 tests with `Cannot set properties of null`.
+- The three-dot menu is a **bottom sheet, not an anchored popup**: the board
+  scrolls sideways, and an absolutely-positioned menu inside it is clipped at
+  the column edge.
+- Columns are a **fixed width** (`--board-col`) so the board keeps its shape
+  and scrolls, rather than columns shrinking as projects are added - the same
+  call the calendar week made in 1.27.0.
+- `shiftProject` **swaps the two neighbours' order values** rather than
+  renumbering: a full renumber would push every project through sync on every
+  nudge.
+- A duplicate never inherits `calendarEventId`/`scheduled` - two tasks pointing
+  at one Google event would fight over it.
+- `test/lib.js` exports **`SCHEMA`** so a schema bump is one edit rather than a
+  hunt through three files. `test/tasks.test.js` is gone (its subject is);
+  `test/board.test.js` replaces it.
+
 ## Du'as are shared; everything else is not (1.35.0)
 - **`dua_images` is the one deliberate exception to per-user scoping.** List,
   fetch and delete address a picture **by id alone** - no `user_email`

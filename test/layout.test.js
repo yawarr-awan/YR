@@ -160,7 +160,8 @@ test("a card the stored layout has never heard of keeps its place rather than va
   const today = cardsOn(app, "today");
   assert.equal(today[today.length - 2], "water", "the two it names are placed...");
   assert.equal(today[today.length - 1], "brief");
-  ["tasks", "extras", "meals", "meds", "move", "weight", "pain"].forEach((k) => {
+  // "tasks" is no longer among them - that card moved to its own tab.
+  ["extras", "meals", "meds", "move", "weight", "pain"].forEach((k) => {
     assert.ok(today.includes(k), `${k} must survive a layout that predates it`);
   });
 });
