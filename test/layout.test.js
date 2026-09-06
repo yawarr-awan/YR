@@ -17,8 +17,12 @@ after(closeAllApps);
 const idle = async () => ({ ok: true, status: 200, json: async () => ({ connected: false, status: "not_connected" }) });
 
 function cardsOn(app, view) {
-  return [...app.document.querySelectorAll("#view-" + view + " > .grid > .card[data-card]")]
-    .map((c) => c.getAttribute("data-card"));
+  // Journal's cards sit inside a sub-view, since Notes is a sub-tab beside
+  // them; every other view holds its grid directly.
+  const grid = app.document.querySelector("#view-" + view + " > .grid")
+    || app.document.querySelector("#view-" + view + " > .subview > .grid");
+  return grid ? [...grid.querySelectorAll(":scope > .card[data-card]")]
+    .map((c) => c.getAttribute("data-card")) : [];
 }
 function edit(app) {
   app.goTo("settings");

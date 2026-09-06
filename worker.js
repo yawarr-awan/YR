@@ -129,7 +129,7 @@ const MAX_DAYS_PER_PUSH = 500;
    per item, which is what a shared board needs. */
 const MAX_ITEMS_PER_PUSH = 2000;
 const MAX_ITEM_BYTES = 20000;
-const ITEM_TABLES = ["projects", "tasks"];
+const ITEM_TABLES = ["projects", "tasks", "notes"];
 const ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
 const MAX_DAY_BYTES = 20000;
 

@@ -1324,6 +1324,34 @@ the week containing `dayDate`). `calCols()` is a constant 7; `calIsWide()`
 - `attachTabSwipe` ignores touches starting in `.canvas-viewport`, same as
   `.cal-viewport`.
 
+## Notes (1.42.0)
+- **A note is a third `ITEM_STORES`/`ITEM_TABLES` entry**, nothing more - which
+  is what the generic item path was built for (1.36.0). One word in each array,
+  plus `notes` in `test/fakeD1.js` and `test/mockServer.js`, and it syncs per
+  row with tombstones like projects and tasks. **Not a field on a day**: a note
+  outlives the day it was written on.
+- **`task.noteId` already existed** in the task shape from 1.36.0, unused. The
+  link is by **id**, so renaming a note keeps it and it travels between devices.
+  Deliberately **not `[[wikilinks]]`** - agreed scope is task-to-note links
+  only, and a wiki syntax means a parser, a resolver, an unresolved-link state
+  and a rename-rewrites-every-mention rule that a link by id needs none of.
+- `tasksLinkedTo()` is the only lookup needed: the link lives on the task, so
+  backlinks are a filter and there is nothing to keep in step.
+- **Deleting a note clears every link to it** (`t.noteId=null`) - a task
+  pointing at a note that is gone renders nothing and reads as broken.
+- **`renderNotes(preserve)`**: only `renderAll()` passes `preserve`, because
+  only the sync redraw can arrive while you are mid-sentence. Every other
+  caller is a deliberate action (folding, searching, deleting) and *must*
+  redraw - guarding all of them left the list stale after a fold, since
+  `noteAddBtn` focuses the new note's title and that focus never moves.
+- **`layoutGrid()` now looks one level into a `.subview`.** Journal's cards sit
+  inside `#jsub-journal` so Notes can be a sub-tab beside them; every other
+  view still holds its grid directly. Still exactly one grid per view, which is
+  what makes the card reordering well defined.
+- `JOURNAL_SUBVIEWS`/`navJournalSub` mirror `TASK_SUBVIEWS`/`navTaskSub`
+  exactly, including the `attachTabSwipe` edge-fallthrough and the per-device
+  `yawarLastJournalSub`.
+
 ## One drag-to-reorder, editing on the card, movable bars (1.41.0)
 - **`dragGrip`/`startRowDrag` is the single reorder implementation**, used by
   board task rows and dhikr. It is the pattern the Today card had before 1.36.0

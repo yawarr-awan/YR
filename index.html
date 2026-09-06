@@ -807,6 +807,31 @@ body.editing-items #extrasBox,
 body.editing-items #dhikrBox{
   outline:2px dashed var(--brand);outline-offset:6px;border-radius:10px
 }
+/* ---------- NOTES ---------- */
+.note-card{padding:0;overflow:hidden;margin-bottom:10px}
+.note-head{
+  display:flex;align-items:center;gap:8px;width:100%;
+  background:none;border:none;font:inherit;color:var(--ink);cursor:pointer;
+  padding:12px 14px;text-align:start
+}
+.note-head:hover{background:var(--panel-2)}
+.note-title{flex:1 1 auto;min-width:0;font-weight:700;font-size:.92rem;overflow-wrap:anywhere}
+.note-badge{
+  flex:0 0 auto;font-size:.68rem;font-weight:700;color:var(--brand);
+  border:1px solid var(--brand);border-radius:999px;padding:2px 7px
+}
+.note-preview{padding:0 14px 12px;font-size:.8rem;color:var(--muted);overflow-wrap:anywhere}
+.note-card.is-open{outline:2px solid var(--brand);outline-offset:-2px}
+.note-card .note-title-in,.note-card textarea{
+  display:block;width:calc(100% - 28px);margin:0 14px 10px;
+  border:1px solid var(--line);background:var(--panel-2);color:var(--ink);
+  border-radius:10px;padding:9px;font:inherit
+}
+.note-card .note-title-in{font-weight:700}
+.note-card .pill-row{padding:0 14px 12px}
+.note-links{padding:0 14px 10px;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.note-links-head{font-size:.72rem;color:var(--muted);font-weight:700;width:100%}
+.btask-note{font-size:.72rem;text-align:start;overflow-wrap:anywhere;padding:0;margin-top:2px}
 .task-grip,.drag-grip{
   cursor:grab;font-size:1rem;color:var(--muted);line-height:1;flex:0 0 auto;
   padding:6px 2px;touch-action:none;user-select:none;-webkit-user-select:none
@@ -1222,27 +1247,46 @@ footer.foot{text-align:center;color:var(--muted);font-size:.78rem;margin-top:26p
        day" card used, so it already syncs, already round-trips through an
        export, and every word written before this tab existed is still here. -->
   <section id="view-journal" class="view">
-    <div class="datebar">
-      <button id="jrnPrevDay" title="Previous day">‹</button>
-      <div class="dlabel" id="jrnDateLabel">Today</div>
-      <button id="jrnNextDay" title="Next day">›</button>
-      <button class="today-btn" id="jrnJumpToday">Today</button>
-    </div>
-    <div class="grid cards">
+    <nav class="subtabs" id="journalSubTabs">
+      <button data-jsub="journal" class="active">📓 Journal</button>
+      <button data-jsub="notes">🗒️ Notes</button>
+    </nav>
 
-    <div class="card" data-card="journal">
-      <h3>📓 Journal<span class="count" id="jrnCount"></span></h3>
-      <textarea id="jrnText" rows="12" placeholder="What happened today? What went well, what didn't, anything worth remembering."></textarea>
-      <div class="muted" style="font-size:.78rem;margin-top:6px">
-        Saved as you type, and included in tomorrow's daily brief along with your recent entries.
+    <div class="subview active" id="jsub-journal">
+      <div class="datebar">
+        <button id="jrnPrevDay" title="Previous day">‹</button>
+        <div class="dlabel" id="jrnDateLabel">Today</div>
+        <button id="jrnNextDay" title="Next day">›</button>
+        <button class="today-btn" id="jrnJumpToday">Today</button>
+      </div>
+      <div class="grid cards">
+
+      <div class="card" data-card="journal">
+        <h3>📓 Journal<span class="count" id="jrnCount"></span></h3>
+        <textarea id="jrnText" rows="12" placeholder="What happened today? What went well, what didn't, anything worth remembering."></textarea>
+        <div class="muted" style="font-size:.78rem;margin-top:6px">
+          Saved as you type, and included in tomorrow's daily brief along with your recent entries.
+        </div>
+      </div>
+
+      <div class="card collapsible" data-collapse="journalpast" data-card="journalpast">
+        <h3>🗂️ Earlier entries<span class="count" id="jrnPastCount"></span></h3>
+        <div class="card-body"><div id="jrnPastBox"></div></div>
+      </div>
+
       </div>
     </div>
 
-    <div class="card collapsible" data-collapse="journalpast" data-card="journalpast">
-      <h3>🗂️ Earlier entries<span class="count" id="jrnPastCount"></span></h3>
-      <div class="card-body"><div id="jrnPastBox"></div></div>
-    </div>
-
+    <!-- Notes are their own synced rows, like projects and tasks - not a
+         field on a day. A note outlives the day it was written on, and a task
+         links to it by id. -->
+    <div class="subview" id="jsub-notes">
+      <div class="datebar">
+        <div class="dlabel" id="noteLabel">Notes</div>
+        <input type="search" id="noteSearch" placeholder="Search notes…" style="flex:1;min-width:0;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:10px;padding:7px 9px;font:inherit;font-size:.82rem">
+        <button class="today-btn" id="noteAddBtn">+ New</button>
+      </div>
+      <div id="noteBox"></div>
     </div>
   </section>
 
@@ -1925,7 +1969,14 @@ var layoutPrefs=(function(){
 })();
 function saveLayout(){try{localStorage.setItem(LAYOUT_KEY,JSON.stringify(layoutPrefs));}catch(e){}}
 
-function layoutGrid(view){return document.querySelector("#view-"+view+" > .grid");}
+/** The view's one list of cards. Journal keeps its cards inside a sub-view
+ * (the Notes sub-tab sits beside them), so the grid is one level down there -
+ * everywhere else it is a direct child. Still exactly one per view either
+ * way, which is what makes reordering well defined. */
+function layoutGrid(view){
+  return document.querySelector("#view-"+view+" > .grid")
+      || document.querySelector("#view-"+view+" > .subview > .grid");
+}
 function layoutCard(key){return document.querySelector('.card[data-card="'+key+'"]');}
 function cardName(card){
   var h=card.querySelector("h3");
@@ -2574,6 +2625,7 @@ function renderAll(){
   renderPrayerChips();
   renderSettings();
   renderJournal();
+  renderNotes(true);
   renderBoard();
   renderWorkflow();
   if(currentSub==="duas")renderDuasList();   /* the links live on the profile */
@@ -2588,7 +2640,7 @@ function renderAll(){
    and a `deleted` tombstone. A delete has to leave a tombstone behind: drop
    the row instead and the next sync from another device, which still holds
    it, simply pushes it back. */
-var ITEM_STORES=["projects","tasks"];
+var ITEM_STORES=["projects","tasks","notes"];
 function itemStore(name){
   if(!state[name]||typeof state[name]!=="object")state[name]={};
   return state[name];
@@ -4742,6 +4794,12 @@ function attachTabSwipe(){
       var s=SUBVIEWS.indexOf(currentSub)+dir;
       if(s>=0&&s<SUBVIEWS.length){navSub(SUBVIEWS[s]);return;}
     }
+    /* Same edge-fallthrough inside Journal: step through its sub-tabs first,
+       and only leave the tab once there is nowhere further to go. */
+    if(currentView==="journal"){
+      var j=JOURNAL_SUBVIEWS.indexOf(currentJournalSub)+dir;
+      if(j>=0&&j<JOURNAL_SUBVIEWS.length){navJournalSub(JOURNAL_SUBVIEWS[j]);return;}
+    }
     var i=VIEWS.indexOf(currentView);
     var next=i+dir;
     if(next<0||next>=VIEWS.length)return;              /* no wrap-around at the ends */
@@ -6045,6 +6103,17 @@ function buildBoardTask(t,projectId){
      says, and the 1.30.1 lesson is that a second label here competes with the
      title for a width neither of them has. */
   if(bits.length)main.appendChild(el("span","btask-meta",bits.join(" ")));
+  /* A linked note reads as a link on its own line, the same treatment a du'a
+     gets on a dhikr row - not as a chip beside the title, which is the width
+     competition the 1.30.1 note is about. */
+  var note=noteById(t.noteId);
+  if(note){
+    var nb=el("button","btask-note linklike","🗒️ "+noteTitle(note));
+    nb.type="button";
+    nb.title="Open this note";
+    nb.addEventListener("click",function(ev){ev.preventDefault();ev.stopPropagation();openNote(note.id);});
+    main.appendChild(nb);
+  }
   row.appendChild(main);
 
   /* The calendar button, back where it was on the old Today card: a green
@@ -6087,6 +6156,8 @@ function openTaskMenu(t,at){
     {label:t.scheduled?"Reschedule on calendar…":"Add to calendar…",run:function(){
       openTaskSchedule(t,at);
     }},
+    {label:noteById(t.noteId)?"Note: “"+noteTitle(noteById(t.noteId))+"”":"Link a note…",
+      run:function(){openTaskNoteMenu(t,at);}},
     {sep:true},
     {label:"Move to…",run:function(){
       if(!others.length){boardNote("There is nowhere else to move it yet.");return;}
@@ -6830,6 +6901,182 @@ function renderJournalPast(){
     more.addEventListener("click",function(){_jrnPastAll=!_jrnPastAll;renderJournalPast();});
     box.appendChild(more);
   }
+}
+
+/* ---------- NOTES ----------
+   Notes are their own synced rows, on the same generic item path as projects
+   and tasks - not a field on a day. A note outlives the day it was written
+   on, and a task points at one by id (`task.noteId`), which is what makes the
+   link survive a rename and travel between devices.
+
+   Deliberately NOT [[wikilinks]]: agreed scope is task-to-note links only.
+   A wiki syntax means a parser, a resolver, an "unresolved link" state and a
+   rename-updates-every-mention rule - none of which a link by id needs. */
+var NOTE_UNTITLED="Untitled note";
+function notesList(){
+  return liveItems("notes").sort(function(a,b){
+    return (b.updated_at||0)-(a.updated_at||0);   /* most recently touched first */
+  });
+}
+function noteById(id){
+  if(!id)return null;
+  var n=itemStore("notes")[id];
+  return (n&&!n.deleted)?n:null;
+}
+function addNote(title,body){
+  var id=newItemId("n");
+  itemStore("notes")[id]={id:id,title:String(title||"").trim(),body:String(body||""),
+    updated_at:Date.now(),deleted:0};
+  save();
+  return id;
+}
+function noteTitle(n){
+  if(!n)return "";
+  if(n.title&&n.title.trim())return n.title.trim();
+  /* A note that was never given a title is still findable by its first line -
+     better than a list of identical "Untitled" rows. */
+  var first=String(n.body||"").split(/\n/)[0].trim();
+  return first?first.slice(0,60):NOTE_UNTITLED;
+}
+/** Every task pointing at this note. The link lives on the task, so this is
+ * the only direction that needs looking up. */
+function tasksLinkedTo(noteId){
+  return liveItems("tasks").filter(function(t){return t.noteId===noteId;});
+}
+
+var _noteOpen=null,_noteQuery="";
+function renderNotes(preserve){
+  var box=document.getElementById("noteBox");
+  if(!box)return;
+  /* `preserve` is only for renderAll(), which runs after a sync pull replaces
+     the whole store - one of the places you might be mid-sentence. Every
+     keystroke is already in `state`, so an open editor is never stale, but
+     rebuilding it under the cursor would eat what is being typed. Same rule
+     as renderJournal. Every other caller is a deliberate action (folding a
+     note, searching, deleting) and must redraw. */
+  if(preserve){
+    var a=document.activeElement;
+    if(a&&box.contains(a)&&(a.tagName==="TEXTAREA"||a.tagName==="INPUT"))return;
+  }
+  box.innerHTML="";
+  var q=(_noteQuery||"").trim().toLowerCase();
+  var all=notesList();
+  var list=q?all.filter(function(n){
+    return (noteTitle(n)+" "+(n.body||"")).toLowerCase().indexOf(q)>=0;
+  }):all;
+
+  var label=document.getElementById("noteLabel");
+  if(label)label.textContent=all.length?(all.length+" note"+(all.length===1?"":"s")):"Notes";
+
+  if(!all.length){
+    box.appendChild(el("p","muted","No notes yet. Make one here, or link one to a task from its ⋮ menu."));
+    return;
+  }
+  if(!list.length){
+    box.appendChild(el("p","muted","Nothing matches “"+_noteQuery+"”."));
+    return;
+  }
+
+  list.forEach(function(n){
+    var open=_noteOpen===n.id;
+    var card=el("div","card note-card"+(open?" is-open":""));
+    card.setAttribute("data-note",n.id);
+
+    var head=el("button","note-head");
+    head.type="button";
+    head.appendChild(el("span","note-title",noteTitle(n)));
+    var linked=tasksLinkedTo(n.id);
+    if(linked.length)head.appendChild(el("span","note-badge",linked.length+" task"+(linked.length===1?"":"s")));
+    head.addEventListener("click",function(){
+      _noteOpen=open?null:n.id;
+      renderNotes();
+    });
+    card.appendChild(head);
+
+    if(!open){
+      var preview=String(n.body||"").replace(/\s+/g," ").trim();
+      if(preview)card.appendChild(el("div","note-preview",preview.slice(0,140)));
+      box.appendChild(card);
+      return;
+    }
+
+    var title=el("input");title.type="text";title.value=n.title||"";
+    title.placeholder="Title";title.className="note-title-in";
+    title.addEventListener("input",function(){
+      n.title=this.value;touchItem(n);
+    });
+    card.appendChild(title);
+
+    var body=el("textarea");body.rows=10;body.value=n.body||"";
+    body.placeholder="Anything worth keeping — plans, references, what you worked out.";
+    body.addEventListener("input",function(){
+      n.body=this.value;touchItem(n);
+    });
+    card.appendChild(body);
+
+    if(linked.length){
+      var back=el("div","note-links");
+      back.appendChild(el("div","note-links-head","Linked from"));
+      linked.forEach(function(t){
+        var b=el("button","linklike",t.title);
+        b.type="button";
+        b.addEventListener("click",function(){nav("tasks");});
+        back.appendChild(b);
+      });
+      card.appendChild(back);
+    }
+
+    var tools=el("div","pill-row");
+    var del=el("button","btn danger","Delete note");
+    del.type="button";
+    del.addEventListener("click",function(){
+      if(linked.length&&!window.confirm("Delete this note? "+linked.length+" task(s) link to it."))return;
+      /* Clear the links too - a task pointing at a deleted note would render
+         nothing and look broken. */
+      linked.forEach(function(t){t.noteId=null;touchItem(t,true);});
+      deleteItem("notes",n.id);
+      _noteOpen=null;
+      renderNotes();renderTaskViews();
+    });
+    tools.appendChild(del);
+    card.appendChild(tools);
+    box.appendChild(card);
+  });
+}
+
+/** From a task's ⋮ menu: link it to a note, make one from it, or open the one
+ * it already has. */
+function openTaskNoteMenu(t,at){
+  var linked=noteById(t.noteId);
+  var actions=[];
+  if(linked){
+    actions.push({label:"📖 Open “"+noteTitle(linked)+"”",run:function(){openNote(linked.id);}});
+    actions.push({label:"Unlink this note",run:function(){
+      t.noteId=null;touchItem(t);renderTaskViews();
+    }});
+    actions.push({sep:true});
+  }
+  actions.push({label:"➕ New note from this task",run:function(){
+    var id=addNote(t.title,"");
+    t.noteId=id;touchItem(t);
+    openNote(id);
+  }});
+  var others=notesList().filter(function(n){return n.id!==t.noteId;});
+  others.slice(0,20).forEach(function(n){
+    actions.push({label:"🗒️ "+noteTitle(n),run:function(){
+      t.noteId=n.id;touchItem(t);renderTaskViews();
+      flash("Linked to “"+noteTitle(n)+"”.","good");
+    }});
+  });
+  if(!others.length&&!linked){
+    actions.push({label:"No other notes yet",run:function(){}});
+  }
+  openMenuSheet("Note · "+t.title,actions,at);
+}
+function openNote(id){
+  _noteOpen=id;
+  nav("journal");
+  navJournalSub("notes");
 }
 
 /* ---------- RENDER: PROGRESS ---------- */
@@ -7592,6 +7839,9 @@ var SUBVIEWS=["plan","recipes","exercises","duas"];
 var TASK_SUBVIEWS=["board","workflow"];
 var currentTaskSub="board";
 var LASTTASKSUB_KEY="yawarLastTaskSub";
+var JOURNAL_SUBVIEWS=["journal","notes"];
+var currentJournalSub="journal";
+var LASTJOURNALSUB_KEY="yawarLastJournalSub";
 var currentView="today",currentSub="plan";
 /* Which tab you were on is remembered so a refresh (or reopening the
    installed app) puts you back where you were, not always on Today. */
@@ -7654,7 +7904,7 @@ function nav(view){
   if(view==="calendar")renderCalendarTab();
   if(view==="prayers")renderPrayersTab();
   if(view==="settings")renderSettings();
-  if(view==="journal")renderJournal();
+  if(view==="journal"){if(currentJournalSub==="notes")renderNotes();else renderJournal();}
   if(view==="tasks"){
     if(currentTaskSub==="workflow")renderWorkflow();else renderBoard();
     sizeTasksPanes();
@@ -7675,6 +7925,20 @@ function navTaskSub(sub){
   try{localStorage.setItem(LASTTASKSUB_KEY,sub);}catch(e){}
   if(sub==="workflow")renderWorkflow();else renderBoard();
   sizeTasksPanes();
+}
+
+function navJournalSub(sub){
+  if(JOURNAL_SUBVIEWS.indexOf(sub)<0)return;
+  currentJournalSub=sub;
+  var tabs=document.getElementById("journalSubTabs").children;
+  for(var i=0;i<tabs.length;i++){
+    tabs[i].classList.toggle("active",tabs[i].getAttribute("data-jsub")===sub);
+  }
+  JOURNAL_SUBVIEWS.forEach(function(v){
+    document.getElementById("jsub-"+v).classList.toggle("active",v===sub);
+  });
+  try{localStorage.setItem(LASTJOURNALSUB_KEY,sub);}catch(e){}
+  if(sub==="notes")renderNotes();else renderJournal();
 }
 
 function navSub(sub){
@@ -7698,18 +7962,20 @@ function navSub(sub){
 document.addEventListener("click",function(ev){
   var t=ev.target;
   if(!t||!t.closest)return;
-  var hit=t.closest("[data-recipe],[data-exercise],[data-nav],[data-sub],[data-tsub]");
+  var hit=t.closest("[data-recipe],[data-exercise],[data-nav],[data-sub],[data-tsub],[data-jsub]");
   if(!hit)return;
   var rec=hit.getAttribute("data-recipe");
   var exc=hit.getAttribute("data-exercise");
   var nv=hit.getAttribute("data-nav");
   var sub=hit.getAttribute("data-sub");
   var tsub=hit.getAttribute("data-tsub");
+  var jsub=hit.getAttribute("data-jsub");
   if(rec){ev.preventDefault();openRecipe(rec);}
   else if(exc){ev.preventDefault();openExercise(exc);}
   else if(nv){nav(nv);}
   else if(sub){navSub(sub);}
   else if(tsub){navTaskSub(tsub);}
+  else if(jsub){navJournalSub(jsub);}
 });
 document.getElementById("modalClose").addEventListener("click",hideModal);
 document.getElementById("overlay").addEventListener("click",function(e){if(e.target===this)hideModal();});
@@ -8066,6 +8332,19 @@ document.getElementById("layoutEditBtn").addEventListener("click",function(){set
 document.getElementById("layoutResetBtn").addEventListener("click",resetLayout);
 
 document.getElementById("themeToggle").addEventListener("click",toggleTheme);
+document.getElementById("noteAddBtn").addEventListener("click",function(){
+  _noteOpen=addNote("","");
+  _noteQuery="";
+  var q=document.getElementById("noteSearch");
+  if(q)q.value="";
+  renderNotes();
+  var box=document.getElementById("noteBox");
+  var input=box&&box.querySelector(".note-title-in");
+  if(input)input.focus();
+});
+document.getElementById("noteSearch").addEventListener("input",function(){
+  _noteQuery=this.value;renderNotes();
+});
 document.getElementById("headerMenuBtn").addEventListener("click",function(ev){
   openHeaderMenu(ev);
 });
@@ -8096,6 +8375,9 @@ openingReminders();
   var savedTaskSub=null;
   try{savedTaskSub=localStorage.getItem(LASTTASKSUB_KEY);}catch(e){}
   if(TASK_SUBVIEWS.indexOf(savedTaskSub)>=0)navTaskSub(savedTaskSub);
+  var savedJrnSub=null;
+  try{savedJrnSub=localStorage.getItem(LASTJOURNALSUB_KEY);}catch(e){}
+  if(JOURNAL_SUBVIEWS.indexOf(savedJrnSub)>=0)navJournalSub(savedJrnSub);
   if(saved&&saved!=="today"&&VIEWS.indexOf(saved)>=0)nav(saved);
 })();
 flushMsgs();

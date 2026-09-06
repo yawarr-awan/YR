@@ -16,7 +16,7 @@ function createFakeD1() {
   const profileRows = new Map(); // user_email -> { data, updated_at }
   const settings = new Map(); // user_email -> { brief_prompt, brief_model }
   /* The board's own tables, keyed `${email}|${id}` like the rest. */
-  const boardItems = { projects: new Map(), tasks: new Map() };
+  const boardItems = { projects: new Map(), tasks: new Map(), notes: new Map() };
 
   // Real D1 statements support .first()/.all()/.run() directly on the
   // prepared statement (no bind() needed when there are nothing to bind),
@@ -108,8 +108,8 @@ function createFakeD1() {
               }),
           };
         }
-        if (/FROM (projects|tasks)\b/.test(sql)) {
-          const table = /FROM projects/.test(sql) ? "projects" : "tasks";
+        if (/FROM (projects|tasks|notes)\b/.test(sql)) {
+          const table = sql.match(/FROM (projects|tasks|notes)\b/)[1];
           const [email, since] = args;
           return {
             results: Array.from(boardItems[table].values())
@@ -142,10 +142,10 @@ function createFakeD1() {
         } else if (/DELETE FROM dua_images/.test(sql)) {
           /* By id, whoever uploaded it. */
           for (const [k, row] of duas) if (row.id === args[0]) duas.delete(k);
-        } else if (/CREATE TABLE IF NOT EXISTS (projects|tasks)/.test(sql)) {
+        } else if (/CREATE TABLE IF NOT EXISTS (projects|tasks|notes)/.test(sql)) {
           /* no-op: the maps are the tables */
-        } else if (/INSERT INTO (projects|tasks)/.test(sql)) {
-          const table = /INSERT INTO projects/.test(sql) ? "projects" : "tasks";
+        } else if (/INSERT INTO (projects|tasks|notes)/.test(sql)) {
+          const table = sql.match(/INSERT INTO (projects|tasks|notes)/)[1];
           const [email, id, data, updated_at, deleted] = args;
           const key = `${email}|${id}`;
           const prev = boardItems[table].get(key);

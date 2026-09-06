@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.42.0
+
+**Notes** — the last piece of the project rework. **Journal** now has two sub-tabs: **📓 Journal** (unchanged) and **🗒️ Notes**.
+
+A note is a title and a body, kept for as long as you want it — not tied to a day the way a journal entry is. Tap one to open it, tap it again to fold it away; **+ New** starts one; **Search notes…** looks through titles and bodies alike.
+
+**Tasks link to notes.** From a task's ⋮ menu: **Link a note…** → either **New note from this task** (which makes one titled after the task and drops you straight into it) or pick an existing one. A linked task shows the note as a link on its own line — tap it and you land in the note. The note, in turn, shows a badge with how many tasks point at it and lists them under **Linked from**.
+
+Notes are their own synced rows, like projects and tasks, so they merge per note across your devices rather than one device overwriting another. Deleting a note lets go of every task that pointed at it, rather than leaving a link to something that isn't there.
+
+Deliberately *not* Obsidian's `[[wikilinks]]`: a link by id survives renaming the note, needs no parser, and can't end up "unresolved".
+
 ## 1.41.0
 
 **Dhikr sorts by dragging**, the same way tasks used to. Every row has a ⠿ grip: pick it up and drop it above or below another row. The ▲▼ arrows and the Reorder button are gone. The order rides your synced profile, and each period is its own list — a morning item can't be dropped into the evening.
