@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.40.0
+
+**A ⋮ menu in the header, on every tab.** The controls that apply wherever you are used to be spread between one tab's toolbar and three screens deep in Settings. They're all in one place now:
+
+- **Text size** — the five steps, with the current one marked.
+- **Dark / light appearance.**
+- **Sync now.** If cloud sync is off it says so and takes you to the switch rather than silently doing nothing.
+- **Rearrange cards on this tab** — offered on Today, Prayers, Journal, Progress and Settings. Calendar is a grid of hours and Misc is three sub-panels, so neither is a list of cards to reorder.
+- **Zoom in / out / Fit**, and **Full screen**, when you're on the Tasks tab.
+- **Export a backup**, and a shortcut to Settings.
+
+**The board's toolbar is gone.** Adding a project is now a floating **+** in the bottom-right corner of the canvas; zoom moved into the header menu. That row cost a whole line of the height the board is short of, and on a phone it was pushing the count off the end anyway.
+
+**The timeline's name column is solid.** Bars scrolling past used to show through the lower half of each row and overlap the task names. The column is `position:sticky`, and once it is, the rule that was sizing it to the full row height stops applying — so the box was only as tall as its text.
+
+**Dhikr can be reordered where you read it.** ↕️ **Reorder** on the Dhikr card gives every row a ▲▼ pair and opens all three periods (you can't move an item past a row that isn't on screen). The order rides your synced profile, so it follows you to your other devices. Moving an item never ticks it off — the row is a label wrapping the checkbox, which it would otherwise have done.
+
 ## 1.39.0
 
 **A better board, and a timeline that isn't boxed in.**

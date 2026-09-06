@@ -43,6 +43,19 @@ function openTaskMenu(app, col, title) {
 }
 const menuItem = (buttons, re) => buttons.find((b) => re.test(b.textContent));
 
+/* The board's own toolbar is gone: zoom lives in the header ⋮ menu now, and
+   the percentage is on the viewport rather than in a label. */
+const zoomOf = (app) => parseInt(app.document.getElementById("canvasViewport").getAttribute("data-zoom"), 10);
+function headerMenu(app) {
+  app.click("headerMenuBtn");
+  return [...app.document.querySelectorAll(".menu-pop button")];
+}
+function headerMenuDo(app, re) {
+  const b = menuItem(headerMenu(app), re);
+  assert.ok(b, "no header menu item matching " + re);
+  b.click();
+}
+
 /* ---------------- the tab ---------------- */
 
 test("Tasks is the first tab, before Today", () => {
@@ -185,7 +198,8 @@ test("Move to says so when there is nowhere else to go", () => {
   const app = openBoard(loadApp({ fetchImpl: idle }));
   addTaskTo(app, newProject(app, "Only"), "Alone");
   menuItem(openTaskMenu(app, colNamed(app, "Only"), "Alone"), /Move to/).click();
-  assert.match(app.document.getElementById("boardCount").textContent, /nowhere else/i);
+  // The board has no status line of its own now; it uses the app status bar.
+  assert.match(app.statusText(), /nowhere else/i);
 });
 
 /* ---------------- migration ---------------- */
@@ -412,6 +426,28 @@ test("today is marked, and the view opens near it", () => {
     "a task starting today begins exactly at the today line");
 });
 
+test("the name gutter is solid all the way down its rows", () => {
+  /* It is position:sticky, and the base rule's inset-block:0 stops being
+     sizing once it is - so the label shrank to its text and a bar scrolling
+     past showed through the rest of the row. Reported as bars overlapping the
+     first column. */
+  const app = loadApp({ fetchImpl: idle,
+    localStorageSeed: boardSeed([{ title: "Now", start: dayKeyFrom(0), end: dayKeyFrom(9) }]) });
+  openWorkflow(app);
+
+  const styles = app.document.querySelector("style").textContent;
+  const rule = styles.match(/\.wf-row \.wf-rowlabel\{[^}]*\}/)[0];
+  assert.match(rule, /position:sticky/);
+  assert.match(rule, /height:100%/, "or the box is only as tall as its text");
+
+  const label = app.document.querySelector("#wfGrid .wf-row .wf-rowlabel");
+  const cs = app.window.getComputedStyle(label);
+  assert.notEqual(cs.background + cs.backgroundColor, "", "and it is opaque");
+  const bar = app.document.querySelector("#wfGrid .wf-bar");
+  assert.ok(parseInt(app.window.getComputedStyle(label).zIndex, 10)
+    > parseInt(app.window.getComputedStyle(bar).zIndex, 10), "bars pass underneath it");
+});
+
 test("the week headings have a corner over the name gutter to scroll under", () => {
   const app = loadApp({ fetchImpl: idle,
     localStorageSeed: boardSeed([{ title: "Now", start: dayKeyFrom(0), end: dayKeyFrom(2) }]) });
@@ -562,8 +598,8 @@ test("dragging at half zoom moves the card by half as many canvas pixels", () =>
   // the card runs away from the finger.
   const app = openBoard(loadApp({ fetchImpl: idle }));
   newProject(app, "Zoomed");
-  app.click("zoomOutBtn"); app.click("zoomOutBtn"); app.click("zoomOutBtn"); app.click("zoomOutBtn");
-  const z = app.window.parseFloat(app.document.getElementById("zoomLabel").textContent) / 100;
+  for (let i = 0; i < 4; i++) headerMenuDo(app, /Zoom out/);
+  const z = zoomOf(app) / 100;
   assert.ok(z < 1, "we are zoomed out");
 
   const start = Object.values(app.state().projects)[0].x;
@@ -579,13 +615,12 @@ test("dragging at half zoom moves the card by half as many canvas pixels", () =>
 test("zoom is clamped, shown, and remembered per device rather than synced", () => {
   const app = openBoard(loadApp({ fetchImpl: idle }));
   newProject(app, "Anything");   // so there is a saved store to inspect
-  const label = () => app.document.getElementById("zoomLabel").textContent;
-  assert.equal(label(), "100%");
+  assert.equal(zoomOf(app), 100);
 
-  for (let i = 0; i < 20; i++) app.click("zoomInBtn");
-  assert.ok(parseInt(label(), 10) <= 250, "there is a ceiling");
-  for (let i = 0; i < 40; i++) app.click("zoomOutBtn");
-  assert.ok(parseInt(label(), 10) >= 35, "and a floor");
+  for (let i = 0; i < 20; i++) headerMenuDo(app, /Zoom in/);
+  assert.ok(zoomOf(app) <= 250, "there is a ceiling");
+  for (let i = 0; i < 40; i++) headerMenuDo(app, /Zoom out/);
+  assert.ok(zoomOf(app) >= 35, "and a floor");
 
   assert.ok(app.window.localStorage.getItem("yawarBoardView"), "kept per device");
   assert.ok(!JSON.stringify(app.state()).includes("yawarBoardView"));
@@ -608,8 +643,7 @@ test("dragging the background pans the canvas", () => {
 test("a second finger pinches instead of panning", () => {
   const app = openBoard(loadApp({ fetchImpl: idle }));
   newProject(app, "Pinch me");
-  const zoomOf = () => parseInt(app.document.getElementById("zoomLabel").textContent, 10);
-  assert.equal(zoomOf(), 100);
+  assert.equal(zoomOf(app), 100);
 
   pointer(app, "pointerdown", 1, 100, 300);
   pointer(app, "pointerdown", 2, 200, 300);   // 100px apart
@@ -618,7 +652,7 @@ test("a second finger pinches instead of panning", () => {
   pointer(app, "pointerup", 1, 50, 300);
   pointer(app, "pointerup", 2, 250, 300);
 
-  assert.ok(zoomOf() > 150, "spreading two fingers zoomed in, got " + zoomOf());
+  assert.ok(zoomOf(app) > 150, "spreading two fingers zoomed in, got " + zoomOf(app));
 });
 
 test("the canvas keeps its own gestures, so a pan never changes tab", () => {
@@ -636,6 +670,24 @@ test("scrolling the timeline sideways never changes tab either", () => {
   app.document.querySelector('[data-tsub="workflow"]').click();
   app.swipe("wfScroll", -180, 0);
   assert.equal(app.document.querySelector(".view.active").id, "view-tasks");
+});
+
+test("the board has no toolbar - just the canvas and one + button", () => {
+  // The row above the canvas cost a whole line of the height the board is
+  // short of; zoom moved to the header menu with the other view controls.
+  const app = openBoard(loadApp({ fetchImpl: idle }));
+  assert.equal(app.document.querySelector(".board-bar"), null);
+  assert.equal(app.document.getElementById("zoomInBtn"), null);
+  assert.equal(app.document.getElementById("zoomFitBtn"), null);
+  assert.equal(app.document.getElementById("boardCount"), null);
+
+  const fab = app.document.getElementById("projectAddBtn");
+  assert.ok(fab, "adding a project is the one thing still one tap away");
+  assert.equal(fab.closest(".canvas-viewport")?.id, "canvasViewport", "floating over the board");
+  assert.equal(app.window.getComputedStyle(fab).position, "absolute");
+
+  fab.click();
+  assert.equal(cols(app).length, 1, "and it still adds one");
 });
 
 test("the board hint is gone - the gestures are not worth a permanent caption", () => {
