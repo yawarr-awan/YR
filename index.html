@@ -121,6 +121,11 @@ nav.tabs button{
   font-size:.62rem;line-height:1.1;
 }
 nav.tabs button i{font-style:normal;font-size:1.2rem;line-height:1}
+/* The Workflow tab is the one icon that is drawn rather than an emoji: a Gantt
+   chart is what the tab *is*, and no emoji is one. Three offset bars, in the
+   same palette the board gives its projects. */
+.ico-gantt{display:block;width:1.5rem;height:1.5rem}
+.ico-gantt svg{display:block;width:100%;height:100%}
 nav.tabs button.active{color:var(--brand)}
 /* Kept on one line at phone width: the label takes the slack and ellipses,
    the controls stay a fixed size rather than wrapping into a tall stack. */
@@ -1537,7 +1542,7 @@ a.btn{text-decoration:none;display:inline-block}
 </div>
 <nav class="tabs" id="tabs">
   <button data-nav="tasks"><i>🗂️</i>Tasks</button>
-  <button data-nav="workflow"><i>⏳</i>Workflow</button>
+  <button data-nav="workflow"><i class="ico-gantt" aria-hidden="true"><svg viewBox="0 0 24 24" width="24" height="24"><rect x="1.5" y="3" width="13" height="5.2" rx="2.6" fill="#2dd4bf"/><rect x="6.5" y="9.4" width="14.5" height="5.2" rx="2.6" fill="#60a5fa"/><rect x="3.5" y="15.8" width="10.5" height="5.2" rx="2.6" fill="#fbbf24"/></svg></i>Workflow</button>
   <button data-nav="today" class="active"><i>📋</i>Today</button>
   <button data-nav="prayers"><i>🕌</i>Prayers</button>
   <button data-nav="calendar"><i>🗓️</i>Calendar</button>
@@ -6388,7 +6393,7 @@ function openTaskMenu(t,at){
     /* Named for what it does rather than for the fields it shows: giving a
        task a span *is* putting it on the workflow, and "Set dates…" never
        said so. */
-    {label:taskHasSpan(t)?"⏳ Change workflow dates…":"⏳ Add to the workflow…",
+    {label:taskHasSpan(t)?"Change workflow dates…":"Add to the workflow…",
       run:function(){openTaskDates(t,at);}},
     {label:t.scheduled?"Reschedule on calendar…":"Add to calendar…",run:function(){
       openTaskSchedule(t,at);
