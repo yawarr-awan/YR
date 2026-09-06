@@ -17,6 +17,7 @@ function createFakeD1() {
   const settings = new Map(); // user_email -> { brief_prompt, brief_model }
   /* The board's own tables, keyed `${email}|${id}` like the rest. */
   const boardItems = { projects: new Map(), tasks: new Map(), notes: new Map() };
+  const dailyAyah = new Map(); // `${email}|${day}` -> row
 
   // Real D1 statements support .first()/.all()/.run() directly on the
   // prepared statement (no bind() needed when there are nothing to bind),
@@ -34,6 +35,10 @@ function createFakeD1() {
         if (/FROM daily_brief/.test(sql)) {
           const [email, day] = args;
           return dailyBrief.get(`${email}|${day}`) || null;
+        }
+        if (/FROM daily_ayah/.test(sql)) {
+          const [email, day] = args;
+          return dailyAyah.get(`${email}|${day}`) || null;
         }
         if (/FROM profile/.test(sql)) {
           if (/updated_at > \?2/.test(sql)) {
@@ -111,9 +116,15 @@ function createFakeD1() {
         if (/FROM (projects|tasks|notes)\b/.test(sql)) {
           const table = sql.match(/FROM (projects|tasks|notes)\b/)[1];
           const [email, since] = args;
+          /* The sync pull passes a watermark; a plain read (the brief's
+             workflow section) passes only the email and filters on deleted in
+             SQL instead. Both shapes have to work. */
+          const wantLive = /deleted\s*=\s*0/.test(sql);
           return {
             results: Array.from(boardItems[table].values())
-              .filter((r) => r.user_email === email && r.updated_at > since)
+              .filter((r) => r.user_email === email)
+              .filter((r) => (since === undefined ? true : r.updated_at > since))
+              .filter((r) => (wantLive ? !r.deleted : true))
               .sort((a, b) => a.updated_at - b.updated_at)
               .map(({ id, data, updated_at, deleted }) => ({ id, data, updated_at, deleted })),
           };
@@ -190,6 +201,12 @@ function createFakeD1() {
         } else if (/INSERT INTO daily_brief/.test(sql)) {
           const [email, day, summary, status, error, generated_at] = args;
           dailyBrief.set(`${email}|${day}`, { summary, status, error, generated_at });
+        } else if (/CREATE TABLE IF NOT EXISTS daily_ayah/.test(sql)) {
+          /* no-op: the map is the table */
+        } else if (/INSERT INTO daily_ayah/.test(sql)) {
+          /* The day's verses are one JSON blob, the way the Worker stores them. */
+          const [email, day, items, status, error, generated_at] = args;
+          dailyAyah.set(`${email}|${day}`, { items, status, error, generated_at });
         }
         return { success: true };
       },
@@ -235,6 +252,16 @@ function createFakeD1() {
     days,
     seedProfile(email, data) {
       profiles.set(email, typeof data === "string" ? data : JSON.stringify(data));
+    },
+    ayah: dailyAyah,
+    /* A board row as the Worker stores it: the item's JSON in `data`. */
+    seedItem(table, email, id, data, opts) {
+      boardItems[table].set(`${email}|${id}`, {
+        user_email: email, id,
+        data: typeof data === "string" ? data : JSON.stringify(data),
+        updated_at: (opts && opts.updated_at) ?? Date.now(),
+        deleted: (opts && opts.deleted) ? 1 : 0,
+      });
     },
     seedBrief(email, day, row) {
       dailyBrief.set(`${email}|${day}`, {

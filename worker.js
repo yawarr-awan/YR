@@ -929,14 +929,16 @@ async function fetchTrends(env, email, day) {
 const DEFAULT_BRIEF_PROMPT =
   "Open with a short paragraph - two or three sentences, prose, no heading and no bullets - " +
   "saying what to focus on today.\n\n" +
-  "Build it from two things, in this order of priority:\n" +
+  "Build it from three things, in this order of priority:\n" +
   "1. What the writer told themselves to do, in JOURNAL. If they made a commitment, set " +
   "themselves a rule, or asked to be reminded of something, that belongs in the paragraph - " +
   "it is the closest thing to an instruction you will get. Honour any date they attached " +
   "to it: before that date say it is coming, on and after it say it applies today. Keep " +
   "carrying it until they write that it is done or abandoned.\n" +
   "2. What the record shows, in HISTORY. Name at most two things that are slipping and " +
-  "quote the figure that shows it, and say one thing that is going well.\n\n" +
+  "quote the figure that shows it, and say one thing that is going well.\n" +
+  "3. What the projects say, in WORKFLOW. Anything overdue there is worth a sentence, and " +
+  "so is a piece of work that starts today. Talk about the work, not about the tool.\n\n" +
   "A commitment from the journal outranks a drifting figure: if you can only fit one, use " +
   "theirs. No greeting, no pep talk.\n\n" +
   "Then the schedule, and nothing else. Use exactly this shape:\n" +
@@ -956,8 +958,8 @@ const DEFAULT_BRIEF_PROMPT =
   "- Never quote the journal back word for word, and never give it bullets of its own. " +
   "Draw on any entry, however old, not just the most recent - an intention from months ago " +
   "that never happened is worth more than yesterday's weather.\n" +
-  "- If both HISTORY and JOURNAL are absent, skip the paragraph entirely and start at " +
-  "\"Today\".\n" +
+  "- If HISTORY, JOURNAL and WORKFLOW are all absent, skip the paragraph entirely and " +
+  "start at \"Today\".\n" +
   "- One bullet per calendar event and per task. Never merge two into one line.\n" +
   "- Start each bullet with its time exactly as given, or \"All day\" if it has none.\n" +
   "- Then the name, then its calendar or task list in square brackets if one is given.\n" +
@@ -1165,11 +1167,6 @@ async function summarizeWithGemini(env, ctx) {
   const { day, events, tasks, now, instructions, tomorrow, journal, trends } = ctx;
 
   const nowLabel = (now || new Date()).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: BRIEF_TIMEZONE });
-  /* The weekday, so a journal line like "from Thursday onwards" can actually
-     be resolved against today. Noon UTC is used to name the day because it is
-     the same calendar date in every timezone the app is used from. */
-  const weekday = (d) => new Date(d + "T12:00:00Z").toLocaleDateString("en-GB", { weekday: "long", timeZone: "UTC" });
-
   const eventBlock = (list, emptyText) => (list && list.length
     ? list.map((e) => {
         const when = e.allDay
@@ -1214,11 +1211,17 @@ async function summarizeWithGemini(env, ctx) {
     ? `\nHISTORY (already computed from the full record - use these figures as given, never recompute one)\n${trends.text}\n`
     : "";
 
+  /* The projects, beside the record: an overdue piece of work belongs in the
+     opening paragraph as much as a slipping figure does. */
+  const workflowBlock = ctx.workflow && ctx.workflow.text
+    ? `\nWORKFLOW (what is on the project timeline - dates are the plan, not appointments)\n${ctx.workflow.text}\n`
+    : "";
+
   const tm = tomorrow || {};
   const prompt =
     `${(instructions || DEFAULT_BRIEF_PROMPT)}\n\n` +
     `It is currently ${nowLabel} on ${weekday(day)} ${day}. Tomorrow is ${weekday(tm.day || nextDay(day))}.\n` +
-    `${historyBlock}\n` +
+    `${historyBlock}${workflowBlock}\n` +
     `TODAY (${day})\n` +
     `Remaining events:\n${eventBlock(events, "(No calendar events remaining today.)")}\n\n` +
     `${taskBlock("Tasks due today", t.dueToday)}\n\n` +
@@ -1231,6 +1234,13 @@ async function summarizeWithGemini(env, ctx) {
 
   return callGemini(env, prompt, { models: geminiModelList(ctx.model) });
 }
+
+/** The weekday of a YYYY-MM-DD, so a journal line like "from Thursday
+ * onwards" can actually be resolved against today. Formatted from noon UTC:
+ * noon is the same calendar date in every zone, so no local midnight boundary
+ * can rename the day. At module scope because the ayah reflection wants it
+ * as well as the brief. */
+const weekday = (d) => new Date(d + "T12:00:00Z").toLocaleDateString("en-GB", { weekday: "long", timeZone: "UTC" });
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -1337,6 +1347,326 @@ async function saveBriefFailure(env, email, day, status, detail) {
   return { status, day, error: detail };
 }
 
+
+/* ---------- THE WORKFLOW, FOR THE BRIEF ----------
+   Projects and tasks are D1 rows, so the cron can read them with no browser
+   involved - the same reason fetchJournal and fetchTrends read `days`
+   directly. Like those, this never throws: the workflow enriches the brief,
+   it is not the brief, and its error is persisted beside a successful
+   summary rather than costing you one. */
+const WF_SOON_DAYS = 7;
+const WF_MAX_LINES = 12;
+
+function wfTaskLine(t, project) {
+  const where = project ? ` (${project})` : "";
+  const span = t.start && t.end && t.start !== t.end ? `${t.start} → ${t.end}`
+    : (t.end || t.start || "");
+  return `- ${t.title}${where}${span ? ` · ${span}` : ""}`;
+}
+
+async function fetchWorkflow(env, email, day) {
+  const out = { text: null, error: null };
+  try {
+    await ensureItemTables(env);
+    const [projRes, taskRes] = await Promise.all([
+      env.DB.prepare(`SELECT data FROM projects WHERE user_email = ?1 AND deleted = 0`).bind(email).all(),
+      env.DB.prepare(`SELECT data FROM tasks WHERE user_email = ?1 AND deleted = 0`).bind(email).all(),
+    ]);
+    const names = {};
+    for (const r of projRes?.results || []) {
+      try { const p = JSON.parse(r.data); if (p && p.id) names[p.id] = p.name; } catch { /* skip */ }
+    }
+    const tasks = [];
+    for (const r of taskRes?.results || []) {
+      try { const t = JSON.parse(r.data); if (t && t.title) tasks.push(t); } catch { /* skip */ }
+    }
+
+    const open = tasks.filter((t) => !t.done);
+    const soon = addDays(day, WF_SOON_DAYS);
+    const running = [], overdue = [], starting = [];
+    let unplotted = 0;
+    for (const t of open) {
+      const start = t.start || t.end || null;
+      const end = t.end || t.start || null;
+      if (!start || !end) { unplotted++; continue; }
+      if (end < day) overdue.push(t);
+      else if (start <= day) running.push(t);
+      else if (start <= soon) starting.push(t);
+    }
+
+    const parts = [];
+    const section = (title, list) => {
+      if (!list.length) return;
+      parts.push(`${title}:`);
+      for (const t of list.slice(0, WF_MAX_LINES)) parts.push(wfTaskLine(t, names[t.projectId]));
+      if (list.length > WF_MAX_LINES) parts.push(`- …and ${list.length - WF_MAX_LINES} more`);
+    };
+    section("Overdue — the end date has passed and it is not done", overdue);
+    section("Running today", running);
+    section(`Starting within ${WF_SOON_DAYS} days`, starting);
+    if (unplotted) parts.push(`${unplotted} open task(s) are not on the timeline at all.`);
+    if (!parts.length) parts.push("Nothing is on the timeline right now.");
+    out.text = parts.join("\n");
+  } catch (e) {
+    out.error = `workflow: ${String(e.message || e)}`;
+  }
+  return out;
+}
+
+/** day + n, in UTC so no daylight-saving shift can move a date key. */
+function addDays(day, n) {
+  const p = String(day).split("-");
+  const d = new Date(Date.UTC(+p[0], +p[1] - 1, +p[2]));
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+
+
+/* ---------- THE DAILY AYAH ----------
+   A verse of the Qur'an, its English translation, and a short reflection tying
+   it to the day ahead.
+
+   The one rule this is built around: **the model never supplies the verse.**
+   Arabic and translation are fetched from a canonical API and passed to Gemini
+   as fixed text it may only comment on. An LLM asked to "quote a verse"
+   produces something plausible, and a misquoted Qur'an is not a rounding error
+   - so if the fetch fails, the card says so rather than falling back to
+   anything generated. Only the reflection is written.
+
+   The references are a fixed, curated rotation rather than a random ayah out
+   of 6236: a verse picked at random is routinely a fragment mid-narrative,
+   which is not something to hand someone as a morning reflection. Each one
+   below was checked against canonical text before being listed. */
+const AYAH_REFS = [
+  "2:45", "2:152", "2:153", "2:286", "3:139", "3:190-191", "3:200", "4:36",
+  "7:31", "13:11", "14:7", "16:97", "17:23-24", "20:114", "25:63", "29:69",
+  "31:18-19", "39:53", "42:43", "49:13", "53:39", "57:20", "59:18", "64:16",
+  "76:8-9", "93:4-5", "94:5-6", "103:1-3",
+];
+const AYAH_TIMEOUT_MS = 8000;
+
+/* Three a day rather than one, so the card has something to move between.
+   They are consecutive in the rotation, so a day never repeats itself. */
+const AYAH_PER_DAY = 3;
+
+async function ensureAyahTable(env) {
+  await env.DB.prepare(
+    `CREATE TABLE IF NOT EXISTS daily_ayah (
+       user_email TEXT NOT NULL,
+       day TEXT NOT NULL,
+       items TEXT,
+       status TEXT NOT NULL,
+       error TEXT,
+       generated_at INTEGER NOT NULL,
+       PRIMARY KEY (user_email, day)
+     )`
+  ).run();
+}
+
+/** Which verse today is. Deterministic from the date, so it is stable all day
+ * and every device agrees, and it walks the list rather than jumping about. */
+function ayahRefForDay(day, offset) {
+  const p = String(day).split("-");
+  const days = Math.floor(Date.UTC(+p[0], +p[1] - 1, +p[2]) / 86400000) * AYAH_PER_DAY + (offset || 0);
+  return AYAH_REFS[((days % AYAH_REFS.length) + AYAH_REFS.length) % AYAH_REFS.length];
+}
+function ayahRefsForDay(day) {
+  const out = [];
+  for (let i = 0; i < AYAH_PER_DAY; i++) out.push(ayahRefForDay(day, i));
+  return out;
+}
+
+/** "2:255" or "94:5-6" -> [{surah, ayah}, ...]. */
+function expandRef(ref) {
+  const m = String(ref).match(/^(\d+):(\d+)(?:-(\d+))?$/);
+  if (!m) return [];
+  const surah = +m[1], from = +m[2], to = m[3] ? +m[3] : +m[2];
+  const out = [];
+  for (let a = from; a <= to && out.length < 10; a++) out.push({ surah, ayah: a });
+  return out;
+}
+
+async function getJson(url) {
+  const res = await fetch(url, { signal: AbortSignal.timeout(AYAH_TIMEOUT_MS) });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return await res.json();
+}
+
+/* Two providers, tried in order, because this is the one thing on the card
+   that must not be improvised if a service is down. Both are read
+   shape-tolerantly: neither contract could be exercised from the build
+   sandbox (its egress proxy blocks them), so the readers look for the fields
+   rather than assuming a shape - the same call the prayer-time normaliser
+   made for the same reason. */
+async function fetchAyahFromAlquranCloud(parts) {
+  const arabic = [], english = [];
+  let name = null;
+  for (const p of parts) {
+    const body = await getJson(
+      `https://api.alquran.cloud/v1/ayah/${p.surah}:${p.ayah}/editions/quran-uthmani,en.sahih`
+    );
+    const eds = Array.isArray(body?.data) ? body.data : [body?.data];
+    for (const ed of eds) {
+      const text = typeof ed?.text === "string" ? ed.text.trim() : "";
+      if (!text) continue;
+      const lang = ed?.edition?.language || ed?.edition?.identifier || "";
+      if (String(lang).startsWith("ar")) { arabic.push(text); name = name || ed?.surah?.englishName || null; }
+      else english.push(text);
+    }
+  }
+  if (!arabic.length || !english.length) throw new Error("alquran.cloud: no text in response");
+  return { arabic: arabic.join(" "), translation: english.join(" "), surahName: name,
+    source: "alquran.cloud · Sahih International" };
+}
+
+async function fetchAyahFromQuranCom(parts) {
+  const arabic = [], english = [];
+  for (const p of parts) {
+    const body = await getJson(
+      `https://api.quran.com/api/v4/verses/by_key/${p.surah}:${p.ayah}` +
+      `?fields=text_uthmani&translations=20`
+    );
+    const v = body?.verse || body?.data?.verse || body;
+    const ar = typeof v?.text_uthmani === "string" ? v.text_uthmani.trim() : "";
+    if (ar) arabic.push(ar);
+    const tr = Array.isArray(v?.translations) ? v.translations[0]?.text : null;
+    /* quran.com marks footnotes up in the translation; the card wants prose. */
+    if (typeof tr === "string" && tr.trim()) english.push(tr.replace(/<[^>]*>/g, "").trim());
+  }
+  if (!arabic.length || !english.length) throw new Error("quran.com: no text in response");
+  return { arabic: arabic.join(" "), translation: english.join(" "), surahName: null,
+    source: "quran.com · Sahih International" };
+}
+
+async function fetchAyahText(ref) {
+  const parts = expandRef(ref);
+  if (!parts.length) throw new Error(`bad reference "${ref}"`);
+  const why = [];
+  for (const [name, fn] of [["alquran.cloud", fetchAyahFromAlquranCloud],
+                            ["quran.com", fetchAyahFromQuranCom]]) {
+    try { return await fn(parts); }
+    catch (e) { why.push(`${name}: ${String(e.message || e)}`); }
+  }
+  throw new Error(why.join(" · "));
+}
+
+/** The reflection, and only the reflection. The verse is given to the model as
+ * fixed text with an explicit instruction never to reproduce, extend or
+ * paraphrase it, and never to speak as a scholar - this is a personal
+ * reflection beside a verse, not tafsir and not a ruling. */
+const AYAH_REFLECTION_PROMPT = [
+  "You are writing one short reflection for a personal wellness dashboard.",
+  "",
+  "ABSOLUTE RULES:",
+  "- The Arabic and the English translation below are canonical text fetched from a",
+  "  verified source. Do NOT reproduce, re-translate, extend, correct or paraphrase",
+  "  either of them. They are already on the page above your reflection.",
+  "- Do NOT quote any other verse, and do NOT quote or refer to any hadith - you have",
+  "  not been given canonical text for those and must not produce any from memory.",
+  "- Do NOT state what scholars say, what the verse 'means' as a matter of scholarship,",
+  "  or any ruling about what is permitted or required. You are not a scholar here.",
+  "- Write only what a person might notice in the translation, and how it might bear on",
+  "  the day described below. Observation and application, never authority.",
+  "",
+  "Write 2-3 sentences, plain prose, no heading, no bullet points, no greeting.",
+  "Address the reader as 'you'. Be concrete about their day where the connection is",
+  "real, and stay general rather than forcing one where it is not.",
+].join("\n");
+
+async function reflectOnAyah(env, ctx) {
+  const lines = [
+    AYAH_REFLECTION_PROMPT,
+    "",
+    `TODAY IS ${weekday(ctx.day)} ${ctx.day}.`,
+    "",
+    "THE VERSE (canonical, fetched - comment on it, never reproduce it):",
+    `Reference: Qur'an ${ctx.ref}`,
+    `Translation: ${ctx.translation}`,
+  ];
+  if (ctx.context) lines.push("", "WHAT THE DAY LOOKS LIKE FOR THEM:", ctx.context);
+  /* The same rotation the brief uses, with the user's chosen model first. */
+  const text = await callGemini(env, lines.join("\n"), { models: geminiModelList(ctx.model) });
+  return String(text || "").trim();
+}
+
+async function saveAyah(env, email, day, row) {
+  await env.DB.prepare(
+    `INSERT INTO daily_ayah (user_email, day, items, status, error, generated_at)
+     VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+     ON CONFLICT(user_email, day) DO UPDATE SET
+       items = excluded.items, status = excluded.status,
+       error = excluded.error, generated_at = excluded.generated_at`
+  ).bind(email, day, JSON.stringify(row.items || []), row.status, row.error ?? null, Date.now()).run();
+}
+
+async function generateAyah(env, email, now) {
+  await ensureAyahTable(env);
+  const { day } = localDayBounds(BRIEF_TIMEZONE, now || new Date());
+  const refs = ayahRefsForDay(day);
+
+  /* The workflow is read once and shared by all three reflections - the day
+     it is reflecting against is the same day. */
+  const [workflow, model] = await Promise.all([
+    fetchWorkflow(env, email, day),
+    getBriefModel(env, email),
+  ]);
+
+  const items = [];
+  const problems = [];
+  for (const ref of refs) {
+    let verse;
+    try {
+      verse = await fetchAyahText(ref);
+    } catch (e) {
+      /* No verse means no card for that one. Deliberately not "ask the model
+         instead": a generated verse is the one outcome worse than a gap. */
+      problems.push(`${ref}: ${String(e.message || e)}`);
+      continue;
+    }
+    let reflection = null;
+    try {
+      reflection = await reflectOnAyah(env, {
+        day, ref, translation: verse.translation, context: workflow.text, model,
+      });
+    } catch (e) {
+      /* The reflection is enrichment; the verse still stands without it. */
+      problems.push(`${ref} reflection: ${String(e.message || e)}`);
+    }
+    items.push({ ref, arabic: verse.arabic, translation: verse.translation,
+      source: verse.source, reflection });
+  }
+
+  const error = problems.join(" · ") || null;
+  if (!items.length) {
+    await saveAyah(env, email, day, { items: [], status: "verse_error", error });
+    return { status: "verse_error", day, items: [], error };
+  }
+  await saveAyah(env, email, day, { items, status: "ok", error });
+  return { status: "ok", day, items, error };
+}
+
+async function handleGetAyah(env, email, now) {
+  await ensureAyahTable(env);
+  const { day } = localDayBounds(BRIEF_TIMEZONE, now || new Date());
+  const row = await env.DB.prepare(
+    `SELECT items, status, error, generated_at FROM daily_ayah WHERE user_email = ?1 AND day = ?2`
+  ).bind(email, day).first();
+  let items = [];
+  try { items = JSON.parse(row?.items || "[]"); } catch { items = []; }
+  return json({
+    day,
+    items: Array.isArray(items) ? items : [],
+    status: row?.status ?? "pending",
+    error: row?.error ?? null,
+    generated_at: row?.generated_at ?? null,
+  });
+}
+
+async function handleRefreshAyah(env, email, now) {
+  const r = await generateAyah(env, email, now);
+  return json({ day: r.day, items: r.items || [], status: r.status, error: r.error ?? null });
+}
+
 async function saveBriefStatus(env, email, day, status, summary, error) {
   await env.DB.prepare(
     `INSERT INTO daily_brief (user_email, day, summary, status, error, generated_at)
@@ -1384,9 +1714,10 @@ async function generateBrief(env, email, now) {
   }
 
   const tasks = await fetchTasks(tokenResult.accessToken, day, tomorrowDay);
-  const [journal, trends, model] = await Promise.all([
+  const [journal, trends, workflow, model] = await Promise.all([
     fetchJournal(env, email, day),
     fetchTrends(env, email, day),
+    fetchWorkflow(env, email, day),
     getBriefModel(env, email),
   ]);
 
@@ -1396,7 +1727,7 @@ async function generateBrief(env, email, now) {
       day, events, tasks, now: effectiveNow,
       instructions: await getBriefPrompt(env, email),
       tomorrow: { day: tomorrowDay, events: tomorrowEvents },
-      journal, trends, model,
+      journal, trends, workflow, model,
     });
   } catch (e) {
     const detail = String(e.message || e);
@@ -1407,7 +1738,8 @@ async function generateBrief(env, email, now) {
   /* A Tasks failure doesn't stop the brief, but it is recorded alongside the
      successful summary so "why are none of my tasks in here?" is answerable
      instead of looking identical to "you have no tasks". */
-  const softError = [tasks.error, journal.error, trends.error].filter(Boolean).join(" · ") || null;
+  const softError = [tasks.error, journal.error, trends.error, workflow.error]
+    .filter(Boolean).join(" · ") || null;
   await saveBriefStatus(env, email, day, "ok", summary, softError);
   return { status: "ok", day, summary, generated_at: generatedAt, error: softError };
 }
@@ -1772,12 +2104,19 @@ async function handleScheduled(env, now) {
 
   const { day } = localDayBounds(BRIEF_TIMEZONE, now);
   const { results } = await env.DB.prepare(`SELECT user_email FROM google_tokens`).all();
+  await ensureAyahTable(env);
   for (const row of results) {
     const existing = await env.DB.prepare(
       `SELECT status FROM daily_brief WHERE user_email = ?1 AND day = ?2`
     ).bind(row.user_email, day).first();
-    if (existing && existing.status === "ok") continue;
-    await generateBrief(env, row.user_email, now);
+    if (!existing || existing.status !== "ok") await generateBrief(env, row.user_email, now);
+
+    /* The verse is its own row with its own status, so a brief that failed
+       does not cost you the ayah and vice versa. Same dedupe rule. */
+    const ayahRow = await env.DB.prepare(
+      `SELECT status FROM daily_ayah WHERE user_email = ?1 AND day = ?2`
+    ).bind(row.user_email, day).first();
+    if (!ayahRow || ayahRow.status !== "ok") await generateAyah(env, row.user_email, now);
   }
 }
 
@@ -2188,6 +2527,12 @@ export default {
       if (url.pathname === "/api/brief/refresh" && request.method === "POST") {
         return await handleRefreshBrief(env, email);
       }
+      if (url.pathname === "/api/ayah" && request.method === "GET") {
+        return await handleGetAyah(env, email);
+      }
+      if (url.pathname === "/api/ayah/refresh" && request.method === "POST") {
+        return await handleRefreshAyah(env, email);
+      }
       if (url.pathname === "/api/prayer" && request.method === "GET") {
         return await handlePrayerDay(request, env);
       }
@@ -2228,6 +2573,16 @@ export default {
 // coverage is unchanged and already covered separately.
 export {
   handleSync,
+  fetchWorkflow,
+  ayahRefForDay,
+  ayahRefsForDay,
+  AYAH_PER_DAY,
+  expandRef,
+  fetchAyahText,
+  generateAyah,
+  handleGetAyah,
+  handleRefreshAyah,
+  AYAH_REFS,
   localDayBounds,
   dayBoundsForDate,
   nextDay,

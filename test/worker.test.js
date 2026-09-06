@@ -1675,7 +1675,7 @@ test("a history read failure is recorded beside the summary and never blocks the
   assert.equal(result.status, "ok");
   assert.match(result.error, /profile unreadable/);
   assert.doesNotMatch(prompt, /HISTORY \(already computed/, "no half-built history block");
-  assert.match(prompt, /If both HISTORY and JOURNAL are absent, skip the paragraph/);
+  assert.match(prompt, /If HISTORY, JOURNAL and WORKFLOW are all absent, skip the paragraph/);
 });
 
 test("fetchJournal reaches well past a fortnight, and says how far back it went", async () => {
