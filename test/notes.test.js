@@ -230,23 +230,38 @@ test("a task can be linked to a note that already exists, and unlinked again", (
   assert.equal(Object.values(app.state().tasks)[0].noteId, null);
 });
 
-test("a linked task carries the note as a link, on its own line", () => {
-  // Not a chip beside the title: that is the width competition a task row
-  // already lost once.
+test("a linked task IS the link - its own title, not a second line under it", () => {
+  // A line repeating the note's name cost the row height and said little; the
+  // task is what you would tap anyway.
   const app = openNotes(loadApp({ fetchImpl: idle }));
   newNote(app, "The plan", "");
   addTask(app, newProject(app, "P"), "Do the thing");
   pick(taskMenu(app), /Link a note/).click();
   pick([...app.document.querySelectorAll(".menu-pop button")], /The plan/).click();
 
-  const link = app.document.querySelector(".btask .btask-note");
-  assert.ok(link, "the row shows its note");
-  assert.match(link.textContent, /The plan/);
-  assert.equal(link.parentNode.className, "btask-main", "stacked under the title, not beside it");
+  assert.equal(app.document.querySelector(".btask .btask-note"), null, "no extra line");
+  const title = app.document.querySelector(".btask .btask-title");
+  assert.equal(title.tagName, "BUTTON", "the title itself is the link");
+  assert.ok(title.classList.contains("linklike"), "and reads as one");
+  assert.equal(title.textContent, "Do the thing", "still the task's own name");
+  assert.match(title.title, /The plan/, "with the note it opens named on hover");
 
-  link.click();
+  title.click();
   assert.equal(app.document.querySelector(".view.active").id, "view-journal");
   assert.equal(openCard(app).querySelector(".note-title-in").value, "The plan");
+});
+
+test("an unlinked task's title is plain text, not a button", () => {
+  const app = openNotes(loadApp({ fetchImpl: idle }));
+  addTask(app, newProject(app, "P"), "Nothing attached");
+  assert.equal(app.document.querySelector(".btask .btask-title").tagName, "SPAN");
+});
+
+test("the notes tab adds one with a + rather than a labelled button", () => {
+  const app = openNotes(loadApp({ fetchImpl: idle }));
+  const btn = app.document.getElementById("noteAddBtn");
+  assert.equal(btn.textContent, "+");
+  assert.match(btn.getAttribute("aria-label"), /new note/i, "the label is still there for a reader");
 });
 
 test("a note says which tasks point at it", () => {

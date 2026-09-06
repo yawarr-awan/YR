@@ -1324,6 +1324,18 @@ the week containing `dayDate`). `calCols()` is a constant 7; `calIsWide()`
 - `attachTabSwipe` ignores touches starting in `.canvas-viewport`, same as
   `.cal-viewport`.
 
+## A linked task is the link (1.43.1)
+- `buildBoardTask` renders the title as a `<button class="btask-title linklike">`
+  when `t.noteId` resolves, and a plain `<span>` otherwise. **Same class either
+  way**, so `.btask .btask-title` (0,2,0) still wins the font rules over
+  `.linklike` (0,1,0) and the link keeps the row's own type - only the colour
+  and the underline come from `.linklike`. A done linked task still reads as
+  done, because `.btask.done .btask-title`'s line-through outranks it too.
+- `button.btask-title` exists only to reset the browser's button metrics; it
+  must stay below `.btask .btask-title` in specificity or `font:inherit` would
+  take the title's size with it.
+- The `.btask-note` second line is gone. The footer is gone from every tab.
+
 ## The bar, the Workflow tab, the pinned all-day row (1.43.0)
 - **`VIEWS` is every view; `BAR_VIEWS` is what the bottom bar carries.** They
   are not the same list any more: Settings is a view with no button (it lives

@@ -859,7 +859,12 @@ body.editing-items #dhikrBox{
 .note-card .pill-row{padding:0 14px 12px}
 .note-links{padding:0 14px 10px;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 .note-links-head{font-size:.72rem;color:var(--muted);font-weight:700;width:100%}
-.btask-note{font-size:.72rem;text-align:start;overflow-wrap:anywhere;padding:0;margin-top:2px}
+/* The title as a link: a button has to be reset back to looking like the
+   span it replaces, or it inherits the browser's own button metrics. */
+button.btask-title{
+  background:none;border:none;font:inherit;padding:0;cursor:pointer;
+  text-align:start;width:100%;display:block
+}
 /* .menu-pop button is display:block;width:100% - which in a flex row makes
    the grip take the whole width and squeeze the name to nothing. */
 .menu-pop .drag-grip{display:inline-flex;width:auto;flex:0 0 auto;padding:6px 2px}
@@ -947,7 +952,6 @@ a.btn{text-decoration:none;display:inline-block}
 .section-title{font-size:1.1rem;font-weight:800;margin:6px 0 10px}
 .muted{color:var(--muted)}
 .center{text-align:center}
-footer.foot{text-align:center;color:var(--muted);font-size:.78rem;margin-top:26px}
 .legend{display:flex;gap:14px;flex-wrap:wrap;font-size:.76rem;color:var(--muted);margin-top:8px}
 .legend i{width:10px;height:10px;border-radius:3px;display:inline-block;margin-inline-end:5px;vertical-align:middle}
 </style>
@@ -1312,7 +1316,7 @@ footer.foot{text-align:center;color:var(--muted);font-size:.78rem;margin-top:26p
       <div class="datebar">
         <div class="dlabel" id="noteLabel">Notes</div>
         <input type="search" id="noteSearch" placeholder="Search notes…" style="flex:1;min-width:0;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:10px;padding:7px 9px;font:inherit;font-size:.82rem">
-        <button class="today-btn" id="noteAddBtn">+ New</button>
+        <button id="noteAddBtn" type="button" title="New note" aria-label="New note">+</button>
       </div>
       <div id="noteBox"></div>
     </div>
@@ -1481,7 +1485,6 @@ footer.foot{text-align:center;color:var(--muted);font-size:.78rem;margin-top:26p
     </div>
   </section>
 
-  <footer class="foot">Built for you, Yawar — one small tick at a time. 🌿</footer>
 </div>
 
 <!-- Settings is reachable from the header ⋮ menu, so it no longer spends a
@@ -6131,7 +6134,21 @@ function buildBoardTask(t,projectId){
   row.appendChild(cb);
 
   var main=el("div","btask-main");
-  main.appendChild(el("span","btask-title",t.title));
+  /* A task with a note linked to it *is* the link - its own title, underlined,
+     rather than a second line repeating the note's name underneath. Same
+     treatment a du'a gets on a dhikr row, and it costs the row no height. */
+  var note=noteById(t.noteId);
+  if(note){
+    var titleBtn=el("button","btask-title linklike",t.title);
+    titleBtn.type="button";
+    titleBtn.title="Open “"+noteTitle(note)+"”";
+    titleBtn.addEventListener("click",function(ev){
+      ev.preventDefault();ev.stopPropagation();openNote(note.id);
+    });
+    main.appendChild(titleBtn);
+  }else{
+    main.appendChild(el("span","btask-title",t.title));
+  }
   var bits=[];
   if(taskHasSpan(t)){
     var a=taskStart(t),b=taskEnd(t);
@@ -6141,17 +6158,6 @@ function buildBoardTask(t,projectId){
      says, and the 1.30.1 lesson is that a second label here competes with the
      title for a width neither of them has. */
   if(bits.length)main.appendChild(el("span","btask-meta",bits.join(" ")));
-  /* A linked note reads as a link on its own line, the same treatment a du'a
-     gets on a dhikr row - not as a chip beside the title, which is the width
-     competition the 1.30.1 note is about. */
-  var note=noteById(t.noteId);
-  if(note){
-    var nb=el("button","btask-note linklike","🗒️ "+noteTitle(note));
-    nb.type="button";
-    nb.title="Open this note";
-    nb.addEventListener("click",function(ev){ev.preventDefault();ev.stopPropagation();openNote(note.id);});
-    main.appendChild(nb);
-  }
   row.appendChild(main);
 
   /* The calendar button, back where it was on the old Today card: a green
