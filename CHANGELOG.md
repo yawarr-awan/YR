@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.46.0
+
+**The brief was missing your journal, and there were three separate reasons.** You said something you'd written about the coming weeks wasn't reaching the briefing. It wasn't one bug:
+
+1. **Your entries were being cut in half.** The per-entry limit was 900 characters — two of your five entries ran past it, so the brief was reading the first half of a thought and none of the point. It's 2500 now. That cap exists to stop one enormous entry crowding the others out, not to trim an ordinary one, and the overall budget (14,000 characters) was barely a quarter used.
+
+2. **An open-ended intention had nothing telling the model it was live.** The instructions covered a commitment with a date on it — before the date, say it's coming; on and after, say it applies. "In the coming weeks", "from now on", "going forward" have no date to wait for, so they fell between the rules. They're now explicitly live from the day they're written until you write that they're done or dropped, and a stated direction counts as a commitment even when it names no task. The opener also has a floor: if there's a live commitment in the journal, at least one sentence is about it.
+
+3. **Your own saved instructions were overriding all of it.** This is the important one. Settings → Today's Brief instructions has a saved custom prompt, and a saved prompt replaces the built-in one *outright*. Yours is a copy of the default as it stood some time back — it has never heard of the WORKFLOW section, or any wording improvement since. So every fix shipped to the brief has been landing in a file your brief doesn't read.
+
+   Two things came out of that. The Settings card now **says so** when you have a saved prompt, and points at Reset. And a short block of rules is now appended to whatever the instructions are — custom or default — saying that every data section present must be used, that the journal outranks the rest, that anything overdue on the workflow deserves a mention, and that no figure may be invented. Style stays yours; not losing information doesn't.
+
+**What you should do:** open Settings → Today's Brief instructions and press **Reset to default**. That adopts the current instructions, which is the thing that actually fixes it for you. I've deliberately not done it for you — your saved copy differs from the old default by a few characters, so you may have hand-edited it.
+
 ## 1.45.1
 
 - **The Workflow tab has a drawn Gantt icon** — three offset bars, in the same teal/blue/amber the board gives its projects. No emoji is a Gantt chart, so this one isn't an emoji: it's a small inline SVG, which also means it stays crisp at any size and any text scale.

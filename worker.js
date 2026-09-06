@@ -706,7 +706,12 @@ async function fetchTasks(accessToken, day, tomorrow) {
    JOURNAL_TOTAL_CHARS bounds the prompt however long the record gets. Entries
    are taken newest-first, so the budget is always spent on the freshest. */
 const JOURNAL_DAYS = 120;
-const JOURNAL_MAX_CHARS = 900;
+/* 900 was cutting real entries in half - two of five on this record ran past
+   it, while the whole journal came to under 4KB against a 14KB total budget.
+   The per-entry cap is there to stop one enormous entry crowding out the
+   others, not to trim an ordinary one; JOURNAL_TOTAL_CHARS is what actually
+   bounds the prompt. */
+const JOURNAL_MAX_CHARS = 2500;
 const JOURNAL_TOTAL_CHARS = 14000;
 
 /** The user's journal - today's entry, then as far back as the budget goes.
@@ -927,20 +932,28 @@ async function fetchTrends(env, email, day) {
 }
 
 const DEFAULT_BRIEF_PROMPT =
-  "Open with a short paragraph - two or three sentences, prose, no heading and no bullets - " +
+  "Open with a short paragraph - two to four sentences, prose, no heading and no bullets - " +
   "saying what to focus on today.\n\n" +
   "Build it from three things, in this order of priority:\n" +
-  "1. What the writer told themselves to do, in JOURNAL. If they made a commitment, set " +
-  "themselves a rule, or asked to be reminded of something, that belongs in the paragraph - " +
-  "it is the closest thing to an instruction you will get. Honour any date they attached " +
-  "to it: before that date say it is coming, on and after it say it applies today. Keep " +
-  "carrying it until they write that it is done or abandoned.\n" +
+  "1. What the writer told themselves to do, in JOURNAL. A commitment, a rule they set " +
+  "themselves, a thing they asked to be reminded of, a direction they said they want to " +
+  "take - all of it belongs in the paragraph. It is the closest thing to an instruction " +
+  "you will get, and it is the reason they write anything down.\n" +
+  "   - A dated intention is honoured against today: before the date say it is coming, on " +
+  "and after it say it applies now.\n" +
+  "   - An *undated* horizon - \"in the coming weeks\", \"from now on\", \"going forward\", " +
+  "\"I need to start\" - is live every single day from the day it was written. It has no " +
+  "deadline to wait for. Treat it as standing until they write that it is done or dropped.\n" +
+  "   - A direction of travel counts even when it names no task. \"I want to focus more on " +
+  "X\" is a commitment to X.\n" +
   "2. What the record shows, in HISTORY. Name at most two things that are slipping and " +
   "quote the figure that shows it, and say one thing that is going well.\n" +
   "3. What the projects say, in WORKFLOW. Anything overdue there is worth a sentence, and " +
   "so is a piece of work that starts today. Talk about the work, not about the tool.\n\n" +
-  "A commitment from the journal outranks a drifting figure: if you can only fit one, use " +
-  "theirs. No greeting, no pep talk.\n\n" +
+  "The journal outranks everything else here. If JOURNAL contains a live commitment, at " +
+  "least one sentence of the paragraph is about it - that is a floor, not a preference. " +
+  "Where the record or the projects also have something worth saying, take a fourth " +
+  "sentence rather than dropping theirs. No greeting, no pep talk.\n\n" +
   "Then the schedule, and nothing else. Use exactly this shape:\n" +
   "Today\n" +
   "- 09:30 Standup [Work]\n" +
@@ -1219,7 +1232,7 @@ async function summarizeWithGemini(env, ctx) {
 
   const tm = tomorrow || {};
   const prompt =
-    `${(instructions || DEFAULT_BRIEF_PROMPT)}\n\n` +
+    `${(instructions || DEFAULT_BRIEF_PROMPT)}\n\n${ALWAYS_RULES}\n` +
     `It is currently ${nowLabel} on ${weekday(day)} ${day}. Tomorrow is ${weekday(tm.day || nextDay(day))}.\n` +
     `${historyBlock}${workflowBlock}\n` +
     `TODAY (${day})\n` +
@@ -1421,6 +1434,32 @@ function addDays(day, n) {
   return d.toISOString().slice(0, 10);
 }
 
+
+/* Appended after the instructions, custom or default, and before the data.
+ *
+ * A saved custom prompt is a snapshot of whatever the default said the day it
+ * was saved - so every later improvement silently misses that user, and a data
+ * section added afterwards has nothing telling the model to use it. That is
+ * exactly how the workflow section reached nobody who had ever pressed Save.
+ *
+ * These are the rules that must survive that, and they are deliberately only
+ * about **not losing information**: what to do with each block that is
+ * present, and not inventing numbers. Everything about voice, shape and
+ * emphasis stays with the instructions, where a custom prompt can still
+ * override it. Keep this short, and keep it out of the business of style. */
+const ALWAYS_RULES = [
+  "ALWAYS - these apply whatever the instructions above say, because a section",
+  "may have been added to this brief after those instructions were written:",
+  "- Use every data section that appears below. If one is present and you ignore it,",
+  "  the brief is wrong however well it reads.",
+  "- JOURNAL is the writer's own words and outranks the rest. A commitment there is live",
+  "  from the day it was written until they write that it is done or dropped - including",
+  "  an open-ended one (\"in the coming weeks\", \"from now on\") that names no date. If",
+  "  JOURNAL holds a live commitment, the opening paragraph says something about it.",
+  "- WORKFLOW is the project timeline. Anything overdue on it deserves a mention.",
+  "- Never invent, recompute, estimate or round a figure. Every number must appear",
+  "  verbatim in HISTORY.",
+].join("\n");
 
 /* ---------- THE DAILY AYAH ----------
    A verse of the Qur'an, its English translation, and a short reflection tying
@@ -2574,6 +2613,7 @@ export default {
 export {
   handleSync,
   fetchWorkflow,
+  ALWAYS_RULES,
   ayahRefForDay,
   ayahRefsForDay,
   AYAH_PER_DAY,

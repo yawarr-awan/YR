@@ -1813,6 +1813,42 @@ longer available to new users"`. Read that column first, as ever.
   picks the column from the SQL text - the prompt and the model are written by
   separate statements and neither may clobber the other.
 
+## A saved custom prompt is a snapshot, and it wins (1.46.0)
+Reported (again) as "the briefing is still missing bits from my journal". Three
+causes, and the third is the one to remember.
+- **`JOURNAL_MAX_CHARS` was 900 and was halving real entries** - two of five on
+  this record ran past it, while the whole journal came to under 4KB against a
+  `JOURNAL_TOTAL_CHARS` of 14000. The per-entry cap exists to stop one enormous
+  entry crowding out the rest; the *total* is what bounds the prompt. Now 2500.
+- **An undated horizon had no rule.** `DEFAULT_BRIEF_PROMPT` told the model what
+  to do with a commitment carrying a date, so "in the coming weeks", "from now
+  on", "going forward" fell between the rules and were never live. They are now
+  explicitly live from the day written until written off, "a direction of travel
+  counts even when it names no task", and the opener has a **floor**: a live
+  journal commitment gets at least one sentence.
+- **`user_settings.brief_prompt` replaces the default outright**, so a saved
+  prompt is frozen at the day it was saved. This user's is a copy of the
+  2386-char default from `7f93ed4` and has never heard of WORKFLOW - so the
+  whole section shipped in PR #78 reached them in the *data* with nothing in the
+  *instructions* telling the model to use it. **Every prompt improvement since
+  they pressed Save has silently missed them.** This is the second time the 1.18.0
+  note's warning has bitten; it is now structural, not a footnote.
+  - **`ALWAYS_RULES` is appended after the instructions (custom or default) and
+    before the data.** Deliberately scoped to *not losing information* only: use
+    every section present, JOURNAL outranks the rest and an open-ended commitment
+    is live until written off, overdue WORKFLOW items deserve a mention, no
+    invented figures. Voice, shape and emphasis stay with the instructions, where
+    a custom prompt can still override them. **Keep it short and keep it out of
+    style** - it is the floor a stale prompt cannot fall through. When a new data
+    section is added, a line goes here too, or it reaches nobody who has saved.
+  - The Settings card shows `#briefPromptStale` when a prompt is stored, saying
+    the built-in ones have moved on and that Reset adopts them. **Nothing clears
+    it for the user** - a saved prompt may be hand-written, and eating someone's
+    own wording is worse than the staleness.
+- Test gotcha: raising the per-entry cap changes what the *budget* test measures.
+  Its fixture entries are now 600 chars (inside both caps) so it tests the total,
+  not the clip.
+
 ## The prompt rule that silenced the journal (1.31.2)
 Reported as "it's not reading my journal". It was: the entry was in D1 and in
 the prompt (both verified against live D1 and the deployed script). The

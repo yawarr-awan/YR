@@ -1422,6 +1422,7 @@ a.btn{text-decoration:none;display:inline-block}
           <button class="btn" id="briefPromptReset" type="button">Reset to default</button>
         </div>
         <div class="muted" id="briefPromptStatus" style="font-size:.78rem;margin-top:6px"></div>
+        <div class="warnbox" id="briefPromptStale" hidden></div>
       </div>
     </div>
 
@@ -7962,6 +7963,18 @@ function renderDhikrEditor(box){
 var BRIEF_PROMPT_URL="/api/settings/brief-prompt";
 var _briefPromptDefault="";
 function setBriefPromptStatus(msg){var e=document.getElementById("briefPromptStatus");if(e)e.textContent=msg||"";}
+/* A saved prompt is a snapshot of whatever the default said the day it was
+   saved, and it silently wins over every improvement made since - which is
+   exactly how a whole new section of the brief reached nobody who had ever
+   pressed Save. Nothing here overwrites it (it may well be hand-written), but
+   the box must say so, and say which button adopts the new one. */
+function setBriefPromptStale(custom){
+  var e=document.getElementById("briefPromptStale");
+  if(!e)return;
+  if(!custom){e.hidden=true;e.textContent="";return;}
+  e.hidden=false;
+  e.textContent="These are your own saved instructions, so they're used instead of the built-in ones — including any improvements since you saved them. Hit “Reset to default” to adopt the current built-in instructions.";
+}
 function loadBriefPrompt(){
   var ta=document.getElementById("briefPromptIn");
   if(!ta||typeof fetch!=="function")return;
@@ -7973,6 +7986,7 @@ function loadBriefPrompt(){
     ta.value=d.prompt||d.default||"";
     ta.placeholder=_briefPromptDefault;
     setBriefPromptStatus(d.prompt?"Using your own instructions.":"Using the default instructions.");
+    setBriefPromptStale(!!d.prompt);
   }).catch(function(){setBriefPromptStatus("Couldn't load the brief instructions right now.");});
 }
 function saveBriefPrompt(value){
@@ -7988,6 +8002,7 @@ function saveBriefPrompt(value){
     var ta=document.getElementById("briefPromptIn");
     if(ta)ta.value=d.prompt||_briefPromptDefault;
     setBriefPromptStatus(d.prompt?"Saved. The next refresh will use it.":"Back to the default instructions.");
+    setBriefPromptStale(!!d.prompt);
   }).catch(function(){setBriefPromptStatus("Couldn't save that — try again in a moment.");});
 }
 
