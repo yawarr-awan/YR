@@ -377,13 +377,6 @@ body.editing .card[data-card].is-over{outline:2px solid var(--brand)}
 .board-col-head .board-n{flex:0 0 auto;font-size:.72rem;color:var(--muted);font-weight:700}
 .board-tasks{flex:1 1 auto;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:2px;margin-bottom:8px}
 .board-empty{font-size:.8rem;color:var(--muted);padding:6px 2px}
-/* Stacked, so the pair costs one button's width on a phone. */
-.dhikr-move{flex:0 0 auto;display:flex;flex-direction:column;gap:2px;margin-inline-start:auto}
-.dhikr-move button{
-  border:1px solid var(--line);background:var(--panel-2);color:var(--ink);
-  width:26px;height:16px;border-radius:5px;font-size:.6rem;line-height:1;cursor:pointer;
-  font-family:inherit;padding:0
-}
 .card-resize{
   position:absolute;inset-block-end:0;inset-inline-end:0;width:20px;height:20px;
   cursor:nwse-resize;touch-action:none;
@@ -424,7 +417,9 @@ body.editing .card[data-card].is-over{outline:2px solid var(--brand)}
 .sheet-form{padding:4px 10px 8px}
 .sheet-form .field{margin:8px 0}
 .sheet-form label{display:block;font-size:.76rem;color:var(--muted);font-weight:600;margin-bottom:3px}
-.sheet-form input[type=date]{width:100%;border:1px solid var(--line);background:var(--panel-2);
+.sheet-form input[type=date],.sheet-form input[type=datetime-local],
+.sheet-form input[type=number],.sheet-form input[type=text]{
+  width:100%;border:1px solid var(--line);background:var(--panel-2);
   color:var(--ink);border-radius:10px;padding:9px;font:inherit}
 .sheet-form .pill-row{margin-top:10px}
 
@@ -491,6 +486,19 @@ body.editing .card[data-card].is-over{outline:2px solid var(--brand)}
   display:flex;align-items:center;overflow:hidden;white-space:nowrap;
   cursor:pointer;border:none;font-family:inherit;z-index:2
 }
+/* pan-y, not none: you can still scroll the timeline up and down with a
+   finger on a bar, but a sideways drag belongs to the bar rather than to the
+   week scroll - which is the axis the two would otherwise fight over. */
+.wf-bar{touch-action:pan-y}
+.wf-bar.is-dragging{opacity:.75;box-shadow:0 4px 14px rgba(8,12,24,.4);z-index:4}
+/* A deliberate target, so it can start a drag straight away where the bar
+   itself has to be held first. */
+.wf-bar-grip{
+  position:absolute;inset-block:0;inset-inline-end:0;width:14px;
+  cursor:ew-resize;touch-action:none;
+  border-start-end-radius:7px;border-end-end-radius:7px;
+  background:linear-gradient(to right,transparent,rgba(0,0,0,.28))
+}
 .wf-bar.is-done{background:var(--muted);color:var(--panel);text-decoration:line-through}
 .wf-bar.is-late{background:var(--bad);color:#fff}
 /* The line is a child of the grid, but every row's coordinates start after
@@ -516,7 +524,9 @@ body.editing .card[data-card].is-over{outline:2px solid var(--brand)}
 .sheet-form{padding:4px 12px 10px}
 .sheet-form .field{margin:8px 0}
 .sheet-form label{display:block;font-size:.76rem;color:var(--muted);font-weight:600;margin-bottom:3px}
-.sheet-form input[type=date]{width:100%;border:1px solid var(--line);background:var(--panel-2);
+.sheet-form input[type=date],.sheet-form input[type=datetime-local],
+.sheet-form input[type=number],.sheet-form input[type=text]{
+  width:100%;border:1px solid var(--line);background:var(--panel-2);
   color:var(--ink);border-radius:10px;padding:9px;font:inherit}
 .sheet-form .pill-row{margin-top:10px}
 .slider-val{font-weight:800;float:right}
@@ -790,13 +800,21 @@ label.prow{cursor:pointer}
 /* touch-action:none is what makes a drag on the phone a drag rather than a
    page scroll - without it the browser claims the gesture before pointermove
    ever fires. */
-.task-grip{
+/* Edit mode: the lists you can change are outlined, so it is obvious the card
+   is in a different state and not simply broken. */
+body.editing-items #medsBox,
+body.editing-items #extrasBox,
+body.editing-items #dhikrBox{
+  outline:2px dashed var(--brand);outline-offset:6px;border-radius:10px
+}
+.task-grip,.drag-grip{
   cursor:grab;font-size:1rem;color:var(--muted);line-height:1;flex:0 0 auto;
   padding:6px 2px;touch-action:none;user-select:none;-webkit-user-select:none
 }
-.task-row.is-dragging{opacity:.4}
-.task-row.drop-before{box-shadow:inset 0 2px 0 var(--brand)}
-.task-row.drop-after{box-shadow:inset 0 -2px 0 var(--brand)}
+.drag-grip{background:none;border:none;font-family:inherit}
+.task-row.is-dragging,[data-row].is-dragging{opacity:.4}
+.task-row.drop-before,[data-row].drop-before{box-shadow:inset 0 2px 0 var(--brand)}
+.task-row.drop-after,[data-row].drop-after{box-shadow:inset 0 -2px 0 var(--brand)}
 /* Du'as: a picture per card, its links underneath, and the full-size view in
    the shared modal. */
 .dua-thumb{
@@ -1013,14 +1031,7 @@ footer.foot{text-align:center;color:var(--muted);font-size:.78rem;margin-top:26p
 
       <div class="card collapsible" data-collapse="dhikr" data-card="dhikr">
         <h3><span class="dot" style="background:var(--accent)"></span> Dhikr<span class="count" id="dhikrCount"></span></h3>
-        <div class="card-body">
-          <!-- Reordering lives here, beside the list you actually read every
-               day, rather than only in the Settings editor. -->
-          <div class="pill-row" style="margin-bottom:8px">
-            <button class="btn" id="dhikrReorderBtn" type="button">↕️ Reorder</button>
-          </div>
-          <div id="dhikrBox"></div>
-        </div>
+        <div class="card-body"><div id="dhikrBox"></div></div>
       </div>
     
 <div class="card collapsible" data-collapse="praysum" data-card="praysum">
@@ -2133,7 +2144,10 @@ function renderToday(){
 
   // meds
   var mb=document.getElementById("medsBox"); mb.innerHTML="";
-  medsList().forEach(function(m){
+  /* In edit mode the card shows the same editor Settings does, rather than
+     the checklist: you are changing the routine, not ticking today off. */
+  if(_editItems)renderMedsEditor(mb,true);
+  else medsList().forEach(function(m){
     var row=el("label","chk"+(d.meds[m[0]]?" done":""));
     var cb=el("input");cb.type="checkbox";cb.checked=!!d.meds[m[0]];
     cb.addEventListener("change",function(){d.meds[m[0]]=cb.checked;d.updated_at=Date.now();save();renderToday();updateRing();});
@@ -2280,6 +2294,7 @@ function renderFoodList(boxId,d,kind){
 }
 function renderExtras(d){
   var box=document.getElementById("extrasBox");box.innerHTML="";
+  if(_editItems){renderExtrasEditor(box,true);return;}
   extrasList().forEach(function(x){
     var row=el("label","chk"+(d.extras[x.id]?" done":""));
     var cb=el("input");cb.type="checkbox";cb.checked=!!d.extras[x.id];
@@ -2293,12 +2308,10 @@ function renderExtras(d){
    21-row list - the whole point is that the Today tab stays short. */
 function renderDhikr(d){
   var box=document.getElementById("dhikrBox");if(!box)return;box.innerHTML="";
+  if(_editItems){renderDhikrEditor(box);return;}
   DHIKR_PERIODS.forEach(function(period){
     var prefKey="dhikr_"+period[0];
-    /* While reordering, every period is open: you cannot move an item past a
-       row that isn't on screen. Same call as the task reorderer. */
-    var collapsed=_dhikrReorder?false
-      :(Object.prototype.hasOwnProperty.call(collapsePrefs,prefKey)?!!collapsePrefs[prefKey]:true);
+    var collapsed=Object.prototype.hasOwnProperty.call(collapsePrefs,prefKey)?!!collapsePrefs[prefKey]:true;
     var card=el("div","subcard"+(collapsed?" collapsed":""));
     var done=0;
     var items=dhikrItems(period[0]);
@@ -2315,6 +2328,8 @@ function renderDhikr(d){
     card.appendChild(head);
 
     var body=el("div","subcard-body");
+    /* One list per period: a morning item must not land in the evening. */
+    body.setAttribute("data-droplist","dhikr:"+period[0]);
     items.forEach(function(item){
       var checked=!!d.dhikr[period[0]][item[0]];
       var row=el("label","chk"+(checked?" done":""));
@@ -2342,57 +2357,30 @@ function renderDhikr(d){
       }else{
         txt.appendChild(el("div","lbl",item[1]));
       }
+      row.setAttribute("data-row",item[0]);
+      row.appendChild(dhikrGrip(period[0],item[0]));
       row.appendChild(cb);row.appendChild(txt);
-      if(_dhikrReorder)row.appendChild(dhikrMoveButtons(period[0],item[0]));
       body.appendChild(row);
     });
     card.appendChild(body);
     box.appendChild(card);
   });
 }
-/** A ▲▼ pair, stacked so the pair costs one button's width at 390px - the row
- * already carries a checkbox and a label that can run to two lines. */
-function dhikrMoveButtons(period,key){
-  var wrap=el("div","dhikr-move");
-  [["▲",-1,"Move up"],["▼",1,"Move down"]].forEach(function(spec){
-    var b=el("button",null,spec[0]);
-    b.type="button";b.title=spec[2];b.setAttribute("aria-label",spec[2]);
-    b.addEventListener("click",function(ev){
-      /* The row is a <label> wrapping the checkbox - without this, moving an
-         item would also tick it off. */
-      ev.preventDefault();ev.stopPropagation();
-      moveDhikrItem(period,key,spec[1]);
-    });
-    wrap.appendChild(b);
+function dhikrGrip(period,key){
+  return dragGrip("dhikr:"+period,key,function(id,overId,before){
+    reorderDhikrItem(period,id,overId,before);
   });
-  return wrap;
 }
 /** Reordering writes to the synced profile, so the order follows you to your
  * other devices - and the stamp is what makes it push at all. */
-function moveDhikrItem(period,key,delta){
-  var store=ensureDhikrProfile(),list=store[period];
-  var at=-1;
-  list.forEach(function(it,i){if(it[0]===key)at=i;});
-  var to=at+delta;
-  if(at<0||to<0||to>=list.length)return;
-  var moved=list.splice(at,1)[0];
-  list.splice(to,0,moved);
+function reorderDhikrItem(period,key,overKey,before){
+  var store=ensureDhikrProfile();
+  var next=insertBeside(store[period],function(i){return i[0];},key,overKey,before);
+  if(!next)return;
+  store[period]=next;
   profileChanged();
   renderDhikr(dayData(keyOf(cur)));
   renderDhikrEditor();
-}
-/* A mode, never persisted - the same call as the task and card reorderers. */
-var _dhikrReorder=false;
-function setDhikrReorder(on){
-  _dhikrReorder=!!on;
-  var b=document.getElementById("dhikrReorderBtn");
-  if(b){
-    b.textContent=_dhikrReorder?"✓ Done":"↕️ Reorder";
-    b.classList.toggle("primary",_dhikrReorder);
-  }
-  var box=document.getElementById("dhikrBox");
-  if(box)box.classList.toggle("is-reordering",_dhikrReorder);
-  renderDhikr(dayData(keyOf(cur)));
 }
 
 function updateRing(){
@@ -2613,9 +2601,11 @@ function liveItems(name){
   Object.keys(store).forEach(function(k){if(store[k]&&!store[k].deleted)out.push(store[k]);});
   return out;
 }
-function touchItem(item){
+function touchItem(item,defer){
   item.updated_at=Date.now();
-  save();
+  /* `defer` is for a batch - a reorder restamps every row it renumbers, and
+     one save at the end is the same result for a fraction of the work. */
+  if(!defer)save();
 }
 /** Tombstone, not removal - see the note above. */
 function deleteItem(name,id){
@@ -5824,6 +5814,107 @@ function cardDragEnd(){
   touchItem(d.p);
 }
 
+/* ---------- DRAG TO REORDER A LIST ----------
+   One implementation for every ordered list in the app - board tasks and
+   dhikr - so they behave identically and there is one place to fix.
+
+   Pointer events, not HTML5 drag-and-drop, which never fires on touch at all;
+   the same grip has to work on a phone and with a mouse. The row is not moved
+   while you drag: only the row under the pointer is marked, above or below
+   depending on which half you are over. Move and up are bound to the document
+   rather than to the grip, because a re-render can replace the element the
+   gesture started on.
+
+   A list is addressed by `data-droplist` on its container and `data-row` on
+   each row, so a morning dhikr item can never be dropped into the evening
+   list, nor a task into another project. */
+var _rowDrag=null;
+function dragGrip(list,id,commit){
+  var g=el("button","drag-grip","⠿");
+  g.type="button";
+  g.title="Drag to reorder";
+  g.setAttribute("aria-label","Drag to reorder");
+  g.addEventListener("pointerdown",function(ev){startRowDrag(ev,list,id,commit);});
+  /* The dhikr row is a <label> wrapping its checkbox, so a click that reached
+     it would tick the item off as well as having moved it. */
+  g.addEventListener("click",function(ev){ev.preventDefault();ev.stopPropagation();});
+  return g;
+}
+function dropRow(list,id){
+  return document.querySelector('[data-droplist="'+list+'"] [data-row="'+id+'"]');
+}
+function rowUnderPoint(list,x,y){
+  /* jsdom has no layout and no elementFromPoint; the tests stub it, the same
+     way they stub fetch. */
+  if(typeof document.elementFromPoint!=="function")return null;
+  var n=document.elementFromPoint(x,y);
+  return n&&n.closest?n.closest('[data-droplist="'+list+'"] [data-row]'):null;
+}
+function clearDropMarks(){
+  document.querySelectorAll("[data-row].drop-before,[data-row].drop-after")
+    .forEach(function(r){r.classList.remove("drop-before","drop-after");});
+}
+function startRowDrag(ev,list,id,commit){
+  ev.preventDefault();ev.stopPropagation();
+  _rowDrag={list:list,id:id,commit:commit,overId:null,before:true};
+  var row=dropRow(list,id);
+  if(row)row.classList.add("is-dragging");
+  document.addEventListener("pointermove",rowDragMove);
+  document.addEventListener("pointerup",rowDragEnd);
+  document.addEventListener("pointercancel",rowDragEnd);
+}
+function rowDragMove(ev){
+  if(!_rowDrag)return;
+  ev.preventDefault();
+  var row=rowUnderPoint(_rowDrag.list,ev.clientX,ev.clientY);
+  clearDropMarks();
+  _rowDrag.overId=null;
+  if(!row||row.getAttribute("data-row")===_rowDrag.id)return;
+  var r=row.getBoundingClientRect();
+  _rowDrag.overId=row.getAttribute("data-row");
+  _rowDrag.before=ev.clientY<r.top+r.height/2;
+  row.classList.add(_rowDrag.before?"drop-before":"drop-after");
+}
+function rowDragEnd(){
+  if(!_rowDrag)return;
+  var d=_rowDrag;_rowDrag=null;
+  clearDropMarks();
+  document.removeEventListener("pointermove",rowDragMove);
+  document.removeEventListener("pointerup",rowDragEnd);
+  document.removeEventListener("pointercancel",rowDragEnd);
+  var row=dropRow(d.list,d.id);
+  if(row)row.classList.remove("is-dragging");
+  if(d.overId)d.commit(d.id,d.overId,d.before);
+}
+/** Insertion, not a swap: a drag is "put it here", not "move it one place".
+ * Returns the reordered array; the caller decides what to do with it. */
+function insertBeside(list,idOf,id,overId,before){
+  if(id===overId)return null;
+  var moving=null,rest=[];
+  list.forEach(function(x){ if(idOf(x)===id)moving=x; else rest.push(x); });
+  if(!moving)return null;
+  var at=rest.length;
+  for(var k=0;k<rest.length;k++)if(idOf(rest[k])===overId)at=before?k:k+1;
+  rest.splice(at,0,moving);
+  return rest;
+}
+
+/** Board tasks. Ticked tasks still gather at the bottom afterwards - the sort
+ * is stable, so dropping an open task among them lands it at the end of the
+ * open block rather than pretending it is done. */
+function reorderBoardTask(projectId,id,overId,before){
+  var next=insertBeside(tasksIn(projectId),function(t){return t.id;},id,overId,before);
+  if(!next)return;
+  next.sort(function(a,b){return (a.done?1:0)-(b.done?1:0);});
+  next.forEach(function(t,i){ if(t.order!==i){t.order=i;touchItem(t,true);} });
+  save();renderTaskViews();
+}
+
+/** The board and the timeline are two views of one set of rows. Anything that
+ * changes a task redraws both, or the one you are not looking at goes stale -
+ * which is how marking a task done on the timeline left its bar uncrossed. */
+function renderTaskViews(){renderBoard();renderWorkflow();}
+
 function renderBoard(){
   var box=document.getElementById("board");
   if(!box)return;
@@ -5890,8 +5981,9 @@ function buildProjectColumn(p){
   col.appendChild(head);
 
   var list=el("div","board-tasks");
+  list.setAttribute("data-droplist","tasks:"+p.id);
   if(!tasks.length)list.appendChild(el("div","board-empty","Nothing here yet."));
-  tasks.forEach(function(t){list.appendChild(buildBoardTask(t));});
+  tasks.forEach(function(t){list.appendChild(buildBoardTask(t,p.id));});
   col.appendChild(list);
 
   var add=el("div","board-add");
@@ -5927,12 +6019,18 @@ function shortDay(key){
   return new Date(+p[0],+p[1]-1,+p[2])
     .toLocaleDateString("en-GB",{day:"numeric",month:"short"});
 }
-function buildBoardTask(t){
+function buildBoardTask(t,projectId){
   var row=el("div","btask"+(t.done?" done":""));
   row.setAttribute("data-task",t.id);
+  row.setAttribute("data-row",t.id);
+  /* Drag to put a task where you want it - a hand-picked position outranks
+     any date rule, which is the whole point of being able to move a row. */
+  row.appendChild(dragGrip("tasks:"+projectId,t.id,function(id,overId,before){
+    reorderBoardTask(projectId,id,overId,before);
+  }));
   var cb=el("input");cb.type="checkbox";cb.checked=!!t.done;
   cb.addEventListener("change",function(){
-    t.done=cb.checked;touchItem(t);renderBoard();
+    t.done=cb.checked;touchItem(t);renderTaskViews();
   });
   row.appendChild(cb);
 
@@ -5956,7 +6054,7 @@ function buildBoardTask(t){
   cal.type="button";
   cal.title=t.scheduled?"On your calendar — tap to reschedule":"Schedule on Google Calendar";
   cal.setAttribute("aria-label",cal.title);
-  cal.addEventListener("click",function(ev){ev.stopPropagation();openTaskSchedule(t);});
+  cal.addEventListener("click",function(ev){ev.stopPropagation();openTaskSchedule(t,ev);});
   row.appendChild(cal);
 
   var menu=el("button","btask-menu","⋮");
@@ -5974,7 +6072,9 @@ function openTaskMenu(t,at){
   var others=projectList().filter(function(p){return p.id!==t.projectId;});
   var actions=[
     {label:t.done?"Mark as not done":"Mark as done",run:function(){
-      t.done=!t.done;touchItem(t);renderBoard();
+      /* Both views, always: this menu is reachable from the timeline too, and
+         redrawing only the board left a bar uncrossed until a reload. */
+      t.done=!t.done;touchItem(t);renderTaskViews();
     }},
     {label:"Rename…",run:function(){
       var name=window.prompt("Task",t.title);
@@ -5985,7 +6085,7 @@ function openTaskMenu(t,at){
     }},
     {label:taskHasSpan(t)?"Change dates…":"Set dates…",run:function(){openTaskDates(t,at);}},
     {label:t.scheduled?"Reschedule on calendar…":"Add to calendar…",run:function(){
-      openTaskSchedule(t);
+      openTaskSchedule(t,at);
     }},
     {sep:true},
     {label:"Move to…",run:function(){
@@ -6037,14 +6137,14 @@ function openTaskDates(t,at){
   save.addEventListener("click",function(){
     setTaskSpan(t,startIn.value,endIn.value);
     closeMenuSheet();
-    renderBoard();renderWorkflow();
+    renderTaskViews();
   });
   var clear=el("button","btn","Clear dates");
   clear.type="button";
   clear.addEventListener("click",function(){
     setTaskSpan(t,null,null);
     closeMenuSheet();
-    renderBoard();renderWorkflow();
+    renderTaskViews();
   });
   row.appendChild(save);row.appendChild(clear);
   form.appendChild(row);
@@ -6083,7 +6183,7 @@ function bringCardToFront(p){
 function chooseProjectColour(p){
   openMenuSheet("Colour · "+p.name,PROJECT_COLORS.map(function(c){
     return {label:(projectColor(p)===c?"Current":"Use this"),swatch:c,run:function(){
-      p.color=c;touchItem(p);renderBoard();renderWorkflow();
+      p.color=c;touchItem(p);renderTaskViews();
     }};
   }));
 }
@@ -6112,39 +6212,111 @@ function shiftProject(p,delta){
 /** Schedule a board task onto Google Calendar. Separate from the old
  * scheduleTaskAt: a board task is its own synced row, so it is stamped with
  * touchItem rather than by bumping the whole profile. */
-function openTaskSchedule(t){
+function openTaskSchedule(t,at){
+  closeMenuSheet();
+  var backdrop=el("div","menu-backdrop");
+  backdrop.addEventListener("pointerdown",function(){closeMenuSheet();});
+  document.body.appendChild(backdrop);
+
+  var pop=el("div","menu-pop");
+  pop.appendChild(el("h4",null,t.title));
+  var form=el("div","sheet-form");
+
   var seed=t.due?new Date(t.due):new Date(Date.now()+60*60*1000);
   seed.setSeconds(0,0);
-  var when=window.prompt("Date and time (YYYY-MM-DD HH:MM)",
-    localDatetimeValue(seed).replace("T"," "));
-  if(when===null)return;
-  var iso=new Date(String(when).trim().replace(" ","T"));
-  if(isNaN(iso.getTime())){boardNote("That date didn't make sense.");return;}
-  boardNote("Scheduling…");
+  var whenWrap=el("div","field");
+  whenWrap.appendChild(el("label",null,"Date and time"));
+  var when=el("input");when.type="datetime-local";when.value=localDatetimeValue(seed);
+  whenWrap.appendChild(when);
+  form.appendChild(whenWrap);
+
+  var lenWrap=el("div","field");
+  lenWrap.appendChild(el("label",null,"How long (minutes)"));
+  var mins=el("input");mins.type="number";mins.min="5";mins.step="5";
+  mins.value=String(t.durationMinutes||30);
+  lenWrap.appendChild(mins);
+  form.appendChild(lenWrap);
+
+  var row=el("div","pill-row");
+  var save=el("button","btn primary",t.scheduled?"Reschedule":"Add to calendar");
+  save.type="button";
+  save.addEventListener("click",function(){
+    var iso=new Date(when.value);
+    if(!when.value||isNaN(iso.getTime())){boardNote("That date didn't make sense.");return;}
+    var len=parseInt(mins.value,10);
+    if(!(len>0))len=30;
+    closeMenuSheet();
+    scheduleTaskOnCalendar(t,iso,len);
+  });
+  row.appendChild(save);
+  if(t.scheduled&&t.calendarEventId){
+    var off=el("button","btn","Take off the calendar");off.type="button";
+    off.addEventListener("click",function(){closeMenuSheet();unscheduleTask(t);});
+    row.appendChild(off);
+  }
+  form.appendChild(row);
+  pop.appendChild(form);
+
+  document.body.appendChild(pop);
+  positionMenuPop(pop,at);
+  when.focus();
+}
+/** PATCH when the task already owns an event, POST when it does not - the
+ * old code always POSTed, so "Reschedule" quietly left the first event behind
+ * and made a second one. */
+function scheduleTaskOnCalendar(t,iso,durationMinutes){
+  var editing=!!(t.scheduled&&t.calendarEventId);
+  boardNote(editing?"Rescheduling…":"Scheduling…");
+  var body={title:t.title,start:iso.toISOString(),durationMinutes:durationMinutes,
+    calendarId:t.calendarId||defaultCalendarId()};
+  if(editing)body.eventId=t.calendarEventId;
   fetch("/api/google/calendar/events",{
-    method:"POST",credentials:"same-origin",
+    method:editing?"PATCH":"POST",credentials:"same-origin",
     headers:{"content-type":"application/json"},
-    body:JSON.stringify({title:t.title,start:iso.toISOString(),
-      durationMinutes:30,calendarId:defaultCalendarId()})
+    body:JSON.stringify(body)
   }).then(function(res){
     if(!res.ok)throw new Error("http "+res.status);
     return res.json();
   }).then(function(resp){
     if(resp.status==="ok"){
-      t.due=iso.toISOString();t.scheduled=true;t.calendarEventId=resp.eventId||null;
+      t.due=iso.toISOString();t.scheduled=true;t.durationMinutes=durationMinutes;
+      if(resp.eventId)t.calendarEventId=resp.eventId;
+      if(!t.calendarId)t.calendarId=body.calendarId;
       /* Keep the timeline in step: a task put on the calendar for a given day
          ends that day, and starts then too if it had no span at all. */
       var day=keyOf(iso);
       t.end=day;
       if(!t.start||t.start>day)t.start=day;
-      touchItem(t);renderBoard();renderWorkflow();
-      boardNote("Added to your Google Calendar.");
+      touchItem(t);renderTaskViews();
+      boardNote(editing?"Moved on your Google Calendar.":"Added to your Google Calendar.","good");
+    }else if(resp.status==="not_found"){
+      /* The event was deleted in Google. Forget it and let the next save make
+         a new one, rather than failing forever against a dead id. */
+      t.calendarEventId=null;t.scheduled=false;touchItem(t);renderTaskViews();
+      boardNote("That calendar event is gone — try adding it again.");
     }else if(resp.status==="reconnect_required"||resp.status==="not_connected"){
       boardNote("Connect Google Calendar in Settings to schedule tasks.");
     }else{
       boardNote("Couldn't add that to the calendar.");
     }
   }).catch(function(){boardNote("Couldn't reach the calendar just now.");});
+}
+function unscheduleTask(t){
+  if(!t.calendarEventId){t.scheduled=false;touchItem(t);renderTaskViews();return;}
+  boardNote("Removing…");
+  var q="?calendarId="+encodeURIComponent(t.calendarId||defaultCalendarId())+
+        "&eventId="+encodeURIComponent(t.calendarEventId);
+  fetch("/api/google/calendar/events"+q,{method:"DELETE",credentials:"same-origin"})
+    .then(function(res){return res.json();})
+    .then(function(resp){
+      /* A missing event is the outcome we wanted anyway. */
+      if(resp.status==="ok"||resp.status==="not_found"){
+        t.scheduled=false;t.calendarEventId=null;touchItem(t);renderTaskViews();
+        boardNote("Taken off your calendar.","good");
+      }else{
+        boardNote("Couldn't remove that from the calendar.");
+      }
+    }).catch(function(){boardNote("Couldn't reach the calendar just now.");});
 }
 
 /* The board has no status line of its own any more - the toolbar that held
@@ -6270,11 +6442,27 @@ function renderWorkflow(){
       var wide=span*WF_COL>=64;
       var bar=el("button","wf-bar"+(t.done?" is-done":(late?" is-late":"")),wide?t.title:"");
       bar.type="button";
-      bar.title=t.title+" · "+shortDay(taskStart(t))+" → "+shortDay(taskEnd(t));
+      bar.setAttribute("data-task",t.id);
+      bar.title=t.title+" · "+shortDay(taskStart(t))+" → "+shortDay(taskEnd(t))
+        +" · hold to move, drag the end to stretch";
       bar.style.left=(from*WF_COL)+"px";
       bar.style.width=Math.max(18,span*WF_COL-3)+"px";
       if(!t.done&&!late)bar.style.background=color;
-      bar.addEventListener("click",function(ev){ev.stopPropagation();openTaskMenu(t,ev);});
+      bar.addEventListener("click",function(ev){
+        ev.stopPropagation();
+        /* A drag ends by firing a click on whatever was under the pointer -
+           the same trap _cardDragged and _calDragged exist for. */
+        if(_wfDragged)return;
+        openTaskMenu(t,ev);
+      });
+      bar.addEventListener("pointerdown",function(ev){beginBarPress(t,"move",ev);});
+      /* The handle is a deliberate target with touch-action:none, so it can
+         start straight away - the bar itself has to be held first, or every
+         scroll along the timeline would drag whatever it began on. */
+      var handle=el("span","wf-bar-grip");
+      handle.setAttribute("aria-hidden","true");
+      handle.addEventListener("pointerdown",function(ev){startBarDrag(t,"end",ev);});
+      bar.appendChild(handle);
       row.appendChild(bar);
       grid.appendChild(row);
     });
@@ -6295,6 +6483,105 @@ function renderWorkflow(){
   renderWorkflowUndated();
   if(!_wfScrolled)wfScrollToToday();
 }
+/* ---------- MOVING AND STRETCHING A BAR ----------
+   The columns are weeks, but a bar is placed by day, so the drag works in
+   days: one week's width over seven. Rounding to the day is what lets you put
+   something on a Wednesday rather than snapping it to a Monday. */
+function wfDayPx(){return WF_COL/7;}
+var _wfDrag=null,_wfDragged=false,_wfHold=null;
+var WF_HOLD_MS=400,WF_HOLD_SLOP=8;
+/** With a finger the bar has to be held first: the timeline is a long
+ * horizontal scroll, so an immediate drag would grab a bar on every swipe.
+ * A mouse drags straight away. Same call as the board's cards. */
+function beginBarPress(t,mode,ev){
+  if(ev.pointerType==="mouse"){startBarDrag(t,mode,ev);return;}
+  cancelBarHold();
+  _wfHold={t:t,mode:mode,x:ev.clientX,y:ev.clientY,
+    ev:{clientX:ev.clientX,clientY:ev.clientY,pointerType:ev.pointerType,
+        preventDefault:function(){},stopPropagation:function(){}},
+    timer:setTimeout(function(){
+      var held=_wfHold;_wfHold=null;
+      if(held)startBarDrag(held.t,held.mode,held.ev);
+    },WF_HOLD_MS)};
+  document.addEventListener("pointermove",barHoldMove);
+  document.addEventListener("pointerup",cancelBarHold);
+  document.addEventListener("pointercancel",cancelBarHold);
+}
+function barHoldMove(ev){
+  if(!_wfHold)return;
+  /* Moved before the hold completed - that was a scroll, not a grab. */
+  if(Math.abs(ev.clientX-_wfHold.x)>WF_HOLD_SLOP||
+     Math.abs(ev.clientY-_wfHold.y)>WF_HOLD_SLOP)cancelBarHold();
+}
+function cancelBarHold(){
+  document.removeEventListener("pointermove",barHoldMove);
+  document.removeEventListener("pointerup",cancelBarHold);
+  document.removeEventListener("pointercancel",cancelBarHold);
+  if(!_wfHold)return;
+  clearTimeout(_wfHold.timer);
+  _wfHold=null;
+}
+function wfBarFor(id){return document.querySelector('#wfGrid .wf-bar[data-task="'+id+'"]');}
+function startBarDrag(t,mode,ev){
+  ev.preventDefault();ev.stopPropagation();
+  var bar=wfBarFor(t.id);
+  _wfDrag={t:t,mode:mode,startX:ev.clientX,
+    left:bar?parseFloat(bar.style.left)||0:0,
+    width:bar?parseFloat(bar.style.width)||0:0,days:0};
+  if(bar)bar.classList.add("is-dragging");
+  document.addEventListener("pointermove",barDragMove);
+  document.addEventListener("pointerup",barDragEnd);
+  document.addEventListener("pointercancel",barDragEnd);
+}
+function barDragMove(ev){
+  if(!_wfDrag)return;
+  ev.preventDefault();
+  var d=_wfDrag;
+  d.days=Math.round((ev.clientX-d.startX)/wfDayPx());
+  var bar=wfBarFor(d.t.id);
+  if(!bar)return;
+  var shift=d.days*wfDayPx();
+  if(d.mode==="move"){
+    bar.style.left=(d.left+shift)+"px";
+  }else{
+    /* Never shorter than the day it starts on. */
+    bar.style.width=Math.max(wfDayPx()-3,d.width+shift)+"px";
+  }
+}
+function barDragEnd(){
+  if(!_wfDrag)return;
+  var d=_wfDrag;_wfDrag=null;
+  document.removeEventListener("pointermove",barDragMove);
+  document.removeEventListener("pointerup",barDragEnd);
+  document.removeEventListener("pointercancel",barDragEnd);
+  var bar=wfBarFor(d.t.id);
+  if(bar)bar.classList.remove("is-dragging");
+  /* Deliberately no re-render when nothing moved: it would replace the bar
+     before the click that follows a plain press, and that click is what opens
+     the task menu. */
+  if(!d.days)return;
+  _wfDragged=true;
+  setTimeout(function(){_wfDragged=false;},0);
+  var from=taskStart(d.t),to=taskEnd(d.t);
+  if(d.mode==="move"){
+    setTaskSpan(d.t,shiftDay(from,d.days),shiftDay(to,d.days));
+  }else{
+    /* Dragged left past the start? setTaskSpan swaps rather than refuses, and
+       a one-day task is the floor either way. */
+    setTaskSpan(d.t,from,shiftDay(to,d.days));
+  }
+  renderTaskViews();
+}
+/** UTC arithmetic, so no daylight-saving shift can move a day key. Same
+ * reasoning as nextDay()/prevDay() in the Worker. */
+function shiftDay(key,days){
+  if(!key)return key;
+  var p=String(key).split("-");
+  var d=new Date(Date.UTC(+p[0],+p[1]-1,+p[2]));
+  d.setUTCDate(d.getUTCDate()+days);
+  return d.toISOString().slice(0,10);
+}
+
 function wfMondayKeyOfToday(){return keyOf(wfMonday(new Date()));}
 /** ISO-ish week number, only ever shown as a label. */
 function wfWeekNumber(key){
@@ -7018,8 +7305,8 @@ function renderSettings(){
   loadBriefModel();
 }
 
-function renderMedsEditor(){
-  var box=document.getElementById("medsEditBox");
+function renderMedsEditor(box,inline){
+  box=box||document.getElementById("medsEditBox");
   if(!box)return;
   box.innerHTML="";
   var list=medsList();
@@ -7033,18 +7320,21 @@ function renderMedsEditor(){
     }));
   });
   if(!list.length)box.appendChild(el("p","muted","No medicines tracked. Add one below."));
+  if(inline)box.appendChild(inlineAddRow("Add a medicine…",addMedicineNamed));
 }
 
 function addMedicine(){
   var input=document.getElementById("medNewIn");
   if(!input)return;
-  var label=(input.value||"").trim();
-  if(!label)return;
+  if(addMedicineNamed(input.value))input.value="";
+}
+function addMedicineNamed(name){
+  var label=String(name||"").trim();
+  if(!label)return false;
   if(!Array.isArray(state.profile.meds))state.profile.meds=medsList().map(function(x){return x.slice();});
   state.profile.meds.push(["med"+Date.now().toString(36),label,""]);
-  state.profile.updated_at=Date.now();
-  input.value="";
-  save();renderMedsEditor();renderToday();
+  profileChanged();renderMedsEditor();renderToday();
+  return true;
 }
 
 /** Shared shape for the little "rename / remove" list editors. */
@@ -7071,8 +7361,8 @@ function profileChanged(){
   save();
 }
 
-function renderExtrasEditor(){
-  var box=document.getElementById("extrasEditBox");
+function renderExtrasEditor(box,inline){
+  box=box||document.getElementById("extrasEditBox");
   if(!box)return;
   box.innerHTML="";
   if(!Array.isArray(state.profile.extras))state.profile.extras=extrasList().map(function(x){return Object.assign({},x);});
@@ -7093,17 +7383,34 @@ function renderExtrasEditor(){
     },kcal));
   });
   if(!list.length)box.appendChild(el("p","muted","Nothing tracked. Add something below."));
+  if(inline)box.appendChild(inlineAddRow("Add a supplement, drink or snack…",addExtraNamed));
 }
 
 function addExtra(){
   var input=document.getElementById("extraNewIn");
   if(!input)return;
-  var label=(input.value||"").trim();
-  if(!label)return;
+  if(addExtraNamed(input.value))input.value="";
+}
+function addExtraNamed(name){
+  var label=String(name||"").trim();
+  if(!label)return false;
   if(!Array.isArray(state.profile.extras))state.profile.extras=extrasList().map(function(x){return Object.assign({},x);});
   state.profile.extras.push({id:"x"+Date.now().toString(36),label:label,detail:"",kcal:0,protein:0});
-  input.value="";
   profileChanged();renderExtrasEditor();renderToday();
+  return true;
+}
+/** The "add one more" row the inline editors carry - the Settings cards have
+ * their own in the markup, so this is only for the on-card editors. */
+function inlineAddRow(placeholder,commitFn){
+  var row=el("div","task-sched");
+  var input=el("input");input.type="text";input.placeholder=placeholder;
+  input.style.cssText="flex:1;min-width:0;border:1px solid var(--line);background:var(--panel-2);color:var(--ink);border-radius:9px;padding:7px;font:inherit;font-size:.82rem";
+  var btn=el("button","btn primary","Add");btn.type="button";
+  var go=function(){ if(commitFn(input.value))input.value=""; };
+  btn.addEventListener("click",go);
+  input.addEventListener("keydown",function(e){if(e.key==="Enter"){e.preventDefault();go();}});
+  row.appendChild(input);row.appendChild(btn);
+  return row;
 }
 
 function ensureDhikrProfile(){
@@ -7114,8 +7421,8 @@ function ensureDhikrProfile(){
   return state.profile.dhikr;
 }
 
-function renderDhikrEditor(){
-  var box=document.getElementById("dhikrEditBox");
+function renderDhikrEditor(box){
+  box=box||document.getElementById("dhikrEditBox");
   if(!box)return;
   box.innerHTML="";
   var store=ensureDhikrProfile();
@@ -7621,6 +7928,11 @@ function openHeaderMenu(at){
     items.push({label:_editingLayout?"✓ Done rearranging":"↕️ Rearrange cards on this tab",
       run:function(){setLayoutEditing(!_editingLayout);}});
   }
+  /* Editing what is *on* a card, as opposed to where the card sits. */
+  if(EDITABLE_VIEWS.indexOf(currentView)>=0){
+    items.push({label:_editItems?"✓ Done editing":"✏️ Edit what's on these cards",
+      run:function(){setEditItems(!_editItems);}});
+  }
 
   if(currentView==="tasks"){
     items.push({sep:true});
@@ -7639,6 +7951,22 @@ function openHeaderMenu(at){
 
   openMenuSheet(null,items,at);
 }
+/* ---------- EDIT WHAT IS ON A CARD ----------
+   Medicines, supplements and dhikr are lists on the synced profile, and used
+   to be editable only in Settings. Edit mode renders the *same* editors in
+   place on the card they drive, so there is one implementation and the two
+   routes cannot drift. A mode, never persisted - the same call as the layout
+   editor and the task reorderer. */
+var EDITABLE_VIEWS=["today","prayers"];
+var _editItems=false;
+function setEditItems(on){
+  _editItems=!!on;
+  document.body.classList.toggle("editing-items",_editItems);
+  /* The whole store did not change, but three cards did, and they live on two
+     different tabs - so this is the one redraw that covers it. */
+  renderAll();
+}
+
 function openTextSizeMenu(at){
   var cur=currentScale();
   openMenuSheet("Text size",SCALES.map(function(sc){
@@ -7738,9 +8066,6 @@ document.getElementById("layoutEditBtn").addEventListener("click",function(){set
 document.getElementById("layoutResetBtn").addEventListener("click",resetLayout);
 
 document.getElementById("themeToggle").addEventListener("click",toggleTheme);
-document.getElementById("dhikrReorderBtn").addEventListener("click",function(){
-  setDhikrReorder(!_dhikrReorder);
-});
 document.getElementById("headerMenuBtn").addEventListener("click",function(ev){
   openHeaderMenu(ev);
 });

@@ -926,3 +926,218 @@ test("tapping the name without moving still renames", () => {
 
   assert.equal(Object.values(app.state().projects)[0].name, "New name");
 });
+
+/* ---------------- reordering tasks by dragging ---------------- */
+/* The same grip and the same code path the dhikr list uses. jsdom has no
+   layout, so elementFromPoint and getBoundingClientRect are stubbed - the
+   drag itself is the app's own. */
+
+function rowPointer(app, type, y) {
+  const ev = new app.window.Event(type, { bubbles: true, cancelable: true });
+  ev.clientX = 10; ev.clientY = y;
+  return ev;
+}
+function dragTask(app, col, fromTitle, toTitle, before) {
+  const row = (title) => [...col.querySelectorAll(".btask")]
+    .find((r) => r.querySelector(".btask-title").textContent === title);
+  row(fromTitle).querySelector(".drag-grip").dispatchEvent(rowPointer(app, "pointerdown", 0));
+  const dst = row(toTitle);
+  dst.getBoundingClientRect = () => ({ top: 100, height: 40, bottom: 140, left: 0, right: 0, width: 0 });
+  app.document.elementFromPoint = () => dst;
+  app.document.dispatchEvent(rowPointer(app, "pointermove", before ? 110 : 130));
+  app.document.dispatchEvent(rowPointer(app, "pointerup", before ? 110 : 130));
+}
+
+test("every task row has a grip, and dragging one puts it where you drop it", () => {
+  const app = openBoard(loadApp({ fetchImpl: idle }));
+  const col = newProject(app, "Errands");
+  ["One", "Two", "Three"].forEach((t) => addTaskTo(app, colNamed(app, "Errands"), t));
+  assert.equal(colNamed(app, "Errands").querySelectorAll(".drag-grip").length, 3);
+
+  dragTask(app, colNamed(app, "Errands"), "Three", "One", true);
+  assert.deepEqual(titles(colNamed(app, "Errands")), ["Three", "One", "Two"]);
+
+  dragTask(app, colNamed(app, "Errands"), "Three", "Two", false);
+  assert.deepEqual(titles(colNamed(app, "Errands")), ["One", "Two", "Three"]);
+});
+
+test("a hand-picked order rides the synced rows, and survives a reload", () => {
+  const app = openBoard(loadApp({ fetchImpl: idle }));
+  newProject(app, "Errands");
+  ["One", "Two", "Three"].forEach((t) => addTaskTo(app, colNamed(app, "Errands"), t));
+  dragTask(app, colNamed(app, "Errands"), "Three", "One", true);
+
+  const stored = app.window.localStorage.getItem(MAIN_KEY);
+  const byTitle = {};
+  Object.values(JSON.parse(stored).tasks).forEach((t) => { byTitle[t.title] = t; });
+  assert.equal(byTitle.Three.order, 0);
+  assert.ok(byTitle.Three.updated_at > 1, "stamped, or the move never pushes");
+
+  const again = openBoard(loadApp({ fetchImpl: idle, localStorageSeed: { [MAIN_KEY]: stored } }));
+  assert.deepEqual(titles(colNamed(again, "Errands")), ["Three", "One", "Two"]);
+});
+
+test("a task cannot be dragged into another project's list", () => {
+  // Each list is addressed by its own data-droplist, so a row in the other
+  // card is simply not a drop target.
+  const app = openBoard(loadApp({ fetchImpl: idle }));
+  newProject(app, "A"); addTaskTo(app, colNamed(app, "A"), "Mine");
+  newProject(app, "B"); addTaskTo(app, colNamed(app, "B"), "Theirs");
+
+  colNamed(app, "A").querySelector(".drag-grip").dispatchEvent(rowPointer(app, "pointerdown", 0));
+  const dst = colNamed(app, "B").querySelector(".btask");
+  dst.getBoundingClientRect = () => ({ top: 100, height: 40, bottom: 140, left: 0, right: 0, width: 0 });
+  app.document.elementFromPoint = () => dst;
+  app.document.dispatchEvent(rowPointer(app, "pointermove", 110));
+  app.document.dispatchEvent(rowPointer(app, "pointerup", 110));
+
+  assert.deepEqual(titles(colNamed(app, "A")), ["Mine"]);
+  assert.deepEqual(titles(colNamed(app, "B")), ["Theirs"]);
+});
+
+/* ---------------- scheduling onto the calendar ---------------- */
+
+test("the calendar button opens a date-and-time picker, not a text prompt", () => {
+  const app = openBoard(loadApp({ fetchImpl: idle }));
+  addTaskTo(app, newProject(app, "P"), "Dentist");
+  let prompted = false;
+  app.window.prompt = () => { prompted = true; return null; };
+
+  app.document.querySelector(".btask .icon-btn").click();
+  const pop = app.document.querySelector(".menu-pop");
+  assert.ok(pop, "a popup beside the button");
+  assert.equal(prompted, false, "and never a typed-out date string");
+  assert.ok(pop.querySelector('input[type="datetime-local"]'), "a real picker");
+  assert.ok(pop.querySelector('input[type="number"]'), "and how long it runs");
+  assert.match(pop.textContent, /Add to calendar/);
+});
+
+test("an already-scheduled task offers to move it or take it off", () => {
+  const app = loadApp({ fetchImpl: idle, localStorageSeed: boardSeed([
+    { title: "Booked", scheduled: true, calendarEventId: "evt-1",
+      due: new Date(Date.now() + 3600000).toISOString() },
+  ]) });
+  openBoard(app);
+  app.document.querySelector(".btask .icon-btn").click();
+
+  const pop = app.document.querySelector(".menu-pop");
+  assert.match(pop.textContent, /Reschedule/);
+  assert.match(pop.textContent, /Take off the calendar/);
+});
+
+test("rescheduling patches the event it already owns rather than making a second", async () => {
+  // The old code always POSTed, so "Reschedule" quietly left the first event
+  // behind on the calendar.
+  const calls = [];
+  const app = loadApp({
+    fetchImpl: async (url, opts) => {
+      calls.push({ url: String(url), method: (opts && opts.method) || "GET" });
+      return { ok: true, status: 200, json: async () => ({ status: "ok", eventId: "evt-1" }) };
+    },
+    localStorageSeed: boardSeed([
+      { title: "Booked", scheduled: true, calendarEventId: "evt-1",
+        due: new Date(Date.now() + 3600000).toISOString() },
+    ]),
+  });
+  openBoard(app);
+  app.document.querySelector(".btask .icon-btn").click();
+  [...app.document.querySelectorAll(".menu-pop button")]
+    .find((b) => /Reschedule/.test(b.textContent)).click();
+  await app.flush();
+
+  const write = calls.find((c) => /calendar\/events/.test(c.url) && c.method !== "GET");
+  assert.equal(write.method, "PATCH");
+});
+
+/* ---------------- moving and stretching a bar ---------------- */
+
+function barPointer(app, type, x, ptype) {
+  const ev = new app.window.Event(type, { bubbles: true, cancelable: true });
+  ev.clientX = x; ev.clientY = 50; ev.pointerType = ptype || "mouse";
+  return ev;
+}
+const theBar = (app, id) => app.document.querySelector('#wfGrid .wf-bar[data-task="' + id + '"]');
+const storedTask = (app, id) => JSON.parse(app.window.localStorage.getItem(MAIN_KEY)).tasks[id];
+
+test("marking a task done from the timeline crosses its bar out at once", () => {
+  // It used to redraw only the board, so the bar stayed uncrossed until a
+  // reload - the two views are of one set of rows.
+  const app = loadApp({ fetchImpl: idle,
+    localStorageSeed: boardSeed([{ title: "Thing", start: dayKeyFrom(0), end: dayKeyFrom(3) }]) });
+  openWorkflow(app);
+  assert.ok(!theBar(app, "t1").classList.contains("is-done"));
+
+  theBar(app, "t1").click();
+  [...app.document.querySelectorAll(".menu-pop button")]
+    .find((b) => /Mark as done/.test(b.textContent)).click();
+
+  assert.ok(theBar(app, "t1").classList.contains("is-done"), "crossed out without a reload");
+});
+
+test("dragging a bar sideways moves the whole span, by the day", () => {
+  const app = loadApp({ fetchImpl: idle,
+    localStorageSeed: boardSeed([{ title: "Thing", start: dayKeyFrom(0), end: dayKeyFrom(3) }]) });
+  openWorkflow(app);
+  const before = storedTask(app, "t1");
+
+  const bar = theBar(app, "t1");
+  bar.dispatchEvent(barPointer(app, "pointerdown", 0));
+  app.document.dispatchEvent(barPointer(app, "pointermove", (92 / 7) * 5));
+  app.document.dispatchEvent(barPointer(app, "pointerup", (92 / 7) * 5));
+
+  const after = storedTask(app, "t1");
+  assert.equal(after.start, dayKeyFrom(5), "columns are weeks, but you place it by day");
+  assert.equal(after.end, dayKeyFrom(8), "and the span keeps its length");
+  assert.ok(after.updated_at > before.updated_at, "stamped, or the move never pushes");
+});
+
+test("dragging the end of a bar stretches it and leaves the start alone", () => {
+  const app = loadApp({ fetchImpl: idle,
+    localStorageSeed: boardSeed([{ title: "Thing", start: dayKeyFrom(0), end: dayKeyFrom(3) }]) });
+  openWorkflow(app);
+
+  const grip = theBar(app, "t1").querySelector(".wf-bar-grip");
+  assert.ok(grip, "there is an end to grab");
+  grip.dispatchEvent(barPointer(app, "pointerdown", 0));
+  app.document.dispatchEvent(barPointer(app, "pointermove", (92 / 7) * 7));
+  app.document.dispatchEvent(barPointer(app, "pointerup", (92 / 7) * 7));
+
+  const after = storedTask(app, "t1");
+  assert.equal(after.start, dayKeyFrom(0), "the start does not move");
+  assert.equal(after.end, dayKeyFrom(10));
+});
+
+test("a finger has to hold a bar before it moves, or every swipe would drag one", async () => {
+  const app = loadApp({ fetchImpl: idle,
+    localStorageSeed: boardSeed([{ title: "Thing", start: dayKeyFrom(0), end: dayKeyFrom(3) }]) });
+  openWorkflow(app);
+
+  // Straight into a sideways move: that is a scroll through the weeks.
+  theBar(app, "t1").dispatchEvent(barPointer(app, "pointerdown", 0, "touch"));
+  app.document.dispatchEvent(barPointer(app, "pointermove", 60, "touch"));
+  await app.wait(500);
+  app.document.dispatchEvent(barPointer(app, "pointermove", 120, "touch"));
+  app.document.dispatchEvent(barPointer(app, "pointerup", 120, "touch"));
+  assert.equal(storedTask(app, "t1").start, dayKeyFrom(0), "nothing moved");
+
+  // Held first, then moved.
+  theBar(app, "t1").dispatchEvent(barPointer(app, "pointerdown", 0, "touch"));
+  await app.wait(500);
+  app.document.dispatchEvent(barPointer(app, "pointermove", (92 / 7) * 2, "touch"));
+  app.document.dispatchEvent(barPointer(app, "pointerup", (92 / 7) * 2, "touch"));
+  assert.equal(storedTask(app, "t1").start, dayKeyFrom(2), "held, so it moved");
+});
+
+test("a press that moves nothing still opens the task menu", () => {
+  // The end of a drag re-renders, which would replace the bar before the
+  // click that follows a plain press - and that click is the menu.
+  const app = loadApp({ fetchImpl: idle,
+    localStorageSeed: boardSeed([{ title: "Thing", start: dayKeyFrom(0), end: dayKeyFrom(3) }]) });
+  openWorkflow(app);
+
+  const bar = theBar(app, "t1");
+  bar.dispatchEvent(barPointer(app, "pointerdown", 0));
+  app.document.dispatchEvent(barPointer(app, "pointerup", 0));
+  bar.click();
+  assert.ok(app.document.querySelector(".menu-pop"), "the menu still opens");
+});

@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.41.0
+
+**Dhikr sorts by dragging**, the same way tasks used to. Every row has a ⠿ grip: pick it up and drop it above or below another row. The ▲▼ arrows and the Reorder button are gone. The order rides your synced profile, and each period is its own list — a morning item can't be dropped into the evening.
+
+**Board tasks drag too.** Same grip, same behaviour, so you can put a task where you want it in terms of priority instead of taking whatever order it was added in. A hand-picked position beats any date rule; ticked tasks still gather at the bottom.
+
+**The 📅 button opens a real picker.** It was asking you to type a date into a browser prompt. It's now a proper popup with a date-and-time field and how long the thing runs. If the task is already on your calendar it offers **Reschedule** and **Take off the calendar** — and rescheduling now *edits* the existing event rather than quietly creating a second one and leaving the first behind.
+
+**Marking a task done on the timeline crosses its bar out at once.** It was redrawing only the board, so the bar sat there uncrossed until you reloaded.
+
+**Bars can be moved and stretched on the timeline.** Hold a bar for half a second (a mouse drags straight away) and slide it to any day of any week — the columns are weeks but placement is by the day, so you can land on a Wednesday. Drag the right-hand end of a bar to extend how long it runs; the start stays put.
+
+**Edit what's on a card, from the ⋮ menu.** Alongside *Rearrange cards* there's now **Edit what's on these cards**: the medicines, supplements and dhikr lists become editable in place — rename anything, delete anything, add a new one — without going into Settings. It's the same editor Settings uses, so the two can't drift apart, and the outlined cards make it obvious you're in edit mode.
+
 ## 1.40.0
 
 **A ⋮ menu in the header, on every tab.** The controls that apply wherever you are used to be spread between one tab's toolbar and three screens deep in Settings. They're all in one place now:

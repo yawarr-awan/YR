@@ -1324,6 +1324,50 @@ the week containing `dayDate`). `calCols()` is a constant 7; `calIsWide()`
 - `attachTabSwipe` ignores touches starting in `.canvas-viewport`, same as
   `.cal-viewport`.
 
+## One drag-to-reorder, editing on the card, movable bars (1.41.0)
+- **`dragGrip`/`startRowDrag` is the single reorder implementation**, used by
+  board task rows and dhikr. It is the pattern the Today card had before 1.36.0
+  removed it: pointer events (HTML5 DnD never fires on touch), move/up on the
+  **document** rather than the grip (a re-render replaces the element the
+  gesture started on), and the row is *not* moved during the drag - only the
+  row under the pointer is marked above or below. `insertBeside()` is the
+  shared "put it here, not one place over" maths.
+  - A list is addressed by **`data-droplist` on the container and `data-row` on
+    each row**, which is what stops a morning dhikr item landing in the evening
+    or a task in another project. Tests pin both.
+  - The grip must `preventDefault`+`stopPropagation` on **click as well as
+    pointerdown**: a dhikr row is a `<label>` wrapping its checkbox.
+  - jsdom has no layout, so tests stub `elementFromPoint` and
+    `getBoundingClientRect` - the same way they stub fetch. The drag itself is
+    the app's own code path.
+- **`renderTaskViews()` is the redraw for anything that changes a task.** The
+  board and the timeline are two views of one set of rows; marking a task done
+  from the timeline redrew only the board, so the bar stayed uncrossed until a
+  reload. Don't call `renderBoard()` alone from a task mutation.
+- **`openTaskSchedule` is a popup, not `window.prompt`.** It carries a
+  `datetime-local` and a duration. `scheduleTaskOnCalendar` **PATCHes when the
+  task already owns an event** - the old code always POSTed, so "Reschedule"
+  left the first event behind and made a second. A `not_found` reply clears
+  `calendarEventId` rather than failing forever against a dead id.
+- **Gantt bars move and stretch.** `wfDayPx()` is `WF_COL/7`: the columns are
+  weeks but placement is by the day, so a bar can land on a Wednesday.
+  `beginBarPress` holds for touch (`WF_HOLD_MS` 400) exactly like the board's
+  cards, because the timeline is a long horizontal scroll; the `.wf-bar-grip`
+  handle has `touch-action:none` and starts immediately, being a deliberate
+  target. The bar itself is `touch-action:pan-y` - **not `none`** - so a finger
+  on a bar can still scroll the timeline vertically.
+  - `barDragEnd` **must not re-render when nothing moved**: it would replace
+    the bar before the click that follows a plain press, and that click is what
+    opens the task menu. `_wfDragged` suppresses the click after a real drag,
+    same pattern as `_cardDragged`/`_calDragged`.
+  - `shiftDay()` does the arithmetic in UTC, like `nextDay()`/`prevDay()`.
+- **Edit mode renders the Settings editors in place on the card**
+  (`_editItems`, `EDITABLE_VIEWS`, `body.editing-items`). `renderMedsEditor`,
+  `renderExtrasEditor` and `renderDhikrEditor` all take an optional target box,
+  so there is **one implementation** and the card and Settings cannot drift.
+  It is a mode, never persisted, and `setEditItems` calls `renderAll()` because
+  the three cards it affects live on two different tabs.
+
 ## The header menu, and two sticky lessons (1.40.0)
 - **`openHeaderMenu()` is built fresh on every open**, because half of it is
   contextual (Rearrange only on a `LAYOUT_VIEWS` tab, zoom/Fit only on the
