@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.43.0
+
+**Workflow is its own tab.** It sits next to Tasks in the bottom bar rather than behind a sub-tab row inside it — the board and the timeline are two ways of working, not two views of one screen, and the sub-tab row cost a line of height on both.
+
+**Settings left the bottom bar.** It's in the header ⋮ menu, which is reachable from every tab, so a permanent slot down there was worth more to a view you open several times a day. Workflow took that slot; still eight tabs.
+
+**You can rearrange the bottom bar.** ⋮ → **Rearrange the bottom bar** gives you a list you drag into whatever order you like, with a Reset. It's remembered per device, and a sideways swipe follows your order rather than a fixed one.
+
+**Calendar:**
+- **The all-day row is pinned** under the dates now, so what's on all day stays in view as you scroll down through the hours.
+- **It's squeezed** — all-day items get one tight line each rather than a full-height block.
+- **The calendar name is gone from event chips.** Which of your own calendars something lives on isn't what you read the grid for, and at a phone's column width it was pushing the title out. It's still in the tooltip and in the editor.
+
+**Full screen** is now the floating ✕ in the bottom-left corner, and covers both Tasks and Workflow — moving between them keeps it.
+
 ## 1.42.0
 
 **Notes** — the last piece of the project rework. **Journal** now has two sub-tabs: **📓 Journal** (unchanged) and **🗒️ Notes**.

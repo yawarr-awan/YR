@@ -208,7 +208,19 @@ function loadApp(opts = {}) {
     statusText: () => { const el = window.document.getElementById("statusBar"); return el ? el.textContent : ""; },
     statusKind: () => { const el = window.document.getElementById("statusBar"); return el ? el.className : ""; },
     syncStatusText: () => { const el = window.document.getElementById("syncStatus"); return el ? el.textContent : ""; },
-    goTo: (view) => fireClick(window, window.document.querySelector(`[data-nav="${view}"]`)),
+    /* Settings has no button in the bottom bar any more - it is reached from
+       the header menu - so a view with no button is navigated to through the
+       same delegated handler, via a throwaway element carrying its data-nav.
+       That keeps the app's own code path rather than reaching into it. */
+    goTo: (view) => {
+      const btn = window.document.querySelector(`[data-nav="${view}"]`);
+      if (btn) return fireClick(window, btn);
+      const proxy = window.document.createElement("button");
+      proxy.setAttribute("data-nav", view);
+      window.document.body.appendChild(proxy);
+      fireClick(window, proxy);
+      proxy.remove();
+    },
     click: (id) => fireClick(window, window.document.getElementById(id)),
     check: (id, val) => { const el = window.document.getElementById(id); el.checked = val; fireEvent(window, el, "change"); },
     setInput: (id, val) => { const el = window.document.getElementById(id); el.value = val; fireEvent(window, el, "input"); },

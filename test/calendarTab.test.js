@@ -148,7 +148,7 @@ test("a sideways drag on the grid never changes tab - the week scrolls instead",
   assert.equal(app.document.querySelector(".view.active").id, "view-calendar");
 });
 
-test("events land in their hour with time, calendar and location", async () => {
+test("events land in their hour, with the location but not the calendar", async () => {
   const app = loadApp({
     fetchImpl: fetchRouter([["/api/calendar/events", () => jsonRes({
       connected: true, status: "ok",
@@ -171,7 +171,12 @@ test("events land in their hour with time, calendar and location", async () => {
   assert.doesNotMatch(chip.textContent, /2:30/, "the chip shows no clock time");
   assert.match(chip.title, /2:30 PM/, "but the tooltip does, in AM/PM like everywhere else");
   assert.match(chip.textContent, /Physio/);
-  assert.match(chip.querySelector(".cal-chip-meta").textContent, /Yawar · Clinic/);
+  // Which of your own calendars an event lives on is not what you read the
+  // grid for, and at this column width it pushed the title out. Still in the
+  // tooltip, which is where you would go to change it.
+  const meta = chip.querySelector(".cal-chip-meta").textContent;
+  assert.match(meta, /Clinic/);
+  assert.doesNotMatch(meta, /Yawar/, "no calendar name on the chip");
   assert.equal(chip.style.borderInlineStartColor, "rgb(66, 133, 244)");
 
   // All-day items get their own row above the hours rather than being

@@ -21,7 +21,7 @@ test("nav sits at the bottom of the page as icons, and the Guide tab is gone", (
   assert.equal(app.document.querySelector("header .tabs"), null, "and no longer in the header");
 
   const labels = Array.from(tabs.querySelectorAll("button")).map((b) => b.getAttribute("data-nav"));
-  assert.deepEqual(labels, ["tasks", "today", "prayers", "calendar", "journal", "others", "progress", "settings"]);
+  assert.deepEqual(labels, ["tasks", "workflow", "today", "prayers", "calendar", "journal", "others", "progress"]);
   assert.equal(app.document.getElementById("view-guide"), null, "the Guide view is removed too");
   tabs.querySelectorAll("button").forEach((b) => {
     assert.ok(b.querySelector("i"), "each tab renders an icon above its label");
@@ -50,7 +50,9 @@ test("swiping left/right moves through the tabs in bottom-bar order, stopping at
   app.swipe(".wrap", 120, 0);
   assert.equal(activeView(), "view-today");
 
-  // Tasks now sits before Today, so there is one more step to the left.
+  // Tasks and Workflow both sit before Today now.
+  app.swipe(".wrap", 120, 0);
+  assert.equal(activeView(), "view-workflow");
   app.swipe(".wrap", 120, 0);
   assert.equal(activeView(), "view-tasks");
 
@@ -599,4 +601,96 @@ test("edit mode is a mode, not a stored preference", () => {
   const stored = JSON.stringify(Object.entries(app.window.localStorage));
   assert.ok(!/editItems|editing-items/.test(stored));
   assert.ok(!JSON.stringify(app.state() || {}).includes("editItems"));
+});
+
+/* ---------------- rearranging the bottom bar ---------------- */
+
+const barOrder = (app) =>
+  [...app.document.querySelectorAll("#tabs button")].map((b) => b.getAttribute("data-nav"));
+
+function openBarEditor(app) {
+  item(headerMenu(app), /Rearrange the bottom bar/).click();
+  return app.document.querySelector(".menu-pop");
+}
+function dragBarRow(app, from, to, before) {
+  const row = (v) => app.document.querySelector('[data-droplist="tabbar"] [data-row="' + v + '"]');
+  const ev = (type, y) => {
+    const e = new app.window.Event(type, { bubbles: true, cancelable: true });
+    e.clientX = 10; e.clientY = y;
+    return e;
+  };
+  row(from).querySelector(".drag-grip").dispatchEvent(ev("pointerdown", 0));
+  const dst = row(to);
+  dst.getBoundingClientRect = () => ({ top: 100, height: 40, bottom: 140, left: 0, right: 0, width: 0 });
+  app.document.elementFromPoint = () => dst;
+  app.document.dispatchEvent(ev("pointermove", before ? 110 : 130));
+  app.document.dispatchEvent(ev("pointerup", before ? 110 : 130));
+}
+
+test("Settings gave up its slot in the bar - it is in the ⋮ menu instead", () => {
+  const app = loadApp({});
+  assert.equal(barOrder(app).includes("settings"), false);
+  assert.ok(app.document.getElementById("view-settings"), "still a view, just not a button");
+
+  // And the menu is how you get there.
+  item(headerMenu(app), /Settings/).click();
+  assert.equal(app.document.querySelector(".view.active").id, "view-settings");
+});
+
+test("the bar can be rearranged by dragging, and it sticks", () => {
+  const app = loadApp({});
+  const before = barOrder(app);
+  assert.equal(before[0], "tasks");
+
+  openBarEditor(app);
+  dragBarRow(app, "progress", "tasks", true);   // drop Progress above Tasks
+
+  const after = barOrder(app);
+  assert.equal(after[0], "progress", "the bar itself reordered");
+  assert.deepEqual(after.slice().sort(), before.slice().sort(), "nothing gained or lost");
+
+  const reopened = loadApp({ localStorageSeed: {
+    yawarTabOrder: app.window.localStorage.getItem("yawarTabOrder") } });
+  assert.deepEqual(barOrder(reopened), after, "and it comes back that way");
+});
+
+test("a swipe follows the bar's own order, not a fixed one", () => {
+  // Otherwise a rearranged bar and the gesture would disagree about which
+  // tab sits beside which.
+  const app = loadApp({ localStorageSeed: {
+    yawarTabOrder: JSON.stringify(["today", "tasks", "workflow", "prayers",
+      "calendar", "journal", "others", "progress"]) } });
+  assert.equal(app.document.querySelector(".view.active").id, "view-today");
+
+  app.swipe(".wrap", 120, 0);
+  assert.equal(app.document.querySelector(".view.active").id, "view-today",
+    "Today is first now, so there is nothing to its left");
+  app.swipe(".wrap", -120, 0);
+  assert.equal(app.document.querySelector(".view.active").id, "view-tasks");
+});
+
+test("the bar's order is per device and never rides the sync protocol", () => {
+  const app = loadApp({});
+  openBarEditor(app);
+  dragBarRow(app, "journal", "tasks", true);
+  assert.ok(app.window.localStorage.getItem("yawarTabOrder"), "its own key");
+  assert.ok(!JSON.stringify(app.state() || {}).includes("yawarTabOrder"),
+    "which tabs sit where is a display preference, not a health record");
+});
+
+test("Reset puts the bar back, and a tab the stored order never heard of still appears", () => {
+  const app = loadApp({ localStorageSeed: {
+    // What an order saved before Workflow got its own tab looks like.
+    yawarTabOrder: JSON.stringify(["progress", "today"]) } });
+  const order = barOrder(app);
+  assert.equal(order[0], "progress");
+  assert.equal(order[1], "today");
+  assert.ok(order.includes("workflow"), "a later tab is appended rather than lost");
+  assert.equal(order.length, 8);
+
+  openBarEditor(app);
+  [...app.document.querySelectorAll(".menu-pop button")]
+    .find((b) => /Reset/.test(b.textContent)).click();
+  assert.equal(barOrder(app)[0], "tasks");
+  assert.equal(app.window.localStorage.getItem("yawarTabOrder"), null);
 });

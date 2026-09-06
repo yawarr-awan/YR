@@ -1324,6 +1324,40 @@ the week containing `dayDate`). `calCols()` is a constant 7; `calIsWide()`
 - `attachTabSwipe` ignores touches starting in `.canvas-viewport`, same as
   `.cal-viewport`.
 
+## The bar, the Workflow tab, the pinned all-day row (1.43.0)
+- **`VIEWS` is every view; `BAR_VIEWS` is what the bottom bar carries.** They
+  are not the same list any more: Settings is a view with no button (it lives
+  in the header ⋮ menu), and the swipe steps through `tabOrder()`, never
+  `VIEWS` - a rearranged bar and the gesture would otherwise disagree about
+  which tab sits beside which.
+- **`yawarTabOrder` is its own per-device key**, same reasoning as
+  `yawarLayout`/`yawarScale`. `tabOrder()` keeps only names it recognises and
+  then appends anything the stored order has never heard of, so a tab added by
+  a later version appears rather than vanishing. `applyTabOrder()` **moves**
+  the existing buttons rather than rebuilding them, so their listeners stay.
+- **`goTo()` in `test/lib.js` falls back to a throwaway `[data-nav]` element**
+  for a view with no button, dispatched into the app's own delegated handler -
+  which keeps the tests on the real code path rather than reaching inside.
+- **Workflow is a top-level view**, not a sub-tab: `TASK_SUBVIEWS`/`navTaskSub`
+  are gone. A stored `yawarLastTaskSub` of `workflow` is mapped to the new tab
+  at startup, the same upgrade path `yawarLastTab` got in 1.10.0.
+- **Full screen covers `FULLSCREEN_VIEWS` (tasks + workflow)** and is left only
+  when you go somewhere else, so moving between the two keeps it. The way out
+  is `#fsExitBtn`, floating **bottom-left** - the timeline's own Today button
+  owns the top-right and the board's `+` owns the bottom-right.
+- **`.cal-allday` is `position:sticky; top:var(--cal-head-h)`.** `.cal-gh` is
+  given that height explicitly rather than measured, because sticky needs a
+  number. The trap: a `.cal-daygroup.is-week .cal-allday` copy of the rule
+  (0,3,0) outranks `.cal-gutter.cal-allday` (0,2,0), which dropped the "All
+  day" label's z-index back to 5 and let the hour gutter scroll over it. Don't
+  reintroduce a week-scoped duplicate.
+- **`.menu-pop button` is `display:block;width:100%`**, so a `.drag-grip`
+  inside a menu row takes the whole width and squeezes its label to nothing.
+  `.menu-pop .drag-grip` overrides it.
+- The event chip no longer carries `event.calendar`. Which of your own
+  calendars something lives on is not what the grid is read for, and at 92px
+  it pushed the title out; it stays in the tooltip and the editor.
+
 ## Notes (1.42.0)
 - **A note is a third `ITEM_STORES`/`ITEM_TABLES` entry**, nothing more - which
   is what the generic item path was built for (1.36.0). One word in each array,
