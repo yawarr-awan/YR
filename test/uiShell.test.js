@@ -518,3 +518,85 @@ test("Sync now says so rather than doing nothing when sync is off", () => {
   assert.equal(app.document.querySelector(".view.active").id, "view-settings",
     "and takes you to where the switch is");
 });
+
+/* ---------------- editing what is on a card ---------------- */
+/* Medicines, supplements and dhikr are lists on the synced profile. They used
+   to be editable only in Settings; edit mode renders the same editors in
+   place on the cards they drive. */
+
+test("Edit is offered where a card has a list you can change", () => {
+  const app = loadApp({});
+  app.goTo("today");
+  assert.ok(item(headerMenu(app), /Edit what/), "Today has medicines and supplements");
+  app.document.querySelector(".menu-backdrop")
+    .dispatchEvent(new app.window.Event("pointerdown", { bubbles: true }));
+
+  app.goTo("progress");
+  assert.equal(item(headerMenu(app), /Edit what/), undefined, "charts have nothing to edit");
+});
+
+test("edit mode turns the checklists into the Settings editors, in place", () => {
+  const app = loadApp({});
+  app.goTo("today");
+  const meds = app.document.getElementById("medsBox");
+  assert.ok(meds.querySelector("input[type=checkbox]"), "a checklist to begin with");
+
+  item(headerMenu(app), /Edit what/).click();
+  assert.equal(meds.querySelector("input[type=checkbox]"), null, "not a checklist any more");
+  assert.ok(meds.querySelector("input[type=text]"), "the name is editable in place");
+  assert.ok([...meds.querySelectorAll("button")].some((b) => /Add/.test(b.textContent)),
+    "and you can add one without going to Settings");
+  assert.ok(app.document.body.classList.contains("editing-items"), "and it is visibly a mode");
+});
+
+test("adding from a card writes to the same synced list Settings edits", () => {
+  const app = loadApp({});
+  app.goTo("today");
+  item(headerMenu(app), /Edit what/).click();
+
+  const meds = app.document.getElementById("medsBox");
+  const add = meds.querySelector(".task-sched input");
+  add.value = "Vitamin D";
+  [...meds.querySelectorAll("button")].find((b) => /Add/.test(b.textContent)).click();
+
+  const s = app.state();
+  assert.ok(s.profile.meds.some((m) => m[1] === "Vitamin D"));
+  assert.ok(s.profile.updated_at > 1, "stamped, or it never pushes");
+  // And the Settings editor is looking at the very same list.
+  app.goTo("settings");
+  assert.ok([...app.document.querySelectorAll("#medsEditBox input[type=text]")]
+    .some((i) => i.value === "Vitamin D"), "one list, two ways in");
+});
+
+test("renaming on the card renames it for good", () => {
+  const app = loadApp({});
+  app.goTo("today");
+  item(headerMenu(app), /Edit what/).click();
+
+  const first = app.document.querySelector("#medsBox input[type=text]");
+  first.value = "Renamed thing";
+  first.dispatchEvent(new app.window.Event("change", { bubbles: true }));
+
+  assert.equal(app.state().profile.meds[0][1], "Renamed thing");
+  item(headerMenu(app), /Done editing/).click();
+  assert.match(app.document.getElementById("medsBox").textContent, /Renamed thing/,
+    "and the checklist shows the new name");
+});
+
+test("edit mode reaches the dhikr card on the Prayers tab too", () => {
+  const app = loadApp({});
+  app.goTo("today");
+  item(headerMenu(app), /Edit what/).click();
+  app.goTo("prayers");
+  assert.ok(app.document.querySelector("#dhikrBox input[type=text]"),
+    "the same mode, on every card that has a list");
+});
+
+test("edit mode is a mode, not a stored preference", () => {
+  const app = loadApp({});
+  app.goTo("today");
+  item(headerMenu(app), /Edit what/).click();
+  const stored = JSON.stringify(Object.entries(app.window.localStorage));
+  assert.ok(!/editItems|editing-items/.test(stored));
+  assert.ok(!JSON.stringify(app.state() || {}).includes("editItems"));
+});
