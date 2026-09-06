@@ -571,6 +571,42 @@ felt built for a desktop.
 - `profile.calendarId` remembers the choice (synced). `scheduleTaskAt()`
   uses the same default, so a scheduled task doesn't land somewhere else.
 
+## Repeating events (1.47.0)
+- **The client sends a structured repeat, never an RRULE.** `buildRecurrenceRule
+  (rec, allDay)` in worker.js turns `{freq, interval?, byDay?, count?, until?}`
+  into the one RRULE line. A rule is interpolated into what Google stores and
+  re-serves, so it is validated where the checks cannot be skipped - a raw
+  string is rejected outright (`must be an object`). Validation runs **before**
+  the token fetch, so a bad repeat is a 400 naming the problem rather than
+  whatever Google says about a rule we should never have sent.
+- **Two RFC 5545 rules that are easy to get wrong and hard to notice:**
+  - **`UNTIL` must be the same value type as `DTSTART`.** A timed event's
+    DTSTART is a DATE-TIME, so UNTIL is `20261231T235959Z` (UTC); an all-day
+    event's is a DATE, so UNTIL is a bare `20261231` with no time at all.
+    Mixing them gives a series that either runs forever or stops immediately.
+    `allDay` is a parameter of the builder for exactly this reason.
+  - **COUNT and UNTIL are mutually exclusive.** Both set is an error here, not
+    a guess about which wins.
+- `BYDAY` is **weekly-only** (rejected on the other frequencies, and the client
+  hides the picker to match) and is emitted in **week order**, not tap order -
+  the rule is stored and re-read, and `MO,WE,FR` should read as a schedule.
+  `INTERVAL=1` is the spec default and is left out.
+- **Repeat is offered on create only.** `fetchEventsForRange` asks for
+  `singleEvents`, so **every event the client holds is an instance** - a repeat
+  control on an existing one would silently rewrite one occurrence. The event
+  now carries `recurringEventId` and the editor says which it is. Same call as
+  "moving between calendars is `events.move`, so don't offer a select".
+- The presets are relabelled from the chosen date (`refresh()`), wired to both
+  the `datetime-local` and the all-day `date` input - otherwise "Weekly on Tue"
+  survives a change of start and describes the wrong day.
+- **`calApi` resolves a 400 instead of throwing it.** It threw on every non-ok
+  status, so the Worker's own "here is what is wrong" body was discarded and
+  the user was told to try again later - advice for something that would fail
+  identically forever. 400 resolves and the caller reads `error`; everything
+  else still throws.
+- Test note: `test/calendarEdit.test.js` reaches the hidden panels through
+  `.closest(".field").parentNode`, since the wrapper is what carries `hidden`.
+
 ## Scheduling from the calendar + opening reminders (1.14.0)
 - **Worker**: `listCalendars()` now carries `writable` (accessRole
   writer/owner), and `fetchEventsForRange()` carries `id`, `calendarId`,

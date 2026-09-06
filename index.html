@@ -760,6 +760,25 @@ input[type=range]{width:100%;accent-color:var(--accent)}
 /* The datetime input needs the wider share or Chromium clips its am/pm. */
 .cal-edit .row2>*{flex:2 1 175px;min-width:0}
 .cal-edit .row2>*+*{flex:1 1 110px}
+/* The custom-repeat panel. Indented and ruled so it reads as belonging to the
+   Repeats select above it rather than as more top-level fields. */
+.cal-edit .repeat-custom{
+  margin:-4px 0 10px;padding:10px 0 2px 10px;
+  border-inline-start:2px solid var(--line)
+}
+.cal-edit .repeat-every{display:flex;gap:8px}
+.cal-edit .repeat-every input{flex:0 0 5rem}
+.cal-edit .repeat-every select{flex:1 1 auto;min-width:0}
+.cal-edit .repeat-days{display:flex;gap:4px;flex-wrap:wrap}
+/* Overrides the .field rule above, which would stretch each day to 100%. */
+.cal-edit .repeat-days .repeat-day{
+  width:auto;flex:1 1 auto;min-width:2.4rem;padding:7px 4px;
+  border:1px solid var(--line);background:var(--panel-2);color:var(--muted);
+  border-radius:10px;font:inherit;font-size:.76rem;font-weight:700;cursor:pointer
+}
+.cal-edit .repeat-days .repeat-day.is-on{
+  background:var(--brand);border-color:var(--brand);color:#fff
+}
 .cal-edit .actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
 .cal-edit .actions .grow{flex:1 1 auto}
 /* Narrow columns can't hold a sentence, so they get a compact chip. */
@@ -4359,6 +4378,127 @@ function calMini(x,place){
 /* ---------- CALENDAR EDITOR ---------- */
 var CAL_DURATIONS=[15,30,45,60,90,120,180,240];
 
+/* ---------- REPEATING EVENTS ----------
+   The presets read off the chosen date ("Weekly on Tuesday"), so they have to
+   be relabelled whenever that date moves - hence refresh(). The Worker turns
+   what read() returns into the RRULE; nothing here builds one, so the
+   validation lives in exactly one place. */
+var RRULE_DAYS=["SU","MO","TU","WE","TH","FR","SA"];
+var REPEAT_DAY_LABELS=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+var REPEAT_UNITS=[["DAILY","days"],["WEEKLY","weeks"],["MONTHLY","months"],["YEARLY","years"]];
+var MAX_REPEAT_COUNT=730;
+
+function ordinalDay(n){
+  var s=["th","st","nd","rd"],v=n%100;
+  return n+(s[(v-20)%10]||s[v]||s[0]);
+}
+
+/** Builds the "Repeats" control. Returns {refresh(date), read()} - read()
+ * gives the Worker's recurrence shape, or null for "does not repeat". */
+function calRepeatControl(parent,seed){
+  var when=seed instanceof Date&&!isNaN(seed.getTime())?seed:new Date();
+
+  var sel=el("select");sel.id="calEditRepeat";
+  [["","Does not repeat"],["DAILY",""],["WEEKLY",""],["MONTHLY",""],["YEARLY",""],
+   ["CUSTOM","Custom…"]].forEach(function(p){
+    var opt=el("option",null,p[1]);opt.value=p[0];sel.appendChild(opt);
+  });
+  calEditField(parent,"Repeats",sel);
+
+  var custom=el("div","repeat-custom");custom.id="calEditRepeatCustom";custom.hidden=true;
+
+  /* Number and unit read as one phrase ("every 3 weeks"), so they share a
+     single label - two labels would also leave the controls misaligned,
+     since the second would have to be blank. */
+  var nIn=el("input");nIn.type="number";nIn.min="1";nIn.max="999";nIn.value="1";
+  nIn.id="calEditRepeatEvery";
+  var unitIn=el("select");unitIn.id="calEditRepeatUnit";
+  REPEAT_UNITS.forEach(function(u){var o=el("option",null,u[1]);o.value=u[0];unitIn.appendChild(o);});
+  unitIn.value="WEEKLY";
+  var everyPair=el("div","repeat-every");
+  everyPair.appendChild(nIn);everyPair.appendChild(unitIn);
+  calEditField(custom,"Every",everyPair);
+
+  /* Weekday picker, weekly only - BYDAY means nothing on the other
+     frequencies and the Worker rejects it, so it must not be reachable. */
+  var daysRow=el("div","repeat-days");daysRow.id="calEditRepeatDays";
+  var dayBoxes=[];
+  REPEAT_DAY_LABELS.forEach(function(lbl,i){
+    var b=el("button","repeat-day");b.type="button";b.textContent=lbl;
+    b.dataset.day=RRULE_DAYS[i];
+    b.addEventListener("click",function(){b.classList.toggle("is-on");});
+    daysRow.appendChild(b);dayBoxes.push(b);
+  });
+  var daysWrap=el("div");
+  calEditField(daysWrap,"On",daysRow);
+  custom.appendChild(daysWrap);
+
+  var endSel=el("select");endSel.id="calEditRepeatEnd";
+  [["","Never"],["UNTIL","On a date"],["COUNT","After a number of times"]].forEach(function(p){
+    var o=el("option",null,p[1]);o.value=p[0];endSel.appendChild(o);
+  });
+  calEditField(custom,"Ends",endSel);
+
+  var untilIn=el("input");untilIn.type="date";untilIn.id="calEditRepeatUntil";
+  var untilWrap=el("div");untilWrap.hidden=true;
+  calEditField(untilWrap,"On",untilIn);
+  custom.appendChild(untilWrap);
+
+  var countIn=el("input");countIn.type="number";countIn.min="1";countIn.max=String(MAX_REPEAT_COUNT);
+  countIn.value="10";countIn.id="calEditRepeatCount";
+  var countWrap=el("div");countWrap.hidden=true;
+  calEditField(countWrap,"Times",countIn);
+  custom.appendChild(countWrap);
+
+  parent.appendChild(custom);
+
+  function syncDays(){daysWrap.hidden=unitIn.value!=="WEEKLY";}
+  function syncEnd(){
+    untilWrap.hidden=endSel.value!=="UNTIL";
+    countWrap.hidden=endSel.value!=="COUNT";
+  }
+  sel.addEventListener("change",function(){custom.hidden=sel.value!=="CUSTOM";});
+  unitIn.addEventListener("change",syncDays);
+  endSel.addEventListener("change",syncEnd);
+  syncDays();syncEnd();
+
+  function refresh(date){
+    if(date instanceof Date&&!isNaN(date.getTime()))when=date;
+    sel.options[1].textContent="Daily";
+    sel.options[2].textContent="Weekly on "+REPEAT_DAY_LABELS[when.getDay()];
+    sel.options[3].textContent="Monthly on the "+ordinalDay(when.getDate());
+    sel.options[4].textContent="Yearly";
+    /* The custom panel starts from whatever the date says, so opening it
+       after picking a preset is a continuation rather than a reset. */
+    var code=RRULE_DAYS[when.getDay()];
+    dayBoxes.forEach(function(b){
+      if(!custom.dataset.touched)b.classList.toggle("is-on",b.dataset.day===code);
+    });
+    if(!untilIn.value){
+      var u=new Date(when.getTime());u.setMonth(u.getMonth()+3);
+      untilIn.value=keyOf(u);
+    }
+  }
+  daysRow.addEventListener("click",function(){custom.dataset.touched="1";});
+  refresh(when);
+
+  function read(){
+    if(!sel.value)return null;
+    if(sel.value!=="CUSTOM")return {freq:sel.value};
+    var rec={freq:unitIn.value,interval:parseInt(nIn.value,10)||1};
+    if(unitIn.value==="WEEKLY"){
+      var picked=dayBoxes.filter(function(b){return b.classList.contains("is-on");})
+                         .map(function(b){return b.dataset.day;});
+      if(picked.length)rec.byDay=picked;
+    }
+    if(endSel.value==="UNTIL"&&untilIn.value)rec.until=untilIn.value;
+    else if(endSel.value==="COUNT")rec.count=parseInt(countIn.value,10)||1;
+    return rec;
+  }
+
+  return {refresh:refresh,read:read};
+}
+
 function openCalSlot(dayDate,hour){
   var start=new Date(dayDate);
   start.setHours(hour,0,0,0);
@@ -4477,6 +4617,24 @@ function openCalEditor(o){
     }
   }
 
+  /* Repeat is offered for a new event only. Changing how an existing series
+     repeats means editing the series, not the instance we are holding - our
+     fetch asks for singleEvents, so every event here IS an instance - and a
+     control that silently rewrote only this occurrence would be worse than
+     none. An existing one says what it does instead. */
+  var repeat=null;
+  if(!entry&&!gtask){
+    repeat=calRepeatControl(wrap,allDay?null:(o.start?new Date(o.start):null));
+    if(whenIn)whenIn.addEventListener("change",function(){
+      var d=whenIn.value?new Date(whenIn.value):null;
+      if(d&&!isNaN(d.getTime()))repeat.refresh(d);
+    });
+    if(dayIn)dayIn.addEventListener("change",function(){
+      var p=(dayIn.value||"").split("-");
+      if(p.length===3)repeat.refresh(new Date(+p[0],+p[1]-1,+p[2]));
+    });
+  }
+
   /* Which calendar to put it on. Only for something new: moving an existing
      event between calendars is a different Google call (events.move), so an
      existing one says where it lives instead. With one writable calendar
@@ -4527,6 +4685,11 @@ function openCalEditor(o){
     wrap.appendChild(gRow);
   }
 
+  /* Every event we hold is an instance (singleEvents), so an edit here changes
+     this occurrence and no other. Say which one you are editing rather than
+     leaving it to be discovered. */
+  if(ev&&ev.recurringEventId)
+    wrap.appendChild(el("p","muted","One of a repeating series — changes here apply to this occurrence only. Change the whole series in Google Calendar."));
   if(ev&&ev.calendar)wrap.appendChild(el("p","muted","On "+ev.calendar+(readOnly?" — you can only read this calendar, so it can't be edited here.":"")));
   if(allDay&&!gtask)wrap.appendChild(el("p","muted","All-day event — its time can't be changed here."));
 
@@ -4568,6 +4731,7 @@ function openCalEditor(o){
         calendarId:calIn?calIn.value:null,
         allDay:!!(allDayCb&&allDayCb.checked),
         day:dayIn?dayIn.value:null,
+        recurrence:repeat?repeat.read():null,
       },saveBtn);
     });
     actions.appendChild(saveBtn);
@@ -4594,7 +4758,11 @@ function openCalEditor(o){
 function calWriteOk(resp,status){
   if(resp&&resp.status==="ok")return true;
   var msg="Couldn't save that — try again in a bit.";
-  if(resp&&(resp.status==="reconnect_required"||resp.status==="not_connected"))
+  /* A 400 from the Worker names what is wrong with the request - a bad
+     repeat, most likely. Saying "try again in a bit" to something that will
+     fail identically forever is the wrong answer. */
+  if(resp&&resp.error)msg=resp.error;
+  else if(resp&&(resp.status==="reconnect_required"||resp.status==="not_connected"))
     msg="Connect Google Calendar (Today's Brief card) to change your calendar.";
   else if(resp&&resp.status==="not_found")msg="That event is no longer on your calendar.";
   if(status)status.textContent=msg;
@@ -4620,12 +4788,14 @@ function calEditorSave(f,btn){
     if(!f.day){if(status)status.textContent="Pick a date first.";if(btn)btn.disabled=false;return Promise.resolve();}
     var whole={title:f.title,allDay:true,day:f.day,location:f.location,notes:f.notes};
     if(f.calendarId)whole.calendarId=f.calendarId;
+    if(f.recurrence)whole.recurrence=f.recurrence;
     req=calApi("POST","/api/google/calendar/events",whole);
   }else{
     if(!startIso){if(status)status.textContent="Pick a time first.";if(btn)btn.disabled=false;return Promise.resolve();}
     var create={title:f.title,start:startIso,durationMinutes:f.durationMinutes||30,
                 location:f.location,notes:f.notes};
     if(f.calendarId)create.calendarId=f.calendarId;
+    if(f.recurrence)create.recurrence=f.recurrence;
     req=calApi("POST","/api/google/calendar/events",create);
   }
 
@@ -4709,6 +4879,12 @@ function calApi(method,path,payload){
   var opts={method:method,credentials:"same-origin"};
   if(payload){opts.headers={"content-type":"application/json"};opts.body=JSON.stringify(payload);}
   return fetch(path,opts).then(function(res){
+    /* A 400 is the Worker telling us what is wrong with the request - a
+       malformed repeat, most likely. Throwing it away and reporting
+       "couldn't reach the server" would be both wrong and unactionable, so
+       the body is resolved and the caller reads `error` from it. Anything
+       else still throws: those really are "try again in a bit". */
+    if(res.status===400)return res.json().catch(function(){return {error:"That didn't look right."};});
     if(!res.ok)throw new Error("http "+res.status);
     return res.json();
   });
