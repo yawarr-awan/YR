@@ -1324,6 +1324,34 @@ the week containing `dayDate`). `calCols()` is a constant 7; `calIsWide()`
 - `attachTabSwipe` ignores touches starting in `.canvas-viewport`, same as
   `.cal-viewport`.
 
+## The header menu, and two sticky lessons (1.40.0)
+- **`openHeaderMenu()` is built fresh on every open**, because half of it is
+  contextual (Rearrange only on a `LAYOUT_VIEWS` tab, zoom/Fit only on the
+  board, Full screen only on Tasks). It reuses `openMenuSheet`/`.menu-pop`, so
+  it inherits the fixed positioning and edge-flipping.
+- The handlers it calls are **extracted functions, not inline listeners**
+  (`setScale`, `toggleTheme`, `downloadBackup`) - the Settings controls call the
+  same ones, so the two routes cannot drift.
+- **The board has no toolbar.** `#projectAddBtn` is a `.fab` floating inside
+  `.canvas-viewport`; zoom lives in the header menu. The zoom percentage is
+  `data-zoom` on the viewport - nothing displays it, but it stays inspectable
+  and the tests read it there. `boardNote()` now goes to the app status bar,
+  since `#boardCount` is gone.
+- **`position:sticky` makes `inset-block:0` a constraint, not sizing.** The
+  Gantt's name gutter is `.wf-rowlabel`, absolutely positioned in its base rule
+  and switched to sticky inside a row; the box then collapsed to its text and
+  bars scrolling past showed through the rest of the row (reported as the first
+  column overlapping). `height:100%` fixes it - both row heights are definite.
+  The same trap in a different guise as the 1.12.0/1.27.0 `overflow:hidden`
+  notes: sticky is full of these.
+- **Dhikr reordering is on the Prayers card, not only in the Settings editor**
+  (`_dhikrReorder`, a mode, never persisted). It forces all three periods open -
+  you cannot move an item past a row that is not on screen - and every arrow
+  must `preventDefault` + `stopPropagation`, because the row is a `<label>`
+  wrapping the checkbox and would otherwise tick the item off as well.
+  `moveDhikrItem()` writes to `profile.dhikr[period]` and calls
+  `profileChanged()`; forget that stamp and the new order never pushes.
+
 ## Weeks, colours, full screen (1.39.0)
 - **The Gantt's columns are weeks and the window is enormous** (`WF_WEEKS_BACK`
   52, `WF_WEEKS_FWD` 104) - it scrolls rather than pages. The arrows

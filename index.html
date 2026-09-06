@@ -329,12 +329,15 @@ body.editing .card[data-card].is-over{outline:2px solid var(--brand)}
    Cards are absolutely positioned in canvas coordinates and the whole plane
    is moved with one transform, so zooming and panning cost no layout - the
    browser composites a single element rather than reflowing every card. */
-/* One line, always: wrapping this bar costs the canvas a whole row of height,
-   which is the thing the tab is short of. The count is the first thing to go
-   when there isn't room - the board itself says how many projects there are. */
-.board-bar{display:flex;align-items:center;gap:6px;margin:8px 0 6px;flex-wrap:nowrap}
-.board-bar .muted:last-child{margin-inline-start:auto;white-space:nowrap}
-@media(max-width:560px){.board-bar #boardCount{display:none}}
+/* The one control the board keeps, floating over its own bottom-right corner
+   rather than in a toolbar row above it. */
+.fab{
+  position:absolute;inset-block-end:14px;inset-inline-end:14px;z-index:6;
+  width:52px;height:52px;border-radius:50%;border:none;cursor:pointer;
+  background:var(--brand);color:#fff;font:inherit;font-size:1.7rem;line-height:1;
+  box-shadow:0 6px 18px rgba(8,12,24,.35)
+}
+.fab:active{transform:scale(.94)}
 .canvas-viewport{
   position:relative;overflow:hidden;
   height:var(--canvas-h,calc(100vh - var(--hdr-h) - 210px));min-height:320px;
@@ -374,6 +377,13 @@ body.editing .card[data-card].is-over{outline:2px solid var(--brand)}
 .board-col-head .board-n{flex:0 0 auto;font-size:.72rem;color:var(--muted);font-weight:700}
 .board-tasks{flex:1 1 auto;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:2px;margin-bottom:8px}
 .board-empty{font-size:.8rem;color:var(--muted);padding:6px 2px}
+/* Stacked, so the pair costs one button's width on a phone. */
+.dhikr-move{flex:0 0 auto;display:flex;flex-direction:column;gap:2px;margin-inline-start:auto}
+.dhikr-move button{
+  border:1px solid var(--line);background:var(--panel-2);color:var(--ink);
+  width:26px;height:16px;border-radius:5px;font-size:.6rem;line-height:1;cursor:pointer;
+  font-family:inherit;padding:0
+}
 .card-resize{
   position:absolute;inset-block-end:0;inset-inline-end:0;width:20px;height:20px;
   cursor:nwse-resize;touch-action:none;
@@ -462,9 +472,14 @@ body.editing .card[data-card].is-over{outline:2px solid var(--brand)}
   overflow:hidden;white-space:nowrap
 }
 .wf-projrow .wf-rowlabel{background:var(--panel-2)}
-/* Sticky is on the label so the names stay put while the weeks scroll. */
-.wf-row .wf-rowlabel{position:sticky;inset-inline-start:0;
-  margin-inline-start:calc(-1 * var(--wf-gutter));float:left}
+/* Sticky is on the label so the names stay put while the weeks scroll.
+   `height:100%` is load-bearing: the base rule is position:absolute with
+   inset-block:0, but once it is sticky those insets become sticky constraints
+   rather than sizing, so the box shrinks to its text and a bar scrolling past
+   showed through the rest of the row. Both row heights are definite, so 100%
+   resolves. */
+.wf-row .wf-rowlabel{position:sticky;inset-inline-start:0;inset-block:auto;
+  height:100%;margin-inline-start:calc(-1 * var(--wf-gutter));float:left}
 .wf-proj{font-weight:800;font-size:.74rem;color:var(--ink)}
 .wf-taskname{cursor:pointer;color:var(--ink);background:none;border:none;font:inherit;
   font-size:.76rem;width:100%;text-align:start;padding:0;
@@ -865,6 +880,9 @@ footer.foot{text-align:center;color:var(--muted);font-size:.78rem;margin-top:26p
     <button class="pchip is-idle" id="headerChip" type="button" aria-label="Prayer times">Prayer times</button>
     <div class="ring" id="dayRing" title="How much of today is ticked off"><span id="dayRingTxt">0%</span></div>
     <button id="notifyBell" class="bell-btn" aria-label="Notifications" aria-expanded="false" title="Notifications">🔔<span class="bell-dot" id="bellDot" hidden></span></button>
+    <!-- The view controls that used to be buried in Settings, or in a toolbar
+         on one tab. They apply wherever you are, so they live in the header. -->
+    <button id="headerMenuBtn" class="bell-btn" type="button" aria-label="More" title="More">⋮</button>
   </div>
   <div class="notif-panel" id="notifPanel" hidden>
     <div class="notif-head">
@@ -995,7 +1013,14 @@ footer.foot{text-align:center;color:var(--muted);font-size:.78rem;margin-top:26p
 
       <div class="card collapsible" data-collapse="dhikr" data-card="dhikr">
         <h3><span class="dot" style="background:var(--accent)"></span> Dhikr<span class="count" id="dhikrCount"></span></h3>
-        <div class="card-body"><div id="dhikrBox"></div></div>
+        <div class="card-body">
+          <!-- Reordering lives here, beside the list you actually read every
+               day, rather than only in the Settings editor. -->
+          <div class="pill-row" style="margin-bottom:8px">
+            <button class="btn" id="dhikrReorderBtn" type="button">↕️ Reorder</button>
+          </div>
+          <div id="dhikrBox"></div>
+        </div>
       </div>
     
 <div class="card collapsible" data-collapse="praysum" data-card="praysum">
@@ -1148,19 +1173,17 @@ footer.foot{text-align:center;color:var(--muted);font-size:.78rem;margin-top:26p
     </nav>
 
     <div class="subview active" id="tsub-board">
-      <div class="board-bar">
-        <button class="btn" id="projectAddBtn" type="button">+ Project</button>
-        <button class="icon-btn" id="zoomOutBtn" type="button" aria-label="Zoom out">−</button>
-        <span class="muted" id="zoomLabel" style="font-size:.74rem;min-width:3.2em;text-align:center">100%</span>
-        <button class="icon-btn" id="zoomInBtn" type="button" aria-label="Zoom in">+</button>
-        <button class="btn" id="zoomFitBtn" type="button">Fit</button>
-        <span class="muted" id="boardCount" style="font-size:.74rem"></span>
-      </div>
       <!-- A real canvas: pinch or the buttons to zoom, drag the background to
            pan, drag a card by its header to move it, drag its corner to
            resize. -->
       <div class="canvas-viewport" id="canvasViewport">
         <div class="canvas" id="board"></div>
+        <!-- The toolbar that used to sit above the canvas is gone: it cost a
+             row of the height the board is short of, and zoom belongs with
+             the other view controls in the header menu. Adding a project is
+             the one thing that needs to be one tap away. -->
+        <button class="fab" id="projectAddBtn" type="button"
+                aria-label="Add a project" title="Add a project">+</button>
       </div>
     </div>
 
@@ -2272,7 +2295,10 @@ function renderDhikr(d){
   var box=document.getElementById("dhikrBox");if(!box)return;box.innerHTML="";
   DHIKR_PERIODS.forEach(function(period){
     var prefKey="dhikr_"+period[0];
-    var collapsed=Object.prototype.hasOwnProperty.call(collapsePrefs,prefKey)?!!collapsePrefs[prefKey]:true;
+    /* While reordering, every period is open: you cannot move an item past a
+       row that isn't on screen. Same call as the task reorderer. */
+    var collapsed=_dhikrReorder?false
+      :(Object.prototype.hasOwnProperty.call(collapsePrefs,prefKey)?!!collapsePrefs[prefKey]:true);
     var card=el("div","subcard"+(collapsed?" collapsed":""));
     var done=0;
     var items=dhikrItems(period[0]);
@@ -2317,11 +2343,56 @@ function renderDhikr(d){
         txt.appendChild(el("div","lbl",item[1]));
       }
       row.appendChild(cb);row.appendChild(txt);
+      if(_dhikrReorder)row.appendChild(dhikrMoveButtons(period[0],item[0]));
       body.appendChild(row);
     });
     card.appendChild(body);
     box.appendChild(card);
   });
+}
+/** A ▲▼ pair, stacked so the pair costs one button's width at 390px - the row
+ * already carries a checkbox and a label that can run to two lines. */
+function dhikrMoveButtons(period,key){
+  var wrap=el("div","dhikr-move");
+  [["▲",-1,"Move up"],["▼",1,"Move down"]].forEach(function(spec){
+    var b=el("button",null,spec[0]);
+    b.type="button";b.title=spec[2];b.setAttribute("aria-label",spec[2]);
+    b.addEventListener("click",function(ev){
+      /* The row is a <label> wrapping the checkbox - without this, moving an
+         item would also tick it off. */
+      ev.preventDefault();ev.stopPropagation();
+      moveDhikrItem(period,key,spec[1]);
+    });
+    wrap.appendChild(b);
+  });
+  return wrap;
+}
+/** Reordering writes to the synced profile, so the order follows you to your
+ * other devices - and the stamp is what makes it push at all. */
+function moveDhikrItem(period,key,delta){
+  var store=ensureDhikrProfile(),list=store[period];
+  var at=-1;
+  list.forEach(function(it,i){if(it[0]===key)at=i;});
+  var to=at+delta;
+  if(at<0||to<0||to>=list.length)return;
+  var moved=list.splice(at,1)[0];
+  list.splice(to,0,moved);
+  profileChanged();
+  renderDhikr(dayData(keyOf(cur)));
+  renderDhikrEditor();
+}
+/* A mode, never persisted - the same call as the task and card reorderers. */
+var _dhikrReorder=false;
+function setDhikrReorder(on){
+  _dhikrReorder=!!on;
+  var b=document.getElementById("dhikrReorderBtn");
+  if(b){
+    b.textContent=_dhikrReorder?"✓ Done":"↕️ Reorder";
+    b.classList.toggle("primary",_dhikrReorder);
+  }
+  var box=document.getElementById("dhikrBox");
+  if(box)box.classList.toggle("is-reordering",_dhikrReorder);
+  renderDhikr(dayData(keyOf(cur)));
 }
 
 function updateRing(){
@@ -5514,8 +5585,10 @@ function applyCanvasTransform(){
   var plane=document.getElementById("board");
   if(!plane)return;
   plane.style.transform="translate("+_canvas.x+"px,"+_canvas.y+"px) scale("+_canvas.z+")";
-  var lbl=document.getElementById("zoomLabel");
-  if(lbl)lbl.textContent=Math.round(_canvas.z*100)+"%";
+  /* The zoom is no longer written anywhere on screen - the toolbar that
+     showed it is gone. Kept on the viewport so it is still inspectable. */
+  var vp=document.getElementById("canvasViewport");
+  if(vp)vp.setAttribute("data-zoom",String(Math.round(_canvas.z*100)));
 }
 /** Zoom about a point in viewport coordinates, so what is under the fingers
  * (or the cursor) stays under them - anchoring to the origin instead makes
@@ -5757,11 +5830,6 @@ function renderBoard(){
   ensureCardPositions();
   box.innerHTML="";
   var projects=projectList();
-  var count=document.getElementById("boardCount");
-  if(count){
-    var open=liveItems("tasks").filter(function(t){return !t.done;}).length;
-    count.textContent=projects.length+" project(s) · "+open+" open";
-  }
   if(!projects.length){
     var empty=el("div","board-empty","No projects yet — add one to get started.");
     empty.style.position="absolute";empty.style.left="16px";empty.style.top="16px";
@@ -6079,10 +6147,9 @@ function openTaskSchedule(t){
   }).catch(function(){boardNote("Couldn't reach the calendar just now.");});
 }
 
-function boardNote(msg){
-  var c=document.getElementById("boardCount");
-  if(c)c.textContent=msg;
-}
+/* The board has no status line of its own any more - the toolbar that held
+   it is gone - so these go to the same status bar as everything else. */
+function boardNote(msg,kind){flash(msg,kind||"warn");}
 
 /* ---------- RENDER: THE WORKFLOW (GANTT) ----------
    One grid: a sticky name gutter, then a column per day. Rows are project
@@ -7383,12 +7450,7 @@ document.getElementById("energyIn").addEventListener("input",function(){var d=da
 document.getElementById("startWeightIn").addEventListener("input",function(){state.profile.startWeight=this.value;state.profile.updated_at=Date.now();save();renderProgress();});
 document.getElementById("targetWeightIn").addEventListener("input",function(){state.profile.targetWeight=this.value;state.profile.updated_at=Date.now();save();renderProgress();});
 
-document.getElementById("exportBtn").addEventListener("click",function(){
-  var blob=new Blob([JSON.stringify(state,null,2)],{type:"application/json"});
-  var url=URL.createObjectURL(blob);var a=document.createElement("a");
-  a.href=url;a.download="wellness-backup-"+todayKey()+".json";document.body.appendChild(a);a.click();
-  document.body.removeChild(a);URL.revokeObjectURL(url);
-});
+document.getElementById("exportBtn").addEventListener("click",downloadBackup);
 document.getElementById("syncEnabled").addEventListener("change",function(){
   state.sync.enabled=this.checked;
   state.sync.lastError=null;
@@ -7468,9 +7530,6 @@ document.getElementById("prayJumpToday").addEventListener("click",function(){cur
    control anyway. */
 loadBoardView();
 attachCanvas();
-document.getElementById("zoomInBtn").addEventListener("click",function(){zoomByStep(1.2);});
-document.getElementById("zoomOutBtn").addEventListener("click",function(){zoomByStep(1/1.2);});
-document.getElementById("zoomFitBtn").addEventListener("click",canvasFit);
 
 document.getElementById("wfPrev").addEventListener("click",function(){wfShift(-1);});
 document.getElementById("wfNext").addEventListener("click",function(){wfShift(1);});
@@ -7538,6 +7597,73 @@ document.getElementById("briefPromptReset").addEventListener("click",function(){
 
 /* ---------- THEME ---------- */
 var THEMEKEY="yawarTheme";
+/* ---------- THE HEADER MENU ----------
+   Everything here changes how the app looks or behaves *wherever you are*, so
+   it belongs in the header rather than one tab's toolbar or three screens deep
+   in Settings. Built fresh on every open: half of it is contextual. */
+function openHeaderMenu(at){
+  var items=[];
+
+  items.push({label:"Text size…",run:function(){openTextSizeMenu(at);}});
+  items.push({label:currentTheme()==="dark"?"☀️ Light appearance":"🌙 Dark appearance",
+    run:function(){toggleTheme();}});
+  items.push({label:"🔄 Sync now",run:function(){
+    if(!state.sync||!state.sync.enabled){
+      flash("Cloud sync is off — turn it on in Settings first.","warn");
+      nav("settings");return;
+    }
+    runSync();
+  }});
+
+  /* Only where there is something to rearrange: Calendar is a grid of hours
+     and Others is three sub-panels, so neither is a list of cards. */
+  if(LAYOUT_VIEWS.indexOf(currentView)>=0){
+    items.push({label:_editingLayout?"✓ Done rearranging":"↕️ Rearrange cards on this tab",
+      run:function(){setLayoutEditing(!_editingLayout);}});
+  }
+
+  if(currentView==="tasks"){
+    items.push({sep:true});
+    if(currentTaskSub==="board"){
+      items.push({label:"➕ Zoom in ("+Math.round(_canvas.z*100)+"%)",run:function(){zoomByStep(1.2);}});
+      items.push({label:"➖ Zoom out",run:function(){zoomByStep(1/1.2);}});
+      items.push({label:"⤢ Fit the whole board",run:canvasFit});
+    }
+    items.push({label:_tasksFull?"✕ Leave full screen":"⛶ Full screen",
+      run:function(){setTasksFull(!_tasksFull);}});
+  }
+
+  items.push({sep:true});
+  items.push({label:"⬇️ Export a backup",run:downloadBackup});
+  if(currentView!=="settings")items.push({label:"⚙️ Settings",run:function(){nav("settings");}});
+
+  openMenuSheet(null,items,at);
+}
+function openTextSizeMenu(at){
+  var cur=currentScale();
+  openMenuSheet("Text size",SCALES.map(function(sc){
+    return {label:(sc[0]===cur?"● ":"○ ")+sc[1],run:function(){setScale(sc[0]);}};
+  }),at);
+}
+function setScale(px){
+  try{localStorage.setItem(SCALEKEY,String(px));}catch(e){}
+  applyScale(px);
+  renderScaleSeg();
+  sizeTasksPanes();
+}
+function toggleTheme(){
+  var n=(currentTheme()==="dark")?"light":"dark";
+  try{localStorage.setItem(THEMEKEY,n);}catch(e){}
+  applyTheme(n);
+  if(document.getElementById("view-progress").classList.contains("active"))renderProgress();
+}
+function downloadBackup(){
+  var blob=new Blob([JSON.stringify(state,null,2)],{type:"application/json"});
+  var url=URL.createObjectURL(blob);var a=document.createElement("a");
+  a.href=url;a.download="wellness-backup-"+todayKey()+".json";document.body.appendChild(a);a.click();
+  document.body.removeChild(a);URL.revokeObjectURL(url);
+}
+
 function currentTheme(){
   var a=document.documentElement.getAttribute("data-theme");
   if(a)return a;
@@ -7601,11 +7727,7 @@ function renderScaleSeg(){
     var b=el("button",sc[0]===cur?"on":null,sc[1]);
     b.type="button";
     b.setAttribute("data-scale",String(sc[0]));
-    b.addEventListener("click",function(){
-      try{localStorage.setItem(SCALEKEY,String(sc[0]));}catch(e){}
-      applyScale(sc[0]);
-      renderScaleSeg();
-    });
+    b.addEventListener("click",function(){setScale(sc[0]);});
     box.appendChild(b);
   });
 }
@@ -7615,11 +7737,12 @@ try{var savedTheme=localStorage.getItem(THEMEKEY);applyTheme(savedTheme||undefin
 document.getElementById("layoutEditBtn").addEventListener("click",function(){setLayoutEditing(!_editingLayout);});
 document.getElementById("layoutResetBtn").addEventListener("click",resetLayout);
 
-document.getElementById("themeToggle").addEventListener("click",function(){
-  var n=(currentTheme()==="dark")?"light":"dark";
-  try{localStorage.setItem(THEMEKEY,n);}catch(e){}
-  applyTheme(n);
-  if(document.getElementById("view-progress").classList.contains("active"))renderProgress();
+document.getElementById("themeToggle").addEventListener("click",toggleTheme);
+document.getElementById("dhikrReorderBtn").addEventListener("click",function(){
+  setDhikrReorder(!_dhikrReorder);
+});
+document.getElementById("headerMenuBtn").addEventListener("click",function(ev){
+  openHeaderMenu(ev);
 });
 
 /* ---------- INIT ---------- */

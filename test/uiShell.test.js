@@ -7,7 +7,7 @@
 const test = require("node:test");
 const { after } = require("node:test");
 const assert = require("node:assert/strict");
-const { loadApp, closeAllApps, MAIN_KEY } = require("./lib.js");
+const { loadApp, closeAllApps, MAIN_KEY, SCHEMA } = require("./lib.js");
 after(closeAllApps);
 
 const COLLAPSE_KEY = "yawarCollapsed";
@@ -289,8 +289,9 @@ test("the header is the logo, the prayer countdown, the completion square and th
 test("the completion indicator sits beside the bell, and is a rounded square like it", () => {
   const app = loadApp({});
   const kids = Array.from(app.document.querySelector(".top-inner").children);
-  assert.equal(kids[kids.length - 1].id, "notifyBell");
-  assert.equal(kids[kids.length - 2].id, "dayRing", "right next to the bell");
+  assert.equal(kids[kids.length - 1].id, "headerMenuBtn", "the ⋮ menu ends the row");
+  assert.equal(kids[kids.length - 2].id, "notifyBell");
+  assert.equal(kids[kids.length - 3].id, "dayRing", "right next to the bell");
 
   const styles = app.document.querySelector("style").textContent;
   const ring = styles.match(/\.ring\{[^}]*\}/)[0];
@@ -431,4 +432,89 @@ test("a browser with no screen.orientation at all still starts", () => {
   // Safari has no screen.orientation.unlock; nothing here may assume it.
   const app = loadApp({ beforeRun: (window) => { delete window.screen.orientation; } });
   assert.ok(app.document.getElementById("dayRing"));
+});
+
+/* ---------------- the header ⋮ menu ---------------- */
+/* The view controls that apply wherever you are: text size, appearance, sync,
+   and rearranging this tab's cards. They used to be spread between Settings
+   and one tab's own toolbar. */
+
+const headerMenu = (app) => {
+  app.click("headerMenuBtn");
+  return [...app.document.querySelectorAll(".menu-pop button")];
+};
+const item = (buttons, re) => buttons.find((b) => re.test(b.textContent));
+
+test("the ⋮ menu is in the header on every tab, not only one", () => {
+  const app = loadApp({});
+  ["today", "prayers", "calendar", "journal", "progress", "settings"].forEach((v) => {
+    app.goTo(v);
+    const items = headerMenu(app);
+    assert.ok(item(items, /Text size/), v + ": text size");
+    assert.ok(item(items, /appearance/i), v + ": appearance");
+    assert.ok(item(items, /Sync now/), v + ": sync");
+    app.document.querySelector(".menu-backdrop")
+      .dispatchEvent(new app.window.Event("pointerdown", { bubbles: true }));
+  });
+});
+
+test("text size is set from the menu, and remembered per device", () => {
+  const app = loadApp({});
+  const root = app.document.documentElement;
+  item(headerMenu(app), /Text size/).click();          // opens a submenu
+  const sizes = [...app.document.querySelectorAll(".menu-pop button")];
+  assert.ok(sizes.some((b) => /●/.test(b.textContent)), "the current size is marked");
+  item(sizes, /Large\b/).click();
+
+  assert.equal(root.style.fontSize, "17px");
+  assert.equal(app.window.localStorage.getItem("yawarScale"), "17");
+  assert.ok(!JSON.stringify(app.state() || {}).includes("yawarScale"),
+    "a display preference, never part of the health record");
+});
+
+test("the appearance item flips the theme and names the one you'd get", () => {
+  const app = loadApp({});
+  const themeNow = () => app.document.documentElement.getAttribute("data-theme");
+  const first = item(headerMenu(app), /appearance/i);
+  const wanted = /Dark/.test(first.textContent) ? "dark" : "light";
+  first.click();
+  assert.equal(themeNow(), wanted, "it offers what you'd switch to, not what you're on");
+
+  const back = item(headerMenu(app), /appearance/i);
+  assert.ok(!new RegExp(wanted, "i").test(back.textContent), "and now offers the other one");
+});
+
+test("Rearrange cards is offered only where there are cards to rearrange", () => {
+  // Calendar is a grid of hours and Others is three sub-panels; neither is a
+  // list of cards, so neither can be reordered.
+  const app = loadApp({});
+  app.goTo("today");
+  assert.ok(item(headerMenu(app), /Rearrange cards/), "Today is a card view");
+  app.document.querySelector(".menu-backdrop")
+    .dispatchEvent(new app.window.Event("pointerdown", { bubbles: true }));
+
+  app.goTo("calendar");
+  assert.equal(item(headerMenu(app), /Rearrange cards/), undefined);
+});
+
+test("Rearrange cards from the header puts the tab you're on into edit mode", () => {
+  const app = loadApp({});
+  app.goTo("prayers");
+  item(headerMenu(app), /Rearrange cards/).click();
+  assert.ok(app.document.body.classList.contains("editing"));
+  assert.ok(app.document.querySelector("#view-prayers .card-tools"),
+    "the tools are on this tab's cards");
+
+  item(headerMenu(app), /Done rearranging/).click();
+  assert.ok(!app.document.body.classList.contains("editing"));
+});
+
+test("Sync now says so rather than doing nothing when sync is off", () => {
+  const app = loadApp({ localStorageSeed: { [MAIN_KEY]: JSON.stringify({
+    schema: SCHEMA, profile: {}, days: {}, sync: { enabled: false, since: 0 },
+  }) } });
+  item(headerMenu(app), /Sync now/).click();
+  assert.match(app.statusText(), /sync is off/i);
+  assert.equal(app.document.querySelector(".view.active").id, "view-settings",
+    "and takes you to where the switch is");
 });
