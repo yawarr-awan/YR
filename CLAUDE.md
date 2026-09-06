@@ -1292,6 +1292,31 @@ the week containing `dayDate`). `calCols()` is a constant 7; `calIsWide()`
   flex child of the row). The widths were measured in Chromium: 188px per
   title at 390px.
 
+## The Workflow timeline (1.37.0)
+- **Two date notions, kept in step on purpose.** `start`/`end` are plain
+  `YYYY-MM-DD` (a bar is a span of days); `due` stays a full ISO instant and is
+  what the calendar grid and both reminder paths read. `openTaskSchedule` moves
+  `end` to the scheduled day - so the timeline and the calendar can never
+  disagree - and `setTaskSpan` clears a `due` that would fall outside the new
+  span. Don't collapse these into one field: minute precision is wrong for a
+  Gantt and day precision is wrong for a reminder.
+- `taskStart`/`taskEnd` **fall back** (end -> due's date -> start), so a task
+  dated only by being scheduled still plots.
+- **A span past the window is clamped, not dropped.** A bar that vanished when
+  you paged would be worse than one visibly cut off.
+- **`TASK_SUBVIEWS`, not a ninth tab.** Eight bottom-bar tabs already measure
+  48.3px each at 390px, measured in Chromium - that is the floor for a
+  tappable label. Anything further goes inside a tab.
+- **"Not on the timeline" is load-bearing, not a nicety.** A fresh board has no
+  dates, so without it the Gantt is an empty grid with no route in.
+- The grid is one CSS grid with a **sticky gutter** and a fixed `--wf-day`
+  column, so it scrolls rather than squashing - the same call the calendar week
+  made in 1.27.0. The gutter's own heading needs `z-index` above both the
+  sticky row and the sticky column, or it is painted over when you scroll
+  diagonally.
+- `wfMonday()` uses `(getDay()+6)%7` because `getDay()` is 0 for Sunday, which
+  belongs to the week that began six days earlier.
+
 ## The Tasks board (1.36.0)
 First slice of the project-management rework. Agreed scope with Yawar: board
 first on new storage; Notes = task-to-note links only (no `[[wikilinks]]`);

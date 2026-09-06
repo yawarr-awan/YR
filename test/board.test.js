@@ -229,3 +229,173 @@ test("the migration runs once, not on every load", () => {
   openBoard(second);
   assert.deepEqual(titles(colNamed(second, "General")), ["Only once"], "not duplicated on reload");
 });
+
+/* ---------------- the Workflow timeline ---------------- */
+
+const wfCells = (app) => [...app.document.querySelectorAll("#wfGrid .wf-cell")];
+const wfBars = (app) => [...app.document.querySelectorAll("#wfGrid .wf-bar")];
+function openWorkflow(app) {
+  app.goTo("tasks");
+  app.document.querySelector('[data-tsub="workflow"]').click();
+  return app;
+}
+function dayKeyFrom(offset) {
+  const d = new Date();
+  d.setDate(d.getDate() + offset);
+  return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+}
+/** A board with one project and the given tasks, seeded straight into state. */
+function boardSeed(tasks) {
+  const projects = { p1: { id: "p1", name: "House move", color: "", order: 0, updated_at: 1, deleted: 0 } };
+  const out = {};
+  tasks.forEach((t, i) => {
+    const id = "t" + (i + 1);
+    out[id] = Object.assign({ id, projectId: "p1", title: "Task " + (i + 1), done: false, order: i,
+      due: null, start: null, end: null, calendarEventId: null, scheduled: false, noteId: null,
+      updated_at: 1, deleted: 0 }, t);
+  });
+  return { [MAIN_KEY]: JSON.stringify({
+    schema: SCHEMA, profile: { startWeight: 108, targetWeight: 88, updated_at: 1, tasks: [] },
+    days: {}, projects, tasks: out,
+    sync: { enabled: false, since: 0, lastSyncAt: null, lastError: null }, account: "me@example.com",
+  }) };
+}
+
+test("Workflow is a sub-tab of Tasks, not a ninth tab in the bar", () => {
+  // Eight tabs already measure 48px each at 390px.
+  const app = loadApp({ fetchImpl: idle });
+  const bar = [...app.document.querySelectorAll("#tabs button")].map((b) => b.dataset.nav);
+  assert.equal(bar.length, 8);
+  assert.ok(!bar.includes("workflow"));
+
+  openWorkflow(app);
+  assert.ok(app.document.getElementById("tsub-workflow").classList.contains("active"));
+  assert.ok(!app.document.getElementById("tsub-board").classList.contains("active"));
+});
+
+test("a task with a start and an end gets a bar spanning those days", () => {
+  const app = loadApp({ fetchImpl: idle,
+    localStorageSeed: boardSeed([{ title: "Book the van", start: dayKeyFrom(1), end: dayKeyFrom(3) }]) });
+  openWorkflow(app);
+
+  const bars = wfBars(app);
+  assert.equal(bars.length, 1);
+  assert.equal(bars[0].textContent, "Book the van");
+  assert.match(bars[0].style.width, /3 \* var\(--wf-day\)/, "three days wide");
+  assert.match(bars[0].title, /→/, "and says its span on hover");
+});
+
+test("a single-day task is one column wide", () => {
+  const app = loadApp({ fetchImpl: idle,
+    localStorageSeed: boardSeed([{ title: "Dentist", start: dayKeyFrom(2), end: dayKeyFrom(2) }]) });
+  openWorkflow(app);
+  assert.match(wfBars(app)[0].style.width, /1 \* var\(--wf-day\)/);
+});
+
+test("an overdue task reads differently from a finished one", () => {
+  const app = loadApp({ fetchImpl: idle, localStorageSeed: boardSeed([
+    { title: "Late thing", start: dayKeyFrom(-3), end: dayKeyFrom(-1) },
+    { title: "Done thing", start: dayKeyFrom(-3), end: dayKeyFrom(-1), done: true },
+  ]) });
+  openWorkflow(app);
+
+  const late = wfBars(app).find((b) => b.textContent === "Late thing");
+  const done = wfBars(app).find((b) => b.textContent === "Done thing");
+  assert.ok(late.classList.contains("is-late"));
+  assert.ok(!done.classList.contains("is-late"), "finished work is not overdue");
+  assert.ok(done.classList.contains("is-done"));
+});
+
+test("undated tasks are listed separately so they can be given dates", () => {
+  // A fresh board has no dates at all, so the timeline would otherwise be an
+  // empty grid with no way in.
+  const app = loadApp({ fetchImpl: idle, localStorageSeed: boardSeed([
+    { title: "No dates yet" },
+    { title: "Has dates", start: dayKeyFrom(0), end: dayKeyFrom(1) },
+  ]) });
+  openWorkflow(app);
+
+  const rows = [...app.document.querySelectorAll("#wfUndated .wf-undated-row")];
+  assert.equal(rows.length, 1);
+  assert.match(rows[0].textContent, /No dates yet/);
+  assert.match(rows[0].textContent, /House move/, "and says which project it is from");
+  assert.equal(app.document.getElementById("wfUndatedCount").textContent, "1");
+});
+
+test("setting dates from the sheet plots the task", () => {
+  const app = loadApp({ fetchImpl: idle, localStorageSeed: boardSeed([{ title: "Plot me" }]) });
+  openWorkflow(app);
+  assert.equal(wfBars(app).length, 0);
+
+  app.document.querySelector("#wfUndated .wf-undated-row .btn").click();
+  const inputs = [...app.document.querySelectorAll(".menu-sheet input[type=date]")];
+  inputs[0].value = dayKeyFrom(1);
+  inputs[1].value = dayKeyFrom(2);
+  [...app.document.querySelectorAll(".menu-sheet button")].find((b) => b.textContent === "Save").click();
+
+  assert.equal(wfBars(app).length, 1);
+  assert.equal(app.document.getElementById("wfUndatedCount").textContent, "0");
+  const t = Object.values(app.state().tasks)[0];
+  assert.equal(t.start, dayKeyFrom(1));
+  assert.equal(t.end, dayKeyFrom(2));
+  assert.ok(t.updated_at > 1, "stamped, so it syncs");
+});
+
+test("an end before a start is swapped rather than refused", () => {
+  const app = loadApp({ fetchImpl: idle, localStorageSeed: boardSeed([{ title: "Backwards" }]) });
+  openWorkflow(app);
+  app.document.querySelector("#wfUndated .wf-undated-row .btn").click();
+  const inputs = [...app.document.querySelectorAll(".menu-sheet input[type=date]")];
+  inputs[0].value = dayKeyFrom(5);
+  inputs[1].value = dayKeyFrom(2);
+  [...app.document.querySelectorAll(".menu-sheet button")].find((b) => b.textContent === "Save").click();
+
+  const t = Object.values(app.state().tasks)[0];
+  assert.equal(t.start, dayKeyFrom(2), "the earlier date is the start");
+  assert.equal(t.end, dayKeyFrom(5));
+});
+
+test("paging moves the window a week at a time, and Today comes back", () => {
+  const app = loadApp({ fetchImpl: idle,
+    localStorageSeed: boardSeed([{ title: "This week", start: dayKeyFrom(0), end: dayKeyFrom(1) }]) });
+  openWorkflow(app);
+  assert.equal(wfBars(app).length, 1);
+  const label = () => app.document.getElementById("wfLabel").textContent;
+  const first = label();
+
+  app.click("wfNext");
+  app.click("wfNext");
+  assert.notEqual(label(), first, "the window moved");
+  assert.equal(wfBars(app).length, 0, "and the task is behind us");
+
+  app.click("wfToday");
+  assert.equal(label(), first);
+  assert.equal(wfBars(app).length, 1);
+});
+
+test("a span running past the window is clamped, not dropped", () => {
+  // A bar that vanished when you paged would be worse than one visibly cut off.
+  const app = loadApp({ fetchImpl: idle,
+    localStorageSeed: boardSeed([{ title: "Long haul", start: dayKeyFrom(-40), end: dayKeyFrom(40) }]) });
+  openWorkflow(app);
+  assert.equal(wfBars(app).length, 1, "still on the timeline");
+});
+
+test("the board row shows the span, and the menu offers to change it", () => {
+  const app = loadApp({ fetchImpl: idle,
+    localStorageSeed: boardSeed([{ title: "Spanned", start: dayKeyFrom(1), end: dayKeyFrom(3) }]) });
+  openBoard(app);
+
+  const meta = app.document.querySelector(".btask .btask-meta").textContent;
+  assert.match(meta, /→/, "start and end, not just one date");
+
+  app.document.querySelector(".btask .btask-menu").click();
+  const items = [...app.document.querySelectorAll(".menu-sheet button")].map((b) => b.textContent);
+  assert.ok(items.some((t) => /Change dates/.test(t)), "already dated, so it offers a change");
+});
+
+test("the remembered sub-tab comes back", () => {
+  const app = loadApp({ fetchImpl: idle, localStorageSeed: { yawarLastTaskSub: "workflow" } });
+  app.goTo("tasks");
+  assert.ok(app.document.getElementById("tsub-workflow").classList.contains("active"));
+});

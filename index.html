@@ -373,6 +373,55 @@ body.editing .card[data-card].is-over{outline:2px solid var(--brand)}
 .menu-sheet button:hover{background:var(--panel-2)}
 .menu-sheet button.danger{color:var(--bad)}
 .menu-sheet .menu-sep{height:1px;background:var(--line);margin:6px 10px}
+/* ---------- THE GANTT ----------
+   One CSS grid: a sticky name gutter plus a column per day. The whole thing
+   scrolls sideways, and the gutter stays put - the same shape the calendar
+   week settled on, and for the same reason (a fixed column width so the grid
+   keeps its proportions and you scroll, rather than days shrinking as the
+   window widens). */
+.wf-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain;
+  border:1px solid var(--line);border-radius:12px;background:var(--panel)}
+.wf{display:grid;--wf-gutter:118px;--wf-day:30px;--wf-row:30px;min-width:max-content}
+.wf-cell{border-inline-start:1px solid var(--line);min-height:var(--wf-row);position:relative}
+.wf-head{
+  position:sticky;top:0;z-index:3;background:var(--panel);
+  font-size:.62rem;color:var(--muted);text-align:center;font-weight:700;
+  padding:4px 0 3px;border-bottom:1px solid var(--line);line-height:1.15
+}
+.wf-head.is-today{color:var(--brand)}
+.wf-head .wf-dow{display:block;opacity:.7;font-weight:600}
+.wf-gutter{
+  position:sticky;inset-inline-start:0;z-index:4;background:var(--panel);
+  border-inline-end:1px solid var(--line);padding:5px 8px;
+  font-size:.76rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap
+}
+.wf-gutter.wf-head{z-index:6}
+.wf-proj{font-weight:800;font-size:.74rem;color:var(--ink)}
+.wf-projrow{background:var(--panel-2)}
+.wf-taskname{cursor:pointer;color:var(--ink);background:none;border:none;font:inherit;
+  font-size:.76rem;width:100%;text-align:start;padding:0;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.wf-weekend{background:var(--panel-2)}
+.wf-todaycol{box-shadow:inset 1px 0 0 var(--brand)}
+.wf-bar{
+  position:absolute;inset-block:4px;inset-inline-start:2px;
+  background:var(--brand);color:#fff;border-radius:7px;font-size:.66rem;font-weight:700;
+  padding:0 6px;display:flex;align-items:center;overflow:hidden;white-space:nowrap;
+  cursor:pointer;border:none;font-family:inherit;z-index:2
+}
+.wf-bar.is-done{background:var(--muted);text-decoration:line-through}
+.wf-bar.is-late{background:var(--bad)}
+.wf-empty{padding:14px;color:var(--muted);font-size:.82rem;text-align:center}
+.wf-undated-row{display:flex;align-items:center;gap:8px;padding:6px 2px}
+.wf-undated-row .u-title{flex:1 1 auto;min-width:0;font-size:.86rem;overflow-wrap:anywhere}
+.wf-undated-row .u-proj{flex:0 0 auto;font-size:.68rem;color:var(--muted)}
+/* Two date fields in the bottom sheet. */
+.sheet-form{padding:4px 12px 10px}
+.sheet-form .field{margin:8px 0}
+.sheet-form label{display:block;font-size:.76rem;color:var(--muted);font-weight:600;margin-bottom:3px}
+.sheet-form input[type=date]{width:100%;border:1px solid var(--line);background:var(--panel-2);
+  color:var(--ink);border-radius:10px;padding:9px;font:inherit}
+.sheet-form .pill-row{margin-top:10px}
 .slider-val{font-weight:800;float:right}
 input[type=range]{width:100%;accent-color:var(--accent)}
 .pill-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
@@ -1006,14 +1055,39 @@ footer.foot{text-align:center;color:var(--muted);font-size:.78rem;margin-top:26p
   <!-- A canvas of project cards that scrolls sideways. Each card is one
        project and holds its own task list. -->
   <section id="view-tasks" class="view">
-    <div class="board-bar">
-      <div class="section-title" style="margin:0">Projects</div>
-      <span class="muted" id="boardCount" style="font-size:.78rem"></span>
+    <nav class="subtabs" id="taskSubTabs">
+      <button data-tsub="board" class="active">🗂️ Board</button>
+      <button data-tsub="workflow">📊 Workflow</button>
+    </nav>
+
+    <div class="subview active" id="tsub-board">
+      <div class="board-bar">
+        <div class="section-title" style="margin:0">Projects</div>
+        <span class="muted" id="boardCount" style="font-size:.78rem"></span>
+      </div>
+      <div class="board-scroll" id="boardScroll">
+        <div class="board" id="board"></div>
+        <div class="board-addcol">
+          <button class="btn" id="projectAddBtn" type="button">+ New project</button>
+        </div>
+      </div>
     </div>
-    <div class="board-scroll" id="boardScroll">
-      <div class="board" id="board"></div>
-      <div class="board-addcol">
-        <button class="btn" id="projectAddBtn" type="button">+ New project</button>
+
+    <!-- The Gantt. Task names sit in a sticky gutter and the timeline scrolls
+         sideways underneath, so a phone can still show a fortnight. -->
+    <div class="subview" id="tsub-workflow">
+      <div class="datebar">
+        <button id="wfPrev" title="Earlier">‹</button>
+        <div class="dlabel" id="wfLabel">Timeline</div>
+        <button id="wfNext" title="Later">›</button>
+        <button class="today-btn" id="wfToday">Today</button>
+      </div>
+      <div class="wf-scroll" id="wfScroll"><div class="wf" id="wfGrid"></div></div>
+      <div class="muted center" id="wfNote" style="font-size:.78rem;margin-top:8px"></div>
+      <div class="card" data-card="wfundated" style="margin-top:12px">
+        <h3>📥 Not on the timeline<span class="count" id="wfUndatedCount"></span></h3>
+        <p class="muted" style="font-size:.78rem;margin-top:0">Give a task a start and end date to plot it.</p>
+        <div id="wfUndated"></div>
       </div>
     </div>
   </section>
@@ -2351,6 +2425,7 @@ function renderAll(){
   renderSettings();
   renderJournal();
   renderBoard();
+  renderWorkflow();
   if(currentSub==="duas")renderDuasList();   /* the links live on the profile */
   renderPrayerModal();          /* no-ops unless the modal is actually open */
   if(currentView==="calendar"){_calWin=null;renderCalendarTab();}
@@ -2417,6 +2492,33 @@ function addTask(projectId,title){
   save();
   return id;
 }
+/* ---------- TASK DATES ----------
+   `start` and `end` are plain YYYY-MM-DD - a bar on the timeline is a span of
+   days, not of minutes. `due` stays a full ISO instant and is what the
+   calendar and the reminders read; scheduling a task keeps the two in step by
+   moving `end` to the scheduled day. So the timeline and the calendar can
+   never disagree about when something is meant to be finished. */
+function taskStart(t){return t&&t.start?t.start:(t&&t.end?t.end:null);}
+function taskEnd(t){
+  if(!t)return null;
+  if(t.end)return t.end;
+  if(t.due)return String(t.due).slice(0,10);
+  return t.start||null;
+}
+function taskHasSpan(t){return !!(taskStart(t)&&taskEnd(t));}
+/** Set the span, keeping it the right way round. An end before a start is
+ * almost always a typo, so the two are swapped rather than refused. */
+function setTaskSpan(t,start,end){
+  var s=start||null,e=end||null;
+  if(s&&e&&e<s){var tmp=s;s=e;e=tmp;}
+  t.start=s;
+  t.end=e;
+  /* A task scheduled on the calendar keeps its instant, but only while that
+     instant still falls inside the span it has been given. */
+  if(t.due&&e&&String(t.due).slice(0,10)>e)t.due=null,t.scheduled=false;
+  touchItem(t);
+}
+
 /** Move or copy a task to another project. A copy is a new item, so the two
  * diverge from then on - that is what "duplicate" means. */
 function moveTaskTo(taskId,projectId){
@@ -5283,6 +5385,12 @@ function buildProjectColumn(p){
   return col;
 }
 
+function shortDay(key){
+  if(!key)return "";
+  var p=String(key).split("-");
+  return new Date(+p[0],+p[1]-1,+p[2])
+    .toLocaleDateString("en-GB",{day:"numeric",month:"short"});
+}
 function buildBoardTask(t){
   var row=el("div","btask"+(t.done?" done":""));
   row.setAttribute("data-task",t.id);
@@ -5295,11 +5403,11 @@ function buildBoardTask(t){
   var main=el("div","btask-main");
   main.appendChild(el("span","btask-title",t.title));
   var bits=[];
-  if(t.due){
-    var d=new Date(t.due);
-    bits.push(d.toLocaleDateString("en-GB",{day:"numeric",month:"short"})+
-      (t.scheduled?" · on calendar":""));
-  }else if(t.scheduled){bits.push("on calendar");}
+  if(taskHasSpan(t)){
+    var a=taskStart(t),b=taskEnd(t);
+    bits.push(a===b?shortDay(a):(shortDay(a)+" → "+shortDay(b)));
+  }
+  if(t.scheduled)bits.push("on calendar");
   if(bits.length)main.appendChild(el("span","btask-meta",bits.join(" ")));
   row.appendChild(main);
 
@@ -5327,6 +5435,7 @@ function openTaskMenu(t){
       if(!name)return;
       t.title=name;touchItem(t);renderBoard();
     }},
+    {label:taskHasSpan(t)?"Change dates…":"Set dates…",run:function(){openTaskDates(t);}},
     {label:t.scheduled?"Reschedule on calendar…":"Add to calendar…",run:function(){
       openTaskSchedule(t);
     }},
@@ -5349,6 +5458,52 @@ function openTaskMenu(t){
     }}
   ];
   openMenuSheet(t.title,actions);
+}
+
+/** The two date fields, as a bottom sheet. Kept in the same sheet furniture as
+ * the menus so there is one dismissal behaviour to learn. */
+function openTaskDates(t){
+  closeMenuSheet();
+  var sheet=el("div","menu-sheet");
+  var inner=el("div","menu-inner");
+  inner.appendChild(el("h4",null,t.title));
+
+  var form=el("div","sheet-form");
+  function field(labelText,value){
+    var wrap=el("div","field");
+    var lab=el("label",null,labelText);
+    var input=el("input");input.type="date";input.value=value||"";
+    lab.setAttribute("for","");
+    wrap.appendChild(lab);wrap.appendChild(input);
+    form.appendChild(wrap);
+    return input;
+  }
+  var startIn=field("Starts",taskStart(t));
+  var endIn=field("Ends",taskEnd(t));
+
+  var row=el("div","pill-row");
+  var save=el("button","btn primary","Save");
+  save.type="button";
+  save.addEventListener("click",function(){
+    setTaskSpan(t,startIn.value,endIn.value);
+    closeMenuSheet();
+    renderBoard();renderWorkflow();
+  });
+  var clear=el("button","btn","Clear dates");
+  clear.type="button";
+  clear.addEventListener("click",function(){
+    setTaskSpan(t,null,null);
+    closeMenuSheet();
+    renderBoard();renderWorkflow();
+  });
+  row.appendChild(save);row.appendChild(clear);
+  form.appendChild(row);
+  inner.appendChild(form);
+
+  sheet.appendChild(inner);
+  sheet.addEventListener("click",function(e){if(e.target===sheet)closeMenuSheet();});
+  document.body.appendChild(sheet);
+  startIn.focus();
 }
 
 function openProjectMenu(p){
@@ -5411,7 +5566,12 @@ function openTaskSchedule(t){
   }).then(function(resp){
     if(resp.status==="ok"){
       t.due=iso.toISOString();t.scheduled=true;t.calendarEventId=resp.eventId||null;
-      touchItem(t);renderBoard();
+      /* Keep the timeline in step: a task put on the calendar for a given day
+         ends that day, and starts then too if it had no span at all. */
+      var day=keyOf(iso);
+      t.end=day;
+      if(!t.start||t.start>day)t.start=day;
+      touchItem(t);renderBoard();renderWorkflow();
       boardNote("Added to your Google Calendar.");
     }else if(resp.status==="reconnect_required"||resp.status==="not_connected"){
       boardNote("Connect Google Calendar in Settings to schedule tasks.");
@@ -5424,6 +5584,144 @@ function openTaskSchedule(t){
 function boardNote(msg){
   var c=document.getElementById("boardCount");
   if(c)c.textContent=msg;
+}
+
+/* ---------- RENDER: THE WORKFLOW (GANTT) ----------
+   One grid: a sticky name gutter, then a column per day. Rows are project
+   headings followed by their dated tasks. The window is a fortnight, which is
+   what fits a phone at a readable column width; the arrows page by a week. */
+var WF_DAYS=14;
+var _wfStart=null;                 /* the Monday the window opens on */
+
+function wfMonday(d){
+  var x=new Date(d.getFullYear(),d.getMonth(),d.getDate());
+  /* getDay() is 0 for Sunday, which belongs to the week that began six days
+     earlier - not to the one starting the next morning. */
+  x.setDate(x.getDate()-((x.getDay()+6)%7));
+  return x;
+}
+function wfWindow(){
+  if(!_wfStart)_wfStart=wfMonday(new Date());
+  var out=[],d=new Date(_wfStart);
+  for(var i=0;i<WF_DAYS;i++){out.push(keyOf(d));d.setDate(d.getDate()+1);}
+  return out;
+}
+function wfShift(weeks){
+  if(!_wfStart)_wfStart=wfMonday(new Date());
+  _wfStart=new Date(_wfStart.getFullYear(),_wfStart.getMonth(),_wfStart.getDate()+weeks*7);
+  renderWorkflow();
+}
+
+function renderWorkflow(){
+  var grid=document.getElementById("wfGrid");
+  if(!grid)return;
+  grid.innerHTML="";
+  var days=wfWindow(),today=todayKey();
+  var lbl=document.getElementById("wfLabel");
+  if(lbl)lbl.textContent=shortDay(days[0])+" – "+shortDay(days[days.length-1]);
+
+  grid.style.gridTemplateColumns="var(--wf-gutter) repeat("+days.length+",var(--wf-day))";
+
+  /* Heading row: the gutter's own corner, then one cell per day. */
+  var corner=el("div","wf-cell wf-gutter wf-head","");
+  grid.appendChild(corner);
+  days.forEach(function(k){
+    var p=k.split("-");
+    var d=new Date(+p[0],+p[1]-1,+p[2]);
+    var cell=el("div","wf-cell wf-head"+(k===today?" is-today":"")+
+      ((d.getDay()===0||d.getDay()===6)?" wf-weekend":""));
+    cell.appendChild(document.createTextNode(String(d.getDate())));
+    cell.appendChild(el("span","wf-dow",["S","M","T","W","T","F","S"][d.getDay()]));
+    cell.setAttribute("data-day",k);
+    grid.appendChild(cell);
+  });
+
+  var plotted=0;
+  projectList().forEach(function(p){
+    var tasks=tasksIn(p.id).filter(function(t){
+      /* On the timeline only if its span overlaps the window at all. */
+      return taskHasSpan(t)&&taskStart(t)<=days[days.length-1]&&taskEnd(t)>=days[0];
+    });
+    if(!tasks.length)return;
+
+    var head=el("div","wf-cell wf-gutter wf-proj wf-projrow",p.name);
+    grid.appendChild(head);
+    days.forEach(function(k){
+      grid.appendChild(el("div","wf-cell wf-projrow"+(k===today?" wf-todaycol":"")));
+    });
+
+    tasks.forEach(function(t){
+      plotted++;
+      var name=el("div","wf-cell wf-gutter");
+      var btn=el("button","wf-taskname",t.title);
+      btn.type="button";
+      btn.addEventListener("click",function(){openTaskMenu(t);});
+      name.appendChild(btn);
+      grid.appendChild(name);
+
+      var from=days.indexOf(taskStart(t)),to=days.indexOf(taskEnd(t));
+      /* A span running off either edge is clamped to the window rather than
+         dropped - a bar that vanished when you paged would be worse than one
+         that is visibly cut off. */
+      if(from<0)from=taskStart(t)<days[0]?0:days.length-1;
+      if(to<0)to=taskEnd(t)>days[days.length-1]?days.length-1:0;
+      var late=!t.done&&taskEnd(t)<today;
+
+      days.forEach(function(k,i){
+        var cell=el("div","wf-cell"+(k===today?" wf-todaycol":""));
+        cell.setAttribute("data-day",k);
+        if(i===from){
+          var bar=el("button","wf-bar"+(t.done?" is-done":(late?" is-late":"")),t.title);
+          bar.type="button";
+          bar.title=t.title+" · "+shortDay(taskStart(t))+" → "+shortDay(taskEnd(t));
+          /* Spans the days it covers, plus the gaps between those columns. */
+          var n=Math.max(1,to-from+1);
+          bar.style.width="calc("+n+" * var(--wf-day) - 4px)";
+          bar.addEventListener("click",function(ev){ev.stopPropagation();openTaskMenu(t);});
+          cell.appendChild(bar);
+        }
+        grid.appendChild(cell);
+      });
+    });
+  });
+
+  if(!plotted){
+    grid.innerHTML="";
+    grid.style.gridTemplateColumns="1fr";
+    grid.appendChild(el("div","wf-empty","Nothing plotted in these two weeks. Give a task a start and end date to see it here."));
+  }
+
+  var note=document.getElementById("wfNote");
+  if(note)note.textContent=plotted?(plotted+" task(s) in this fortnight"):"";
+  renderWorkflowUndated();
+}
+
+/** Everything without a span, so it can be given one without hunting the
+ * board for it. This is the whole reason the timeline is usable on day one:
+ * a fresh board has no dates at all. */
+function renderWorkflowUndated(){
+  var box=document.getElementById("wfUndated");
+  if(!box)return;
+  box.innerHTML="";
+  var names={};
+  projectList().forEach(function(p){names[p.id]=p.name;});
+  var undated=liveItems("tasks").filter(function(t){return !t.done&&!taskHasSpan(t);});
+  setCount("wfUndatedCount",String(undated.length));
+  if(!undated.length){
+    box.appendChild(el("div","muted","Everything open has dates."));
+    return;
+  }
+  undated.forEach(function(t){
+    var row=el("div","wf-undated-row");
+    row.setAttribute("data-task",t.id);
+    row.appendChild(el("span","u-title",t.title));
+    row.appendChild(el("span","u-proj",names[t.projectId]||""));
+    var btn=el("button","btn","Dates…");
+    btn.type="button";
+    btn.addEventListener("click",function(){openTaskDates(t);});
+    row.appendChild(btn);
+    box.appendChild(row);
+  });
 }
 
 /* ---------- RENDER: JOURNAL ---------- */
@@ -6359,6 +6657,12 @@ var VIEWS=["tasks","today","prayers","calendar","journal","others","progress","s
 /* Meals, recipes and movement are reference material rather than daily
    tracking, so they share one tab with their own sub-tabs. */
 var SUBVIEWS=["plan","recipes","exercises","duas"];
+/* The Tasks tab has its own two panes. Deliberately sub-tabs rather than a
+   ninth entry in the bottom bar: eight tabs already measure 48px each at
+   390px, which is the practical floor for a tappable label. */
+var TASK_SUBVIEWS=["board","workflow"];
+var currentTaskSub="board";
+var LASTTASKSUB_KEY="yawarLastTaskSub";
 var currentView="today",currentSub="plan";
 /* Which tab you were on is remembered so a refresh (or reopening the
    installed app) puts you back where you were, not always on Today. */
@@ -6379,8 +6683,22 @@ function nav(view){
   if(view==="prayers")renderPrayersTab();
   if(view==="settings")renderSettings();
   if(view==="journal")renderJournal();
-  if(view==="tasks")renderBoard();
+  if(view==="tasks"){if(currentTaskSub==="workflow")renderWorkflow();else renderBoard();}
   window.scrollTo(0,0);
+}
+
+function navTaskSub(sub){
+  if(TASK_SUBVIEWS.indexOf(sub)<0)return;
+  currentTaskSub=sub;
+  var tabs=document.getElementById("taskSubTabs").children;
+  for(var i=0;i<tabs.length;i++){
+    tabs[i].classList.toggle("active",tabs[i].getAttribute("data-tsub")===sub);
+  }
+  TASK_SUBVIEWS.forEach(function(v){
+    document.getElementById("tsub-"+v).classList.toggle("active",v===sub);
+  });
+  try{localStorage.setItem(LASTTASKSUB_KEY,sub);}catch(e){}
+  if(sub==="workflow")renderWorkflow();else renderBoard();
 }
 
 function navSub(sub){
@@ -6404,16 +6722,18 @@ function navSub(sub){
 document.addEventListener("click",function(ev){
   var t=ev.target;
   if(!t||!t.closest)return;
-  var hit=t.closest("[data-recipe],[data-exercise],[data-nav],[data-sub]");
+  var hit=t.closest("[data-recipe],[data-exercise],[data-nav],[data-sub],[data-tsub]");
   if(!hit)return;
   var rec=hit.getAttribute("data-recipe");
   var exc=hit.getAttribute("data-exercise");
   var nv=hit.getAttribute("data-nav");
   var sub=hit.getAttribute("data-sub");
+  var tsub=hit.getAttribute("data-tsub");
   if(rec){ev.preventDefault();openRecipe(rec);}
   else if(exc){ev.preventDefault();openExercise(exc);}
   else if(nv){nav(nv);}
   else if(sub){navSub(sub);}
+  else if(tsub){navTaskSub(tsub);}
 });
 document.getElementById("modalClose").addEventListener("click",hideModal);
 document.getElementById("overlay").addEventListener("click",function(e){if(e.target===this)hideModal();});
@@ -6544,6 +6864,12 @@ document.getElementById("prayJumpToday").addEventListener("click",function(){cur
 /* Creates the project straight away and puts the cursor in its name, rather
    than opening a dialog first - one fewer step, and the heading is the rename
    control anyway. */
+document.getElementById("wfPrev").addEventListener("click",function(){wfShift(-1);});
+document.getElementById("wfNext").addEventListener("click",function(){wfShift(1);});
+document.getElementById("wfToday").addEventListener("click",function(){
+  _wfStart=wfMonday(new Date());renderWorkflow();
+});
+
 document.getElementById("projectAddBtn").addEventListener("click",function(){
   var id=addProject("New project");
   if(!id)return;
@@ -6704,6 +7030,9 @@ openingReminders();
      has one stored should land on the sub-tab it means, not on Today. */
   if(SUBVIEWS.indexOf(saved)>=0){savedSub=saved;saved="others";}
   if(SUBVIEWS.indexOf(savedSub)>=0)navSub(savedSub);
+  var savedTaskSub=null;
+  try{savedTaskSub=localStorage.getItem(LASTTASKSUB_KEY);}catch(e){}
+  if(TASK_SUBVIEWS.indexOf(savedTaskSub)>=0)navTaskSub(savedTaskSub);
   if(saved&&saved!=="today"&&VIEWS.indexOf(saved)>=0)nav(saved);
 })();
 flushMsgs();
