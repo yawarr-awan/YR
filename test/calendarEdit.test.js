@@ -689,3 +689,208 @@ test("an existing entry is not offered an all-day switch", async () => {
   // only ever moves an event within the clock.
   assert.equal(app.document.getElementById("calEditAllDay"), null);
 });
+
+/* ---------------- repeating events ---------------- */
+
+const repeatSel = (app) => app.document.getElementById("calEditRepeat");
+const repeatCustom = (app) => app.document.getElementById("calEditRepeatCustom");
+const dayBtn = (app, code) =>
+  app.document.querySelector(`#calEditRepeatDays [data-day="${code}"]`);
+/** Fires the change a real user's interaction with a select would. */
+function setSelect(app, node, value) {
+  node.value = value;
+  node.dispatchEvent(new app.window.Event("change", { bubbles: true }));
+}
+
+test("a new event offers the repeat presets, named after the day it lands on", async () => {
+  const app = loadApp({ fetchImpl: calendarBackend().impl });
+  await openCalendar(app);
+
+  mainCells(app)[9].click();
+  const sel = repeatSel(app);
+  assert.ok(sel, "a new event can be made to repeat");
+  assert.equal(sel.value, "", "and does not, by default");
+  const opts = Array.from(sel.options).map((o) => o.textContent);
+  assert.deepEqual(opts.slice(0, 2), ["Does not repeat", "Daily"]);
+  // The presets read off the chosen date, so they have to name it.
+  const today = new Date();
+  const names = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  assert.equal(opts[2], "Weekly on " + names[today.getDay()]);
+  assert.match(opts[3], new RegExp("^Monthly on the " + today.getDate()));
+  assert.equal(opts[4], "Yearly");
+  assert.equal(repeatCustom(app).hidden, true, "the custom panel stays folded until asked for");
+});
+
+test("a preset is sent as a bare frequency, and a one-off sends no recurrence at all", async () => {
+  const backend = calendarBackend();
+  const app = loadApp({ fetchImpl: backend.impl });
+  await openCalendar(app);
+
+  mainCells(app)[9].click();
+  editorField(app, "Title").value = "Standup";
+  setSelect(app, repeatSel(app), "WEEKLY");
+  editorButton(app, "Add to calendar").click();
+  await app.flush();
+  await app.flush();
+  assert.deepEqual(backend.writes.find((w) => w.method === "POST").body.recurrence, { freq: "WEEKLY" });
+
+  backend.writes.length = 0;
+  mainCells(app)[11].click();
+  editorField(app, "Title").value = "One off";
+  editorButton(app, "Add to calendar").click();
+  await app.flush();
+  await app.flush();
+  const body = backend.writes.find((w) => w.method === "POST").body;
+  assert.equal("recurrence" in body, false, "not repeating means the field is absent, not null");
+});
+
+test("the custom panel opens on Custom and sends interval, weekdays and an end", async () => {
+  const backend = calendarBackend();
+  const app = loadApp({ fetchImpl: backend.impl });
+  await openCalendar(app);
+
+  mainCells(app)[9].click();
+  editorField(app, "Title").value = "Gym";
+  setSelect(app, repeatSel(app), "CUSTOM");
+  assert.equal(repeatCustom(app).hidden, false);
+
+  app.document.getElementById("calEditRepeatEvery").value = "2";
+  setSelect(app, app.document.getElementById("calEditRepeatUnit"), "WEEKLY");
+  // Today's weekday is preselected; pick a deliberate set instead.
+  Array.from(app.document.querySelectorAll("#calEditRepeatDays [data-day]"))
+    .forEach((b) => b.classList.remove("is-on"));
+  dayBtn(app, "MO").click();
+  dayBtn(app, "TH").click();
+  setSelect(app, app.document.getElementById("calEditRepeatEnd"), "COUNT");
+  app.document.getElementById("calEditRepeatCount").value = "20";
+
+  editorButton(app, "Add to calendar").click();
+  await app.flush();
+  await app.flush();
+
+  const rec = backend.writes.find((w) => w.method === "POST").body.recurrence;
+  assert.equal(rec.freq, "WEEKLY");
+  assert.equal(rec.interval, 2);
+  assert.deepEqual(rec.byDay, ["MO", "TH"]);
+  assert.equal(rec.count, 20);
+  assert.equal("until" in rec, false, "an end by count carries no until");
+});
+
+test("the weekday picker is weekly-only, and the two endings are exclusive", async () => {
+  const app = loadApp({ fetchImpl: calendarBackend().impl });
+  await openCalendar(app);
+
+  mainCells(app)[9].click();
+  setSelect(app, repeatSel(app), "CUSTOM");
+  const days = app.document.getElementById("calEditRepeatDays").closest(".field").parentNode;
+  const unit = app.document.getElementById("calEditRepeatUnit");
+  const until = app.document.getElementById("calEditRepeatUntil").closest(".field").parentNode;
+  const count = app.document.getElementById("calEditRepeatCount").closest(".field").parentNode;
+
+  assert.equal(days.hidden, false, "weekly is the custom default, so the days show");
+  /* BYDAY means nothing on the other frequencies and the Worker rejects it,
+     so it must not be reachable from here. */
+  setSelect(app, unit, "MONTHLY");
+  assert.equal(days.hidden, true);
+  setSelect(app, unit, "WEEKLY");
+  assert.equal(days.hidden, false);
+
+  // COUNT and UNTIL are mutually exclusive in the spec, so only one shows.
+  assert.equal(until.hidden, true);
+  assert.equal(count.hidden, true);
+  const end = app.document.getElementById("calEditRepeatEnd");
+  setSelect(app, end, "UNTIL");
+  assert.equal(until.hidden, false);
+  assert.equal(count.hidden, true);
+  setSelect(app, end, "COUNT");
+  assert.equal(until.hidden, true);
+  assert.equal(count.hidden, false);
+});
+
+test("an end date is sent as a plain date, not an instant", async () => {
+  const backend = calendarBackend();
+  const app = loadApp({ fetchImpl: backend.impl });
+  await openCalendar(app);
+
+  mainCells(app)[9].click();
+  editorField(app, "Title").value = "Course";
+  setSelect(app, repeatSel(app), "CUSTOM");
+  setSelect(app, app.document.getElementById("calEditRepeatEnd"), "UNTIL");
+  app.document.getElementById("calEditRepeatUntil").value = "2026-12-31";
+  editorButton(app, "Add to calendar").click();
+  await app.flush();
+  await app.flush();
+
+  const rec = backend.writes.find((w) => w.method === "POST").body.recurrence;
+  assert.equal(rec.until, "2026-12-31", "the Worker decides what value type this becomes");
+  assert.equal("count" in rec, false);
+});
+
+test("changing the start relabels the presets, so they never name the wrong day", async () => {
+  const app = loadApp({ fetchImpl: calendarBackend().impl });
+  await openCalendar(app);
+
+  mainCells(app)[9].click();
+  const when = editorField(app, "Starts");
+  // A Wednesday, whatever today is.
+  when.value = "2026-09-09T09:00";
+  when.dispatchEvent(new app.window.Event("change", { bubbles: true }));
+
+  const opts = Array.from(repeatSel(app).options).map((o) => o.textContent);
+  assert.equal(opts[2], "Weekly on Wed");
+  assert.equal(opts[3], "Monthly on the 9th");
+});
+
+test("an existing event cannot be made to repeat, and an instance says which one it is", async () => {
+  const backend = calendarBackend({
+    events: [{
+      id: "e1", calendarId: "primary", title: "Standup", start: atToday(10, 0), end: atToday(10, 30),
+      writable: true, calendar: "Personal", recurringEventId: "series1",
+    }],
+  });
+  const app = loadApp({ fetchImpl: backend.impl });
+  await openCalendar(app);
+
+  app.document.querySelector("#calDayCur .cal-chip").click();
+  /* Every event we hold is an instance (the Worker asks for singleEvents), so
+     a repeat control here would silently rewrite one occurrence. */
+  assert.equal(repeatSel(app), null, "no repeat control on an existing event");
+  assert.match(app.document.getElementById("modalBody").textContent, /repeating series/i);
+  assert.match(app.document.getElementById("modalBody").textContent, /this occurrence only/i);
+});
+
+test("a one-off event says nothing about a series", async () => {
+  const backend = calendarBackend({
+    events: [{ id: "e1", calendarId: "primary", title: "Physio", start: atToday(10, 0), end: atToday(11, 0), writable: true, calendar: "Personal" }],
+  });
+  const app = loadApp({ fetchImpl: backend.impl });
+  await openCalendar(app);
+
+  app.document.querySelector("#calDayCur .cal-chip").click();
+  assert.doesNotMatch(app.document.getElementById("modalBody").textContent, /repeating series/i);
+});
+
+test("a rejected repeat says what was wrong with it, not \"try again later\"", async () => {
+  /* A 400 names the problem and will fail identically forever, so telling the
+     user to wait would be the wrong answer. */
+  const impl = async (url, opts) => {
+    const u = String(url);
+    if (u.includes("/api/google/calendar/events")) {
+      return { ok: false, status: 400, json: async () => ({ error: "count must be a whole number between 1 and 730" }) };
+    }
+    if (u.includes("/api/calendar/events")) return jsonRes({ connected: true, status: "ok", events: [], calendars: [] });
+    return jsonRes({ connected: false, status: "not_connected" });
+  };
+  const app = loadApp({ fetchImpl: impl });
+  await openCalendar(app);
+
+  mainCells(app)[9].click();
+  editorField(app, "Title").value = "Gym";
+  setSelect(app, repeatSel(app), "CUSTOM");
+  editorButton(app, "Add to calendar").click();
+  await app.flush();
+  await app.flush();
+
+  assert.match(app.document.getElementById("calEditStatus").textContent, /between 1 and 730/);
+  assert.ok(editorOpen(app), "the editor stays open so it can be corrected");
+});

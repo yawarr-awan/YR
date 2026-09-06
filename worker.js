@@ -625,6 +625,11 @@ async function fetchEventsForRange(accessToken, calendars, timeMin, timeMax) {
         id: e.id,
         calendarId: cal.id,
         writable: Boolean(cal.writable),
+        /* Present only on an instance of a repeating series (we ask for
+           singleEvents, so a series arrives already expanded). The editor
+           uses it to say so: editing one instance is a different thing from
+           editing the series, and only Google's own UI does the latter. */
+        recurringEventId: e.recurringEventId || null,
         title: e.summary || "(no title)",
         start: e.start?.dateTime || e.start?.date,
         end: e.end?.dateTime || e.end?.date,
@@ -1976,6 +1981,88 @@ async function googleWriteFailure(res) {
  * body: { title, start (ISO datetime), durationMinutes?, notes?, location?,
  *         calendarId? }
  */
+/* ---------- REPEATING EVENTS ----------
+   Google takes recurrence as RFC 5545 RRULE strings. The client sends a
+   structured object and this builds the string, rather than the client
+   sending an RRULE straight through: a rule is interpolated into what
+   Google stores and re-serves, so it is validated here where the checks
+   cannot be skipped.
+
+   Two rules in the spec that are easy to get wrong and hard to notice:
+   - COUNT and UNTIL are mutually exclusive. Sending both is invalid; which
+     one wins if a parser accepts it anyway is anyone's guess.
+   - **UNTIL must be the same value type as DTSTART.** A timed event's
+     DTSTART is a DATE-TIME, so UNTIL has to be one too, in UTC; an all-day
+     event's is a DATE, so UNTIL must be a bare date with no time at all.
+     Mixing them is the classic way to get a series that either runs
+     forever or stops immediately. */
+const RRULE_FREQ = ["DAILY", "WEEKLY", "MONTHLY", "YEARLY"];
+const RRULE_DAYS = ["SU", "MO", "TU", "WE", "TH", "FR", "SA"];
+const MAX_RRULE_INTERVAL = 999;
+/* An upper bound on COUNT so a typo cannot ask Google to write thousands of
+   instances. Two years of daily is past any use this app has for it. */
+const MAX_RRULE_COUNT = 730;
+
+/**
+ * A structured repeat -> one RRULE line, or an error naming what is wrong.
+ * `{ freq, interval?, byDay?, count?, until? }`; a missing or empty freq
+ * means "does not repeat" and is not an error.
+ * @returns {{rule: string|null}|{error: string}}
+ */
+function buildRecurrenceRule(rec, allDay) {
+  if (rec === null || rec === undefined) return { rule: null };
+  if (typeof rec !== "object" || Array.isArray(rec)) return { error: "recurrence must be an object" };
+
+  const freq = String(rec.freq || "").toUpperCase();
+  if (!freq) return { rule: null };
+  if (!RRULE_FREQ.includes(freq)) return { error: `unsupported repeat "${rec.freq}"` };
+  const parts = [`FREQ=${freq}`];
+
+  const interval = rec.interval === undefined || rec.interval === null || rec.interval === ""
+    ? 1 : Number(rec.interval);
+  if (!Number.isInteger(interval) || interval < 1 || interval > MAX_RRULE_INTERVAL)
+    return { error: "interval must be a whole number of at least 1" };
+  /* INTERVAL=1 is the default, so saying it only makes the rule longer. */
+  if (interval > 1) parts.push(`INTERVAL=${interval}`);
+
+  if (rec.byDay !== undefined && rec.byDay !== null) {
+    const days = Array.isArray(rec.byDay) ? rec.byDay : [rec.byDay];
+    if (days.length && freq !== "WEEKLY") return { error: "picking weekdays only applies to a weekly repeat" };
+    const seen = [];
+    for (const d of days) {
+      const code = String(d || "").toUpperCase();
+      if (!RRULE_DAYS.includes(code)) return { error: `"${d}" is not a weekday` };
+      if (!seen.includes(code)) seen.push(code);
+    }
+    /* Kept in week order rather than the order they were ticked - the rule
+       is stored and re-read, and MO,WE,FR reads as a schedule. */
+    if (seen.length) parts.push(`BYDAY=${RRULE_DAYS.filter((d) => seen.includes(d)).join(",")}`);
+  }
+
+  const hasCount = rec.count !== undefined && rec.count !== null && rec.count !== "";
+  const hasUntil = rec.until !== undefined && rec.until !== null && rec.until !== "";
+  if (hasCount && hasUntil)
+    return { error: "a repeat ends either after a number of times or on a date, not both" };
+
+  if (hasCount) {
+    const count = Number(rec.count);
+    if (!Number.isInteger(count) || count < 1 || count > MAX_RRULE_COUNT)
+      return { error: `count must be a whole number between 1 and ${MAX_RRULE_COUNT}` };
+    parts.push(`COUNT=${count}`);
+  } else if (hasUntil) {
+    const until = String(rec.until);
+    if (!DAY_RE.test(until)) return { error: "until must be a date (YYYY-MM-DD)" };
+    const compact = until.replace(/-/g, "");
+    /* The last day is included. For a timed event UNTIL is UTC, so a user an
+       hour ahead of UTC could in principle see one more occurrence in the
+       first hour of the following day - erring towards including the day
+       they asked for rather than cutting it short. */
+    parts.push(`UNTIL=${allDay ? compact : `${compact}T235959Z`}`);
+  }
+
+  return { rule: `RRULE:${parts.join(";")}` };
+}
+
 async function handleCreateCalendarEvent(request, env, email) {
   let body;
   try {
@@ -2003,6 +2090,12 @@ async function handleCreateCalendarEvent(request, env, email) {
     if (Number.isNaN(startDate.getTime())) return json({ error: "invalid start" }, 400);
   }
 
+  /* Validated before the token is fetched: a malformed repeat is the
+     caller's mistake, and it should read as a 400 rather than as whatever
+     Google says about a rule we should not have sent. */
+  const recurrence = buildRecurrenceRule(body.recurrence, allDay);
+  if (recurrence.error) return json({ error: recurrence.error }, 400);
+
   const tokenResult = await getGoogleAccessToken(env, email);
   if (tokenResult.error) return json({ status: tokenResult.error });
 
@@ -2024,13 +2117,18 @@ async function handleCreateCalendarEvent(request, env, email) {
         location: typeof body.location === "string" ? body.location : undefined,
         start: when.start,
         end: when.end,
+        recurrence: recurrence.rule ? [recurrence.rule] : undefined,
       }),
     }
   );
 
   if (!res.ok) return await googleWriteFailure(res);
   const created = await res.json();
-  return json({ status: "ok", eventId: created.id, calendarId, htmlLink: created.htmlLink || null });
+  return json({
+    status: "ok", eventId: created.id, calendarId,
+    htmlLink: created.htmlLink || null,
+    recurrence: recurrence.rule || null,
+  });
 }
 
 /**
@@ -2678,6 +2776,8 @@ export {
   DEFAULT_BRIEF_PROMPT,
   handleGetCalendarEvents,
   handleCreateCalendarEvent,
+  buildRecurrenceRule,
+  MAX_RRULE_COUNT,
   handleUpdateCalendarEvent,
   handleDeleteCalendarEvent,
   handleUpdateGoogleTask,

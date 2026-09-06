@@ -600,6 +600,130 @@ test("handleCreateCalendarEvent: creates a real event when connected with write 
   assert.equal(sentBody.end.dateTime, "2026-08-09T10:15:00.000Z");
 });
 
+/* ---------------- repeating events ---------------- */
+
+test("buildRecurrenceRule: the four presets, and the defaults it leaves out", async () => {
+  const { buildRecurrenceRule } = await loadWorker();
+  assert.equal(buildRecurrenceRule({ freq: "DAILY" }, false).rule, "RRULE:FREQ=DAILY");
+  assert.equal(buildRecurrenceRule({ freq: "weekly" }, false).rule, "RRULE:FREQ=WEEKLY", "case-insensitive");
+  assert.equal(buildRecurrenceRule({ freq: "MONTHLY" }, false).rule, "RRULE:FREQ=MONTHLY");
+  assert.equal(buildRecurrenceRule({ freq: "YEARLY" }, false).rule, "RRULE:FREQ=YEARLY");
+  // INTERVAL=1 is the spec default, so saying it only makes the rule longer.
+  assert.equal(buildRecurrenceRule({ freq: "DAILY", interval: 1 }, false).rule, "RRULE:FREQ=DAILY");
+  assert.equal(buildRecurrenceRule({ freq: "WEEKLY", interval: 3 }, false).rule, "RRULE:FREQ=WEEKLY;INTERVAL=3");
+});
+
+test("buildRecurrenceRule: nothing to repeat is not an error", async () => {
+  const { buildRecurrenceRule } = await loadWorker();
+  for (const empty of [null, undefined, {}, { freq: "" }, { freq: null }]) {
+    const out = buildRecurrenceRule(empty, false);
+    assert.equal(out.rule, null, JSON.stringify(empty) + " means it does not repeat");
+    assert.equal(out.error, undefined);
+  }
+});
+
+test("buildRecurrenceRule: weekdays are week-ordered, deduped, and weekly-only", async () => {
+  const { buildRecurrenceRule } = await loadWorker();
+  // Stored and re-read, so MO,WE,FR should read as a schedule whatever order
+  // the buttons were tapped in.
+  assert.equal(
+    buildRecurrenceRule({ freq: "WEEKLY", byDay: ["FR", "MO", "WE", "MO"] }, false).rule,
+    "RRULE:FREQ=WEEKLY;BYDAY=MO,WE,FR",
+  );
+  assert.match(buildRecurrenceRule({ freq: "DAILY", byDay: ["MO"] }, false).error, /weekly/);
+  assert.match(buildRecurrenceRule({ freq: "WEEKLY", byDay: ["FUNDAY"] }, false).error, /not a weekday/);
+  // An empty list is "no days picked", not an attempt to use them.
+  assert.equal(buildRecurrenceRule({ freq: "MONTHLY", byDay: [] }, false).rule, "RRULE:FREQ=MONTHLY");
+});
+
+/* RFC 5545: UNTIL must be the same value type as DTSTART. A timed event's is a
+   DATE-TIME (UTC), an all-day event's is a DATE. Mixing them is the classic
+   way to get a series that runs forever or stops immediately. */
+test("buildRecurrenceRule: UNTIL matches the value type of the event's start", async () => {
+  const { buildRecurrenceRule } = await loadWorker();
+  assert.equal(
+    buildRecurrenceRule({ freq: "DAILY", until: "2026-12-31" }, false).rule,
+    "RRULE:FREQ=DAILY;UNTIL=20261231T235959Z",
+    "a timed event gets a UTC date-time",
+  );
+  assert.equal(
+    buildRecurrenceRule({ freq: "DAILY", until: "2026-12-31" }, true).rule,
+    "RRULE:FREQ=DAILY;UNTIL=20261231",
+    "an all-day event gets a bare date, with no time at all",
+  );
+  assert.match(buildRecurrenceRule({ freq: "DAILY", until: "31/12/2026" }, false).error, /YYYY-MM-DD/);
+});
+
+test("buildRecurrenceRule: COUNT and UNTIL cannot both be set", async () => {
+  const { buildRecurrenceRule, MAX_RRULE_COUNT } = await loadWorker();
+  assert.equal(buildRecurrenceRule({ freq: "WEEKLY", count: 8 }, false).rule, "RRULE:FREQ=WEEKLY;COUNT=8");
+  // Mutually exclusive in the spec; which one wins otherwise is anyone's guess.
+  assert.match(
+    buildRecurrenceRule({ freq: "WEEKLY", count: 8, until: "2026-12-31" }, false).error,
+    /not both/,
+  );
+  assert.match(buildRecurrenceRule({ freq: "WEEKLY", count: 0 }, false).error, /between 1 and/);
+  assert.match(buildRecurrenceRule({ freq: "WEEKLY", count: MAX_RRULE_COUNT + 1 }, false).error, /between 1 and/);
+  assert.equal(buildRecurrenceRule({ freq: "WEEKLY", count: MAX_RRULE_COUNT }, false).rule,
+    `RRULE:FREQ=WEEKLY;COUNT=${MAX_RRULE_COUNT}`);
+});
+
+test("buildRecurrenceRule: rejects nonsense rather than passing it to Google", async () => {
+  const { buildRecurrenceRule } = await loadWorker();
+  assert.match(buildRecurrenceRule({ freq: "FORTNIGHTLY" }, false).error, /unsupported repeat/);
+  assert.match(buildRecurrenceRule({ freq: "DAILY", interval: 0 }, false).error, /at least 1/);
+  assert.match(buildRecurrenceRule({ freq: "DAILY", interval: 2.5 }, false).error, /whole number/);
+  assert.match(buildRecurrenceRule({ freq: "DAILY", interval: 1000 }, false).error, /at least 1/);
+  assert.match(buildRecurrenceRule("RRULE:FREQ=DAILY", false).error, /must be an object/,
+    "a raw rule string is not accepted - the rule is built here, not passed through");
+});
+
+test("handleCreateCalendarEvent: sends the repeat to Google, and reports a bad one as a 400", async (t) => {
+  const { handleCreateCalendarEvent } = await loadWorker();
+  const d1 = createFakeD1();
+  d1.seedToken(EMAIL, { access_token: "tok", access_token_expires_at: Date.now() + 10 * 60 * 1000 });
+  let sentBody = null;
+  let calls = 0;
+  installFetch(t, async (url, opts) => {
+    calls++;
+    sentBody = JSON.parse(opts.body);
+    return jsonResponse(200, { id: "evt123" });
+  });
+
+  const req = {
+    json: async () => ({
+      title: "Standup", start: "2026-08-09T09:00:00.000Z", durationMinutes: 15,
+      recurrence: { freq: "WEEKLY", interval: 1, byDay: ["MO", "WE", "FR"], count: 12 },
+    }),
+  };
+  const resp = await (await handleCreateCalendarEvent(req, d1.env, EMAIL)).json();
+  assert.equal(resp.status, "ok");
+  assert.deepEqual(sentBody.recurrence, ["RRULE:FREQ=WEEKLY;BYDAY=MO,WE,FR;COUNT=12"]);
+  assert.equal(resp.recurrence, "RRULE:FREQ=WEEKLY;BYDAY=MO,WE,FR;COUNT=12", "echoed back so the UI can confirm it");
+
+  /* A malformed repeat is the caller's mistake. It must read as a 400 before
+     any token is fetched, not as whatever Google says about a rule we should
+     never have sent. */
+  const before = calls;
+  const bad = { json: async () => ({ title: "Standup", start: "2026-08-09T09:00:00.000Z", recurrence: { freq: "HOURLY" } }) };
+  const badResp = await handleCreateCalendarEvent(bad, d1.env, EMAIL);
+  assert.equal(badResp.status, 400);
+  assert.match((await badResp.json()).error, /unsupported repeat/);
+  assert.equal(calls, before, "and nothing was sent to Google");
+});
+
+test("handleCreateCalendarEvent: a one-off event carries no recurrence field at all", async (t) => {
+  const { handleCreateCalendarEvent } = await loadWorker();
+  const d1 = createFakeD1();
+  d1.seedToken(EMAIL, { access_token: "tok", access_token_expires_at: Date.now() + 10 * 60 * 1000 });
+  let sentBody = null;
+  installFetch(t, async (url, opts) => { sentBody = JSON.parse(opts.body); return jsonResponse(200, { id: "e1" }); });
+
+  await handleCreateCalendarEvent(
+    { json: async () => ({ title: "One off", start: "2026-08-09T09:00:00.000Z" }) }, d1.env, EMAIL);
+  assert.equal("recurrence" in sentBody, false);
+});
+
 test("handleCreateCalendarEvent: an old read-only token surfaces as reconnect_required, not a generic error", async (t) => {
   const { handleCreateCalendarEvent } = await loadWorker();
   const d1 = createFakeD1();
@@ -616,7 +740,7 @@ test("fetchEventsForRange: carries the ids and writability an editor needs", asy
   installFetch(t, googleApiMocks({
     eventsByCalendar: {
       primary: [{ id: "evt1", summary: "Lunch", start: { dateTime: "2026-08-09T12:00:00+01:00" }, end: { dateTime: "2026-08-09T13:00:00+01:00" }, description: "with Sam" }],
-      "shared@group.calendar.google.com": [{ id: "evt2", summary: "Team sync", start: { dateTime: "2026-08-09T14:00:00+01:00" } }],
+      "shared@group.calendar.google.com": [{ id: "evt2", summary: "Team sync", start: { dateTime: "2026-08-09T14:00:00+01:00" }, recurringEventId: "series1" }],
     },
   }));
   const events = await fetchEventsForRange("tok", [
@@ -630,6 +754,11 @@ test("fetchEventsForRange: carries the ids and writability an editor needs", asy
   assert.equal(events[0].notes, "with Sam");
   assert.equal(events[0].end, "2026-08-09T13:00:00+01:00", "the end is what gives the editor its duration");
   assert.equal(events[1].writable, false, "a read-only calendar's events must say so");
+  /* We ask for singleEvents, so a series arrives expanded and every event here
+     is an instance. This is what lets the editor say which one you are
+     editing, rather than leaving it to be discovered after saving. */
+  assert.equal(events[0].recurringEventId, null, "a one-off belongs to no series");
+  assert.equal(events[1].recurringEventId, "series1");
 });
 
 test("handleCreateCalendarEvent: honours an explicit calendarId and location", async (t) => {

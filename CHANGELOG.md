@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.47.0
+
+**Repeating events.** Adding something to the calendar now has a **Repeats** row: Daily, Weekly on whichever day you picked, Monthly on that date, Yearly, or **Custom…**.
+
+Custom gives you every N days/weeks/months/years, a weekday picker when it's weekly (Mon + Thu, say), and an ending — never, on a date, or after a set number of times. The presets rename themselves when you change the start, so "Weekly on Tue" can't end up describing a Wednesday.
+
+Two things worth knowing about where it stops:
+
+- **Repeat is set when you create an event, not afterwards.** Every event the app holds is a single occurrence — that's how it reads your calendar — so a repeat control on an existing one would quietly rewrite that one occurrence and nothing else. Opening a repeating event now tells you it's one of a series and that changes apply to that occurrence only; change the series itself in Google Calendar.
+- **The weekday picker only appears for a weekly repeat**, because weekdays mean nothing on the other frequencies.
+
+**A fix this turned up:** when the server rejected something as malformed, the app threw the reason away and said "couldn't reach the server" — advice to wait, for something that would have failed identically forever. It now shows what was actually wrong.
+
 ## 1.46.1
 
 **The verse rotation goes from 28 references to 100.** At three a day that's a hundred days before a day's set comes round again, instead of about ten.
