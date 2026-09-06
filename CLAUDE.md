@@ -1292,6 +1292,38 @@ the week containing `dayDate`). `calCols()` is a constant 7; `calIsWide()`
   flex child of the row). The widths were measured in Chromium: 188px per
   title at 390px.
 
+## The board is a canvas (1.38.0)
+- **One transform, not layout.** Cards are absolutely positioned in canvas
+  coordinates and the whole plane is moved with a single
+  `translate(...) scale(...)`, so zoom and pan cost no reflow.
+- **`zoomAt(z, px, py)` anchors on a point** - the pinch midpoint, the cursor,
+  or the viewport centre for the buttons. Zooming about the origin instead
+  makes the board feel like it is running away.
+- **Screen pixels ÷ zoom = canvas pixels.** `cardDragMove` divides by
+  `_canvas.z`; without it a card at 50% travels twice as far as the finger.
+  A test pins this at a zoomed-out scale.
+- **Position and size ride the synced project row; zoom and pan do not.** How a
+  board is arranged is the board. How you are looking at it is a per-device
+  view, so it lives in `yawarBoardView` alongside the other display keys.
+- **The whole header drags, name included** - and this is the one real bug the
+  browser caught that jsdom could not. `.board-name` is `flex:1`, so
+  `elementFromPoint` 40px into the header returns *the button*, not the header;
+  the first version bailed on any button and left about four pixels to grab.
+  The jsdom test passed because it dispatched at `.board-col-head` directly.
+  **When a handler depends on what is under the pointer, aim the test at what
+  the pointer really hits.** `_cardDragged` (same pattern as `_calDragged`)
+  stops the click a drag leaves behind from also opening the rename.
+- `startCardDrag` **does not preventDefault for a move** - the header carries a
+  button and suppressing the default takes its click with it. `stopPropagation`
+  alone keeps the canvas from panning underneath.
+- **Menus are `.menu-pop`, `position:fixed`, appended to the body.** Fixed and
+  outside the plane, so the canvas transform can neither move nor clip them;
+  `positionMenuPop` flips them left/up near an edge. (1.36.0 used a bottom
+  sheet precisely because an in-flow menu got clipped - fixed positioning is
+  the better answer and gives the desktop behaviour Yawar asked for.)
+- `attachTabSwipe` ignores touches starting in `.canvas-viewport`, same as
+  `.cal-viewport`.
+
 ## The Workflow timeline (1.37.0)
 - **Two date notions, kept in step on purpose.** `start`/`end` are plain
   `YYYY-MM-DD` (a bar is a span of days); `due` stays a full ISO instant and is

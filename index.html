@@ -314,34 +314,50 @@ body.editing .card[data-card].is-over{outline:2px solid var(--brand)}
 .food-row{display:flex;align-items:center;gap:8px;padding:6px 4px;border-radius:10px}
 .food-row .food-name{flex:1 1 auto;min-width:0;overflow-wrap:anywhere;font-weight:600;font-size:.9rem}
 .food-row .food-kcal{flex:0 0 auto;font-size:.74rem;color:var(--muted);white-space:nowrap}
-/* ---------- THE BOARD ----------
-   A row of project columns that scrolls sideways. Columns are a fixed width
-   so the board keeps its shape and you scroll to reach the rest, rather than
-   columns shrinking as you add projects (the lesson from the calendar week). */
-.board-bar{display:flex;align-items:center;gap:8px;margin:12px 0 8px}
-.board-bar .muted{margin-inline-start:auto}
-.board-scroll{
-  display:flex;gap:10px;align-items:flex-start;
-  overflow-x:auto;overflow-y:visible;-webkit-overflow-scrolling:touch;
-  padding-bottom:10px;scroll-snap-type:x proximity
+/* ---------- THE BOARD CANVAS ----------
+   Cards are absolutely positioned in canvas coordinates and the whole plane
+   is moved with one transform, so zooming and panning cost no layout - the
+   browser composites a single element rather than reflowing every card. */
+.board-bar{display:flex;align-items:center;gap:6px;margin:10px 0 8px;flex-wrap:wrap}
+.board-bar .muted:last-child{margin-inline-start:auto}
+.canvas-viewport{
+  position:relative;overflow:hidden;
+  height:var(--canvas-h,calc(100vh - var(--hdr-h) - 210px));min-height:320px;
+  border:1px solid var(--line);border-radius:14px;background:var(--panel-2);
+  /* The canvas handles every gesture itself; letting the browser also pan or
+     zoom would fight it. */
+  touch-action:none;overscroll-behavior:contain;cursor:grab
 }
-.board{display:flex;gap:10px;align-items:flex-start}
+.canvas-viewport.is-panning{cursor:grabbing}
+.canvas{position:absolute;inset-block-start:0;inset-inline-start:0;
+  transform-origin:0 0;width:0;height:0}
+.canvas-hint{
+  position:absolute;inset-block-end:8px;inset-inline-start:0;inset-inline-end:0;
+  text-align:center;font-size:.72rem;color:var(--muted);pointer-events:none
+}
 .board-col{
-  flex:0 0 var(--board-col,280px);width:var(--board-col,280px);
+  position:absolute;display:flex;flex-direction:column;
   background:var(--panel);border:1px solid var(--line);border-radius:14px;
-  padding:10px;scroll-snap-align:start
+  padding:10px;overflow:hidden;box-shadow:0 2px 10px rgba(8,12,24,.18)
 }
-@media (max-width:520px){.board-scroll{--board-col:264px}}
-.board-col-head{display:flex;align-items:center;gap:6px;margin-bottom:8px}
+.board-col.is-dragging{box-shadow:0 8px 22px rgba(8,12,24,.4);z-index:5}
+.board-col-head{display:flex;align-items:center;gap:6px;margin-bottom:8px;
+  cursor:grab;touch-action:none}
+.board-col.is-dragging .board-col-head{cursor:grabbing}
 .board-col-head .board-name{
   flex:1 1 auto;min-width:0;font-weight:800;font-size:.95rem;
   background:none;border:none;color:var(--ink);font-family:inherit;padding:2px 0;
   overflow-wrap:anywhere;text-align:start
 }
 .board-col-head .board-n{flex:0 0 auto;font-size:.72rem;color:var(--muted);font-weight:700}
-.board-addcol{flex:0 0 auto;padding-top:10px}
-.board-tasks{display:flex;flex-direction:column;gap:2px;margin-bottom:8px}
+.board-tasks{flex:1 1 auto;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:2px;margin-bottom:8px}
 .board-empty{font-size:.8rem;color:var(--muted);padding:6px 2px}
+.card-resize{
+  position:absolute;inset-block-end:0;inset-inline-end:0;width:20px;height:20px;
+  cursor:nwse-resize;touch-action:none;
+  background:linear-gradient(135deg,transparent 50%,var(--line) 50%);
+  border-end-end-radius:14px
+}
 .btask{display:flex;align-items:flex-start;gap:8px;padding:6px 4px;border-radius:9px}
 .btask:hover{background:var(--panel-2)}
 .btask input[type=checkbox]{width:17px;height:17px;accent-color:var(--brand);flex:0 0 auto;margin-top:2px}
@@ -349,30 +365,35 @@ body.editing .card[data-card].is-over{outline:2px solid var(--brand)}
 .btask .btask-title{font-size:.88rem;font-weight:600;overflow-wrap:anywhere}
 .btask.done .btask-title{text-decoration:line-through;color:var(--muted)}
 .btask .btask-meta{font-size:.7rem;color:var(--muted)}
+.btask .icon-btn{width:26px;height:26px;font-size:.8rem;border-radius:7px}
 .btask-menu{flex:0 0 auto;border:none;background:none;color:var(--muted);
   cursor:pointer;font-size:1rem;line-height:1;padding:2px 4px;border-radius:7px;font-family:inherit}
 .btask-menu:hover{background:var(--panel-2);color:var(--ink)}
 .board-add{display:flex;gap:6px}
 .board-add input{flex:1 1 auto;min-width:0;border:1px solid var(--line);background:var(--panel-2);
   color:var(--ink);border-radius:9px;padding:7px 9px;font:inherit;font-size:.85rem}
-/* The three-dot menu. Fixed-position so it is never clipped by the column's
-   own horizontal scrolling - an absolutely positioned menu inside .board-scroll
-   would be cut off at the column edge. */
-.menu-sheet{position:fixed;inset:0;z-index:60;background:rgba(8,12,24,.45);display:flex;
-  align-items:flex-end;justify-content:center}
-.menu-sheet .menu-inner{
-  background:var(--panel);border:1px solid var(--line);border-radius:16px 16px 0 0;
-  width:100%;max-width:460px;padding:8px 8px calc(12px + env(safe-area-inset-bottom,0px));
-  max-height:70vh;overflow-y:auto
-}
-.menu-sheet h4{margin:6px 10px 8px;font-size:.8rem;color:var(--muted);font-weight:700}
-.menu-sheet button{
+/* The menu opens where you tapped, like a desktop context menu. Fixed
+   position, so the canvas transform never moves or clips it. */
+.menu-pop{position:fixed;z-index:70;min-width:190px;max-width:min(84vw,280px);
+  background:var(--panel);border:1px solid var(--line);border-radius:12px;
+  box-shadow:0 10px 28px rgba(8,12,24,.5);padding:5px;overflow:auto;max-height:70vh}
+.menu-pop h4{margin:4px 8px 6px;font-size:.72rem;color:var(--muted);font-weight:700;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.menu-pop button{
   display:block;width:100%;text-align:start;background:none;border:none;color:var(--ink);
-  font:inherit;font-size:.95rem;padding:12px 12px;border-radius:10px;cursor:pointer
+  font:inherit;font-size:.88rem;padding:9px 10px;border-radius:8px;cursor:pointer
 }
-.menu-sheet button:hover{background:var(--panel-2)}
-.menu-sheet button.danger{color:var(--bad)}
-.menu-sheet .menu-sep{height:1px;background:var(--line);margin:6px 10px}
+.menu-pop button:hover{background:var(--panel-2)}
+.menu-pop button.danger{color:var(--bad)}
+.menu-pop .menu-sep{height:1px;background:var(--line);margin:4px 8px}
+.menu-backdrop{position:fixed;inset:0;z-index:69}
+.sheet-form{padding:4px 10px 8px}
+.sheet-form .field{margin:8px 0}
+.sheet-form label{display:block;font-size:.76rem;color:var(--muted);font-weight:600;margin-bottom:3px}
+.sheet-form input[type=date]{width:100%;border:1px solid var(--line);background:var(--panel-2);
+  color:var(--ink);border-radius:10px;padding:9px;font:inherit}
+.sheet-form .pill-row{margin-top:10px}
+
 /* ---------- THE GANTT ----------
    One CSS grid: a sticky name gutter plus a column per day. The whole thing
    scrolls sideways, and the gutter stays put - the same shape the calendar
@@ -1062,14 +1083,19 @@ footer.foot{text-align:center;color:var(--muted);font-size:.78rem;margin-top:26p
 
     <div class="subview active" id="tsub-board">
       <div class="board-bar">
-        <div class="section-title" style="margin:0">Projects</div>
-        <span class="muted" id="boardCount" style="font-size:.78rem"></span>
+        <button class="btn" id="projectAddBtn" type="button">+ Project</button>
+        <button class="icon-btn" id="zoomOutBtn" type="button" aria-label="Zoom out">−</button>
+        <span class="muted" id="zoomLabel" style="font-size:.74rem;min-width:3.2em;text-align:center">100%</span>
+        <button class="icon-btn" id="zoomInBtn" type="button" aria-label="Zoom in">+</button>
+        <button class="btn" id="zoomFitBtn" type="button">Fit</button>
+        <span class="muted" id="boardCount" style="font-size:.74rem"></span>
       </div>
-      <div class="board-scroll" id="boardScroll">
-        <div class="board" id="board"></div>
-        <div class="board-addcol">
-          <button class="btn" id="projectAddBtn" type="button">+ New project</button>
-        </div>
+      <!-- A real canvas: pinch or the buttons to zoom, drag the background to
+           pan, drag a card by its header to move it, drag its corner to
+           resize. -->
+      <div class="canvas-viewport" id="canvasViewport">
+        <div class="canvas" id="board"></div>
+        <div class="canvas-hint" id="canvasHint"></div>
       </div>
     </div>
 
@@ -2472,14 +2498,59 @@ function tasksIn(projectId){
       return (a.order||0)-(b.order||0);
     });
 }
+/* Where a card sits on the canvas and how big it is. Unlike the display
+   preferences (fold state, card order, UI scale) this rides the *synced*
+   project row: how you have arranged a board is the board, not a per-device
+   view of it. The zoom and pan are the opposite - those are per-device and
+   live in their own localStorage key. */
+var CARD_W=260,CARD_H=300,CARD_MIN_W=180,CARD_MIN_H=140,CARD_GAP=24;
+function projectBox(p){
+  return {
+    x:typeof p.x==="number"?p.x:0,
+    y:typeof p.y==="number"?p.y:0,
+    w:typeof p.w==="number"?Math.max(CARD_MIN_W,p.w):CARD_W,
+    h:typeof p.h==="number"?Math.max(CARD_MIN_H,p.h):CARD_H
+  };
+}
+/** A slot for a new card that does not land on top of an existing one. Laid
+ * out left to right, wrapping - so a board built before positions existed
+ * comes out looking like the row it used to be. */
+function nextCardSpot(){
+  var taken=projectList().map(projectBox);
+  var perRow=4;
+  for(var i=0;i<200;i++){
+    var x=(i%perRow)*(CARD_W+CARD_GAP),y=Math.floor(i/perRow)*(CARD_H+CARD_GAP);
+    var clash=taken.some(function(b){
+      return x<b.x+b.w&&x+CARD_W>b.x&&y<b.y+b.h&&y+CARD_H>b.y;
+    });
+    if(!clash)return {x:x,y:y};
+  }
+  return {x:0,y:0};
+}
 function addProject(name){
   var label=String(name||"").trim();
   if(!label)return null;
-  var id=newItemId("p");
+  var id=newItemId("p"),spot=nextCardSpot();
   itemStore("projects")[id]={id:id,name:label,color:"",
-    order:projectList().length,updated_at:Date.now(),deleted:0};
+    order:projectList().length,x:spot.x,y:spot.y,w:CARD_W,h:CARD_H,
+    updated_at:Date.now(),deleted:0};
   save();
   return id;
+}
+/** Cards from before the canvas have no coordinates. Give them the flow
+ * positions they were already drawn in, once, and persist so they stay put. */
+function ensureCardPositions(){
+  var missing=projectList().filter(function(p){return typeof p.x!=="number"||typeof p.y!=="number";});
+  if(!missing.length)return false;
+  missing.forEach(function(p){
+    var spot=nextCardSpot();
+    p.x=spot.x;p.y=spot.y;
+    if(typeof p.w!=="number")p.w=CARD_W;
+    if(typeof p.h!=="number")p.h=CARD_H;
+    p.updated_at=Date.now();
+  });
+  save();
+  return true;
 }
 function addTask(projectId,title){
   var label=String(title||"").trim();
@@ -4521,6 +4592,10 @@ function attachTabSwipe(){
        belongs to the week, not to the tab bar - without this the two fight
        and a scroll along the week jumps to another tab. */
     if(e.target&&e.target.closest&&e.target.closest(".cal-viewport"))return;
+    /* The task canvas pans and pinch-zooms under the finger, so every drag
+       inside it belongs to the canvas. Without this a pan sideways jumped to
+       the next tab. */
+    if(e.target&&e.target.closest&&e.target.closest(".canvas-viewport"))return;
     startX=t.clientX;startY=t.clientY;
   },{passive:true});
   wrap.addEventListener("touchend",function(e){
@@ -5298,33 +5373,263 @@ function renderPraySummary(){
 }
 
 /* ---------- RENDER: THE BOARD ---------- */
-/* A bottom sheet rather than a popup anchored to the button: the board scrolls
-   sideways, and an absolutely-positioned menu inside it gets clipped at the
-   column edge. A sheet is also a far bigger tap target on a phone. */
+/* The menu opens next to what you tapped, the way a desktop context menu
+   does. It is position:fixed and appended to the body, so the canvas's
+   transform neither moves it nor clips it - which is what a menu positioned
+   inside the scrolling board would have suffered from. */
 function closeMenuSheet(){
-  var open=document.querySelector(".menu-sheet");
-  if(open&&open.parentNode)open.parentNode.removeChild(open);
+  ["\u002emenu-pop","\u002emenu-backdrop","\u002emenu-sheet"].forEach(function(sel){
+    var open=document.querySelector(sel);
+    while(open){
+      if(open.parentNode)open.parentNode.removeChild(open);
+      open=document.querySelector(sel);
+    }
+  });
 }
-function openMenuSheet(title,actions){
+/** `at` is the event (or an {clientX, clientY}) the menu should appear beside.
+ * Without one it lands top-left, which is only ever right for a test. */
+function openMenuSheet(title,actions,at){
   closeMenuSheet();
-  var sheet=el("div","menu-sheet");
-  var inner=el("div","menu-inner");
-  if(title)inner.appendChild(el("h4",null,title));
+  var backdrop=el("div","menu-backdrop");
+  backdrop.addEventListener("pointerdown",function(){closeMenuSheet();});
+  document.body.appendChild(backdrop);
+
+  var pop=el("div","menu-pop");
+  if(title)pop.appendChild(el("h4",null,title));
   actions.forEach(function(a){
-    if(a.sep){inner.appendChild(el("div","menu-sep"));return;}
+    if(a.sep){pop.appendChild(el("div","menu-sep"));return;}
     var b=el("button",a.danger?"danger":null,a.label);
     b.type="button";
     b.addEventListener("click",function(){closeMenuSheet();a.run();});
-    inner.appendChild(b);
+    pop.appendChild(b);
   });
-  sheet.appendChild(inner);
-  sheet.addEventListener("click",function(e){if(e.target===sheet)closeMenuSheet();});
-  document.body.appendChild(sheet);
+  document.body.appendChild(pop);
+  positionMenuPop(pop,at);
+  return pop;
+}
+/** Keep the whole menu on screen: flip it left or up rather than letting it
+ * hang off the edge, which on a phone is most of the time. */
+function positionMenuPop(pop,at){
+  var vw=window.innerWidth||360,vh=window.innerHeight||640,pad=8;
+  var x=at&&at.clientX!=null?at.clientX:pad;
+  var y=at&&at.clientY!=null?at.clientY:pad;
+  var w=pop.offsetWidth||200,h=pop.offsetHeight||220;
+  if(x+w+pad>vw)x=Math.max(pad,x-w);
+  if(y+h+pad>vh)y=Math.max(pad,vh-h-pad);
+  pop.style.left=Math.max(pad,x)+"px";
+  pop.style.top=Math.max(pad,y)+"px";
+}
+
+/* ---------- CANVAS: ZOOM AND PAN ----------
+   The view (how far in you are and where you are looking) is per-device and
+   never synced - it is the same kind of thing as the UI scale. Where the
+   cards sit is not: that rides the project rows. */
+var BOARDVIEW_KEY="yawarBoardView";
+var CANVAS_MIN_Z=0.35,CANVAS_MAX_Z=2.5;
+var _canvas={z:1,x:0,y:0};
+function loadBoardView(){
+  try{
+    var raw=JSON.parse(localStorage.getItem(BOARDVIEW_KEY)||"null");
+    if(raw&&typeof raw.z==="number")_canvas={z:clampZoom(raw.z),x:raw.x||0,y:raw.y||0};
+  }catch(e){}
+}
+function saveBoardView(){
+  try{localStorage.setItem(BOARDVIEW_KEY,JSON.stringify(_canvas));}catch(e){}
+}
+function clampZoom(z){return Math.min(CANVAS_MAX_Z,Math.max(CANVAS_MIN_Z,z));}
+function applyCanvasTransform(){
+  var plane=document.getElementById("board");
+  if(!plane)return;
+  plane.style.transform="translate("+_canvas.x+"px,"+_canvas.y+"px) scale("+_canvas.z+")";
+  var lbl=document.getElementById("zoomLabel");
+  if(lbl)lbl.textContent=Math.round(_canvas.z*100)+"%";
+}
+/** Zoom about a point in viewport coordinates, so what is under the fingers
+ * (or the cursor) stays under them - anchoring to the origin instead makes
+ * zooming feel like the board is running away. */
+function zoomAt(nextZ,px,py){
+  var z=clampZoom(nextZ);
+  if(z===_canvas.z)return;
+  _canvas.x=px-(px-_canvas.x)*(z/_canvas.z);
+  _canvas.y=py-(py-_canvas.y)*(z/_canvas.z);
+  _canvas.z=z;
+  applyCanvasTransform();saveBoardView();
+}
+function zoomByStep(factor){
+  var vp=document.getElementById("canvasViewport");
+  if(!vp)return;
+  var r=vp.getBoundingClientRect();
+  zoomAt(_canvas.z*factor,r.width/2,r.height/2);
+}
+/** Frame everything, so "I have lost my cards" is one tap from fixed. */
+function canvasFit(){
+  var vp=document.getElementById("canvasViewport");
+  var boxes=projectList().map(projectBox);
+  if(!vp||!boxes.length){_canvas={z:1,x:16,y:16};applyCanvasTransform();saveBoardView();return;}
+  var r=vp.getBoundingClientRect();
+  var minX=Math.min.apply(null,boxes.map(function(b){return b.x;}));
+  var minY=Math.min.apply(null,boxes.map(function(b){return b.y;}));
+  var maxX=Math.max.apply(null,boxes.map(function(b){return b.x+b.w;}));
+  var maxY=Math.max.apply(null,boxes.map(function(b){return b.y+b.h;}));
+  var pad=20;
+  var z=clampZoom(Math.min((r.width-pad*2)/Math.max(1,maxX-minX),
+                           (r.height-pad*2)/Math.max(1,maxY-minY),1));
+  _canvas.z=z;
+  _canvas.x=pad-minX*z+Math.max(0,(r.width-pad*2-(maxX-minX)*z)/2);
+  _canvas.y=pad-minY*z;
+  applyCanvasTransform();saveBoardView();
+}
+
+/* ---------- CANVAS: GESTURES ----------
+   Pointer events throughout, so one code path covers finger, mouse and pen -
+   and two pointers give pinch without a separate touch handler. */
+var _pointers={};                 /* live pointers on the viewport, by id */
+var _pinch=null;                  /* {dist, z} when two are down */
+var _pan=null;                    /* {x, y} while dragging the background */
+var _cardDrag=null;               /* {p, mode, ...} while moving or resizing */
+/* True for one tick after a drag that actually moved, so the click it
+   generates does not also open the rename prompt. */
+var _cardDragged=false;
+
+function canvasPointers(){
+  return Object.keys(_pointers).map(function(k){return _pointers[k];});
+}
+function pinchDistance(a,b){
+  var dx=a.x-b.x,dy=a.y-b.y;
+  return Math.sqrt(dx*dx+dy*dy);
+}
+function attachCanvas(){
+  var vp=document.getElementById("canvasViewport");
+  if(!vp)return;
+
+  vp.addEventListener("pointerdown",function(e){
+    _pointers[e.pointerId]={x:e.clientX,y:e.clientY};
+    var live=canvasPointers();
+    if(live.length===2){
+      /* A second finger turns a pan into a pinch. */
+      _pan=null;
+      _pinch={dist:pinchDistance(live[0],live[1]),z:_canvas.z};
+      return;
+    }
+    /* A drag that starts on a card is the card's, not the canvas's. */
+    if(e.target.closest&&e.target.closest(".board-col"))return;
+    _pan={x:e.clientX-_canvas.x,y:e.clientY-_canvas.y};
+    vp.classList.add("is-panning");
+    vp.setPointerCapture(e.pointerId);
+  });
+
+  vp.addEventListener("pointermove",function(e){
+    if(!_pointers[e.pointerId])return;
+    _pointers[e.pointerId]={x:e.clientX,y:e.clientY};
+    var live=canvasPointers();
+    if(_pinch&&live.length>=2){
+      var d=pinchDistance(live[0],live[1]);
+      if(!_pinch.dist)return;
+      var r=vp.getBoundingClientRect();
+      /* Anchor on the midpoint between the fingers. */
+      var cx=(live[0].x+live[1].x)/2-r.left;
+      var cy=(live[0].y+live[1].y)/2-r.top;
+      zoomAt(_pinch.z*(d/_pinch.dist),cx,cy);
+      return;
+    }
+    if(_pan){
+      _canvas.x=e.clientX-_pan.x;
+      _canvas.y=e.clientY-_pan.y;
+      applyCanvasTransform();
+    }
+  });
+
+  function release(e){
+    delete _pointers[e.pointerId];
+    if(canvasPointers().length<2)_pinch=null;
+    if(_pan&&!canvasPointers().length){
+      _pan=null;
+      vp.classList.remove("is-panning");
+      saveBoardView();
+    }
+  }
+  vp.addEventListener("pointerup",release);
+  vp.addEventListener("pointercancel",release);
+
+  /* Trackpad pinch arrives as a wheel event with ctrlKey; a plain wheel is a
+     scroll, which on a canvas means pan. */
+  vp.addEventListener("wheel",function(e){
+    var r=vp.getBoundingClientRect();
+    if(e.ctrlKey){
+      e.preventDefault();
+      zoomAt(_canvas.z*(e.deltaY>0?0.92:1.08),e.clientX-r.left,e.clientY-r.top);
+      return;
+    }
+    e.preventDefault();
+    _canvas.x-=e.deltaX;_canvas.y-=e.deltaY;
+    applyCanvasTransform();saveBoardView();
+  },{passive:false});
+}
+
+/** Moving and resizing a card. Bound to the document rather than the handle:
+ * the pointer routinely leaves the small grab area mid-drag, and a re-render
+ * would replace the element the gesture started on. */
+function startCardDrag(p,mode,ev){
+  /* Not preventDefault on a move: the header carries the name button, and
+     suppressing the default would take its click with it. stopPropagation is
+     enough to keep the canvas from panning underneath. */
+  if(mode!=="move")ev.preventDefault();
+  ev.stopPropagation();
+  var box=projectBox(p);
+  _cardDrag={p:p,mode:mode,startX:ev.clientX,startY:ev.clientY,
+    ox:box.x,oy:box.y,ow:box.w,oh:box.h,moved:false};
+  var col=document.querySelector('.board-col[data-project="'+p.id+'"]');
+  if(col)col.classList.add("is-dragging");
+  document.addEventListener("pointermove",cardDragMove);
+  document.addEventListener("pointerup",cardDragEnd);
+  document.addEventListener("pointercancel",cardDragEnd);
+}
+function cardDragMove(ev){
+  if(!_cardDrag)return;
+  /* Screen pixels are canvas pixels divided by the zoom - drag at 50% and the
+     card must follow the finger, not travel twice as far. */
+  var dx=(ev.clientX-_cardDrag.startX)/_canvas.z;
+  var dy=(ev.clientY-_cardDrag.startY)/_canvas.z;
+  if(Math.abs(dx)>2||Math.abs(dy)>2)_cardDrag.moved=true;
+  var col=document.querySelector('.board-col[data-project="'+_cardDrag.p.id+'"]');
+  if(!col)return;
+  if(_cardDrag.mode==="move"){
+    col.style.left=(_cardDrag.ox+dx)+"px";
+    col.style.top=(_cardDrag.oy+dy)+"px";
+  }else{
+    col.style.width=Math.max(CARD_MIN_W,_cardDrag.ow+dx)+"px";
+    col.style.height=Math.max(CARD_MIN_H,_cardDrag.oh+dy)+"px";
+  }
+}
+function cardDragEnd(){
+  document.removeEventListener("pointermove",cardDragMove);
+  document.removeEventListener("pointerup",cardDragEnd);
+  document.removeEventListener("pointercancel",cardDragEnd);
+  if(!_cardDrag)return;
+  var d=_cardDrag;_cardDrag=null;
+  var col=document.querySelector('.board-col[data-project="'+d.p.id+'"]');
+  if(col)col.classList.remove("is-dragging");
+  if(!d.moved)return;
+  _cardDragged=true;
+  setTimeout(function(){_cardDragged=false;},0);
+  /* Commit what the element ended up at, so the stored value and the pixels
+     agree exactly. */
+  if(col){
+    if(d.mode==="move"){
+      d.p.x=Math.round(parseFloat(col.style.left)||0);
+      d.p.y=Math.round(parseFloat(col.style.top)||0);
+    }else{
+      d.p.w=Math.round(parseFloat(col.style.width)||CARD_W);
+      d.p.h=Math.round(parseFloat(col.style.height)||CARD_H);
+    }
+  }
+  touchItem(d.p);
 }
 
 function renderBoard(){
   var box=document.getElementById("board");
   if(!box)return;
+  ensureCardPositions();
   box.innerHTML="";
   var projects=projectList();
   var count=document.getElementById("boardCount");
@@ -5332,29 +5637,60 @@ function renderBoard(){
     var open=liveItems("tasks").filter(function(t){return !t.done;}).length;
     count.textContent=projects.length+" project(s) · "+open+" open";
   }
+  var hint=document.getElementById("canvasHint");
+  if(hint){
+    hint.textContent=projects.length
+      ? "Drag a card to move it · pinch or +/− to zoom · drag the corner to resize"
+      : "";
+  }
   if(!projects.length){
-    box.appendChild(el("div","board-empty","No projects yet — add one to get started."));
+    var empty=el("div","board-empty","No projects yet — add one to get started.");
+    empty.style.position="absolute";empty.style.left="16px";empty.style.top="16px";
+    empty.style.width="240px";
+    box.appendChild(empty);
     return;
   }
   projects.forEach(function(p){box.appendChild(buildProjectColumn(p));});
+  applyCanvasTransform();
 }
 
 function buildProjectColumn(p){
   var col=el("div","board-col");
   col.setAttribute("data-project",p.id);
+  var box=projectBox(p);
+  col.style.left=box.x+"px";col.style.top=box.y+"px";
+  col.style.width=box.w+"px";col.style.height=box.h+"px";
 
   var head=el("div","board-col-head");
+  /* The whole header is the grab handle, the name included.
+     The name button is flex:1 and so covers nearly all of it - bailing out on
+     any button left a few pixels of gap to grab, which is unusable. Measured
+     in Chromium: elementFromPoint 40px into the header returns the name
+     button, not the header. A jsdom test dispatching at the header directly
+     passed regardless, which is precisely the false pass a real browser
+     catches.
+     Only the ⋯ opts out; the name is instead protected by _cardDragged, so a
+     drag that started on it does not also fire a rename. */
+  head.addEventListener("pointerdown",function(ev){
+    if(ev.target.closest&&ev.target.closest(".btask-menu"))return;
+    startCardDrag(p,"move",ev);
+  });
   /* The heading is the rename field - one tap, no separate edit mode. */
   var name=el("button","board-name",p.name);
   name.type="button";
-  name.addEventListener("click",function(){renameProject(p);});
+  name.addEventListener("click",function(){
+    /* A drag ends by firing a click on whatever was under the pointer - the
+       same trap the calendar's _calDragged exists for. */
+    if(_cardDragged)return;
+    renameProject(p);
+  });
   head.appendChild(name);
   var tasks=tasksIn(p.id);
   head.appendChild(el("span","board-n",tasks.filter(function(t){return !t.done;}).length+"/"+tasks.length));
   var menu=el("button","btask-menu","⋯");
   menu.type="button";
   menu.setAttribute("aria-label","Project options: "+p.name);
-  menu.addEventListener("click",function(){openProjectMenu(p);});
+  menu.addEventListener("click",function(ev){openProjectMenu(p,ev);});
   head.appendChild(menu);
   col.appendChild(head);
 
@@ -5382,6 +5718,11 @@ function buildProjectColumn(p){
   input.addEventListener("keydown",function(e){if(e.key==="Enter"){e.preventDefault();commit();}});
   add.appendChild(input);add.appendChild(go);
   col.appendChild(add);
+
+  var grip=el("div","card-resize");
+  grip.setAttribute("aria-label","Resize "+p.name);
+  grip.addEventListener("pointerdown",function(ev){startCardDrag(p,"resize",ev);});
+  col.appendChild(grip);
   return col;
 }
 
@@ -5411,10 +5752,20 @@ function buildBoardTask(t){
   if(bits.length)main.appendChild(el("span","btask-meta",bits.join(" ")));
   row.appendChild(main);
 
+  /* The calendar button, back where it was on the old Today card: a green
+     ring when the task is on your calendar (see the 1.30.1 note - state on the
+     button, never a chip competing with the title for width). */
+  var cal=el("button","icon-btn"+(t.scheduled?" is-on":""),"📅");
+  cal.type="button";
+  cal.title=t.scheduled?"On your calendar — tap to reschedule":"Schedule on Google Calendar";
+  cal.setAttribute("aria-label",cal.title);
+  cal.addEventListener("click",function(ev){ev.stopPropagation();openTaskSchedule(t);});
+  row.appendChild(cal);
+
   var menu=el("button","btask-menu","⋮");
   menu.type="button";
   menu.setAttribute("aria-label","Options for "+t.title);
-  menu.addEventListener("click",function(){openTaskMenu(t);});
+  menu.addEventListener("click",function(ev){openTaskMenu(t,ev);});
   row.appendChild(menu);
   return row;
 }
@@ -5422,7 +5773,7 @@ function buildBoardTask(t){
 /* The task menu. "Add to workflow" and "Link to a note" are the next two
    slices; they are listed but say so rather than being silently absent, so the
    menu does not change shape underneath you later. */
-function openTaskMenu(t){
+function openTaskMenu(t,at){
   var others=projectList().filter(function(p){return p.id!==t.projectId;});
   var actions=[
     {label:t.done?"Mark as not done":"Mark as done",run:function(){
@@ -5435,7 +5786,7 @@ function openTaskMenu(t){
       if(!name)return;
       t.title=name;touchItem(t);renderBoard();
     }},
-    {label:taskHasSpan(t)?"Change dates…":"Set dates…",run:function(){openTaskDates(t);}},
+    {label:taskHasSpan(t)?"Change dates…":"Set dates…",run:function(){openTaskDates(t,at);}},
     {label:t.scheduled?"Reschedule on calendar…":"Add to calendar…",run:function(){
       openTaskSchedule(t);
     }},
@@ -5444,28 +5795,30 @@ function openTaskMenu(t){
       if(!others.length){boardNote("There is nowhere else to move it yet.");return;}
       openMenuSheet("Move \u201C"+t.title+"\u201D to",others.map(function(p){
         return {label:p.name,run:function(){moveTaskTo(t.id,p.id);renderBoard();}};
-      }));
+      }),at);
     }},
     {label:"Duplicate to…",run:function(){
       var targets=projectList();
       openMenuSheet("Copy \u201C"+t.title+"\u201D to",targets.map(function(p){
         return {label:p.name,run:function(){duplicateTaskTo(t.id,p.id);renderBoard();}};
-      }));
+      }),at);
     }},
     {sep:true},
     {label:"Delete",danger:true,run:function(){
       deleteItem("tasks",t.id);renderBoard();
     }}
   ];
-  openMenuSheet(t.title,actions);
+  openMenuSheet(t.title,actions,at);
 }
 
 /** The two date fields, as a bottom sheet. Kept in the same sheet furniture as
  * the menus so there is one dismissal behaviour to learn. */
-function openTaskDates(t){
+function openTaskDates(t,at){
   closeMenuSheet();
-  var sheet=el("div","menu-sheet");
-  var inner=el("div","menu-inner");
+  var backdrop=el("div","menu-backdrop");
+  backdrop.addEventListener("pointerdown",function(){closeMenuSheet();});
+  document.body.appendChild(backdrop);
+  var inner=el("div","menu-pop");
   inner.appendChild(el("h4",null,t.title));
 
   var form=el("div","sheet-form");
@@ -5500,13 +5853,12 @@ function openTaskDates(t){
   form.appendChild(row);
   inner.appendChild(form);
 
-  sheet.appendChild(inner);
-  sheet.addEventListener("click",function(e){if(e.target===sheet)closeMenuSheet();});
-  document.body.appendChild(sheet);
+  document.body.appendChild(inner);
+  positionMenuPop(inner,at);
   startIn.focus();
 }
 
-function openProjectMenu(p){
+function openProjectMenu(p,at){
   openMenuSheet(p.name,[
     {label:"Rename…",run:function(){renameProject(p);}},
     {label:"Move left",run:function(){shiftProject(p,-1);}},
@@ -5519,7 +5871,7 @@ function openProjectMenu(p){
       deleteItem("projects",p.id);
       renderBoard();
     }}
-  ]);
+  ],at);
 }
 
 function renameProject(p){
@@ -5655,7 +6007,7 @@ function renderWorkflow(){
       var name=el("div","wf-cell wf-gutter");
       var btn=el("button","wf-taskname",t.title);
       btn.type="button";
-      btn.addEventListener("click",function(){openTaskMenu(t);});
+      btn.addEventListener("click",function(ev){openTaskMenu(t,ev);});
       name.appendChild(btn);
       grid.appendChild(name);
 
@@ -5677,7 +6029,7 @@ function renderWorkflow(){
           /* Spans the days it covers, plus the gaps between those columns. */
           var n=Math.max(1,to-from+1);
           bar.style.width="calc("+n+" * var(--wf-day) - 4px)";
-          bar.addEventListener("click",function(ev){ev.stopPropagation();openTaskMenu(t);});
+          bar.addEventListener("click",function(ev){ev.stopPropagation();openTaskMenu(t,ev);});
           cell.appendChild(bar);
         }
         grid.appendChild(cell);
@@ -5718,7 +6070,7 @@ function renderWorkflowUndated(){
     row.appendChild(el("span","u-proj",names[t.projectId]||""));
     var btn=el("button","btn","Dates…");
     btn.type="button";
-    btn.addEventListener("click",function(){openTaskDates(t);});
+    btn.addEventListener("click",function(ev){openTaskDates(t,ev);});
     row.appendChild(btn);
     box.appendChild(row);
   });
@@ -6864,6 +7216,12 @@ document.getElementById("prayJumpToday").addEventListener("click",function(){cur
 /* Creates the project straight away and puts the cursor in its name, rather
    than opening a dialog first - one fewer step, and the heading is the rename
    control anyway. */
+loadBoardView();
+attachCanvas();
+document.getElementById("zoomInBtn").addEventListener("click",function(){zoomByStep(1.2);});
+document.getElementById("zoomOutBtn").addEventListener("click",function(){zoomByStep(1/1.2);});
+document.getElementById("zoomFitBtn").addEventListener("click",canvasFit);
+
 document.getElementById("wfPrev").addEventListener("click",function(){wfShift(-1);});
 document.getElementById("wfNext").addEventListener("click",function(){wfShift(1);});
 document.getElementById("wfToday").addEventListener("click",function(){

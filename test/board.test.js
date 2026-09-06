@@ -39,7 +39,7 @@ function addTaskTo(app, col, title) {
 function openTaskMenu(app, col, title) {
   tasksIn(col).find((r) => r.querySelector(".btask-title").textContent === title)
     .querySelector(".btask-menu").click();
-  return [...app.document.querySelectorAll(".menu-sheet button")];
+  return [...app.document.querySelectorAll(".menu-pop button")];
 }
 const menuItem = (buttons, re) => buttons.find((b) => re.test(b.textContent));
 
@@ -111,7 +111,7 @@ test("deleting a project takes its tasks with it, as tombstones rather than gaps
   app.window.confirm = () => true;
 
   colNamed(app, "Old").querySelector(".btask-menu").click();
-  menuItem([...app.document.querySelectorAll(".menu-sheet button")], /Delete project/).click();
+  menuItem([...app.document.querySelectorAll(".menu-pop button")], /Delete project/).click();
 
   assert.equal(cols(app).length, 0, "gone from the board");
   const s = JSON.parse(app.window.localStorage.getItem(MAIN_KEY));
@@ -127,7 +127,7 @@ test("Move to sends the task to another project and leaves nothing behind", () =
   newProject(app, "House");
 
   menuItem(openTaskMenu(app, colNamed(app, "Inbox"), "Fix the tap"), /Move to/).click();
-  menuItem([...app.document.querySelectorAll(".menu-sheet button")], /House/).click();
+  menuItem([...app.document.querySelectorAll(".menu-pop button")], /House/).click();
 
   assert.deepEqual(titles(colNamed(app, "Inbox")), []);
   assert.deepEqual(titles(colNamed(app, "House")), ["Fix the tap"]);
@@ -139,7 +139,7 @@ test("Duplicate to leaves the original and makes an independent copy", () => {
   newProject(app, "Money");
 
   menuItem(openTaskMenu(app, colNamed(app, "Inbox"), "Call the bank"), /Duplicate to/).click();
-  menuItem([...app.document.querySelectorAll(".menu-sheet button")], /Money/).click();
+  menuItem([...app.document.querySelectorAll(".menu-pop button")], /Money/).click();
 
   assert.deepEqual(titles(colNamed(app, "Inbox")), ["Call the bank"], "the original stays");
   assert.deepEqual(titles(colNamed(app, "Money")), ["Call the bank"]);
@@ -162,7 +162,7 @@ test("a duplicate never inherits the calendar event", () => {
   original.scheduled = true;
 
   menuItem(openTaskMenu(app, colNamed(app, "A"), "Dentist"), /Duplicate to/).click();
-  menuItem([...app.document.querySelectorAll(".menu-sheet button")], /^B$/).click();
+  menuItem([...app.document.querySelectorAll(".menu-pop button")], /^B$/).click();
 
   const copy = Object.values(app.state().tasks).find((t) => t.projectId !== original.projectId);
   assert.equal(copy.calendarEventId, null);
@@ -328,10 +328,10 @@ test("setting dates from the sheet plots the task", () => {
   assert.equal(wfBars(app).length, 0);
 
   app.document.querySelector("#wfUndated .wf-undated-row .btn").click();
-  const inputs = [...app.document.querySelectorAll(".menu-sheet input[type=date]")];
+  const inputs = [...app.document.querySelectorAll(".menu-pop input[type=date]")];
   inputs[0].value = dayKeyFrom(1);
   inputs[1].value = dayKeyFrom(2);
-  [...app.document.querySelectorAll(".menu-sheet button")].find((b) => b.textContent === "Save").click();
+  [...app.document.querySelectorAll(".menu-pop button")].find((b) => b.textContent === "Save").click();
 
   assert.equal(wfBars(app).length, 1);
   assert.equal(app.document.getElementById("wfUndatedCount").textContent, "0");
@@ -345,10 +345,10 @@ test("an end before a start is swapped rather than refused", () => {
   const app = loadApp({ fetchImpl: idle, localStorageSeed: boardSeed([{ title: "Backwards" }]) });
   openWorkflow(app);
   app.document.querySelector("#wfUndated .wf-undated-row .btn").click();
-  const inputs = [...app.document.querySelectorAll(".menu-sheet input[type=date]")];
+  const inputs = [...app.document.querySelectorAll(".menu-pop input[type=date]")];
   inputs[0].value = dayKeyFrom(5);
   inputs[1].value = dayKeyFrom(2);
-  [...app.document.querySelectorAll(".menu-sheet button")].find((b) => b.textContent === "Save").click();
+  [...app.document.querySelectorAll(".menu-pop button")].find((b) => b.textContent === "Save").click();
 
   const t = Object.values(app.state().tasks)[0];
   assert.equal(t.start, dayKeyFrom(2), "the earlier date is the start");
@@ -390,7 +390,7 @@ test("the board row shows the span, and the menu offers to change it", () => {
   assert.match(meta, /→/, "start and end, not just one date");
 
   app.document.querySelector(".btask .btask-menu").click();
-  const items = [...app.document.querySelectorAll(".menu-sheet button")].map((b) => b.textContent);
+  const items = [...app.document.querySelectorAll(".menu-pop button")].map((b) => b.textContent);
   assert.ok(items.some((t) => /Change dates/.test(t)), "already dated, so it offers a change");
 });
 
@@ -398,4 +398,267 @@ test("the remembered sub-tab comes back", () => {
   const app = loadApp({ fetchImpl: idle, localStorageSeed: { yawarLastTaskSub: "workflow" } });
   app.goTo("tasks");
   assert.ok(app.document.getElementById("tsub-workflow").classList.contains("active"));
+});
+
+/* ---------------- the canvas ---------------- */
+
+const viewport = (app) => app.document.getElementById("canvasViewport");
+const plane = (app) => app.document.getElementById("board");
+function pointer(app, type, id, x, y, target) {
+  const ev = new app.window.Event(type, { bubbles: true, cancelable: true });
+  ev.pointerId = id; ev.clientX = x; ev.clientY = y;
+  (target || viewport(app)).dispatchEvent(ev);
+  return ev;
+}
+
+test("cards are placed on a canvas, each with its own position and size", () => {
+  const app = openBoard(loadApp({ fetchImpl: idle }));
+  newProject(app, "One");
+  newProject(app, "Two");
+
+  const [a, b] = cols(app);
+  assert.equal(app.window.getComputedStyle(a).position, "absolute");
+  assert.notEqual(a.style.left + a.style.top, b.style.left + b.style.top,
+    "a new card is laid beside the last, not on top of it");
+
+  const stored = Object.values(app.state().projects);
+  stored.forEach((p) => {
+    assert.equal(typeof p.x, "number");
+    assert.equal(typeof p.y, "number");
+    assert.ok(p.w > 0 && p.h > 0);
+  });
+});
+
+test("a board made before the canvas gets positions once, and keeps them", () => {
+  const seed = {
+    schema: SCHEMA, profile: { startWeight: 108, targetWeight: 88, updated_at: 1, tasks: [] }, days: {},
+    projects: { p1: { id: "p1", name: "Old", color: "", order: 0, updated_at: 1, deleted: 0 } },
+    tasks: {}, sync: { enabled: false, since: 0, lastSyncAt: null, lastError: null }, account: "me@example.com",
+  };
+  const app = openBoard(loadApp({ fetchImpl: idle, localStorageSeed: { [MAIN_KEY]: JSON.stringify(seed) } }));
+
+  const p = Object.values(app.state().projects)[0];
+  assert.equal(typeof p.x, "number", "given a place on the canvas");
+  assert.ok(p.updated_at > 1, "and stamped, so every device agrees where it sits");
+
+  const again = openBoard(loadApp({ fetchImpl: idle,
+    localStorageSeed: { [MAIN_KEY]: app.window.localStorage.getItem(MAIN_KEY) } }));
+  assert.equal(Object.values(again.state().projects)[0].x, p.x, "not reshuffled on reload");
+});
+
+test("dragging a card by its header moves it, and the move is stored", () => {
+  const app = openBoard(loadApp({ fetchImpl: idle }));
+  newProject(app, "Movable");
+  const before = Object.values(app.state().projects)[0];
+  const startX = before.x, startY = before.y;
+
+  const head = cols(app)[0].querySelector(".board-col-head");
+  pointer(app, "pointerdown", 1, 100, 100, head);
+  pointer(app, "pointermove", 1, 180, 160, app.document);
+  pointer(app, "pointerup", 1, 180, 160, app.document);
+
+  const after = Object.values(app.state().projects)[0];
+  assert.equal(after.x, startX + 80);
+  assert.equal(after.y, startY + 60);
+  assert.ok(after.updated_at > before.updated_at || after.x !== startX, "stamped for sync");
+});
+
+test("dragging the corner resizes, and never below a usable size", () => {
+  const app = openBoard(loadApp({ fetchImpl: idle }));
+  newProject(app, "Sizable");
+  const grip = cols(app)[0].querySelector(".card-resize");
+  assert.ok(grip, "there is a corner to grab");
+
+  pointer(app, "pointerdown", 1, 300, 300, grip);
+  pointer(app, "pointermove", 1, 380, 400, app.document);
+  pointer(app, "pointerup", 1, 380, 400, app.document);
+  let p = Object.values(app.state().projects)[0];
+  assert.equal(p.w, 260 + 80);
+  assert.equal(p.h, 300 + 100);
+
+  // Now drag it far smaller than is usable.
+  pointer(app, "pointerdown", 1, 300, 300, cols(app)[0].querySelector(".card-resize"));
+  pointer(app, "pointermove", 1, -900, -900, app.document);
+  pointer(app, "pointerup", 1, -900, -900, app.document);
+  p = Object.values(app.state().projects)[0];
+  assert.ok(p.w >= 180 && p.h >= 140, "clamped to something you can still use");
+});
+
+test("a tap that doesn't move the card doesn't rewrite it", () => {
+  // Otherwise every tap on a heading would push a sync.
+  const app = openBoard(loadApp({ fetchImpl: idle }));
+  newProject(app, "Still");
+  const before = Object.values(app.state().projects)[0].updated_at;
+
+  const head = cols(app)[0].querySelector(".board-col-head");
+  pointer(app, "pointerdown", 1, 100, 100, head);
+  pointer(app, "pointerup", 1, 101, 100, app.document);
+  assert.equal(Object.values(app.state().projects)[0].updated_at, before);
+});
+
+test("dragging at half zoom moves the card by half as many canvas pixels", () => {
+  // Screen pixels are canvas pixels divided by the zoom - get this wrong and
+  // the card runs away from the finger.
+  const app = openBoard(loadApp({ fetchImpl: idle }));
+  newProject(app, "Zoomed");
+  app.click("zoomOutBtn"); app.click("zoomOutBtn"); app.click("zoomOutBtn"); app.click("zoomOutBtn");
+  const z = app.window.parseFloat(app.document.getElementById("zoomLabel").textContent) / 100;
+  assert.ok(z < 1, "we are zoomed out");
+
+  const start = Object.values(app.state().projects)[0].x;
+  const head = cols(app)[0].querySelector(".board-col-head");
+  pointer(app, "pointerdown", 1, 100, 100, head);
+  pointer(app, "pointermove", 1, 200, 100, app.document);
+  pointer(app, "pointerup", 1, 200, 100, app.document);
+
+  const moved = Object.values(app.state().projects)[0].x - start;
+  assert.ok(Math.abs(moved - 100 / z) < 2, `expected ~${Math.round(100 / z)} canvas px, got ${moved}`);
+});
+
+test("zoom is clamped, shown, and remembered per device rather than synced", () => {
+  const app = openBoard(loadApp({ fetchImpl: idle }));
+  newProject(app, "Anything");   // so there is a saved store to inspect
+  const label = () => app.document.getElementById("zoomLabel").textContent;
+  assert.equal(label(), "100%");
+
+  for (let i = 0; i < 20; i++) app.click("zoomInBtn");
+  assert.ok(parseInt(label(), 10) <= 250, "there is a ceiling");
+  for (let i = 0; i < 40; i++) app.click("zoomOutBtn");
+  assert.ok(parseInt(label(), 10) >= 35, "and a floor");
+
+  assert.ok(app.window.localStorage.getItem("yawarBoardView"), "kept per device");
+  assert.ok(!JSON.stringify(app.state()).includes("yawarBoardView"));
+  assert.equal(app.state().zoom, undefined, "the view is not part of the synced record");
+});
+
+test("dragging the background pans the canvas", () => {
+  const app = openBoard(loadApp({ fetchImpl: idle }));
+  newProject(app, "Anything");
+  const before = plane(app).style.transform;
+
+  pointer(app, "pointerdown", 1, 200, 200);
+  pointer(app, "pointermove", 1, 260, 240);
+  pointer(app, "pointerup", 1, 260, 240);
+
+  assert.notEqual(plane(app).style.transform, before);
+  assert.match(plane(app).style.transform, /translate\(/);
+});
+
+test("a second finger pinches instead of panning", () => {
+  const app = openBoard(loadApp({ fetchImpl: idle }));
+  newProject(app, "Pinch me");
+  const zoomOf = () => parseInt(app.document.getElementById("zoomLabel").textContent, 10);
+  assert.equal(zoomOf(), 100);
+
+  pointer(app, "pointerdown", 1, 100, 300);
+  pointer(app, "pointerdown", 2, 200, 300);   // 100px apart
+  pointer(app, "pointermove", 1, 50, 300);
+  pointer(app, "pointermove", 2, 250, 300);   // now 200px apart
+  pointer(app, "pointerup", 1, 50, 300);
+  pointer(app, "pointerup", 2, 250, 300);
+
+  assert.ok(zoomOf() > 150, "spreading two fingers zoomed in, got " + zoomOf());
+});
+
+test("the canvas keeps its own gestures, so a pan never changes tab", () => {
+  const app = loadApp({ fetchImpl: idle });
+  app.goTo("tasks");
+  app.swipe("canvasViewport", -160, 0);
+  assert.equal(app.document.querySelector(".view.active").id, "view-tasks");
+});
+
+/* ---------------- the menu, and the calendar button ---------------- */
+
+test("the menu opens beside what was tapped, not as a sheet at the bottom", () => {
+  const app = openBoard(loadApp({ fetchImpl: idle }));
+  addTaskTo(app, newProject(app, "P"), "Something");
+
+  const btn = app.document.querySelector(".btask .btask-menu");
+  const ev = new app.window.MouseEvent("click", { bubbles: true, cancelable: true, clientX: 140, clientY: 260 });
+  btn.dispatchEvent(ev);
+
+  const pop = app.document.querySelector(".menu-pop");
+  assert.ok(pop, "a popup, not a bottom sheet");
+  assert.equal(app.document.querySelector(".menu-sheet"), null);
+  assert.equal(app.window.getComputedStyle(pop).position, "fixed",
+    "fixed, so the canvas transform can neither move nor clip it");
+  assert.ok(parseInt(pop.style.left, 10) > 0 || parseInt(pop.style.top, 10) > 0,
+    "placed where the tap was");
+});
+
+test("tapping outside closes the menu", () => {
+  const app = openBoard(loadApp({ fetchImpl: idle }));
+  addTaskTo(app, newProject(app, "P"), "Something");
+  app.document.querySelector(".btask .btask-menu").click();
+  assert.ok(app.document.querySelector(".menu-pop"));
+
+  const back = app.document.querySelector(".menu-backdrop");
+  back.dispatchEvent(new app.window.Event("pointerdown", { bubbles: true }));
+  assert.equal(app.document.querySelector(".menu-pop"), null);
+});
+
+test("every task row carries a calendar button, ringed when it is scheduled", () => {
+  const app = loadApp({ fetchImpl: idle, localStorageSeed: boardSeed([
+    { title: "Booked", scheduled: true },
+    { title: "Not booked" },
+  ]) });
+  openBoard(app);
+
+  const rows = [...app.document.querySelectorAll(".btask")];
+  const cal = (r) => r.querySelector(".icon-btn");
+  rows.forEach((r) => assert.ok(cal(r), "every row has one"));
+
+  const booked = rows.find((r) => r.textContent.includes("Booked"));
+  const free = rows.find((r) => r.textContent.includes("Not booked"));
+  assert.ok(cal(booked).classList.contains("is-on"), "green ring when on the calendar");
+  assert.ok(!cal(free).classList.contains("is-on"));
+  assert.match(cal(booked).title, /on your calendar/i);
+});
+
+test("a drag that starts on the project name still moves the card", () => {
+  /* The name button is flex:1 and covers nearly the whole header, so in a real
+     browser it - not the header - is what the pointer lands on. Dispatching at
+     the header instead passes whatever the handler does, which is how the
+     original bug got through. */
+  const app = openBoard(loadApp({ fetchImpl: idle }));
+  newProject(app, "Grab me");
+  const before = Object.values(app.state().projects)[0];
+  const name = cols(app)[0].querySelector(".board-name");
+
+  pointer(app, "pointerdown", 1, 100, 100, name);
+  pointer(app, "pointermove", 1, 170, 150, app.document);
+  pointer(app, "pointerup", 1, 170, 150, app.document);
+
+  const after = Object.values(app.state().projects)[0];
+  assert.equal(after.x, before.x + 70, "it moved, even though the name was the target");
+  assert.equal(after.y, before.y + 50);
+});
+
+test("a drag that started on the name does not also open the rename prompt", () => {
+  const app = openBoard(loadApp({ fetchImpl: idle }));
+  newProject(app, "Keep my name");
+  let asked = false;
+  app.window.prompt = () => { asked = true; return "Renamed"; };
+
+  const name = cols(app)[0].querySelector(".board-name");
+  pointer(app, "pointerdown", 1, 100, 100, name);
+  pointer(app, "pointermove", 1, 190, 160, app.document);
+  pointer(app, "pointerup", 1, 190, 160, app.document);
+  name.click();          // the click a real drag leaves behind
+
+  assert.equal(asked, false, "a drag is not a rename");
+  assert.equal(Object.values(app.state().projects)[0].name, "Keep my name");
+});
+
+test("tapping the name without moving still renames", () => {
+  const app = openBoard(loadApp({ fetchImpl: idle }));
+  newProject(app, "Old name");
+  app.window.prompt = () => "New name";
+
+  const name = cols(app)[0].querySelector(".board-name");
+  pointer(app, "pointerdown", 1, 100, 100, name);
+  pointer(app, "pointerup", 1, 100, 100, app.document);
+  name.click();
+
+  assert.equal(Object.values(app.state().projects)[0].name, "New name");
 });
