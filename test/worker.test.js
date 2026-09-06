@@ -975,7 +975,7 @@ test("the default prompt asks for a prose opener, then a bulleted Today/Tomorrow
   assert.match(DEFAULT_BRIEF_PROMPT, /Tomorrow/);
   assert.match(DEFAULT_BRIEF_PROMPT, /Nothing scheduled/i, "an empty section still needs a bullet");
   // The opener is the only prose in it, and it is pinned to the figures.
-  assert.match(DEFAULT_BRIEF_PROMPT, /two or three sentences, prose/);
+  assert.match(DEFAULT_BRIEF_PROMPT, /two to four sentences, prose/);
   assert.match(DEFAULT_BRIEF_PROMPT, /Never bullet it/);
   assert.match(DEFAULT_BRIEF_PROMPT, /Never invent, recompute, estimate or round a figure/);
   assert.match(DEFAULT_BRIEF_PROMPT, /Then the schedule, and nothing else/);
@@ -988,8 +988,23 @@ test("the default prompt asks for a prose opener, then a bulleted Today/Tomorrow
   // And a commitment the writer made has to outrank a drifting statistic.
   assert.match(DEFAULT_BRIEF_PROMPT, /What the writer told themselves to do/);
   assert.match(DEFAULT_BRIEF_PROMPT, /asked to be reminded/);
-  assert.match(DEFAULT_BRIEF_PROMPT, /A commitment from the journal outranks a drifting figure/);
-  assert.match(DEFAULT_BRIEF_PROMPT, /Honour any date they attached/);
+  assert.match(DEFAULT_BRIEF_PROMPT, /The journal outranks everything else here/);
+  assert.match(DEFAULT_BRIEF_PROMPT, /that is a floor, not a preference/);
+  assert.match(DEFAULT_BRIEF_PROMPT, /A dated intention is honoured against today/);
+});
+
+/* Reported as "the briefing is still missing bits from my journal". The entry
+   said "in the coming weeks" - no date to wait for and no task named - and the
+   old wording only told the model what to do with a commitment that carried a
+   date. An open-ended intention is live the day it is written. */
+test("the default prompt keeps an undated commitment live from the day it was written", async () => {
+  const { DEFAULT_BRIEF_PROMPT } = await loadWorker();
+  assert.match(DEFAULT_BRIEF_PROMPT, /in the coming weeks/);
+  assert.match(DEFAULT_BRIEF_PROMPT, /from now on/);
+  assert.match(DEFAULT_BRIEF_PROMPT, /live every single day from the day it was written/);
+  assert.match(DEFAULT_BRIEF_PROMPT, /It has no\ndeadline to wait for\.|It has no deadline to wait for/);
+  // A stated direction is a commitment even when it names nothing to do.
+  assert.match(DEFAULT_BRIEF_PROMPT, /A direction of travel counts even when it names no task/);
 });
 
 /* ---------- prayer times ---------- */
@@ -1429,8 +1444,23 @@ test("fetchJournal caps how far back it looks and how long one entry can be", as
   }
   const j = await fetchJournal(d1.env, EMAIL, "2026-08-20", 5);
   assert.equal(j.earlier.length, 5, "the window is bounded, not the whole history");
-  assert.ok(j.earlier[0].text.length < 1200, "one enormous entry cannot crowd out the rest");
+  assert.ok(j.earlier[0].text.length < 2600, "one enormous entry cannot crowd out the rest");
   assert.ok(j.earlier[0].text.endsWith("…"), "and it says it was cut");
+});
+
+/* The per-entry cap is there to stop one enormous entry eating the budget, not
+   to trim an ordinary one. At 900 it was halving real entries - two of five on
+   this record - while the whole journal came to a quarter of the total budget,
+   so the model was reading the first half of a thought and none of the point. */
+test("fetchJournal does not truncate an ordinary entry", async () => {
+  const { fetchJournal } = await loadWorker();
+  const d1 = createFakeD1();
+  const entry = ("I want to focus on this. ".repeat(48)).trim(); // ~1200 chars - long, but real
+  d1.seedDay(EMAIL, "2026-08-09", { notes: entry });
+
+  const j = await fetchJournal(d1.env, EMAIL, "2026-08-09");
+  assert.equal(j.today.text, entry, "a 1200-character entry arrives whole");
+  assert.ok(!j.today.text.endsWith("…"));
 });
 
 test("fetchJournal reports a database failure instead of pretending nothing was written", async () => {
@@ -1466,6 +1496,51 @@ test("generateBrief feeds the journal to Gemini as context for the opening parag
   assert.match(prompt, /Third short night this week/, "previous entries go in too, not just today's");
   assert.match(prompt, /What the writer told themselves to do/);
   assert.match(prompt, /Never quote the journal back word for word/);
+});
+
+/* The reason a whole new data section could reach nobody who had ever pressed
+   Save in Settings: a stored prompt is a snapshot of the default as it stood
+   that day, and it replaces the default outright. WORKFLOW shipped, the block
+   went into every prompt, and the instructions half of this user's prompt had
+   never heard of it. These rules are appended to whatever the instructions are,
+   so a data section can never arrive unaccompanied again. */
+test("the always-rules survive a custom prompt that predates a data section", async (t) => {
+  const { generateBrief, ALWAYS_RULES } = await loadWorker();
+  const d1 = createFakeD1();
+  d1.seedToken(EMAIL, { access_token: "tok", access_token_expires_at: Date.now() + 600000 });
+  d1.seedDay(EMAIL, "2026-08-09", { notes: "In the coming weeks I want to get back to walking." });
+  // A custom prompt from before WORKFLOW and JOURNAL existed.
+  await d1.env.DB.prepare("INSERT INTO user_settings (user_email, brief_prompt) VALUES (?,?)")
+    .bind(EMAIL, "Write me a list of today's events. Nothing else.").run();
+
+  let prompt = null;
+  installFetch(t, async (url, opts) => {
+    const u = String(url);
+    if (u.includes("calendarList")) return jsonResponse(200, { items: [{ id: "primary", summary: "Yawar", primary: true }] });
+    if (u.includes("/events")) return jsonResponse(200, { items: [] });
+    if (u.includes("tasks.googleapis.com")) return jsonResponse(200, { items: [] });
+    if (u.includes("generativelanguage")) { prompt = JSON.parse(opts.body).contents[0].parts[0].text; return geminiOk("ok"); }
+    throw new Error("unexpected fetch " + u);
+  });
+
+  await generateBrief(d1.env, EMAIL, new Date("2026-08-09T10:00:00Z"));
+  assert.match(prompt, /Write me a list of today's events/, "the custom instructions are still honoured");
+  assert.ok(prompt.includes(ALWAYS_RULES), "and the always-rules go in behind them");
+  assert.ok(
+    prompt.indexOf(ALWAYS_RULES) < prompt.indexOf("JOURNAL (the writer's own words"),
+    "the rules come before the data they are about",
+  );
+});
+
+test("the always-rules name every section that can go missing, and forbid inventing a number", async () => {
+  const { ALWAYS_RULES } = await loadWorker();
+  assert.match(ALWAYS_RULES, /Use every data section that appears below/);
+  assert.match(ALWAYS_RULES, /JOURNAL is the writer's own words and outranks the rest/);
+  // The complaint that started this: an open-ended intention was being ignored.
+  assert.match(ALWAYS_RULES, /in the coming weeks/);
+  assert.match(ALWAYS_RULES, /until they write that it is done or dropped/);
+  assert.match(ALWAYS_RULES, /WORKFLOW is the project timeline/);
+  assert.match(ALWAYS_RULES, /Never invent, recompute, estimate or round a figure/);
 });
 
 test("generateBrief leaves the JOURNAL heading out entirely when nothing has been written", async (t) => {
@@ -1641,7 +1716,7 @@ test("generateBrief puts the computed history in front of the schedule and asks 
   assert.match(prompt, /HISTORY \(already computed from the full record/);
   assert.match(prompt, /Prayers: 6 of 10 prayed/);
   assert.match(prompt, /Sleep: 5\.3h average/);
-  assert.match(prompt, /short paragraph - two or three sentences, prose/);
+  assert.match(prompt, /short paragraph - two to four sentences, prose/);
   assert.match(prompt, /never recompute one/);
   // The history has to come before the day's events, or the opener is written
   // about today instead of about the trend.
@@ -1698,11 +1773,13 @@ test("fetchJournal reaches well past a fortnight, and says how far back it went"
 test("fetchJournal spends its character budget newest-first and reports what it dropped", async () => {
   const { fetchJournal } = await loadWorker();
   const d1 = createFakeD1();
-  // Each entry is clipped to 900 chars, so ~16 of them fill a 14000 budget.
+  /* Ordinary-length entries, well inside the per-entry cap, so what is being
+     measured here is the total budget rather than the clip. ~23 of these fill
+     a 14000 budget. */
   for (let i = 0; i < 40; i++) {
     const d = new Date("2026-08-16T00:00:00Z");
     d.setUTCDate(d.getUTCDate() - i);
-    d1.seedDay(EMAIL, d.toISOString().slice(0, 10), { notes: "e" + i + " " + "x".repeat(2000) });
+    d1.seedDay(EMAIL, d.toISOString().slice(0, 10), { notes: "e" + i + " " + "x".repeat(600) });
   }
   const j = await fetchJournal(d1.env, EMAIL, "2026-08-16");
 
@@ -1710,7 +1787,7 @@ test("fetchJournal spends its character budget newest-first and reports what it 
   assert.ok(j.omitted > 0, "and it knows how many it left out");
   assert.equal(j.earlier[0].day, "2026-08-15", "the freshest entries are the ones kept");
   const spent = (j.today ? j.today.text.length : 0) + j.earlier.reduce((a, e) => a + e.text.length, 0);
-  assert.ok(spent <= 14000 + 901, "the whole block stays inside the budget");
+  assert.ok(spent <= 14000 + 2501, "the whole block stays inside the budget");
 });
 
 test("today's entry is never dropped for budget, however much history there is", async () => {
@@ -1893,7 +1970,7 @@ test("a dated commitment in the journal reaches the prompt, with the weekday nee
   assert.match(prompt, /conscious about the calories intake/, "the entry is in the prompt");
   assert.match(prompt, /on Tuesday 2026-08-18/, "and today is named, not just dated");
   assert.match(prompt, /Tomorrow is Wednesday/);
-  assert.match(prompt, /Honour any date they attached to it/);
+  assert.match(prompt, /A dated intention is honoured against today/);
   assert.match(prompt, /governs numbers only/,
     "the no-invention rule must not suppress a subject HISTORY has no column for");
 });

@@ -100,6 +100,43 @@ test("the brief instructions load from the server, save, and reset back to the d
   assert.equal(stored, null, "resetting clears the override rather than storing an empty string");
 });
 
+/* A saved prompt replaces the built-in one outright, so it is frozen at the day
+   it was saved and quietly wins over every improvement since - which is how a
+   whole new section of the brief reached nobody who had ever pressed Save.
+   Nothing clears it for them (it may be hand-written), but the card has to say
+   it is in force and which button adopts the current one. */
+test("a saved prompt says so, and points at the button that adopts the built-in one", async () => {
+  let stored = "My own older instructions.";
+  const app = loadApp({
+    fetchImpl: async (url, opts) => {
+      if (String(url).includes("/api/settings/brief-prompt")) {
+        if (opts && opts.method === "PUT") stored = JSON.parse(opts.body).prompt || null;
+        return jsonRes({ prompt: stored, default: "DEFAULT TEXT" });
+      }
+      return jsonRes({ connected: false, status: "not_connected" });
+    },
+  });
+  app.goTo("settings");
+  await app.flush();
+
+  const warn = app.document.getElementById("briefPromptStale");
+  assert.equal(warn.hidden, false, "a stored prompt is called out");
+  assert.match(warn.textContent, /improvements since you saved them/i);
+  assert.match(warn.textContent, /Reset to default/, "and names the way out");
+
+  app.click("briefPromptReset");
+  await app.flush();
+  assert.equal(stored, null);
+  assert.equal(warn.hidden, true, "and the warning goes once the default is back");
+});
+
+test("the default instructions carry no stale-prompt warning", async () => {
+  const app = loadApp({ fetchImpl: idle });
+  app.goTo("settings");
+  await app.flush();
+  assert.equal(app.document.getElementById("briefPromptStale").hidden, true);
+});
+
 test("a failure loading the brief instructions is reported, not left looking blank", async () => {
   const app = loadApp({
     fetchImpl: async (url) => {
