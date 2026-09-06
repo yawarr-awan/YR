@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.43.1
+
+- **A task linked to a note *is* the link.** Its own title is underlined and tappable, instead of a second line underneath repeating the note's name. That line cost the row height and said little — the task is what you'd tap anyway. Hovering names the note it opens.
+- **The Notes tab adds one with a plain +**, in the same place the labelled "+ New" button was.
+- **The footer is gone** from every tab.
+
 ## 1.43.0
 
 **Workflow is its own tab.** It sits next to Tasks in the bottom bar rather than behind a sub-tab row inside it — the board and the timeline are two ways of working, not two views of one screen, and the sub-tab row cost a line of height on both.
