@@ -574,9 +574,8 @@ felt built for a desktop.
 ## The Workflow Planner, ported (1.48.0)
 Built from the user's `workflow-porting-package` zip (a standalone, browser-only
 Gantt planner from another dashboard) **in addition to** the existing Timeline,
-behind a **Timeline | Planner** switch in the Workflow tab
-(`WORKFLOW_SUBVIEWS`, `navWorkflowSub`, `yawarLastWorkflowSub`). Yawar will
-say which to keep; deleting either is then a contained removal. Three choices
+behind a **Timeline | Planner** switch in the Workflow tab. (Yawar chose the
+Planner; the Timeline and the switch were removed in 1.51.0 - see that note.) Three choices
 he made up front: **shared data** with the board, **the switch** rather than a
 ninth tab, and **the reference's own look**.
 - **A planner task IS a board task.** No separate store: the reference's eight
@@ -652,6 +651,32 @@ ninth tab, and **the reference's own look**.
   (`wfpNextFrame`). Chromium exercises the real paths - screenshot it.
 - Tests: `test/planner.test.js` (36), following the package's
   `ACCEPTANCE-CHECKLIST.md` plus the shared-row guarantees.
+
+## The Planner is the Workflow tab (1.51.0)
+- **Yawar chose the Planner; the original Timeline is removed** - markup
+  (`#workflowSubTabs`, `#wsub-timeline`, `#wfGrid`, `#wfScroll`,
+  `#wfUndated`), its CSS (every `.wf-*` rule) and its JS (`renderWorkflow`,
+  the week maths, `beginBarPress`/`startBarDrag`/`barDragEnd`, `wfShift`,
+  `renderWorkflowUndated`), plus `WORKFLOW_SUBVIEWS`/`navWorkflowSub`/
+  `currentWorkflowSub`. **The 1.37.0, 1.39.0 and 1.41.0 notes about the
+  Gantt's week columns, `.wf-rowlabel`, `.wf-now` and bar dragging describe
+  code that no longer exists**; the planner's equivalents are in the 1.48.0
+  and 1.49.0 notes.
+- `#wfp` now sits directly in `#view-workflow`; `wfpVisible()` is just
+  `currentView==="workflow"`, and `nav()` renders it. `renderTaskViews()` =
+  board + planner.
+- **What the Timeline held that others still use moved to a small shared
+  block**, "PROJECT COLOURS, DAY ARITHMETIC, HOLD TIMINGS": `PROJECT_COLORS`/
+  `projectColor`/`nextProjectColor` (the board and the planner), `shiftDay`
+  (everything that moves a date) and `WF_HOLD_MS`/`WF_HOLD_SLOP` (the
+  planner's hold). Keep the names - they are referenced widely.
+- Kept on purpose: the board's ⋮ "Add to the workflow…" sheet
+  (`openTaskDates`), the blue title link (`.btask-wf`, `--wf-link`) that opens
+  the tab, and `start`/`end` on tasks - all of it is how the board reaches the
+  planner. `FULLSCREEN_VIEWS` still includes `workflow`.
+- `yawarLastWorkflowSub` is no longer read or written; a stale value is
+  ignored (tested), so a device that last showed the Timeline opens on the
+  planner.
 
 ## The premium finish, app-wide (1.50.0)
 - **One block, `PREMIUM FINISH (1.50.0)`, placed after every base rule and

@@ -460,103 +460,6 @@ body[data-view="tasks"] .fab{display:block}
   color:var(--ink);border-radius:10px;padding:9px;font:inherit}
 .sheet-form .pill-row{margin-top:10px}
 
-/* ---------- THE GANTT ----------
-   Columns are weeks. Each row is a single element with the week lines painted
-   on as a repeating gradient and the bar positioned over it - a cell per week
-   per row would be ~150 columns times every task, thousands of nodes for a
-   grid that is mostly empty. The label sits in a sticky gutter. */
-.wf-scroll{
-  overflow:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;
-  border:1px solid var(--line);border-radius:12px;background:var(--panel);
-  max-height:var(--wf-h,calc(100vh - var(--hdr-h) - 250px));min-height:220px;
-  /* The Gantt scrolls itself in both directions; the page-level tab swipe
-     must not also claim the gesture. */
-  overscroll-behavior-x:contain
-}
-.wf{position:relative;--wf-col:92px;--wf-gutter:120px;--wf-row:32px}
-.wf-head-row{
-  position:sticky;top:0;z-index:5;height:34px;
-  background:var(--panel);border-bottom:1px solid var(--line);
-  margin-inline-start:var(--wf-gutter)
-}
-.wf-wk{
-  position:absolute;top:0;width:var(--wf-col);height:34px;
-  border-inline-start:1px solid var(--line);
-  font-size:.62rem;color:var(--muted);text-align:center;padding-top:4px;line-height:1.2
-}
-.wf-wk b{display:block;font-size:.66rem;color:var(--ink);font-weight:700}
-.wf-wk.is-thisweek b{color:var(--brand)}
-.wf-wk .wf-dow{display:block;opacity:.7}
-.wf-row{
-  position:relative;height:var(--wf-row);
-  margin-inline-start:var(--wf-gutter);
-  background-image:repeating-linear-gradient(to right,
-    var(--line) 0 1px,transparent 1px var(--wf-col));
-  border-bottom:1px solid var(--line)
-}
-.wf-projrow{background-color:var(--panel-2);height:26px}
-.wf-rowlabel{
-  position:absolute;inset-block:0;inset-inline-start:calc(-1 * var(--wf-gutter));
-  width:var(--wf-gutter);z-index:4;
-  background:var(--panel);border-inline-start:3px solid transparent;
-  border-inline-end:1px solid var(--line);
-  display:flex;align-items:center;padding:0 8px;
-  overflow:hidden;white-space:nowrap
-}
-.wf-projrow .wf-rowlabel{background:var(--panel-2)}
-/* Sticky is on the label so the names stay put while the weeks scroll.
-   `height:100%` is load-bearing: the base rule is position:absolute with
-   inset-block:0, but once it is sticky those insets become sticky constraints
-   rather than sizing, so the box shrinks to its text and a bar scrolling past
-   showed through the rest of the row. Both row heights are definite, so 100%
-   resolves. */
-.wf-row .wf-rowlabel{position:sticky;inset-inline-start:0;inset-block:auto;
-  height:100%;margin-inline-start:calc(-1 * var(--wf-gutter));float:left}
-.wf-proj{font-weight:800;font-size:.74rem;color:var(--ink)}
-.wf-taskname{cursor:pointer;color:var(--ink);background:none;border:none;font:inherit;
-  font-size:.76rem;width:100%;text-align:start;padding:0;
-  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.wf-bar{
-  position:absolute;inset-block:5px;
-  background:var(--brand);color:#08101f;border-radius:7px;
-  font-size:.68rem;font-weight:700;padding:0 7px;
-  display:flex;align-items:center;overflow:hidden;white-space:nowrap;
-  cursor:pointer;border:none;font-family:inherit;z-index:2
-}
-/* pan-y, not none: you can still scroll the timeline up and down with a
-   finger on a bar, but a sideways drag belongs to the bar rather than to the
-   week scroll - which is the axis the two would otherwise fight over. */
-.wf-bar{touch-action:pan-y}
-.wf-bar.is-dragging{opacity:.75;box-shadow:0 4px 14px rgba(8,12,24,.4);z-index:4}
-/* A deliberate target, so it can start a drag straight away where the bar
-   itself has to be held first. */
-.wf-bar-grip{
-  position:absolute;inset-block:0;inset-inline-end:0;width:14px;
-  cursor:ew-resize;touch-action:none;
-  border-start-end-radius:7px;border-end-end-radius:7px;
-  background:linear-gradient(to right,transparent,rgba(0,0,0,.28))
-}
-.wf-bar.is-done{background:var(--muted);color:var(--panel);text-decoration:line-through}
-.wf-bar.is-late{background:var(--bad);color:#fff}
-/* The line is a child of the grid, but every row's coordinates start after
-   the gutter - so it needs the same offset, or it marks the wrong week. On an
-   absolutely positioned element the margin adds to `left`. */
-.wf-now{position:absolute;inset-block:34px 0;width:2px;background:var(--brand);
-  margin-inline-start:var(--wf-gutter);
-  opacity:.65;z-index:3;pointer-events:none}
-/* The corner above the gutter. Without it the leftmost week label scrolls out
-   from under the names with nothing covering it. Same sticky + negative
-   margin trick the row labels use. */
-.wf-corner{
-  position:sticky;inset-inline-start:0;float:left;
-  margin-inline-start:calc(-1 * var(--wf-gutter));
-  width:var(--wf-gutter);height:34px;z-index:6;
-  background:var(--panel);border-inline-end:1px solid var(--line)
-}
-.wf-empty{padding:18px;color:var(--muted);font-size:.82rem;text-align:center}
-.wf-undated-row{display:flex;align-items:center;gap:8px;padding:6px 2px}
-.wf-undated-row .u-title{flex:1 1 auto;min-width:0;font-size:.86rem;overflow-wrap:anywhere}
-.wf-undated-row .u-proj{flex:0 0 auto;font-size:.68rem;color:var(--muted)}
 /* Two date fields in the bottom sheet. */
 .sheet-form{padding:4px 12px 10px}
 .sheet-form .field{margin:8px 0}
@@ -1104,8 +1007,8 @@ nav.tabs button.active::before{content:"";position:absolute;z-index:-1;inset-blo
 .pslot.is-now,.prow.is-now{border-color:var(--brand);
   box-shadow:0 0 0 1px var(--brand) inset,0 0 18px color-mix(in srgb,var(--brand) 22%,transparent)}
 .board-col{background:var(--glass);border-color:var(--glass-line);box-shadow:var(--glass-shadow)}
-/* The board's canvas and the Timeline's grid: the planner chart's own wash. */
-.canvas-viewport,.wf-scroll{border-color:var(--glass-line);
+/* The board's canvas: the planner chart's own wash. */
+.canvas-viewport{border-color:var(--glass-line);
   background:linear-gradient(150deg,color-mix(in srgb,var(--bg) 88%,var(--brand)),var(--bg));
   box-shadow:inset 0 1px 0 rgba(255,255,255,.04),var(--glass-shadow)}
 .board-col::before{box-shadow:0 0 14px var(--proj,var(--brand))}
@@ -1305,6 +1208,9 @@ div#wfp:not(.wfp-light) .workflow-timeline-card{background:linear-gradient(145de
 div#wfp:not(.wfp-light) .gantt-scroll{background: radial-gradient(circle at 20% 0%,rgba(91,140,255,.09),transparent 34%), radial-gradient(circle at 80% 28%,rgba(167,139,250,.08),transparent 30%),rgba(7,10,18,.72)}
 div#wfp:not(.wfp-light) .gantt-head{background:#181c2a;border-bottom:1px solid rgba(255,255,255,.08)}
 div#wfp:not(.wfp-light) .gantt-label{background:#141825;border-color:rgba(255,255,255,.07)}
+/* The light theme's corner was 94% opaque, so the day headings scrolling
+   under it showed through "Projects and tasks". Solid, as the dark one is. */
+div#wfp.wfp-light .gantt-head .gantt-label{background:var(--card)}
 div#wfp:not(.wfp-light) .gantt-project-row .gantt-label{background:linear-gradient(90deg,#23283b,#181c2a)}
 div#wfp#wfp:not(.wfp-light) .workflow-stats .wfp-stat{background:linear-gradient(145deg,rgba(35,40,58,.72),rgba(14,17,28,.76));border-color:rgba(255,255,255,.1); box-shadow:0 18px 48px rgba(0,0,0,.28),inset 0 1px 0 rgba(255,255,255,.07); backdrop-filter:blur(18px) saturate(145%);-webkit-backdrop-filter:blur(18px) saturate(145%)}
 div#wfp:not(.wfp-light) .wfp-input{background:rgba(10,14,24,.54);border-color:rgba(255,255,255,.1);box-shadow:inset 0 1px 0 rgba(255,255,255,.035)}
@@ -1877,36 +1783,13 @@ div#wfp.wfp-light .wfp-cats{background:rgba(255,255,255,.8)}
        are two ways of working, not two views of one screen, and a sub-tab row
        cost a line of height on both. -->
   <section id="view-workflow" class="view">
-    <!-- Two workflows side by side while one is chosen: the original Timeline
-         and the Planner ported from the workflow-porting package. Both read
-         the same project and task rows as the board, so removing either one
-         later loses no task. -->
-    <nav class="subtabs" id="workflowSubTabs">
-      <button data-wsub="timeline" class="active">Timeline</button>
-      <button data-wsub="planner">Planner</button>
-    </nav>
-
-    <div class="subview active" id="wsub-timeline">
-    <div class="datebar">
-      <button id="wfPrev" title="Earlier">‹</button>
-      <div class="dlabel" id="wfLabel">Timeline</div>
-      <button id="wfNext" title="Later">›</button>
-      <button class="today-btn" id="wfToday">Today</button>
-    </div>
-    <div class="wf-scroll" id="wfScroll"><div class="wf" id="wfGrid"></div></div>
-    <div class="muted center" id="wfNote" style="font-size:.78rem;margin-top:8px"></div>
-    <div class="card" data-card="wfundated" style="margin-top:12px">
-      <h3>📥 Not on the timeline<span class="count" id="wfUndatedCount"></span></h3>
-      <p class="muted" style="font-size:.78rem;margin-top:0">Give a task a start and end date to plot it.</p>
-      <div id="wfUndated"></div>
-    </div>
-    </div>
-
-    <!-- The Planner. Everything inside #wfp carries the reference's own look,
-         so its classes are wfp- prefixed where the reference used a name this
+    <!-- The Workflow tab is the Planner, ported from the workflow-porting
+         package (1.48.0). The original week-column Timeline sat beside it
+         behind a Timeline | Planner switch until Yawar chose the Planner
+         (1.51.0). Everything inside #wfp carries the reference's own look, so
+         its classes are wfp- prefixed where the reference used a name this
          app already styles (.card, .btn, .stat, .grid...) and every rule for
          it is scoped under #wfp - neither side's styles can reach the other. -->
-    <div class="subview" id="wsub-planner">
     <div id="wfp" class="wfp">
       <div class="wfp-grid workflow-stats" aria-label="Planner filters">
         <button type="button" class="wfp-stat workflow-progress-card workflow-metric-filter" data-wfp="set-status" data-status="today-progress" title="Show tasks due today, tomorrow or the day after">
@@ -2034,7 +1917,6 @@ div#wfp.wfp-light .wfp-cats{background:rgba(255,255,255,.8)}
           </div>
         </form>
       </dialog>
-    </div>
     </div>
   </section>
 
@@ -3433,7 +3315,6 @@ function renderAll(){
   renderJournal();
   renderNotes(true);
   renderBoard();
-  renderWorkflow();
   renderPlanner();
   if(currentSub==="duas")renderDuasList();   /* the links live on the profile */
   renderPrayerModal();          /* no-ops unless the modal is actually open */
@@ -5872,11 +5753,9 @@ function attachTabSwipe(){
        inside it belongs to the canvas. Without this a pan sideways jumped to
        the next tab. */
     if(e.target&&e.target.closest&&e.target.closest(".canvas-viewport"))return;
-    /* Same for the Gantt: it is a long horizontal scroll, so a drag along it
-       is a scroll through the weeks, never a tab change. */
-    if(e.target&&e.target.closest&&e.target.closest(".wf-scroll"))return;
-    /* The planner's chart scrolls both ways too, and on a phone its metric
-       cards are a sideways strip of their own. */
+    /* Same for the Workflow chart: it scrolls both ways, so a drag along it
+       is a scroll through the days, never a tab change - and on a phone its
+       metric cards are a sideways strip of their own. */
     if(e.target&&e.target.closest&&e.target.closest(".gantt-scroll,#wfp .workflow-stats"))return;
     startX=t.clientX;startY=t.clientY;
   },{passive:true});
@@ -5900,10 +5779,6 @@ function attachTabSwipe(){
     if(currentView==="journal"){
       var j=JOURNAL_SUBVIEWS.indexOf(currentJournalSub)+dir;
       if(j>=0&&j<JOURNAL_SUBVIEWS.length){navJournalSub(JOURNAL_SUBVIEWS[j]);return;}
-    }
-    if(currentView==="workflow"){
-      var w=WORKFLOW_SUBVIEWS.indexOf(currentWorkflowSub)+dir;
-      if(w>=0&&w<WORKFLOW_SUBVIEWS.length){navWorkflowSub(WORKFLOW_SUBVIEWS[w]);return;}
     }
     /* The bar's own order, not VIEWS - the bar can be rearranged, and a
        swipe that went somewhere else than the tab beside it would be wrong. */
@@ -7084,7 +6959,7 @@ function reorderBoardTask(projectId,id,overId,before){
  * rows. Anything that changes a task redraws all of them, or one you are not
  * looking at goes stale - which is how marking a task done on the timeline
  * left its bar uncrossed. (The planner skips the work while it is hidden.) */
-function renderTaskViews(){renderBoard();renderWorkflow();renderPlanner();}
+function renderTaskViews(){renderBoard();renderPlanner();}
 
 function renderBoard(){
   var box=document.getElementById("board");
@@ -7527,50 +7402,10 @@ function unscheduleTask(t){
    it is gone - so these go to the same status bar as everything else. */
 function boardNote(msg,kind){flash(msg,kind||"warn");}
 
-/* ---------- RENDER: THE WORKFLOW (GANTT) ----------
-   One grid: a sticky name gutter, then a column per day. Rows are project
-   headings followed by their dated tasks. The window is a fortnight, which is
-   what fits a phone at a readable column width; the arrows page by a week. */
-/* ---------- THE WORKFLOW (GANTT) ----------
-   Columns are weeks, not days: a project runs for weeks and a day-wide column
-   made you scroll for an hour to see a month. The window is deliberately
-   enormous (a year back, two forward) and simply scrolls - paging a fortnight
-   at a time was the thing that made it feel boxed in.
-
-   Rows are drawn as ONE element each with the week lines painted on as a
-   repeating gradient, and the bar absolutely positioned over it. A cell per
-   week per row would be ~150 columns x every task, which is thousands of
-   nodes for a grid that is mostly empty. */
-var WF_WEEKS_BACK=52,WF_WEEKS_FWD=104;
-var WF_COL=92;                     /* px per week; also in the CSS gradient */
-
-function wfMonday(d){
-  var x=new Date(d.getFullYear(),d.getMonth(),d.getDate());
-  /* getDay() is 0 for Sunday, which belongs to the week that began six days
-     earlier - not to the one starting the next morning. */
-  x.setDate(x.getDate()-((x.getDay()+6)%7));
-  return x;
-}
-function wfOrigin(){
-  var m=wfMonday(new Date());
-  m.setDate(m.getDate()-WF_WEEKS_BACK*7);
-  return m;
-}
-function wfTotalWeeks(){return WF_WEEKS_BACK+WF_WEEKS_FWD;}
-/** Which column a date falls in, as a fractional week from the origin, so a
- * bar can start mid-week rather than snapping to Monday. */
-function wfWeekPos(key){
-  if(!key)return null;
-  var p=String(key).split("-");
-  var d=new Date(+p[0],+p[1]-1,+p[2]);
-  return (d-wfOrigin())/(7*86400000);
-}
-function wfWeekKey(i){
-  var d=wfOrigin();
-  d.setDate(d.getDate()+i*7);
-  return keyOf(d);
-}
-
+/* ---------- PROJECT COLOURS, DAY ARITHMETIC, HOLD TIMINGS ----------
+   Shared by the board and the Workflow planner. They lived with the original
+   week-column Timeline, which was removed in 1.51.0 when the Planner became
+   the Workflow tab. */
 /* A colour per project, so a bar says which project it belongs to without
    being read. Assigned from the palette by creation order and then stored, so
    it never changes under you as projects come and go. */
@@ -7590,192 +7425,11 @@ function nextProjectColor(){
   return PROJECT_COLORS[projectList().length%PROJECT_COLORS.length];
 }
 
-function renderWorkflow(){
-  var grid=document.getElementById("wfGrid");
-  if(!grid)return;
-  grid.innerHTML="";
-  var weeks=wfTotalWeeks(),today=todayKey(),todayPos=wfWeekPos(today);
-  grid.style.setProperty("--wf-col",WF_COL+"px");
-  grid.style.width=(weeks*WF_COL)+"px";
-
-  /* Heading: one label per week, and a line marking this week. */
-  var head=el("div","wf-head-row");
-  head.appendChild(el("div","wf-corner"));
-  for(var i=0;i<weeks;i++){
-    var k=wfWeekKey(i);
-    var cell=el("div","wf-wk"+(k===wfMondayKeyOfToday()?" is-thisweek":""));
-    cell.style.left=(i*WF_COL)+"px";
-    cell.appendChild(el("b",null,shortDay(k)));
-    cell.appendChild(el("span","wf-dow","wk "+wfWeekNumber(k)));
-    cell.setAttribute("data-week",k);
-    head.appendChild(cell);
-  }
-  grid.appendChild(head);
-
-  var plotted=0;
-  projectList().forEach(function(p){
-    var tasks=tasksIn(p.id).filter(taskHasSpan);
-    if(!tasks.length)return;
-    var color=projectColor(p);
-
-    var prow=el("div","wf-row wf-projrow");
-    var plabel=el("div","wf-rowlabel wf-proj",p.name);
-    plabel.style.borderInlineStartColor=color;
-    prow.appendChild(plabel);
-    grid.appendChild(prow);
-
-    tasks.forEach(function(t){
-      plotted++;
-      var row=el("div","wf-row");
-      var label=el("div","wf-rowlabel");
-      var btn=el("button","wf-taskname",t.title);
-      btn.type="button";
-      btn.addEventListener("click",function(ev){openTaskMenu(t,ev);});
-      label.style.borderInlineStartColor=color;
-      label.appendChild(btn);
-      row.appendChild(label);
-
-      var from=wfWeekPos(taskStart(t)),to=wfWeekPos(taskEnd(t));
-      if(from===null||to===null)return;
-      /* Inclusive of the end day, so a one-day task is still a visible block
-         rather than a zero-width sliver. */
-      var span=Math.max(1/7,(to-from)+1/7);
-      var late=!t.done&&taskEnd(t)<today;
-      /* A short span has no room for a title, and the name is already in the
-         gutter beside it - a clipped word is worse than none. */
-      var wide=span*WF_COL>=64;
-      var bar=el("button","wf-bar"+(t.done?" is-done":(late?" is-late":"")),wide?t.title:"");
-      bar.type="button";
-      bar.setAttribute("data-task",t.id);
-      bar.title=t.title+" · "+shortDay(taskStart(t))+" → "+shortDay(taskEnd(t))
-        +" · hold to move, drag the end to stretch";
-      bar.style.left=(from*WF_COL)+"px";
-      bar.style.width=Math.max(18,span*WF_COL-3)+"px";
-      if(!t.done&&!late)bar.style.background=color;
-      bar.addEventListener("click",function(ev){
-        ev.stopPropagation();
-        /* A drag ends by firing a click on whatever was under the pointer -
-           the same trap _cardDragged and _calDragged exist for. */
-        if(_wfDragged)return;
-        openTaskMenu(t,ev);
-      });
-      bar.addEventListener("pointerdown",function(ev){beginBarPress(t,"move",ev);});
-      /* The handle is a deliberate target with touch-action:none, so it can
-         start straight away - the bar itself has to be held first, or every
-         scroll along the timeline would drag whatever it began on. */
-      var handle=el("span","wf-bar-grip");
-      handle.setAttribute("aria-hidden","true");
-      handle.addEventListener("pointerdown",function(ev){startBarDrag(t,"end",ev);});
-      bar.appendChild(handle);
-      row.appendChild(bar);
-      grid.appendChild(row);
-    });
-  });
-
-  if(!plotted){
-    grid.appendChild(el("div","wf-empty","Nothing plotted yet. Give a task a start and end date to see it here."));
-  }
-  /* The "now" line, drawn once over the whole grid rather than per row. */
-  if(todayPos!==null&&plotted){
-    var now=el("div","wf-now");
-    now.style.left=(todayPos*WF_COL)+"px";
-    grid.appendChild(now);
-  }
-
-  var note=document.getElementById("wfNote");
-  if(note)note.textContent=plotted?(plotted+" task(s) on the timeline"):"";
-  renderWorkflowUndated();
-  if(!_wfScrolled)wfScrollToToday();
-}
-/* ---------- MOVING AND STRETCHING A BAR ----------
-   The columns are weeks, but a bar is placed by day, so the drag works in
-   days: one week's width over seven. Rounding to the day is what lets you put
-   something on a Wednesday rather than snapping it to a Monday. */
-function wfDayPx(){return WF_COL/7;}
-var _wfDrag=null,_wfDragged=false,_wfHold=null;
+/* With a finger, a bar or a project name is held this long, without moving
+   further than the slop, before it drags - a long sideways chart would
+   otherwise grab whatever every swipe began on. Same call as the board's
+   cards (CARD_HOLD_MS). */
 var WF_HOLD_MS=400,WF_HOLD_SLOP=8;
-/** With a finger the bar has to be held first: the timeline is a long
- * horizontal scroll, so an immediate drag would grab a bar on every swipe.
- * A mouse drags straight away. Same call as the board's cards. */
-function beginBarPress(t,mode,ev){
-  if(ev.pointerType==="mouse"){startBarDrag(t,mode,ev);return;}
-  cancelBarHold();
-  _wfHold={t:t,mode:mode,x:ev.clientX,y:ev.clientY,
-    ev:{clientX:ev.clientX,clientY:ev.clientY,pointerType:ev.pointerType,
-        preventDefault:function(){},stopPropagation:function(){}},
-    timer:setTimeout(function(){
-      var held=_wfHold;_wfHold=null;
-      if(held)startBarDrag(held.t,held.mode,held.ev);
-    },WF_HOLD_MS)};
-  document.addEventListener("pointermove",barHoldMove);
-  document.addEventListener("pointerup",cancelBarHold);
-  document.addEventListener("pointercancel",cancelBarHold);
-}
-function barHoldMove(ev){
-  if(!_wfHold)return;
-  /* Moved before the hold completed - that was a scroll, not a grab. */
-  if(Math.abs(ev.clientX-_wfHold.x)>WF_HOLD_SLOP||
-     Math.abs(ev.clientY-_wfHold.y)>WF_HOLD_SLOP)cancelBarHold();
-}
-function cancelBarHold(){
-  document.removeEventListener("pointermove",barHoldMove);
-  document.removeEventListener("pointerup",cancelBarHold);
-  document.removeEventListener("pointercancel",cancelBarHold);
-  if(!_wfHold)return;
-  clearTimeout(_wfHold.timer);
-  _wfHold=null;
-}
-function wfBarFor(id){return document.querySelector('#wfGrid .wf-bar[data-task="'+id+'"]');}
-function startBarDrag(t,mode,ev){
-  ev.preventDefault();ev.stopPropagation();
-  var bar=wfBarFor(t.id);
-  _wfDrag={t:t,mode:mode,startX:ev.clientX,
-    left:bar?parseFloat(bar.style.left)||0:0,
-    width:bar?parseFloat(bar.style.width)||0:0,days:0};
-  if(bar)bar.classList.add("is-dragging");
-  document.addEventListener("pointermove",barDragMove);
-  document.addEventListener("pointerup",barDragEnd);
-  document.addEventListener("pointercancel",barDragEnd);
-}
-function barDragMove(ev){
-  if(!_wfDrag)return;
-  ev.preventDefault();
-  var d=_wfDrag;
-  d.days=Math.round((ev.clientX-d.startX)/wfDayPx());
-  var bar=wfBarFor(d.t.id);
-  if(!bar)return;
-  var shift=d.days*wfDayPx();
-  if(d.mode==="move"){
-    bar.style.left=(d.left+shift)+"px";
-  }else{
-    /* Never shorter than the day it starts on. */
-    bar.style.width=Math.max(wfDayPx()-3,d.width+shift)+"px";
-  }
-}
-function barDragEnd(){
-  if(!_wfDrag)return;
-  var d=_wfDrag;_wfDrag=null;
-  document.removeEventListener("pointermove",barDragMove);
-  document.removeEventListener("pointerup",barDragEnd);
-  document.removeEventListener("pointercancel",barDragEnd);
-  var bar=wfBarFor(d.t.id);
-  if(bar)bar.classList.remove("is-dragging");
-  /* Deliberately no re-render when nothing moved: it would replace the bar
-     before the click that follows a plain press, and that click is what opens
-     the task menu. */
-  if(!d.days)return;
-  _wfDragged=true;
-  setTimeout(function(){_wfDragged=false;},0);
-  var from=taskStart(d.t),to=taskEnd(d.t);
-  if(d.mode==="move"){
-    setTaskSpan(d.t,shiftDay(from,d.days),shiftDay(to,d.days));
-  }else{
-    /* Dragged left past the start? setTaskSpan swaps rather than refuses, and
-       a one-day task is the floor either way. */
-    setTaskSpan(d.t,from,shiftDay(to,d.days));
-  }
-  renderTaskViews();
-}
 /** UTC arithmetic, so no daylight-saving shift can move a day key. Same
  * reasoning as nextDay()/prevDay() in the Worker. */
 function shiftDay(key,days){
@@ -7784,56 +7438,6 @@ function shiftDay(key,days){
   var d=new Date(Date.UTC(+p[0],+p[1]-1,+p[2]));
   d.setUTCDate(d.getUTCDate()+days);
   return d.toISOString().slice(0,10);
-}
-
-function wfMondayKeyOfToday(){return keyOf(wfMonday(new Date()));}
-/** ISO-ish week number, only ever shown as a label. */
-function wfWeekNumber(key){
-  var p=String(key).split("-");
-  var d=new Date(Date.UTC(+p[0],+p[1]-1,+p[2]));
-  d.setUTCDate(d.getUTCDate()+4-(d.getUTCDay()||7));
-  var start=new Date(Date.UTC(d.getUTCFullYear(),0,1));
-  return Math.ceil(((d-start)/86400000+1)/7);
-}
-var _wfScrolled=false;
-function wfScrollToToday(){
-  var sc=document.getElementById("wfScroll");
-  if(!sc)return;
-  var pos=wfWeekPos(todayKey());
-  if(pos===null)return;
-  /* A little to the left of today, so what is coming up is what you see. */
-  sc.scrollLeft=Math.max(0,pos*WF_COL-WF_COL);
-}
-function wfShift(weeks){
-  var sc=document.getElementById("wfScroll");
-  if(!sc)return;
-  _wfScrolled=true;
-  sc.scrollBy({left:weeks*WF_COL*4,behavior:"smooth"});
-}
-
-function renderWorkflowUndated(){
-  var box=document.getElementById("wfUndated");
-  if(!box)return;
-  box.innerHTML="";
-  var names={};
-  projectList().forEach(function(p){names[p.id]=p.name;});
-  var undated=liveItems("tasks").filter(function(t){return !t.done&&!taskHasSpan(t);});
-  setCount("wfUndatedCount",String(undated.length));
-  if(!undated.length){
-    box.appendChild(el("div","muted","Everything open has dates."));
-    return;
-  }
-  undated.forEach(function(t){
-    var row=el("div","wf-undated-row");
-    row.setAttribute("data-task",t.id);
-    row.appendChild(el("span","u-title",t.title));
-    row.appendChild(el("span","u-proj",names[t.projectId]||""));
-    var btn=el("button","btn","Dates…");
-    btn.type="button";
-    btn.addEventListener("click",function(ev){openTaskDates(t,ev);});
-    row.appendChild(btn);
-    box.appendChild(row);
-  });
 }
 
 /* ---------- THE WORKFLOW PLANNER ----------
@@ -8162,9 +7766,8 @@ function wfpSyncTone(){
 }
 
 /* ---- render ---- */
-var currentWorkflowSub="timeline";
 var _wfpJumped=false;
-function wfpVisible(){return currentView==="workflow"&&currentWorkflowSub==="planner";}
+function wfpVisible(){return currentView==="workflow";}
 /** Only while it is on screen: the chart is a cell per day per row, and every
  * task change anywhere calls this. Showing the planner renders it. */
 function renderPlanner(){
@@ -9311,7 +8914,7 @@ function wfpPointerUp(e){
        that click is what opens the editor. */
     if(!d.moved)return;
     /* Anything that did move ends with a click on whatever is under the
-       pointer; that one is swallowed (same pattern as _wfDragged). */
+       pointer; that one is swallowed (same pattern as _cardDragged). */
     _wfpDragged=true;
     setTimeout(function(){_wfpDragged=false;},0);
     if(t&&d.delta){
@@ -10605,8 +10208,6 @@ var SUBVIEWS=["plan","recipes","exercises","duas"];
 var JOURNAL_SUBVIEWS=["journal","notes"];
 var currentJournalSub="journal";
 var LASTJOURNALSUB_KEY="yawarLastJournalSub";
-var WORKFLOW_SUBVIEWS=["timeline","planner"];
-var LASTWORKFLOWSUB_KEY="yawarLastWorkflowSub";
 var currentView="today",currentSub="plan";
 /* Which tab you were on is remembered so a refresh (or reopening the
    installed app) puts you back where you were, not always on Today. */
@@ -10640,7 +10241,7 @@ function setTasksFull(on){
  * and a fixed subtraction is wrong in at least one of those states. */
 function sizeTasksPanes(){
   var pad=12;
-  [["canvasViewport","--canvas-h"],["wfScroll","--wf-h"],["calGrid","--cal-h"]].forEach(function(pair){
+  [["canvasViewport","--canvas-h"],["calGrid","--cal-h"]].forEach(function(pair){
     var elm=document.getElementById(pair[0]);
     if(!elm||!elm.getBoundingClientRect)return;
     var top=elm.getBoundingClientRect().top;
@@ -10757,30 +10358,9 @@ function nav(view){
   if(view==="settings")renderSettings();
   if(view==="journal"){if(currentJournalSub==="notes")renderNotes();else renderJournal();}
   if(view==="tasks"){renderBoard();sizeTasksPanes();}
-  if(view==="workflow"){
-    if(currentWorkflowSub==="planner")renderPlanner();else renderWorkflow();
-    sizeTasksPanes();
-  }
+  if(view==="workflow"){renderPlanner();sizeTasksPanes();}
   if(view!=="workflow")wfpCloseMenu();
   window.scrollTo(0,0);
-}
-
-/** Timeline | Planner inside the Workflow tab, while one of them is chosen.
- * Remembered per device, like the Journal's sub-tab. */
-function navWorkflowSub(sub){
-  if(WORKFLOW_SUBVIEWS.indexOf(sub)<0)return;
-  currentWorkflowSub=sub;
-  var tabs=document.getElementById("workflowSubTabs").children;
-  for(var i=0;i<tabs.length;i++){
-    tabs[i].classList.toggle("active",tabs[i].getAttribute("data-wsub")===sub);
-  }
-  WORKFLOW_SUBVIEWS.forEach(function(v){
-    document.getElementById("wsub-"+v).classList.toggle("active",v===sub);
-  });
-  try{localStorage.setItem(LASTWORKFLOWSUB_KEY,sub);}catch(e){}
-  wfpCloseMenu();
-  if(sub==="planner")renderPlanner();else renderWorkflow();
-  sizeTasksPanes();
 }
 
 function navJournalSub(sub){
@@ -10818,20 +10398,18 @@ function navSub(sub){
 document.addEventListener("click",function(ev){
   var t=ev.target;
   if(!t||!t.closest)return;
-  var hit=t.closest("[data-recipe],[data-exercise],[data-nav],[data-sub],[data-jsub],[data-wsub]");
+  var hit=t.closest("[data-recipe],[data-exercise],[data-nav],[data-sub],[data-jsub]");
   if(!hit)return;
   var rec=hit.getAttribute("data-recipe");
   var exc=hit.getAttribute("data-exercise");
   var nv=hit.getAttribute("data-nav");
   var sub=hit.getAttribute("data-sub");
   var jsub=hit.getAttribute("data-jsub");
-  var wsub=hit.getAttribute("data-wsub");
   if(rec){ev.preventDefault();openRecipe(rec);}
   else if(exc){ev.preventDefault();openExercise(exc);}
   else if(nv){nav(nv);}
   else if(sub){navSub(sub);}
   else if(jsub){navJournalSub(jsub);}
-  else if(wsub){navWorkflowSub(wsub);}
 });
 document.getElementById("modalClose").addEventListener("click",hideModal);
 document.getElementById("overlay").addEventListener("click",function(e){if(e.target===this)hideModal();});
@@ -10960,9 +10538,6 @@ document.getElementById("prayJumpToday").addEventListener("click",function(){cur
 loadBoardView();
 attachCanvas();
 
-document.getElementById("wfPrev").addEventListener("click",function(){wfShift(-1);});
-document.getElementById("wfNext").addEventListener("click",function(){wfShift(1);});
-document.getElementById("wfToday").addEventListener("click",wfScrollToToday);
 document.getElementById("fullBtn").addEventListener("click",function(){
   setTasksFull(!_tasksFull);
 });
@@ -11241,9 +10816,8 @@ openingReminders();
   var savedJrnSub=null;
   try{savedJrnSub=localStorage.getItem(LASTJOURNALSUB_KEY);}catch(e){}
   if(JOURNAL_SUBVIEWS.indexOf(savedJrnSub)>=0)navJournalSub(savedJrnSub);
-  var savedWfSub=null;
-  try{savedWfSub=localStorage.getItem(LASTWORKFLOWSUB_KEY);}catch(e){}
-  if(WORKFLOW_SUBVIEWS.indexOf(savedWfSub)>=0)navWorkflowSub(savedWfSub);
+  /* The Timeline | Planner switch is gone (1.51.0); its stored choice is
+     simply ignored. */
   if(saved&&saved!=="today"&&VIEWS.indexOf(saved)>=0)nav(saved);
 })();
 flushMsgs();
