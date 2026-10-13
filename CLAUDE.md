@@ -794,6 +794,41 @@ ninth tab, and **the reference's own look**.
 - The navy/gold note in 1.15.0 ("Don't re-theme without being asked") still
   stands: this re-theme was asked for.
 
+## Every card is a metric card (1.55.0)
+- **`.card, .subcard, .recipe-card, .ex-card` share one rule** in the PREMIUM
+  FINISH block, built from the planner's metric cards: a 150deg glass body
+  mixed toward the card's colour, a 3px lit edge, a glow beside it, and a
+  corner circle. **All four are background layers, not pseudo-elements.**
+  Clipping a pseudo-element to the radius needs `overflow:hidden` on the
+  card, which would also clip every popover, focus ring and sticky row
+  inside it (the calendar lives inside a card). A test pins that the rule
+  sets no overflow.
+- **A card's colour is `--card-c` on the card itself**, and
+  `.card h3 .dot` reads it. The seven heading dots used to carry their own
+  inline `background`; that moved to the card so the dot and the edge can
+  never disagree. A card with no `--card-c` is `--brand`. The rule derives
+  `--mc-c` from it on the element itself. **Don't put a per-card `var()`
+  into a `:root` token**: a custom property resolves where it is declared,
+  so `:root` would only ever see the fallback.
+- Theme numbers are tokens in all three palette variants: `--mc-a/b`,
+  `--mc-tint`, `--mc-shadow` for cards; `--ev-a/b`, `--ev-tint`, `--ev-hi`,
+  `--ev-shadow` for chips. A test counts three of each.
+- **Dhikr sub-cards** take `prayerColorCss()` of the prayer each period's
+  reminder is anchored on (`DHIKR_PRAYER`: Fajr / Dhuhr / Maghrib, the same
+  pairs as `dhikrAnchor` in `checkReminders`), via `dhikrTone()`. That covers
+  both the Prayers card and the Settings editor, and custom prayer colours
+  reach them. `.subcard>button` is transparent so the card shows through.
+- `.board-col` takes the body and the circle in `--proj`, but **not the
+  edge**: its identity is the top band.
+- **Calendar chips** are small metric cards: an opaque body (they sit on an
+  82% prayer tint), `--ev-bar` (`--chip-c` into `--chip-c2`) as the edge, the
+  title in the tone via `color-mix(... 58%, var(--ev-hi))`. A task's edge is a
+  dashed `repeating-linear-gradient` and a Google Task's a dotted one, because
+  the border-style distinction has nowhere to go once the edge is a
+  background. The 1.54.0 `.cal-chip::before` sheen is gone, and a test pins
+  its absence. The hover lift is behind `@media (hover:hover)` so it can't
+  stick on a phone after a tap.
+
 ## Planner: YR/EY, phone scrolling, no jump (1.49.0)
 - **YR / EY is a property of the project** (`project.category`, `"YR"`
   personal / `"EY"` work), riding the synced row like `archived`. Read it
