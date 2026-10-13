@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.48.0
+
+**The Workflow Planner from your porting package, built in beside the existing timeline.** The Workflow tab now has a **Timeline | Planner** switch at the top. Timeline is the one you had; Planner is the package's planner, in its own look (dark and light both). When you've decided which to keep, say so and the switch goes.
+
+What the Planner has, as the package specifies: Day, Week and Month views with today drawn double-width; add a task with the button or by tapping an empty stretch of a project's row; an editor for name, project, dates, progress, repeat, milestone and dependencies; drag a bar to move it and drag its right edge to stretch it; reorder tasks by their ⋮⋮ handle, into another project too; per-project menus for colour, rename, move, mark all complete, repeat, archive and delete; weekly and monthly repeats where each occurrence is completed and reopened on its own; a critical path; search and filters; and six metric cards you can tap to filter.
+
+**Its tasks are your board's tasks.** The package's planner keeps a store of its own in one browser. This one reads and writes the same projects and tasks as the Tasks board and the Timeline, so all three always agree, everything syncs between your phone and laptop like the rest, the brief still sees it, and whichever workflow you remove later takes no task with it. Tasks with no dates are listed under the chart so you can give them some; finished ones are in the Archive.
+
+**Where it deliberately differs from the package, and why:**
+- **On a phone the six cards are one narrow strip you scroll sideways**, as you asked. In the package they stack one per row and push the chart a full screen down.
+- **The name column is narrower on a phone.** The package's is 252px, which left about a third of a 390px screen for the chart. Desktop is unchanged.
+- **With a finger, hold a bar for a moment before dragging it.** In the package, any swipe that started on a bar moved that task's dates, so scrolling the chart could reschedule things by accident. Mouse drags still start at once, and the stretch handle starts at once on a phone too.
+- **Tapping a bar opens its editor without also tapping whatever appears under your finger.** In the package the editor opened while your finger was still down, so the same tap then landed inside it. On a phone that opened the date picker, and it could just as easily have pressed Delete.
+- **No Snapshot / Rollback / Backup buttons.** Those protected a store nothing else backed up; here the tasks are synced and covered by the app's own backup in Settings. Because there's no rollback, deleting a task or a project now asks first.
+- **Focus** is the app's own full screen (header and bottom bar hidden) plus the package's hiding of the cards and lists. Like full screen everywhere else in the app, it isn't remembered across reloads.
+- **Two open tabs on one computer now pick up each other's task changes straight away**, as the package requires, rather than waiting for a sync.
+
 ## 1.47.0
 
 **Repeating events.** Adding something to the calendar now has a **Repeats** row: Daily, Weekly on whichever day you picked, Monthly on that date, Yearly, or **Custom…**.
