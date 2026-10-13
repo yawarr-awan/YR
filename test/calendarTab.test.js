@@ -559,16 +559,27 @@ test("events are violet-blue by kind: personal, family, tasks, and a steady shad
   }
   const keys = [...app.document.querySelectorAll("#calLegend .legend-tone")].map((k) => k.textContent.trim());
   assert.deepEqual(keys, ["Personal", "Family", "Tasks"], "and the legend says which is which");
-  // Each tone runs into a second colour along the chip, under a glass sheen.
+  // Each tone runs into a second colour down the chip's lit edge.
   const second = (title) => [...app.document.querySelectorAll("#calDayCur .cal-chip")]
     .find((c) => c.querySelector(".cal-chip-title").textContent === title).style.getPropertyValue("--chip-c2");
   assert.equal(second("Dentist"), "#5c7cfa", "personal: violet into blue");
   assert.equal(second("School run"), "#3d4ff0", "family: into a deeper blue");
   assert.equal(second("Board task"), "#e052c8", "tasks: orchid into fuchsia");
   const css = app.document.querySelector("style").textContent;
-  assert.match(css, /linear-gradient\(120deg,color-mix\(in srgb,var\(--chip-c,var\(--brand\)\) 92%,#fff\),var\(--chip-c2/,
-    "filled as a two-colour run");
-  assert.match(css, /\.cal-chip::before\{[^}]*rgba\(255,255,255,\.34\)/, "with a glossy top half");
+  // Drawn as the planner's metric cards: a glass body leaning into the tone,
+  // the lit edge running --chip-c into --chip-c2, the corner circle, and the
+  // title in the tone - not a solid fill with white text on it.
+  assert.match(css, /--ev-bar:linear-gradient\(180deg,var\(--ev-c\),var\(--chip-c2/, "the edge runs into the second colour");
+  const rule = css.match(/\n\.cal-chip,\.cal-mini\{[^}]*\}/)[0];
+  assert.match(rule, /var\(--ev-bar\) 0 0\/3px 100% no-repeat/, "a 3px lit edge down the start side");
+  assert.match(rule, /radial-gradient\(circle at calc\(100% - 4px\) calc\(100% \+ 4px\)/, "the corner circle");
+  assert.match(rule, /linear-gradient\(145deg,color-mix\(in srgb,var\(--ev-c\) var\(--ev-tint\),var\(--ev-a\)\),var\(--ev-b\)\)/,
+    "a glass body leaning into the tone");
+  assert.match(rule, /color:color-mix\(in srgb,var\(--ev-c\) 58%,var\(--ev-hi\)\)/, "the title in the tone");
+  assert.doesNotMatch(css, /\.cal-chip::before\{/, "no white sheen over a solid fill any more");
+  for (const tok of ["--ev-a", "--ev-b", "--ev-tint", "--ev-hi", "--ev-shadow"]) {
+    assert.equal(css.split(tok + ":").length - 1, 3, tok + " is set for light, system-dark and forced-dark");
+  }
 });
 
 /* --- the wide (week) layout -------------------------------------------- */

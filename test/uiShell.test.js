@@ -220,6 +220,44 @@ test("a folded card still reports its progress in the heading", () => {
   assert.equal(app.document.getElementById("medsCount").textContent, "1/3");
 });
 
+test("every card is the planner's metric card, in the colour of its heading dot", () => {
+  const app = loadApp({ fetchImpl: idle });
+  const css = app.document.querySelector("style").textContent;
+  const rule = css.match(/\n\.card,\.subcard,\.recipe-card,\.ex-card\{[^}]*\}/);
+  assert.ok(rule, "one rule styles cards, dhikr sub-cards, recipes and exercises alike");
+  assert.match(rule[0], /linear-gradient\(180deg,var\(--mc-c\),transparent 88%\) 0 0\/3px 100% no-repeat/, "a lit edge down the start side");
+  assert.match(rule[0], /radial-gradient\(circle at calc\(100% - 10px\) calc\(100% \+ 8px\)/, "the corner circle");
+  assert.match(rule[0], /linear-gradient\(150deg,var\(--mc-a\),color-mix\(in srgb,var\(--mc-c\) var\(--mc-tint\),var\(--mc-b\)\)\)/,
+    "a glass body leaning into the card's colour");
+  // Background layers, not pseudo-elements: overflow:hidden on a card would
+  // clip its popovers and focus rings.
+  assert.doesNotMatch(rule[0], /overflow/);
+  for (const tok of ["--mc-a", "--mc-b", "--mc-tint", "--mc-shadow"]) {
+    assert.equal(css.split(tok + ":").length - 1, 3, tok + " is set for light, system-dark and forced-dark");
+  }
+  // The colour lives on the card; the dot reads it, so the two cannot differ.
+  const tone = (key) => app.document.querySelector('.card[data-card="' + key + '"]').style.getPropertyValue("--card-c");
+  assert.equal(tone("meals"), "var(--food)");
+  assert.equal(tone("water"), "var(--water)");
+  assert.equal(tone("prayers"), "var(--pray)");
+  assert.equal(app.document.querySelectorAll(".card h3 .dot[style]").length, 0, "no dot carries its own colour");
+  assert.match(css, /\.card h3 \.dot\{background:var\(--card-c,var\(--brand\)\)\}/);
+});
+
+test("morning, afternoon and evening dhikr are drawn in the colour of the prayer each follows", () => {
+  const app = loadApp({ fetchImpl: idle });
+  const tones = [...app.document.querySelectorAll("#dhikrBox .subcard")].map((c) => c.style.getPropertyValue("--card-c"));
+  assert.deepEqual(tones, ["var(--fajr)", "var(--dhuhr)", "var(--maghrib)"]);
+});
+
+test("a custom prayer colour reaches its dhikr card", () => {
+  const app = loadApp({ fetchImpl: idle, localStorageSeed: { yawarWellness_v1: JSON.stringify({
+    schema: SCHEMA, profile: { startWeight: "", targetWeight: "", updated_at: 1, tasks: [], prayerColors: { Fajr: "#ff8800" } },
+    days: {}, sync: { enabled: false, since: 0, lastSyncAt: null, lastError: null }, account: "me@example.com" }) } });
+  const first = app.document.querySelector("#dhikrBox .subcard");
+  assert.equal(first.style.getPropertyValue("--card-c"), "#ff8800");
+});
+
 test("dhikr is three collapsible sub-cards, each with its own count, collapsed by default", () => {
   const app = loadApp({ fetchImpl: idle });
   const cards = app.document.querySelectorAll("#dhikrBox .subcard");

@@ -1,5 +1,23 @@
 # Changelog
 
+## 1.55.0
+
+**Every card now looks like the Workflow planner's metric cards.** That covers Today's Brief, Supplements, Meals, Medicines, Water, Movement, Prayers, Dhikr, Settings, Progress, Journal, Notes, recipes, exercises and the Tasks board. Each card has:
+- a glass body that leans into the card's own colour;
+- a lit edge with a glow down its left side;
+- a soft circle in the bottom corner.
+
+Light and dark each have their own version. A card's colour is the colour of its heading dot (violet where it has none), and a board card takes its project's colour.
+
+**Morning, Afternoon and Evening dhikr are cards of their own,** each in the colour of the prayer it follows: Fajr, Dhuhr and Maghrib. A prayer colour you've customised carries through.
+
+**Calendar events and tasks are small metric cards.** They used to be solid colour with white text. Each chip is now:
+- a glass card in its own tone;
+- with a lit edge that runs between its two colours, and the corner circle;
+- with the title written in the tone.
+
+Personal is still violet, family blue and tasks orchid, and the legend still matches. Scheduled tasks keep a dashed edge and Google Tasks a dotted one. Chips stay opaque so they read clearly over the prayer-time colours.
+
 ## 1.54.0
 
 **Joint Pain & Energy sliders are violet gradient bars.** The fill runs violet to blue up to the value, with a glossy, lit thumb. A day with nothing recorded (shown as "–") has no fill, so the thumb's resting place no longer looks like an answer.
