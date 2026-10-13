@@ -177,7 +177,10 @@ test("events land in their hour, with the location but not the calendar", async 
   const meta = chip.querySelector(".cal-chip-meta").textContent;
   assert.match(meta, /Clinic/);
   assert.doesNotMatch(meta, /Yawar/, "no calendar name on the chip");
-  assert.equal(chip.style.borderInlineStartColor, "rgb(66, 133, 244)");
+  // Drawn in the app's own violet - Google's calendar colour (#4285f4 here)
+  // is no longer what a chip is painted with.
+  assert.equal(chip.style.getPropertyValue("--chip-c"), "#7c5cff");
+  assert.equal(chip.style.borderInlineStartColor, "", "nor its edge");
 
   // All-day items get their own row above the hours rather than being
   // buried in 00:00, which is the part of the grid nobody scrolls back to.
@@ -512,24 +515,53 @@ test("events that overlap sit side by side, even when they start in different ho
   assert.equal(share(chip("Lunch")), 100);
 });
 
-test("an event is a glossy bar in its calendar's colour, like the Workflow planner's", async () => {
+test("events are violet-blue by kind: personal, family, tasks, and a steady shade for any other calendar", async () => {
   const at = (h, m) => { const d = new Date(); d.setHours(h, m || 0, 0, 0); return d.toISOString(); };
+  const ev = (id, cal, name, title, h, color) => ({ id, calendarId: cal, calendar: name, title, start: at(h, 0), end: at(h, 45),
+    writable: true, color });
   const app = loadApp({
+    localStorageSeed: { yawarWellness_v1: JSON.stringify({
+      schema: 5, profile: { startWeight: "", targetWeight: "", updated_at: 1, tasks: [] }, days: {},
+      projects: { p1: { id: "p1", name: "Home", color: "", order: 0, updated_at: 1, deleted: 0 } },
+      tasks: { t1: { id: "t1", projectId: "p1", title: "Board task", done: false, order: 0, due: at(16, 0),
+        start: null, end: null, calendarEventId: null, scheduled: false, noteId: null, updated_at: 1, deleted: 0 } },
+      sync: { enabled: false, since: 0, lastSyncAt: null, lastError: null }, account: "me@example.com" }) },
     fetchImpl: fetchRouter([
-      ["/api/calendar/events", () => jsonRes({ connected: true, status: "ok", events: [
-        { id: "e1", calendarId: "p", title: "Dentist", start: at(9, 0), end: at(10, 0), writable: true, calendar: "Home", color: "#33b679" },
-      ] })],
+      ["/api/calendar/events", () => jsonRes({ connected: true, status: "ok",
+        calendars: [{ id: "me@example.com", name: "Yawar", primary: true, writable: true },
+                    { id: "family08@group.calendar.google.com", name: "Family", writable: true },
+                    { id: "work123@group.calendar.google.com", name: "Work", writable: false }],
+        events: [
+          ev("e1", "me@example.com", "Yawar", "Dentist", 9, "#795548"),
+          ev("e2", "family08@group.calendar.google.com", "Family", "School run", 11, "#d50000"),
+          ev("e3", "work123@group.calendar.google.com", "Work", "Stand-up", 13, "#616161"),
+        ],
+        tasks: [{ id: "g1", title: "Google task", due: todayKey() + "T00:00:00.000Z", allDay: true, list: "My Tasks" }],
+      })],
       ["/api/prayer", () => jsonRes({ source: "ummahapi", timings: { Fajr: "04:45", Sunrise: "05:50", Dhuhr: "13:00", Asr: "17:00", Maghrib: "20:30", Isha: "22:00" } })],
     ]),
   });
   app.goTo("calendar");
   await app.flush();
   await app.flush();
-  const chip = app.document.querySelector("#calDayCur .cal-chip");
-  assert.equal(chip.style.getPropertyValue("--chip-c"), "#33b679");
+  const tone = (title) => [...app.document.querySelectorAll("#calDayCur .cal-chip")]
+    .find((c) => c.querySelector(".cal-chip-title").textContent === title).style.getPropertyValue("--chip-c");
+
+  assert.equal(tone("Dentist"), "#7c5cff", "your own calendar: violet");
+  assert.equal(tone("School run"), "#3f8cff", "the family calendar: blue");
+  assert.equal(tone("Board task"), "#b45cff", "a task: purple");
+  assert.equal(tone("Google task"), "#b45cff", "a Google Task too");
+  const work = tone("Stand-up");
+  assert.ok(["#5b5bd6", "#9b8cff", "#6a4de0", "#8aa0ff"].includes(work), "any other calendar: one of the violet-blues, got " + work);
+  for (const google of ["#795548", "#d50000", "#616161"]) {
+    assert.ok(![...app.document.querySelectorAll("#calDayCur .cal-chip")].some((c) => c.getAttribute("style").includes(google)),
+      "Google's own colour " + google + " is not painted");
+  }
+  const keys = [...app.document.querySelectorAll("#calLegend .legend-tone")].map((k) => k.textContent.trim());
+  assert.deepEqual(keys, ["Personal", "Family", "Tasks"], "and the legend says which is which");
   const css = app.document.querySelector("style").textContent;
   assert.match(css, /\.cal-chip,\.cal-mini\{\s*background:linear-gradient\(180deg,color-mix\(in srgb,var\(--chip-c/,
-    "filled the way the planner fills a bar");
+    "filled the way the Workflow planner fills a bar");
 });
 
 /* --- the wide (week) layout -------------------------------------------- */

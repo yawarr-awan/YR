@@ -919,6 +919,8 @@ a.btn{text-decoration:none;display:inline-block}
 .center{text-align:center}
 .legend{display:flex;gap:14px;flex-wrap:wrap;font-size:.76rem;color:var(--muted);margin-top:8px}
 .legend i{width:10px;height:10px;border-radius:3px;display:inline-block;margin-inline-end:5px;vertical-align:middle}
+.legend .legend-break{flex-basis:100%;height:0}
+.legend .legend-tone i{width:16px;border-radius:4px}
 
 /* ===================== PREMIUM FINISH (1.50.0) =====================
    The Workflow Planner's look, carried across the whole app at Yawar's
@@ -1264,10 +1266,9 @@ div#wfp#wfp.wfp-light > .wfp-card{box-shadow:0 10px 28px rgba(53,35,104,.09)}
 #wfp .workflow-timeline-card{padding:0;overflow:hidden;margin-bottom:16px;border-radius:18px}
 #wfp .workflow-timeline-card .workflow-card-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap; padding:14px 16px;border-bottom:1px solid color-mix(in srgb,var(--workflow-accent) 22%,var(--line)); background:linear-gradient(135deg,color-mix(in srgb,var(--card) 88%,var(--workflow-accent)),color-mix(in srgb,var(--card2) 92%,transparent))}
 #wfp .workflow-timeline-card .workflow-card-head h2{margin:0;color:var(--txt);font-size:17px;font-weight:700; text-transform:none;letter-spacing:-.01em}
-#wfp .workflow-card-title{display:flex;align-items:baseline;gap:9px;flex:0 0 auto}
 #wfp .workflow-card-actions{display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap}
 #wfp .workflow-shown{font-size:11px;color:var(--faint);white-space:nowrap}
-#wfp .workflow-header-controls{display:flex;align-items:center;justify-content:flex-end;gap:6px;flex:1;min-width:360px}
+#wfp .workflow-header-controls{display:flex;align-items:center;justify-content:flex-start;gap:6px;flex:1;min-width:360px}
 #wfp .workflow-header-search{width:clamp(130px,18vw,240px);min-width:110px;background:rgba(8,12,21,.46);border:1px solid var(--line); color:var(--txt);border-radius:8px;padding:7px 9px;font:500 11.5px/1.2 var(--font)}
 #wfp .workflow-header-search:focus{outline:none;border-color:var(--workflow-accent);box-shadow:0 0 0 2px var(--workflow-accent-soft)}
 #wfp .workflow-header-select{max-width:150px;min-width:105px;background:rgba(8,12,21,.46);border:1px solid var(--line);color:var(--txt); border-radius:8px;padding:7px 24px 7px 8px;font:600 11px/1.2 var(--font)}
@@ -1444,7 +1445,6 @@ body.wfp-dialog-open{overflow:hidden}
   #wfp .workflow-stats{grid-template-columns:1fr}
   #wfp .workflow-actions{width:100%}
   #wfp .workflow-actions .wfp-btn{flex:1}
-  #wfp .workflow-card-title{width:100%;justify-content:space-between}
   #wfp .workflow-header-controls{width:100%;min-width:0;justify-content:flex-start;flex-wrap:wrap}
   #wfp .workflow-header-search{width:100%;max-width:none}
   #wfp .workflow-header-select{flex:1;max-width:none}
@@ -1895,12 +1895,10 @@ div#wfp.wfp-light .wfp-cats{background:rgba(255,255,255,.8)}
         <button type="button" class="wfp-stat wfp-accent workflow-metric-filter" data-wfp="set-status" data-status="all" title="Show all workflow tasks"><b id="wfpTotal">0</b><span>Total tasks</span></button>
       </div>
 
-      <div class="wfp-card workflow-timeline-card" role="region" aria-labelledby="wfpTimelineHeading">
+      <div class="wfp-card workflow-timeline-card" role="region" aria-label="Project timeline">
         <div class="workflow-card-head">
-          <div class="workflow-card-title">
-            <h2 id="wfpTimelineHeading">Project timeline</h2>
-            <span class="workflow-shown" id="wfpShownCount">0 tasks shown</span>
-          </div>
+          <!-- No heading or "N tasks shown" line (removed in 1.53.0, asked
+               for): the card starts with the search box. -->
           <div class="workflow-header-controls" role="search" aria-label="Timeline search and filters">
             <input class="workflow-header-search" id="wfpSearch" placeholder="Search" aria-label="Search workflow tasks or projects">
             <select class="workflow-header-select" id="wfpProjectFilter" aria-label="Filter by project"></select>
@@ -4926,6 +4924,28 @@ function calEntryDetail(x){
     .filter(Boolean).join(" · ");
 }
 
+/* The colour an entry is drawn in. Not Google's own calendar colour any
+   more (1.53.0): those came out brown, mauve and olive against the glossy
+   violet the rest of the app is, and the prayer tint underneath already
+   carries every other colour on the grid. Each kind of thing gets its own
+   shade of the app's violet-to-blue instead, so they still tell apart. */
+var CAL_TONES={personal:"#7c5cff",family:"#3f8cff",task:"#b45cff",
+  others:["#5b5bd6","#9b8cff","#6a4de0","#8aa0ff"]};
+/** Which tone: tasks (the app's own and Google Tasks) have theirs; an event
+ * on your primary calendar is personal; a calendar called "Family" (Google's
+ * family calendars are named so, and their ids say "family") is family; any
+ * other calendar gets one of the remaining shades, picked from its id so it
+ * keeps the same one from week to week. */
+function calEntryTone(x){
+  if(x.kind==="task"||x.kind==="gtask")return CAL_TONES.task;
+  var e=x.event||{},id=String(e.calendarId||""),name=String(e.calendar||"");
+  var cal=((_calWin&&_calWin.calendars)||[]).filter(function(c){return c.id===id;})[0];
+  if(/family/i.test(name)||/^family/i.test(id))return CAL_TONES.family;
+  if((cal&&cal.primary)||id==="primary"||!id)return CAL_TONES.personal;
+  var h=0;for(var i=0;i<id.length;i++)h=(h*31+id.charCodeAt(i))>>>0;
+  return CAL_TONES.others[h%CAL_TONES.others.length];
+}
+
 /** How long an entry runs, in minutes - from the event's own end where
  * there is one, otherwise the same 30 minutes a new entry defaults to. */
 function calEntryDuration(x){
@@ -4942,9 +4962,9 @@ function calChip(x,place){
     +(x.kind==="gtask"?" is-gtask":"")
     +(x.task&&x.task.done?" is-done":""));
   chip.type="button";
-  chip.style.borderInlineStartColor=x.color||(x.kind==="gtask"?"var(--accent)":"var(--brand)");
-  /* The fill: the same glossy bar the Workflow planner draws (CSS). */
-  chip.style.setProperty("--chip-c",x.color||(x.kind==="gtask"?"var(--accent)":"var(--brand)"));
+  /* The fill: the same glossy bar the Workflow planner draws (CSS), in the
+     entry's tone. */
+  chip.style.setProperty("--chip-c",calEntryTone(x));
   /* No time on the chip: where it sits in the grid already says when it is,
      and in a narrow column those few characters were the difference between
      a title that reads and one that is cut off. The full detail, times
@@ -5034,8 +5054,7 @@ function placeByTime(node,x,place){
 function calMini(x,place){
   var mini=el("button","cal-mini"+(x.kind==="task"?" is-task":"")+(x.kind==="gtask"?" is-gtask":""),x.title);
   mini.type="button";
-  mini.style.borderInlineStartColor=x.color||(x.kind==="gtask"?"var(--accent)":"var(--brand)");
-  mini.style.setProperty("--chip-c",x.color||(x.kind==="gtask"?"var(--accent)":"var(--brand)"));
+  mini.style.setProperty("--chip-c",calEntryTone(x));
   mini.title=calEntryDetail(x);
   mini.addEventListener("click",function(ev){ev.stopPropagation();openCalEntry(x);});
   if(place&&!x.allDay)placeByTime(mini,x,place);
@@ -5739,6 +5758,13 @@ function paintCalPanels(days,timesByKey){
     var dot=glossPaint(el("i"),prayerColorCss(name));
     chip.insertBefore(dot,chip.firstChild);
     legend.appendChild(chip);
+  });
+  /* And what the entries' colours mean, after a break in the row. */
+  legend.appendChild(el("span","legend-break"));
+  [["Personal",CAL_TONES.personal],["Family",CAL_TONES.family],["Tasks",CAL_TONES.task]].forEach(function(k){
+    var key=el("span","legend-tone"," "+k[0]);
+    key.insertBefore(glossPaint(el("i"),k[1]),key.firstChild);
+    legend.appendChild(key);
   });
 
   scrollCalToFocus(keyOf(calCur)===todayKey());
@@ -8051,7 +8077,6 @@ function renderPlanner(){
   txt("wfpFocusCount",focus.length);txt("wfpFocusPct",focusPct+"%");
   txt("wfpFocusMeta",counts[0]+" today · "+counts[1]+" tomorrow · "+counts[2]+" day after");ring("wfpFocusRing",focusPct);
   txt("wfpOverdue",overdue);
-  txt("wfpShownCount",visible.length+" task"+(visible.length===1?"":"s")+" shown");
   Array.prototype.forEach.call(host.querySelectorAll("[data-wfp='set-status']"),function(b){
     var on=b.getAttribute("data-status")===_wfp.status;
     b.classList.toggle("wfp-on",on);b.setAttribute("aria-pressed",String(on));
