@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.54.0
+
+**Joint Pain & Energy sliders are violet gradient bars.** The fill runs violet to blue up to the value, with a glossy, lit thumb. A day with nothing recorded (shown as "–") has no fill, so the thumb's resting place no longer looks like an answer.
+
+**Richer, glossier calendar colours.** Each kind of entry now runs between two colours along the chip, with a glass highlight on the top half and a soft glow in its own colour:
+- **Personal:** violet into blue.
+- **Family:** sky blue into deep blue.
+- **Tasks:** orchid into fuchsia, so they stand out from events.
+- **Other calendars:** their own two-colour runs in the same violet-blue range.
+
 ## 1.53.0
 
 **Calendar events in the app's violet-blue, by kind.** Events used to be painted in Google's own calendar colours, which came out brown, mauve and olive against the rest of the app. Each kind of entry now gets its own shade of the app's violet-to-blue, with the same gloss as the Workflow planner's bars:

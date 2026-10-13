@@ -703,3 +703,24 @@ test("Reset puts the bar back, and a tab the stored order never heard of still a
   assert.equal(barOrder(app)[0], "tasks");
   assert.equal(app.window.localStorage.getItem("yawarTabOrder"), null);
 });
+
+test("the joint pain and energy sliders are violet gradient bars that fill to their value", () => {
+  const app = loadApp({});
+  const pain = app.document.getElementById("painIn");
+  const energy = app.document.getElementById("energyIn");
+  for (const r of [pain, energy]) assert.ok(r.classList.contains("vrange"));
+  // Nothing recorded yet: the thumb rests somewhere, but there is no fill
+  // claiming that is the answer.
+  assert.ok(pain.classList.contains("is-unset"));
+  assert.ok(energy.classList.contains("is-unset"));
+  assert.equal(energy.style.getPropertyValue("--fill"), "50%");
+
+  pain.value = "6";
+  pain.dispatchEvent(new app.window.Event("input", { bubbles: true }));
+  assert.equal(pain.style.getPropertyValue("--fill"), "60%", "the fill follows the thumb");
+  assert.ok(!pain.classList.contains("is-unset"), "and is shown once there is an answer");
+  assert.equal(app.document.getElementById("painVal").textContent, "6");
+
+  const css = app.document.querySelector("style").textContent;
+  assert.match(css, /\.vrange::-webkit-slider-runnable-track\{[^}]*linear-gradient\(90deg,#9b7bff,#7c5cff 45%,#5c7cfa\) 0 0\/var\(--fill\)/);
+});
