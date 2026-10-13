@@ -652,6 +652,59 @@ ninth tab, and **the reference's own look**.
 - Tests: `test/planner.test.js` (36), following the package's
   `ACCEPTANCE-CHECKLIST.md` plus the shared-row guarantees.
 
+## The board fits the screen; gloss; calendar lanes (1.52.0)
+- **The free canvas is gone** (supersedes the 1.38.0 and 1.39.0 notes about
+  stored positions, panning, bring-to-front and the resize corner). Cards
+  are laid out by `boardLayout(z, heights)`: columns of at least `CARD_W`
+  filling the viewport's width at zoom `z`, each card into the shortest
+  column (so the first row reads across in `order`). `layoutBoardCards()`
+  sets widths, reads every `offsetHeight` once, then places - moving the
+  existing elements, never rebuilding, because a pinch calls it on every
+  move. jsdom has no layout, so `boardViewport()` falls back to the window
+  and `estimateCardHeight()` stands in; the board tests' numbers come from
+  those fallbacks (390px window -> one 338px column, 140px empty cards).
+- **`_canvas.x` is always 0 and `_canvas.y` is clamped** (`clampBoardScroll`):
+  top and left fixed, vertical scroll only. **Zoom ceiling `boardMaxZoom()`**
+  = one `CARD_W` x `CARD_H` card plus margins fully on screen; on a laptop
+  the height binds first, so two big columns can remain at the ceiling.
+- **Cards are as tall as their tasks** (`.board-tasks{flex:none}`, no
+  internal scroll): with cards filling a phone, an internal scroller left
+  nowhere to swipe that moved the board. A finger drag anywhere that is not a
+  field or a task grip scrolls (`_pan`, live only past `BOARD_PAN_SLOP`, and
+  pointer capture only once live - capturing on pointerdown would take the
+  click of the button under the finger). A mouse on a header drags the card;
+  a finger on a header is a scroll unless held (`beginCardPress`), and
+  `startCardDrag` cancels the scroll when the hold lifts.
+- **Dragging a card reorders** (`moveProjectBeside` via `insertBeside`, the
+  slot dropped on is the slot taken), stamping only rows whose `order`
+  changed. It is the planner's order too. Near the viewport's edges the
+  board scrolls under the card. `bringCardToFront`, `ensureCardPositions`,
+  `nextCardSpot`, `projectBox` and the `.card-resize` grip are gone; old
+  `x/y/w/h/z` on rows are left unread, never rewritten (tested).
+- **`#boardPick`** (the picker) -> `_canvas.only`, persisted in
+  `yawarBoardView` with `z`/`y`, never synced. `boardProjects()` forgets a
+  choice whose project is gone. One card alone gets `n=1`, capped at
+  `BOARD_ONE_MAX` (720) on a wide screen.
+- **Calendar lanes** (`calLanes`): overlap is decided across the whole day,
+  not per start-hour bucket - the bucket version gave 9:30-11:00 and 10:00
+  each the full width. Writes `lane`/`lanes` onto the entries;
+  `placeByTime`'s `index`/`of` come from them.
+- **Gloss** lives in the PREMIUM FINISH block. JS swatches go through
+  `glossPaint(node,color)`, which **keeps `style.background`** (several tests
+  read it) and adds `--c` + `.gloss`; the sheen is an `::after` overlay so it
+  works over any colour. Prayer rows carry `--c` for their wash. Calendar
+  chips carry `--chip-c` and are filled like `#wfp .gantt-bar` (white text).
+  Every app checkbox is one `appearance:none` glossy box (SVG tick over
+  `--grad`); the meal ticks were `--move` green. Water glasses use the same
+  gradient.
+- **Planner bar titles start at today's column** when the bar spans today,
+  pulled back from the bar's end by `WFP_TITLE_ROOM` (96px) when needed -
+  in day view today's double cell always leaves room, so the pull-back only
+  shows at week/month zoom.
+- `.datebar button` (0,1,1) outranked `.today-btn` (0,1,0), so every Today
+  button took the arrows' 1.05rem and overflowed; `.datebar
+  button.today-btn` sizes it.
+
 ## The Planner is the Workflow tab (1.51.0)
 - **Yawar chose the Planner; the original Timeline is removed** - markup
   (`#workflowSubTabs`, `#wsub-timeline`, `#wfGrid`, `#wfScroll`,

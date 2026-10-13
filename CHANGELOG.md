@@ -1,5 +1,31 @@
 # Changelog
 
+## 1.52.0
+
+**The Tasks board fits the screen.**
+- **Cards are laid out for whatever screen you're on**, in columns that fill the width. The board is fixed at the top and left, nothing sits off to the side, and it only scrolls down.
+- **Zooming in makes the cards bigger and fewer to a row** until they stack one under another. It stops once one card fills the screen.
+  - On a phone that is one card across.
+  - On a laptop the screen's height runs out first, so at full zoom two large cards can sit side by side, each fully visible.
+- **A card is as tall as its tasks.** Nothing scrolls inside a card, so a swipe anywhere on a card scrolls the board.
+- **Dragging a card by its header moves it to another place in the order.** It no longer drops it anywhere on a canvas. The order is the same one the Workflow planner uses, and "Move left / Move right" in a card's ⋯ menu still work. The corner resize handle is gone, since the layout decides the size.
+- **New: a project picker at the top of the Tasks tab.** "All projects" shows every card; choosing one shows just that card, full width on a phone and a comfortable width on a laptop. It's remembered on that device.
+- Positions from the old free canvas are simply ignored. Nothing in your data is rewritten.
+
+**Calendar: overlapping events now sit side by side.** Before, only events that started in the same hour were split. For example, one running 1:30–3:30 and another at 2:00 start in different hours, so each got the full width and they were drawn on top of each other. That is almost certainly what happened on 16 Oct; it was the only way two events could overlap on the grid. The width is now shared by any events whose times overlap, today and on every future day. An event with nothing beside it keeps the whole column.
+
+**The glossy finish, everywhere there is colour.**
+- **Calendar events** are drawn like the Workflow planner's bars, filled in their calendar's colour.
+- **Hour tints** have a sheen.
+- **Prayers:** the colour bars, the row tint, the colour picker, the header chip and the legend all share the same gloss and glow.
+- **Ticks:** every tick in the app (meals, supplements, medicines, prayers, dhikr, tasks) is now one glossy violet-to-blue box. The meal ticks used to be green.
+- **Water glasses** fill with the same glossy violet-to-blue.
+- **Also glossed:** board colour bands, card dots and the red now-line.
+
+**Workflow chart: a bar that runs through today shows its title from today's column**, so you can read it without scrolling back to where the task began. A bar ending today keeps enough room for the title.
+
+**The "Today" buttons fit.** On every tab they had picked up the arrow buttons' larger text and overflowed the button.
+
 ## 1.51.0
 
 **The Planner is the Workflow tab.** As you asked, the old week-column Timeline is gone, and with it the Timeline | Planner switch at the top of the tab. Opening Workflow now goes straight to the planner.

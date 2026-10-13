@@ -291,6 +291,35 @@ test("week and month views render, and the choice is kept per device, not in the
   assert.doesNotMatch(app.rawMain(), /"zoom"|labelWidth/);
 });
 
+test("a bar running through today shows its title from today's column", () => {
+  const app = openPlanner(load());
+  const c = cellOf(app);
+  // a1 runs from two days ago to tomorrow: its title starts two days in.
+  const text = bars(app, "a1")[0].querySelector(".gantt-bar-text");
+  assert.equal(text.style.marginInlineStart, (2 * c + 4) + "px");
+  assert.ok(bars(app, "a1")[0].classList.contains("title-today"));
+  // a2 starts the day after tomorrow, b1 today - both already show it there.
+  assert.equal(bars(app, "a2")[0].querySelector(".gantt-bar-text").style.marginInlineStart, "");
+  assert.equal(bars(app, "b1")[0].querySelector(".gantt-bar-text").style.marginInlineStart, "");
+});
+
+test("a long bar keeps its title at today; one ending today keeps enough room to read it", () => {
+  const app = openPlanner(load([
+    task("long", "p1", "Long one", -20, 30),
+    task("soon", "p1", "Ends today", -20, 0),
+  ]));
+  // Week view, where a day is narrow enough for this to matter: in day view
+  // today's double-width column always leaves room.
+  setVal(app, "wfpZoomSelect", "week");
+  const c = cellOf(app);
+  const shift = (id) => parseFloat(bars(app, id)[0].querySelector(".gantt-bar-text").style.marginInlineStart);
+  // rangeStart is a day before the earliest start, so both begin at index 1.
+  assert.equal(shift("long"), 20 * c + 4, "exactly at today");
+  const w = parseFloat(bars(app, "soon")[0].style.width);
+  assert.ok(shift("soon") < 20 * c + 4, "pulled back from today...");
+  assert.equal(shift("soon"), w - 96 + 4, "...just far enough that the title still has 96px");
+});
+
 test("a weekly task draws an occurrence per week", () => {
   const app = openPlanner(load());
   assert.ok(bars(app, "b1").length >= 8, "eight weeks ahead at least, as the reference draws");
