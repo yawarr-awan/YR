@@ -1091,14 +1091,23 @@ nav.tabs button.active::before{content:"";position:absolute;z-index:-1;inset-blo
 .card h3 .dot::after,.bell-dot::after{content:"";position:absolute;inset:0;border-radius:inherit}
 /* A prayer's row carries a wash of its own colour from the bar inward. */
 .pslot,.prow{background:linear-gradient(90deg,color-mix(in srgb,var(--c,transparent) 18%,transparent),transparent 72%),var(--glass-2)}
-/* Calendar entries: the planner's bar, filled with the calendar's colour. */
+/* Calendar entries: the planner's bar, filled with the entry's tone - a
+   two-colour run along the chip (--chip-c into --chip-c2) under a glass
+   highlight on its top half, with a glow in its own colour. */
 .cal-chip,.cal-mini{
-  background:linear-gradient(180deg,color-mix(in srgb,var(--chip-c,var(--brand)) 88%,#fff),color-mix(in srgb,var(--chip-c,var(--brand)) 70%,#111827));
-  border:1px solid color-mix(in srgb,var(--chip-c,var(--brand)) 72%,rgba(255,255,255,.2));
-  border-inline-start:3px solid color-mix(in srgb,var(--chip-c,var(--brand)) 55%,#fff);
-  color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.55)}
+  background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(0,0,0,.14)),
+    linear-gradient(120deg,color-mix(in srgb,var(--chip-c,var(--brand)) 92%,#fff),var(--chip-c2,var(--chip-c,var(--brand))));
+  border:1px solid color-mix(in srgb,var(--chip-c,var(--brand)) 60%,rgba(255,255,255,.35));
+  border-inline-start:3px solid color-mix(in srgb,var(--chip-c,var(--brand)) 50%,#fff);
+  color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.5)}
 .cal-chip,.cal-chip.is-timed,.cal-mini,.cal-mini.is-timed{
-  box-shadow:0 4px 10px rgba(0,0,0,.24),inset 0 1px 0 rgba(255,255,255,.28)}
+  box-shadow:0 4px 12px color-mix(in srgb,var(--chip-c,var(--brand)) 38%,rgba(0,0,0,.25)),
+    inset 0 1px 0 rgba(255,255,255,.4)}
+.cal-chip{position:relative;overflow:hidden}
+.cal-chip.is-timed{position:absolute}
+.cal-chip::before{content:"";position:absolute;inset:0 0 52% 0;border-radius:inherit;pointer-events:none;z-index:0;
+  background:linear-gradient(180deg,rgba(255,255,255,.34),rgba(255,255,255,.06))}
+.cal-chip-title,.cal-chip-meta{position:relative;z-index:1}
 .cal-chip .cal-chip-meta{color:rgba(255,255,255,.84)}
 .cal-chip.is-task,.cal-mini.is-task{border-inline-start-style:dashed}
 .cal-chip.is-gtask,.cal-mini.is-gtask{border-inline-start-style:dotted}
@@ -1129,6 +1138,33 @@ nav.tabs button.active::before{content:"";position:absolute;z-index:-1;inset-blo
 .chk input:focus-visible,.meal-row input:focus-visible,.btask input[type=checkbox]:focus-visible,
 .prow input[type=checkbox]:focus-visible,.task-row input[type=checkbox]:focus-visible{
   outline:2px solid color-mix(in srgb,var(--brand) 70%,transparent);outline-offset:2px}
+/* Sliders (joint pain, energy): a glossy violet-to-blue fill running to the
+   value (--fill, kept by rangeFill), a lit thumb with a halo. A day with
+   nothing recorded yet shows no fill - the thumb's resting place is not an
+   answer. */
+input[type=range].vrange{-webkit-appearance:none;appearance:none;height:28px;padding:0;
+  background:transparent;cursor:pointer;--fill:0%}
+.vrange::-webkit-slider-runnable-track{height:10px;border-radius:999px;
+  background:linear-gradient(180deg,rgba(255,255,255,.3),rgba(255,255,255,0) 60%),
+    linear-gradient(90deg,#9b7bff,#7c5cff 45%,#5c7cfa) 0 0/var(--fill) 100% no-repeat,var(--field);
+  box-shadow:inset 0 1px 2px rgba(0,0,0,.35),0 0 0 1px var(--field-line)}
+.vrange::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:24px;height:24px;margin-top:-7px;
+  border-radius:50%;border:2px solid #7c5cff;
+  background:radial-gradient(circle at 35% 30%,#fff,#efeaff 45%,#c4b5fd);
+  box-shadow:0 0 0 4px color-mix(in srgb,#7c5cff 24%,transparent),0 4px 12px rgba(108,79,240,.5)}
+.vrange::-moz-range-track{height:10px;border-radius:999px;background:var(--field);
+  box-shadow:inset 0 1px 2px rgba(0,0,0,.35),0 0 0 1px var(--field-line)}
+.vrange::-moz-range-progress{height:10px;border-radius:999px;
+  background:linear-gradient(180deg,rgba(255,255,255,.3),rgba(255,255,255,0) 60%),linear-gradient(90deg,#9b7bff,#7c5cff 45%,#5c7cfa)}
+.vrange::-moz-range-thumb{width:20px;height:20px;border-radius:50%;border:2px solid #7c5cff;
+  background:radial-gradient(circle at 35% 30%,#fff,#efeaff 45%,#c4b5fd);
+  box-shadow:0 0 0 4px color-mix(in srgb,#7c5cff 24%,transparent),0 4px 12px rgba(108,79,240,.5)}
+.vrange.is-unset::-webkit-slider-runnable-track{background:var(--field)}
+.vrange.is-unset::-moz-range-progress{background:transparent}
+.vrange.is-unset::-webkit-slider-thumb{opacity:.75;box-shadow:0 2px 6px rgba(0,0,0,.3)}
+.vrange.is-unset::-moz-range-thumb{opacity:.75;box-shadow:0 2px 6px rgba(0,0,0,.3)}
+.vrange:focus-visible{outline:none}
+.vrange:focus-visible::-webkit-slider-thumb{box-shadow:0 0 0 6px color-mix(in srgb,#7c5cff 38%,transparent),0 4px 12px rgba(108,79,240,.5)}
 /* Water: the same violet-to-blue, as glossy glasses. */
 .glass{border-color:color-mix(in srgb,#7c5cff 55%,transparent);opacity:.5}
 .glass.full{opacity:1;border-color:transparent;
@@ -1659,10 +1695,10 @@ div#wfp.wfp-light .wfp-cats{background:rgba(255,255,255,.8)}
         <h3>🦵 Joint Pain &amp; Energy</h3>
         <div class="card-body">
           <div class="field"><label for="painIn">Joint pain / stiffness today <span class="slider-val" id="painVal">–</span></label>
-            <input type="range" id="painIn" min="0" max="10" step="1" value="0">
+            <input type="range" class="vrange" id="painIn" min="0" max="10" step="1" value="0">
             <div class="muted" style="font-size:.7rem;display:flex;justify-content:space-between"><span>0 none</span><span>10 severe</span></div></div>
           <div class="field"><label for="energyIn">Energy level today <span class="slider-val" id="energyVal">–</span></label>
-            <input type="range" id="energyIn" min="0" max="10" step="1" value="5">
+            <input type="range" class="vrange" id="energyIn" min="0" max="10" step="1" value="5">
             <div class="muted" style="font-size:.7rem;display:flex;justify-content:space-between"><span>0 exhausted</span><span>10 great</span></div></div>
         </div>
       </div>
@@ -2677,6 +2713,15 @@ function el(tag,cls,txt){var e=document.createElement(tag);if(cls)e.className=cl
 /** A swatch of colour with the Workflow planner's gloss on it (CSS: .gloss).
  * The colour stays the element's own background; it is also handed to the
  * CSS as --c, which is what lets the glow round it be the same colour. */
+/** A violet slider's fill (CSS: .vrange) runs to its value, through --fill.
+ * `unset` is a day with nothing recorded yet: the thumb still has to sit
+ * somewhere, but no fill, so it does not read as a real answer. */
+function rangeFill(input,unset){
+  if(!input)return;
+  var min=Number(input.min)||0,max=Number(input.max)||100,v=Number(input.value)||0;
+  input.style.setProperty("--fill",(max>min?((v-min)/(max-min))*100:0)+"%");
+  input.classList.toggle("is-unset",!!unset);
+}
 function glossPaint(node,color){
   node.style.background=color;node.style.setProperty("--c",color);node.classList.add("gloss");
   return node;
@@ -3060,8 +3105,10 @@ function renderToday(){
   document.getElementById("sleepIn").value=d.sleep;
   var pain=document.getElementById("painIn");pain.value=(d.jointPain==null?0:d.jointPain);
   document.getElementById("painVal").textContent=(d.jointPain==null?"–":d.jointPain);
+  rangeFill(pain,d.jointPain==null);
   var en=document.getElementById("energyIn");en.value=(d.energy==null?5:d.energy);
   document.getElementById("energyVal").textContent=(d.energy==null?"–":d.energy);
+  rangeFill(en,d.energy==null);
 
   renderDayCounts(d);
   updateRing();
@@ -4931,6 +4978,11 @@ function calEntryDetail(x){
    shade of the app's violet-to-blue instead, so they still tell apart. */
 var CAL_TONES={personal:"#7c5cff",family:"#3f8cff",task:"#b45cff",
   others:["#5b5bd6","#9b8cff","#6a4de0","#8aa0ff"]};
+/* Each tone runs to a second colour along the chip (1.54.0), the way the
+   planner's primary button runs violet to blue: personal violet into blue,
+   family sky blue into deep blue, tasks orchid into fuchsia. */
+var CAL_TONE_TO={"#7c5cff":"#5c7cfa","#3f8cff":"#3d4ff0","#b45cff":"#e052c8",
+  "#5b5bd6":"#3f6ff0","#9b8cff":"#6a5cff","#6a4de0":"#a14df0","#8aa0ff":"#5c7cfa"};
 /** Which tone: tasks (the app's own and Google Tasks) have theirs; an event
  * on your primary calendar is personal; a calendar called "Family" (Google's
  * family calendars are named so, and their ids say "family") is family; any
@@ -4964,7 +5016,9 @@ function calChip(x,place){
   chip.type="button";
   /* The fill: the same glossy bar the Workflow planner draws (CSS), in the
      entry's tone. */
-  chip.style.setProperty("--chip-c",calEntryTone(x));
+  var tone=calEntryTone(x);
+  chip.style.setProperty("--chip-c",tone);
+  chip.style.setProperty("--chip-c2",CAL_TONE_TO[tone]||tone);
   /* No time on the chip: where it sits in the grid already says when it is,
      and in a narrow column those few characters were the difference between
      a title that reads and one that is cut off. The full detail, times
@@ -5054,7 +5108,9 @@ function placeByTime(node,x,place){
 function calMini(x,place){
   var mini=el("button","cal-mini"+(x.kind==="task"?" is-task":"")+(x.kind==="gtask"?" is-gtask":""),x.title);
   mini.type="button";
-  mini.style.setProperty("--chip-c",calEntryTone(x));
+  var mtone=calEntryTone(x);
+  mini.style.setProperty("--chip-c",mtone);
+  mini.style.setProperty("--chip-c2",CAL_TONE_TO[mtone]||mtone);
   mini.title=calEntryDetail(x);
   mini.addEventListener("click",function(ev){ev.stopPropagation();openCalEntry(x);});
   if(place&&!x.allDay)placeByTime(mini,x,place);
@@ -10720,8 +10776,8 @@ wireFoodAdd("snack","snackNameIn","snackKcalIn","snackAddBtn");
 bindInput("weightIn","weight",true);
 bindInput("sleepIn","sleep",true);
 bindInput("stepsIn","steps",true);
-document.getElementById("painIn").addEventListener("input",function(){var d=dayData(keyOf(cur));d.jointPain=+this.value;d.updated_at=Date.now();document.getElementById("painVal").textContent=this.value;save();});
-document.getElementById("energyIn").addEventListener("input",function(){var d=dayData(keyOf(cur));d.energy=+this.value;d.updated_at=Date.now();document.getElementById("energyVal").textContent=this.value;save();});
+document.getElementById("painIn").addEventListener("input",function(){var d=dayData(keyOf(cur));d.jointPain=+this.value;d.updated_at=Date.now();document.getElementById("painVal").textContent=this.value;rangeFill(this,false);save();});
+document.getElementById("energyIn").addEventListener("input",function(){var d=dayData(keyOf(cur));d.energy=+this.value;d.updated_at=Date.now();document.getElementById("energyVal").textContent=this.value;rangeFill(this,false);save();});
 
 document.getElementById("startWeightIn").addEventListener("input",function(){state.profile.startWeight=this.value;state.profile.updated_at=Date.now();save();renderProgress();});
 document.getElementById("targetWeightIn").addEventListener("input",function(){state.profile.targetWeight=this.value;state.profile.updated_at=Date.now();save();renderProgress();});

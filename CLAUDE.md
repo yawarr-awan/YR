@@ -667,7 +667,16 @@ ninth tab, and **the reference's own look**.
   are `justify-content:flex-start`. Tests count `.gantt-task-label` rows
   (`rowsShown`) where they used to read the count.
 - The calendar legend carries a Personal / Family / Tasks key after a
-  `.legend-break`. Keep the `.others` shades away from the family blue - the
+  `.legend-break`.
+- (1.54.0) Each tone has a partner in `CAL_TONE_TO`, set as `--chip-c2`; the
+  chip is a 120deg run from one to the other under a `::before` glass sheen
+  on its top half (chip text is `position:relative;z-index:1` to stay above
+  it). `.cal-chip` is `position:relative` for the sheen, so
+  `.cal-chip.is-timed{position:absolute}` is restated after it - drop that
+  line and every timed chip falls into the flow.
+- Sliders: `input.vrange` + `rangeFill(input, unset)`, which writes `--fill`
+  (the gradient's background-size) and `.is-unset` (no fill) - call it
+  wherever a range's value is set from code, or the fill lags the thumb. Keep the `.others` shades away from the family blue - the
   first pick had a sky blue that read as Family.
 
 ## The board fits the screen; gloss; calendar lanes (1.52.0)

@@ -559,9 +559,16 @@ test("events are violet-blue by kind: personal, family, tasks, and a steady shad
   }
   const keys = [...app.document.querySelectorAll("#calLegend .legend-tone")].map((k) => k.textContent.trim());
   assert.deepEqual(keys, ["Personal", "Family", "Tasks"], "and the legend says which is which");
+  // Each tone runs into a second colour along the chip, under a glass sheen.
+  const second = (title) => [...app.document.querySelectorAll("#calDayCur .cal-chip")]
+    .find((c) => c.querySelector(".cal-chip-title").textContent === title).style.getPropertyValue("--chip-c2");
+  assert.equal(second("Dentist"), "#5c7cfa", "personal: violet into blue");
+  assert.equal(second("School run"), "#3d4ff0", "family: into a deeper blue");
+  assert.equal(second("Board task"), "#e052c8", "tasks: orchid into fuchsia");
   const css = app.document.querySelector("style").textContent;
-  assert.match(css, /\.cal-chip,\.cal-mini\{\s*background:linear-gradient\(180deg,color-mix\(in srgb,var\(--chip-c/,
-    "filled the way the Workflow planner fills a bar");
+  assert.match(css, /linear-gradient\(120deg,color-mix\(in srgb,var\(--chip-c,var\(--brand\)\) 92%,#fff\),var\(--chip-c2/,
+    "filled as a two-colour run");
+  assert.match(css, /\.cal-chip::before\{[^}]*rgba\(255,255,255,\.34\)/, "with a glossy top half");
 });
 
 /* --- the wide (week) layout -------------------------------------------- */
