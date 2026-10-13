@@ -402,3 +402,27 @@ test("every synced table comes back down - notes included, which used to be push
   const pulled = await (await handleSync(req({ since: 0, days: {}, account: EMAIL }), d1.env, EMAIL)).json();
   ITEM_TABLES.forEach((t) => assert.ok(pulled[t] && pulled[t][t + "_1"], t + " is pulled back"));
 });
+
+test("a plan belongs to the account that made it: another account never pulls it", async () => {
+  /* Three people are on this dashboard. A plan is a row filed under the
+     *verified* Access email (never anything the client claims), and a pull
+     only ever returns the caller's own rows - so one person's new meal plan
+     cannot reach anyone else's Meals tab. */
+  const { handleSync } = await loadWorker();
+  const d1 = createFakeD1();
+  const now = Date.now();
+  const row = (id, who) => ({ data: JSON.stringify({ id, kind: "meals", from: "2026-10-13", prompt: who, plan: {} }), updated_at: now, deleted: 0 });
+  await handleSync(req({ since: 0, days: {}, account: EMAIL, plans: { pl_mine: row("pl_mine", "mine") } }), d1.env, EMAIL);
+  await handleSync(req({ since: 0, days: {}, account: "wife@example.com", plans: { pl_hers: row("pl_hers", "hers") } }), d1.env, "wife@example.com");
+
+  const mine = await (await handleSync(req({ since: 0, days: {}, account: EMAIL }), d1.env, EMAIL)).json();
+  const hers = await (await handleSync(req({ since: 0, days: {}, account: "wife@example.com" }), d1.env, "wife@example.com")).json();
+  const third = await (await handleSync(req({ since: 0, days: {}, account: "son@example.com" }), d1.env, "son@example.com")).json();
+  assert.deepEqual(Object.keys(mine.plans), ["pl_mine"]);
+  assert.deepEqual(Object.keys(hers.plans), ["pl_hers"]);
+  assert.deepEqual(Object.keys(third.plans), [], "someone who has made no plan still has the built-in one");
+
+  // A push claiming to be someone else is refused outright, as for every table.
+  const forged = await handleSync(req({ since: 0, days: {}, account: "wife@example.com", plans: { pl_x: row("pl_x", "x") } }), d1.env, EMAIL);
+  assert.equal(forged.status, 409);
+});

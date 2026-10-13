@@ -813,6 +813,13 @@ ninth tab, and **the reference's own look**.
   - An AI recipe or session id is `"<version id>:<key>"`, so keys never
     collide across versions, and `data-recipe`/`data-exercise` carry it.
   - The weekly rhythm table is Monday-first now; `EX_WEEK_LABELS` is gone.
+- **A plan is per account, like every other table** (Yawar asked for this
+  explicitly: three people use the dashboard). Plans ride the generic item
+  path, so rows are written under the **verified** Access email and pulled
+  `WHERE user_email = ?1`. A push claiming another account is a 409. The
+  generator stores nothing. A test round-trips three accounts and pins
+  each one seeing only its own plan. Don't make `plans` shared the way
+  `dua_images` is.
 - **Worker: `POST /api/plan/generate`** (`handleGeneratePlan`):
   - It sends `planPrompt()` to `callGemini(..., {json:true})`. That is
     JSON mode (`generationConfig.responseMimeType`), applied **only here**;

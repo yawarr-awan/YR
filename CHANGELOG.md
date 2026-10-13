@@ -13,7 +13,7 @@
 - the weekly rhythm table;
 - the calories counted from ticked meals.
 
-It syncs to your other devices. **Days before today keep the plan they had**, so your calorie history doesn't change when the plan does.
+It's yours alone: each person on the dashboard has their own meal and movement plan, kept under their own sign-in and synced only to their own devices. Someone else changing theirs never changes yours. **Days before today keep the plan they had**, so your calorie history doesn't change when the plan does.
 
 Once an AI plan is in use, its card shows what you asked for and offers **Change it** or **Back to the original**.
 
