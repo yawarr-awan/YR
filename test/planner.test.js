@@ -26,6 +26,9 @@ function task(id, projectId, title, s, e, extra) {
 }
 const P1 = { id: "p1", name: "Website", color: "#a78bfa", order: 0, updated_at: 1, deleted: 0 };
 const P2 = { id: "p2", name: "Ops", color: "#fb7185", order: 1, updated_at: 1, deleted: 0 };
+/** The width of one day on the chart as drawn, read off the chart itself -
+ * a phone (the harness's default 390px) draws a smaller cell than a desktop. */
+const cellOf = (app) => Number(app.document.querySelector("#wfp .gantt-track").getAttribute("data-cell"));
 /** The board as most tests want it: a dependency chain with a milestone in
  * one project, and in the other a weekly task, an overdue one, an undated one
  * and a finished one. */
@@ -215,7 +218,8 @@ test("editing a task writes back to its row, and 100% on a one-off completes it"
   fire(app, $(app, '[data-wfp="dialog-save"]'));
   assert.equal(stored(app, "a2").done, true);
   assert.equal(bars(app, "a2").length, 0);
-  assert.match(app.statusText(), /moved to Archive/);
+  assert.ok($(app, '#wfpArchive [data-task="a2"]'), "it is in the archive, which says so itself");
+  assert.equal(app.statusText(), "", "and no banner announces it - sync carries the change");
 });
 
 test("Set dates on an undated task opens the editor on today and puts it on the timeline", () => {
@@ -233,10 +237,12 @@ test("Set dates on an undated task opens the editor on today and puts it on the 
 /* ---------------- the chart ---------------- */
 
 test("day view: today is two cells wide, and a click maps to the right date either side of it", () => {
-  const app = openPlanner(load());
+  const app = openPlanner(load(null, null, { innerWidth: 1280 }));
   const today = $(app, "#wfp .gantt-day.today");
   assert.equal(today.style.width, "144px");
   assert.equal($(app, "#wfp .gantt-day:not(.today)").style.width, "72px");
+  assert.equal($(app, "#wfp .gantt").style.getPropertyValue("--gantt-label-width"), "252px",
+    "a desktop is exactly as the reference has it");
 
   const track = $(app, '#wfp .gantt-track[data-project="p2"]');
   const ti = Number(track.getAttribute("data-today-index"));
@@ -255,8 +261,23 @@ test("day view: today is two cells wide, and a click maps to the right date eith
   assert.equal($(app, "#wfpDialogProject").value, "p2", "and the row's project is preselected");
 });
 
+test("a phone draws everything a size down: day cells, the name column, and the row's type", () => {
+  const app = openPlanner(load());   // the harness's 390px
+  assert.equal($(app, "#wfp .gantt-day.today").style.width, "108px", "a 54px day, today doubled");
+  assert.equal($(app, "#wfp .gantt-day:not(.today)").style.width, "54px");
+  assert.equal($(app, "#wfp .gantt").style.getPropertyValue("--gantt-label-width"), "156px", "40% of the width");
+  setVal(app, "wfpZoomSelect", "week");
+  assert.equal($(app, "#wfp .gantt-day.today").style.width, "36px");
+  const css = app.document.querySelector("style").textContent;
+  const phone = css.slice(css.lastIndexOf("@media(max-width:560px)"));
+  for (const rule of ["#wfp#wfp .gantt-title{font-size:11.5px}", "#wfp#wfp .gantt-track{height:42px}",
+    "#wfp#wfp .gantt-bar{top:7px;height:28px"]) {
+    assert.ok(phone.includes(rule), "phone-only: " + rule);
+  }
+});
+
 test("week and month views render, and the choice is kept per device, not in the record", () => {
-  const app = openPlanner(load());
+  const app = openPlanner(load(null, null, { innerWidth: 1280 }));
   setVal(app, "wfpZoomSelect", "week");
   assert.equal($(app, "#wfp .gantt-day.today").style.width, "48px");
   setVal(app, "wfpZoomSelect", "month");
@@ -285,37 +306,40 @@ test("milestones are diamonds, and the critical path is the longest dependent ch
 
 test("dragging a bar moves both dates by whole days; the grip moves only the finish", () => {
   const app = openPlanner(load());
+  const c = cellOf(app);
   let bar = bars(app, "b2")[0];
   pointer(app, "pointerdown", bar, 100);
-  pointer(app, "pointermove", bar, 100 + 72 * 3);
-  pointer(app, "pointerup", bar, 100 + 72 * 3);
+  pointer(app, "pointermove", bar, 100 + c * 3);
+  pointer(app, "pointerup", bar, 100 + c * 3);
   assert.equal(stored(app, "b2").start, dayKey(-2));
   assert.equal(stored(app, "b2").end, dayKey(0));
-  assert.match(app.statusText(), /dates moved/);
+  assert.equal(app.statusText(), "", "no \"Task dates moved\" banner - the bar has moved, and sync carries it");
 
   bar = bars(app, "b2")[0];
   const grip = bar.querySelector(".gantt-resize");
   pointer(app, "pointerdown", grip, 300);
-  pointer(app, "pointermove", grip, 300 - 72 * 10);
-  pointer(app, "pointerup", grip, 300 - 72 * 10);
+  pointer(app, "pointermove", grip, 300 - c * 10);
+  pointer(app, "pointerup", grip, 300 - c * 10);
   assert.equal(stored(app, "b2").start, dayKey(-2), "the start never moves on a stretch");
   assert.equal(stored(app, "b2").end, dayKey(-2), "and the finish cannot go before it");
+  assert.equal(app.statusText(), "", "nor a \"Finish date updated\" one");
 });
 
 test("with a finger a bar must be held before it moves - a quick swipe is a scroll", async () => {
   const app = openPlanner(load());
+  const c = cellOf(app);
   let bar = bars(app, "b2")[0];
   pointer(app, "pointerdown", bar, 100, 10, "touch");
-  pointer(app, "pointermove", bar, 100 + 72 * 3, 10, "touch");
-  pointer(app, "pointerup", bar, 100 + 72 * 3, 10, "touch");
+  pointer(app, "pointermove", bar, 100 + c * 3, 10, "touch");
+  pointer(app, "pointerup", bar, 100 + c * 3, 10, "touch");
   assert.equal(stored(app, "b2").start, dayKey(-5), "a swipe across a bar does not move its dates");
 
   bar = bars(app, "b2")[0];
   pointer(app, "pointerdown", bar, 100, 10, "touch");
   await app.wait(450);
   assert.ok(bar.classList.contains("dragging"), "held long enough, it lifts");
-  pointer(app, "pointermove", bar, 100 + 72 * 2, 10, "touch");
-  pointer(app, "pointerup", bar, 100 + 72 * 2, 10, "touch");
+  pointer(app, "pointermove", bar, 100 + c * 2, 10, "touch");
+  pointer(app, "pointerup", bar, 100 + c * 2, 10, "touch");
   assert.equal(stored(app, "b2").start, dayKey(-3));
 });
 
@@ -353,6 +377,85 @@ test("tasks reorder by their handle, including into another project", () => {
   const t = stored(app, "a1");
   assert.equal(t.projectId, "p2", "it moved project");
   assert.equal(t.order, stored(app, "b2").order + 1, "directly after the row it was dropped on");
+});
+
+test("with a finger a project name is held before it drags - a swipe through the chart stays a scroll", async () => {
+  const app = openPlanner(load());
+  let name = $(app, '#wfp .gantt-project-name[data-project="p2"]');
+  const row = () => $(app, '#wfp .gantt-project-row[data-project="p2"]');
+  const down = pointer(app, "pointerdown", name, 40, 100, "touch");
+  assert.equal(down.defaultPrevented, false, "nothing is prevented while this may yet be a scroll");
+  assert.ok(!row().classList.contains("structure-dragging"), "and nothing is grabbed on contact");
+  pointer(app, "pointermove", name, 40, 40, "touch");
+  await app.wait(450);
+  assert.ok(!row().classList.contains("structure-dragging"), "moving first made it a scroll");
+  pointer(app, "pointerup", name, 40, 40, "touch");
+
+  name = $(app, '#wfp .gantt-project-name[data-project="p2"]');
+  pointer(app, "pointerdown", name, 40, 100, "touch");
+  await app.wait(450);
+  assert.ok(row().classList.contains("structure-dragging"), "held still, it lifts");
+  const tm = new app.window.Event("touchmove", { bubbles: true, cancelable: true });
+  name.dispatchEvent(tm);
+  assert.ok(tm.defaultPrevented, "and once lifted, the finger no longer scrolls the chart");
+  pointer(app, "pointercancel", name, 40, 100, "touch");
+
+  const idleMove = new app.window.Event("touchmove", { bubbles: true, cancelable: true });
+  $(app, "#wfp .gantt-scroll").dispatchEvent(idleMove);
+  assert.equal(idleMove.defaultPrevented, false, "with nothing held, a touch scrolls as normal");
+
+  name = $(app, '#wfp .gantt-project-name[data-project="p2"]');
+  pointer(app, "pointerdown", name, 40, 100, "mouse");
+  assert.ok(row().classList.contains("structure-dragging"), "a mouse still grabs at once");
+  pointer(app, "pointercancel", name, 40, 100, "mouse");
+});
+
+test("a gesture the browser cancels puts the bar back by hand - it never redraws under the finger", () => {
+  const app = openPlanner(load());
+  const bar = bars(app, "b2")[0];
+  const left = bar.style.insetInlineStart;
+  pointer(app, "pointerdown", bar, 100);
+  pointer(app, "pointermove", bar, 100 + cellOf(app) * 2);
+  assert.notEqual(bar.style.insetInlineStart, left);
+  pointer(app, "pointercancel", bar, 100 + cellOf(app) * 2);
+  assert.ok(bar.isConnected, "the same element - the chart was not rebuilt");
+  assert.equal(bar.style.insetInlineStart, left, "and it is back where it started");
+  assert.equal(stored(app, "b2").start, dayKey(-5), "with its dates untouched");
+});
+
+test("a change keeps the chart where it was scrolled, on the same day even when the range moves", () => {
+  const app = openPlanner(load());
+  const sc = $(app, "#wfp .gantt-scroll");
+  // jsdom has no layout; give the box a size and offsets that hold what is set.
+  let top = 0, left = 0;
+  Object.defineProperty(sc, "clientWidth", { configurable: true, get: () => 300 });
+  Object.defineProperty(sc, "scrollTop", { configurable: true, get: () => top, set: (v) => { top = v; } });
+  Object.defineProperty(sc, "scrollLeft", { configurable: true, get: () => left, set: (v) => { left = v; } });
+  // ...and, as a browser does, emptying the chart collapses the box to nothing,
+  // which throws both offsets back to 0. That is the bug this is about.
+  const chart = $(app, "#wfpChart");
+  const inner = Object.getOwnPropertyDescriptor(app.window.Element.prototype, "innerHTML");
+  Object.defineProperty(chart, "innerHTML", { configurable: true, get() { return inner.get.call(this); },
+    set(v) { if (v === "") { top = 0; left = 0; } inner.set.call(this, v); } });
+  setVal(app, "wfpSearch", "", "input");   // a draw with a measurable box settles the opening position
+  top = 120; left = 500;
+  sc.dispatchEvent(new app.window.Event("scroll"));
+
+  openTaskMenu(app, "a2");
+  fire(app, menuItem(app, "Mark as milestone"));
+  assert.equal(top, 120, "an edit leaves the chart where it was - not back at the top");
+  assert.equal(left, 500, "nor back at the start");
+
+  // b2 is the earliest task; dragging it three days earlier moves the range's
+  // start with it, so the same day is now three cells further in.
+  const c = cellOf(app);
+  const bar = bars(app, "b2")[0];
+  pointer(app, "pointerdown", bar, 400);
+  pointer(app, "pointermove", bar, 400 - c * 3);
+  pointer(app, "pointerup", bar, 400 - c * 3);
+  assert.equal(stored(app, "b2").start, dayKey(-8));
+  assert.equal(left, 500 + c * 3, "anchored on the day at the left edge, not on a pixel offset");
+  assert.equal(top, 120);
 });
 
 /* ---------------- completion, recurrence, dependencies ---------------- */
@@ -475,7 +578,7 @@ test("deleting a project asks first and takes its tasks with it", () => {
 
 /* ---------------- filters and metrics ---------------- */
 
-test("search, project and status filters combine; a metric card toggles back to All", () => {
+test("search, project and the metric cards combine; a card toggles back to All", () => {
   const app = openPlanner(load());
   setVal(app, "wfpSearch", "approve", "input");
   assert.equal($(app, "#wfpShownCount").textContent, "1 task shown");
@@ -486,11 +589,128 @@ test("search, project and status filters combine; a metric card toggles back to 
 
   const overdue = $(app, '#wfp [data-wfp="set-status"][data-status="overdue"]');
   fire(app, overdue);
-  assert.equal($(app, "#wfpStatusFilter").value, "overdue");
+  assert.equal(overdue.getAttribute("aria-pressed"), "true");
   assert.ok($(app, '#wfp [data-status="overdue"]').classList.contains("wfp-on"));
   assert.deepEqual($$(app, "#wfp .gantt-task-label").map((l) => l.getAttribute("data-task-id")), ["b2"]);
   fire(app, $(app, '#wfp [data-wfp="set-status"][data-status="overdue"]'));
-  assert.equal($(app, "#wfpStatusFilter").value, "all", "pressing the active card again shows everything");
+  assert.equal(overdue.getAttribute("aria-pressed"), "false", "pressing the active card again shows everything");
+  assert.equal($(app, "#wfpShownCount").textContent, "5 tasks shown");
+});
+
+test("the status <select> is gone, and a stored status no card can clear is read back as All", () => {
+  const app = openPlanner(loadApp({ fetchImpl: idle, localStorageSeed: seed(null, null,
+    { yawarPlannerView: JSON.stringify({ status: "critical" }) }) }));
+  assert.equal($(app, "#wfpStatusFilter"), null);
+  assert.equal($(app, "#wfpShownCount").textContent, "5 tasks shown",
+    "\"critical\" was only reachable from the old select - honouring it would hide tasks with no way back");
+});
+
+/* ---------------- YR and EY ---------------- */
+
+const P3 = { id: "p3", name: "EY", color: "#34d399", order: 2, updated_at: 1, deleted: 0 };
+/** Website is personal by default; Ops has been set to work; and a project
+ * named "EY" - as the real board had before categories existed - is work
+ * without ever having been told. */
+function categorised() {
+  const projects = [P1, Object.assign({}, P2, { category: "EY" }), P3];
+  const tasks = standardTasks().concat([
+    task("e1", "p3", "Submit expenses", 1, 3),
+    task("e2", "p3", "Expense backlog", null, null),
+    task("y9", "p1", "Personal undated", null, null),
+  ]);
+  return { tasks, projects };
+}
+const shownTasks = (app) => $$(app, "#wfp .gantt-task-label").map((l) => l.getAttribute("data-task-id"));
+const shownProjects = (app) => $$(app, "#wfp .gantt-project-row").map((r) => r.getAttribute("data-project"));
+const cat = (app, c) => $(app, `#wfp [data-wfp="category"][data-cat="${c}"]`);
+
+test("YR and EY narrow the whole planner to that category, one at a time", () => {
+  const { tasks, projects } = categorised();
+  const app = openPlanner(load(tasks, projects));
+  assert.deepEqual(shownProjects(app), ["p1", "p2", "p3"], "with neither lit, everything");
+  assert.equal(cat(app, "YR").textContent, "YR");
+  assert.equal(cat(app, "EY").textContent, "EY");
+
+  fire(app, cat(app, "EY"));
+  assert.equal(cat(app, "EY").getAttribute("aria-pressed"), "true");
+  assert.deepEqual(shownProjects(app), ["p2", "p3"], "an explicit EY and a project named EY");
+  assert.deepEqual(shownTasks(app).sort(), ["b1", "b2", "e1"]);
+  assert.equal($(app, "#wfpTotal").textContent, "3", "the metric cards count only EY");
+  assert.deepEqual($$(app, "#wfpUndated [data-task]").map((r) => r.getAttribute("data-task")).sort(), ["b4", "e2"],
+    "the undated list follows it");
+  assert.ok($(app, '#wfpArchive [data-task="b5"]'), "and the archive");
+  assert.deepEqual([...$(app, "#wfpProjectFilter").options].map((o) => o.value), ["all", "p2", "p3"],
+    "the project dropdown offers only EY's projects");
+
+  fire(app, cat(app, "YR"));
+  assert.equal(cat(app, "EY").getAttribute("aria-pressed"), "false", "the other one switches rather than adding");
+  assert.equal(cat(app, "YR").getAttribute("aria-pressed"), "true");
+  assert.deepEqual(shownProjects(app), ["p1"]);
+  assert.deepEqual($$(app, "#wfpUndated [data-task]").map((r) => r.getAttribute("data-task")), ["y9"]);
+  assert.equal($(app, '#wfpArchive [data-task="b5"]'), null);
+
+  fire(app, cat(app, "YR"));
+  assert.deepEqual(shownProjects(app), ["p1", "p2", "p3"], "pressing the lit one again shows both");
+});
+
+test("the category choice is per device; the category itself rides the synced project row", () => {
+  const { tasks, projects } = categorised();
+  const app = openPlanner(load(tasks, projects));
+  fire(app, cat(app, "EY"));
+  assert.equal(JSON.parse(app.window.localStorage.getItem("yawarPlannerView")).category, "EY");
+  assert.doesNotMatch(app.rawMain(), /yawarPlannerView/);
+  assert.equal(app.state().projects.p3.category, undefined,
+    "a project named EY is work without its row being rewritten - nothing restamped, nothing pushed");
+
+  const again = openPlanner(loadApp({ fetchImpl: idle, localStorageSeed: Object.assign(seed(tasks, projects),
+    { yawarPlannerView: app.window.localStorage.getItem("yawarPlannerView") }) }));
+  assert.deepEqual(shownProjects(again), ["p2", "p3"], "and it reopens on EY");
+});
+
+test("a project's ⋯ menu moves it between Personal and Work, stamping the row so it syncs", () => {
+  const { tasks, projects } = categorised();
+  const app = openPlanner(load(tasks, projects));
+  openProjectMenu(app, "p1");
+  fire(app, menuItem(app, "Move to Work (EY)"));
+  const p = app.state().projects.p1;
+  assert.equal(p.category, "EY");
+  assert.ok(p.updated_at > 1);
+  fire(app, cat(app, "EY"));
+  assert.ok(shownProjects(app).includes("p1"));
+  openProjectMenu(app, "p3");
+  fire(app, menuItem(app, "Move to Personal (YR)"));
+  assert.equal(app.state().projects.p3.category, "YR", "an explicit choice outranks the name");
+  assert.ok(!shownProjects(app).includes("p3"));
+});
+
+test("a new project asks Personal (YR) or Work (EY), starting on the category in view", () => {
+  const { tasks, projects } = categorised();
+  const app = openPlanner(load(tasks, projects));
+  fire(app, $(app, '#wfp [data-wfp="add-task"]'));
+  assert.equal($(app, "#wfpDialogCategory").hidden, true, "an existing project already has its category");
+  setVal(app, "wfpDialogProject", "__new__");
+  assert.equal($(app, "#wfpDialogCategory").hidden, false);
+  assert.equal($(app, '#wfpDialogCategory [data-cat="YR"]').getAttribute("aria-checked"), "true", "personal by default");
+  fire(app, $(app, '#wfpDialog [data-wfp="dialog-close"]'));
+
+  fire(app, cat(app, "YR"));
+  fire(app, $(app, '#wfp [data-wfp="new-project"]'));
+  assert.equal($(app, "#wfpDialogCategory").hidden, false);
+  fire(app, $(app, '#wfpDialogCategory [data-cat="EY"]'));
+  assert.equal($(app, '#wfpDialogCategory [data-cat="EY"]').getAttribute("aria-checked"), "true");
+  assert.equal($(app, '#wfpDialogCategory [data-cat="YR"]').getAttribute("aria-checked"), "false");
+  $(app, "#wfpDialogNewProject").value = "Audit";
+  $(app, "#wfpDialogName").value = "Plan fieldwork";
+  fire(app, $(app, '[data-wfp="dialog-save"]'));
+  const p = Object.values(app.state().projects).find((x) => x.name === "Audit");
+  assert.equal(p.category, "EY", "stored on the row");
+  assert.equal(cat(app, "EY").getAttribute("aria-pressed"), "true",
+    "saved into the category not on screen, the view follows it rather than hiding the new task");
+  assert.ok(shownProjects(app).includes(p.id));
+
+  fire(app, $(app, '#wfp [data-wfp="new-project"]'));
+  assert.equal($(app, '#wfpDialogCategory [data-cat="EY"]').getAttribute("aria-checked"), "true",
+    "looking at EY, a new project starts as work");
 });
 
 test("the 3-day and 7-day rings count occurrences, finished ones included", () => {
@@ -522,15 +742,19 @@ test("at risk counts blocked work and nearly-due slow work, as a share of what i
 
 /* ---------------- focus, theme, isolation, persistence ---------------- */
 
-test("Focus is the app's full screen, and is never persisted", () => {
+test("there is no Focus button of its own: the app's full-screen button does that job", () => {
   const app = openPlanner(load());
-  fire(app, $(app, '#wfp [data-wfp="focus"]'));
+  assert.equal($(app, '#wfp [data-wfp="focus"]'), null);
+  assert.equal($(app, "#wfpFocusBtn"), null);
+  app.click("fullBtn");
   assert.ok(app.document.body.classList.contains("tasks-full"));
-  assert.equal($(app, "#wfpFocusBtn").textContent, "Exit focus");
-  fire(app, $(app, '#wfp [data-wfp="focus"]'));
+  const css = app.document.querySelector("style").textContent;
+  assert.ok(css.includes("body.tasks-full #wfp#wfp .workflow-stats{display:none!important}"),
+    "full screen still hides the metric cards, as Focus did");
+  app.click("fullBtn");
   assert.ok(!app.document.body.classList.contains("tasks-full"));
   const keys = Object.keys(app.window.localStorage);
-  assert.ok(!keys.some((k) => /focus/i.test(k)), keys.join(","));
+  assert.ok(!keys.some((k) => /focus|full/i.test(k)), keys.join(","));
 });
 
 test("the planner's palette follows the app's own light/dark switch", () => {
@@ -624,5 +848,5 @@ test("with storage writes blocked the planner still draws and its actions do not
   fire(app, menuItem(app, "Mark complete"));
   assert.equal(bars(app, "b2").length, 0, "the change applies on screen even though it could not be saved");
   setVal(app, "wfpZoomSelect", "week");
-  assert.equal($(app, "#wfp .gantt-day.today").style.width, "48px");
+  assert.equal($(app, "#wfp .gantt-day.today").style.width, "36px");
 });

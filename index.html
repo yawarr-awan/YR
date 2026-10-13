@@ -1319,14 +1319,37 @@ body.wfp-dialog-open{overflow:hidden}
   #wfp .workflow-card-actions{justify-content:flex-start;width:100%}
   #wfp .workflow-dialog-grid{grid-template-columns:1fr}
   #wfp .workflow-dialog-grid .wfp-full{grid-column:auto}
-  #wfp .gantt-scroll{height:calc(100vh - 170px);max-height:calc(100vh - 170px);min-height:300px}
 }
 /* -- Departures from the reference, each for a reason the reference did not have -- */
 #wfp .wfp-side-card{margin-top:16px}
-/* Focus hides what the reference hid: the metric cards and the lists under
-   the chart. The reference found the archive as the last card; here the
-   dialog follows it, so the lists are named instead. */
+/* Full screen hides what the reference's Focus hid: the metric cards and the
+   lists under the chart. (The planner's own Focus button is gone - the app's
+   full-screen button already did the same thing.) The reference found the
+   archive as the last card; here the dialog follows it, so the lists are
+   named instead. */
 body.tasks-full #wfp#wfp .wfp-side-card{display:none!important}
+/* YR / EY. A segmented pair where the reference had its status <select>;
+   the lit one carries the planner's accent, the same as a selected card. */
+#wfp .wfp-cats{display:inline-flex;gap:3px;padding:3px;flex:0 0 auto;border:1px solid var(--line);
+  border-radius:10px;background:rgba(8,12,21,.46)}
+div#wfp.wfp-light .wfp-cats{background:rgba(255,255,255,.8)}
+#wfp .wfp-cat{min-width:38px;padding:5px 9px;border:0;border-radius:7px;background:transparent;color:var(--muted);
+  font:800 11px/1.2 var(--font);letter-spacing:.06em;cursor:pointer;transition:background .15s,color .15s,box-shadow .15s}
+#wfp .wfp-cat:hover{color:var(--txt)}
+#wfp .wfp-cat.wfp-on{color:#fff;background:linear-gradient(135deg,var(--workflow-accent),color-mix(in srgb,var(--workflow-accent) 55%,var(--blue)));
+  box-shadow:0 4px 14px color-mix(in srgb,var(--workflow-accent) 38%,transparent)}
+#wfp .wfp-cat:focus-visible{outline:2px solid var(--workflow-accent);outline-offset:1px}
+#wfp .wfp-cat-pick{display:flex;gap:6px;margin-top:8px}
+#wfp .wfp-cat-pick .wfp-cat{flex:1;padding:9px 10px;border:1px solid var(--line);letter-spacing:.02em;font-size:12px}
+#wfp .wfp-cat-pick .wfp-cat.wfp-on{border-color:transparent}
+/* Touch: when the chart has scrolled as far as it goes, the next swipe moves
+   the page. It used to be contained, which on a phone - where the chart is
+   most of the screen - left nowhere to swipe that would reach what lies below
+   it. Sideways stays contained: running off the end of the timeline must not
+   turn into a back-navigation swipe. */
+@media (max-width:560px),(pointer:coarse){
+  #wfp .gantt-scroll{overscroll-behavior-x:contain;overscroll-behavior-y:auto}
+}
 /* With a finger a bar must be held before it moves. The chart is a long
    sideways scroll, and with the reference's touch-action:none every swipe
    that began on a bar dragged it - moving that task's dates. pan-y keeps
@@ -1358,6 +1381,39 @@ body.tasks-full #wfp#wfp .wfp-side-card{display:none!important}
   #wfp#wfp .workflow-stats .workflow-progress-copy b{font-size:17px}
   #wfp#wfp .workflow-stats .workflow-progress-copy>span{margin-top:2px}
   #wfp#wfp .workflow-stats .workflow-progress-copy small{display:none}
+  /* The chart fills what is left between the sticky header and the bottom bar
+     once it has been scrolled to the top - measured into --hdr-h/--tabs-h,
+     since both change with the text scale and both are 0 in full screen. dvh
+     where there is one: 100vh on a phone is the height with the address bar
+     hidden, and the extra put the chart's last rows behind the bottom bar. */
+  #wfp#wfp .gantt-scroll{height:calc(100vh - var(--hdr-h,64px) - var(--tabs-h,64px) - 20px);
+    height:calc(100dvh - var(--hdr-h,64px) - var(--tabs-h,64px) - 20px);max-height:none;min-height:280px}
+  /* A size down on a phone, asked for once the 45% column had been lived with:
+     the list's type, the rows, the bars and the day cells (wfpCell) alike. The
+     desktop is untouched. */
+  #wfp#wfp .gantt-head .gantt-label{font-size:9.5px;letter-spacing:.05em}
+  #wfp#wfp .gantt-day{height:44px;font-size:9px}
+  #wfp#wfp .gantt-day b{font-size:10px}
+  #wfp#wfp .gantt-project-row .gantt-label{min-height:34px;padding-block:4px;padding-inline:8px 2px}
+  /* The project row's own "+" goes: in a 40% column it left the name two
+     letters wide. "Add task", and a tap on the row's empty track - which
+     preselects this project - both still do what it did. */
+  #wfp#wfp .gantt-project-actions .project-add-btn{display:none}
+  #wfp#wfp .gantt-project-track{height:34px}
+  #wfp#wfp .gantt-project-name{font-size:11.5px;gap:6px}
+  #wfp#wfp .gantt-project-dot{width:8px;height:8px}
+  #wfp#wfp .gantt-project-progress{min-width:24px;font-size:9.5px}
+  #wfp#wfp .project-add-btn{width:24px;height:24px;font-size:17px}
+  #wfp#wfp .gantt-task-label{min-height:42px;padding-block:5px;padding-inline:8px 2px}
+  #wfp#wfp .gantt-label-main{gap:4px}
+  #wfp#wfp .gantt-track{height:42px}
+  #wfp#wfp .gantt-title{font-size:11.5px}
+  #wfp#wfp .gantt-sub{font-size:9px;margin-top:1px}
+  #wfp#wfp .gantt-task-drag-handle{width:16px;flex-basis:16px;height:26px;font-size:11px}
+  #wfp#wfp .gantt-label .more-btn{font-size:18px;padding:0 4px 3px}
+  #wfp#wfp .gantt-bar{top:7px;height:28px;border-radius:9px}
+  #wfp#wfp .gantt-bar-text{margin:2px 12px 2px 3px;padding:2px 6px;font-size:10.5px;line-height:16px}
+  #wfp#wfp .gantt-milestone{top:13px;width:16px;height:16px}
 }
 </style>
 </head>
@@ -1736,20 +1792,12 @@ body.tasks-full #wfp#wfp .wfp-side-card{display:none!important}
           <div class="workflow-header-controls" role="search" aria-label="Timeline search and filters">
             <input class="workflow-header-search" id="wfpSearch" placeholder="Search" aria-label="Search workflow tasks or projects">
             <select class="workflow-header-select" id="wfpProjectFilter" aria-label="Filter by project"></select>
-            <select class="workflow-header-select" id="wfpStatusFilter" aria-label="Filter by status">
-              <option value="all">All statuses</option>
-              <option value="open">Open</option>
-              <option value="in-progress">In progress</option>
-              <option value="today-progress">Due today / next 2 days</option>
-              <option value="due-today">Due today</option>
-              <option value="due-soon">Due in 7 days</option>
-              <option value="below-average">Below average progress</option>
-              <option value="overdue">Overdue</option>
-              <option value="at-risk">At risk / blocked</option>
-              <option value="critical">Critical path</option>
-              <option value="milestone">Milestones</option>
-              <option value="completed">Completed</option>
-            </select>
+            <!-- Two broad categories, a property of the project: YR is personal,
+                 EY is work. One at a time; pressing the lit one again shows both. -->
+            <div class="wfp-cats" role="group" aria-label="Filter by category">
+              <button type="button" class="wfp-cat" data-wfp="category" data-cat="YR" aria-pressed="false" title="Personal projects only">YR</button>
+              <button type="button" class="wfp-cat" data-wfp="category" data-cat="EY" aria-pressed="false" title="Work projects only">EY</button>
+            </div>
             <select class="workflow-header-select workflow-view-select" id="wfpZoomSelect" aria-label="Timeline view">
               <option value="day">Day view</option>
               <option value="week">Week view</option>
@@ -1759,7 +1807,6 @@ body.tasks-full #wfp#wfp .wfp-side-card{display:none!important}
           </div>
           <div class="workflow-card-actions">
             <div class="workflow-actions" aria-label="Workflow actions">
-              <button type="button" class="wfp-btn workflow-secondary wfp-sm" id="wfpFocusBtn" data-wfp="focus">⛶ Focus</button>
               <button type="button" class="wfp-btn workflow-secondary wfp-sm" data-wfp="new-project">＋ New project</button>
               <button type="button" class="wfp-btn workflow-primary wfp-sm" data-wfp="add-task">▣ Add task</button>
             </div>
@@ -1793,6 +1840,10 @@ body.tasks-full #wfp#wfp .wfp-side-card{display:none!important}
               <div class="wfp-field"><span id="wfpDialogProjectLabel">Project</span>
                 <select aria-labelledby="wfpDialogProjectLabel" class="wfp-input" id="wfpDialogProject"></select>
                 <input aria-label="New project name" class="wfp-input wfp-new-project" hidden id="wfpDialogNewProject" maxlength="80" placeholder="New project name">
+                <div class="wfp-cat-pick" id="wfpDialogCategory" role="radiogroup" aria-label="New project is" hidden>
+                  <button type="button" class="wfp-cat" role="radio" data-wfp="dialog-category" data-cat="YR" aria-checked="true">Personal · YR</button>
+                  <button type="button" class="wfp-cat" role="radio" data-wfp="dialog-category" data-cat="EY" aria-checked="false">Work · EY</button>
+                </div>
               </div>
               <label class="wfp-field"><span>Recurrence</span>
                 <select class="wfp-input" id="wfpDialogRecurrence">
@@ -7660,6 +7711,12 @@ var WFP_VIEW_KEY="yawarPlannerView";
 var WFP_ZOOMS=["day","week","month"];
 var WFP_STATUSES=["all","open","in-progress","today-progress","due-today","due-soon",
   "below-average","overdue","at-risk","critical","milestone","completed"];
+/* The ones the metric cards set. The reference's status <select> could set
+   the rest; it gave way to the YR/EY buttons, so a stored status no card can
+   clear any more is read back as "all" rather than hiding tasks for good. */
+var WFP_CARD_STATUSES=["all","today-progress","due-soon","at-risk","below-average","overdue"];
+/* Two broad categories of project: YR is personal, EY is work. */
+var WFP_CATS=["YR","EY"];
 var WFP_PALETTE=["#4F8CFF","#7C5CFC","#B05CFF","#E85AAD","#FF5D73","#FF8A4C",
   "#F6C344","#70C85C","#23C58B","#23BFC7","#3AA7E8","#7C8AA5"];
 /* Circumference of the metric rings (r=26), matching their stroke-dasharray. */
@@ -7676,7 +7733,8 @@ function wfpLoadView(){
     labelWidth:Number(v.labelWidth)>0?Number(v.labelWidth):null,   /* null = automatic */
     search:typeof v.search==="string"?v.search:"",
     project:typeof v.project==="string"?v.project:"all",
-    status:WFP_STATUSES.indexOf(v.status)>=0?v.status:"all"
+    status:WFP_CARD_STATUSES.indexOf(v.status)>=0?v.status:"all",
+    category:WFP_CATS.indexOf(v.category)>=0?v.category:"all"
   };
 }
 var _wfp=wfpLoadView();
@@ -7686,12 +7744,21 @@ function wfpSaveView(){try{localStorage.setItem(WFP_VIEW_KEY,JSON.stringify(_wfp
    column - and its resizer would not go below 240. The package asks for
    responsive behaviour on mobile, so narrow screens get a column of 45% of
    the width (and a resizer range to match); a desktop is exactly as the
-   reference has it. The stored width is per device, so the two never mix. */
+   reference has it. The stored width is per device, so the two never mix.
+   (40% since 1.49.0, with the rows' type and the day cells a size down on a
+   phone too - asked for after living with 45%.) */
 var WFP_NARROW=560;
+function wfpNarrow(){return (window.innerWidth||1024)<=WFP_NARROW;}
 function wfpLabelRange(){
   var vw=window.innerWidth||1024;
-  return vw<=WFP_NARROW?{min:150,max:Math.round(vw*0.7),auto:Math.max(150,Math.round(vw*0.45))}
-                       :{min:240,max:560,auto:252};
+  return wfpNarrow()?{min:130,max:Math.round(vw*0.7),auto:Math.max(130,Math.round(vw*0.4))}
+                    :{min:240,max:560,auto:252};
+}
+/** A day's width at this zoom. A phone gets three quarters of the reference's,
+ * so a week of day view fits beside the names. */
+function wfpCell(zoom){
+  var c=WFP_ZOOM_CFG[zoom].cell;
+  return wfpNarrow()?Math.max(6,Math.round(c*0.75)):c;
 }
 function wfpLabelWidth(){
   var r=wfpLabelRange(),w=_wfp.labelWidth;
@@ -7749,6 +7816,20 @@ function wfpDeps(t){
 function wfpProject(id){var p=itemStore("projects")[id];return p&&!p.deleted?p:null;}
 function wfpTask(id){var t=itemStore("tasks")[id];return t&&!t.deleted?t:null;}
 function wfpProjectName(id){var p=wfpProject(id);return p?p.name:"";}
+/** A project's category: what is stored on the row once one has been chosen.
+ * Before that, a project named after a category belongs to it - the board
+ * already had projects called "EY" and "YR" before categories existed - and
+ * anything else reads as personal, since EY (work) is the one thing this
+ * split exists to separate out. Derived rather than written, so no row is
+ * restamped and pushed just because the app learned a new field. */
+function wfpCategoryOf(p){
+  if(!p)return "YR";
+  if(WFP_CATS.indexOf(p.category)>=0)return p.category;
+  return String(p.name||"").trim().toUpperCase()==="EY"?"EY":"YR";
+}
+function wfpInCategory(projectId){
+  return _wfp.category==="all"||wfpCategoryOf(wfpProject(projectId))===_wfp.category;
+}
 /** The reference's active store: every open, dated task whose project is
  * live. Done tasks are its archive; undated ones are listed beside it. */
 function wfpActiveTasks(includeArchived){
@@ -7903,7 +7984,7 @@ function wfpFilter(tasks,critical){
   });
 }
 function wfpInitFilters(projects){
-  var search=wfpEl("wfpSearch"),proj=wfpEl("wfpProjectFilter"),status=wfpEl("wfpStatusFilter");
+  var search=wfpEl("wfpSearch"),proj=wfpEl("wfpProjectFilter");
   if(search&&search.value!==_wfp.search&&document.activeElement!==search)search.value=_wfp.search;
   if(proj){
     proj.innerHTML="";
@@ -7912,7 +7993,10 @@ function wfpInitFilters(projects){
     if(_wfp.project!=="all"&&!projects.some(function(p){return p.id===_wfp.project;}))_wfp.project="all";
     proj.value=_wfp.project;
   }
-  if(status)status.value=_wfp.status;
+  Array.prototype.forEach.call(document.querySelectorAll("#wfp [data-wfp='category']"),function(b){
+    var on=b.getAttribute("data-cat")===_wfp.category;
+    b.classList.toggle("wfp-on",on);b.setAttribute("aria-pressed",String(on));
+  });
   var zoom=wfpEl("wfpZoomSelect");
   if(zoom)zoom.value=_wfp.zoom;
 }
@@ -7935,7 +8019,9 @@ function renderPlanner(){
   var host=wfpEl("wfp");
   if(!host||!wfpVisible())return;
   wfpSyncTone();
-  var all=wfpOrdered(wfpActiveTasks(true));
+  /* The category narrows everything below it - cards, chart, undated list
+     and archive alike - so EY on its own reads as a planner of its own. */
+  var all=wfpOrdered(wfpActiveTasks(true)).filter(function(t){return wfpInCategory(t.projectId);});
   var tasks=all.filter(function(t){return !wfpProject(t.projectId).archived;});
   var critical=wfpCriticalIds(tasks);
   var projects=projectList().filter(function(p){
@@ -7952,7 +8038,7 @@ function renderPlanner(){
      reference's archive did, and a ring that dropped every task the moment
      it was finished would only ever read 0%. */
   var finished=liveItems("tasks").filter(function(t){
-    return t.done&&wfpRec(t)==="none"&&taskHasSpan(t)&&wfpProject(t.projectId);
+    return t.done&&wfpRec(t)==="none"&&taskHasSpan(t)&&wfpProject(t.projectId)&&wfpInCategory(t.projectId);
   });
   var metric=tasks.concat(finished);
   var week=[],focus=[];
@@ -7985,16 +8071,28 @@ function renderPlanner(){
     var on=b.getAttribute("data-status")===_wfp.status;
     b.classList.toggle("wfp-on",on);b.setAttribute("aria-pressed",String(on));
   });
-  var fb=wfpEl("wfpFocusBtn");
-  if(fb)fb.textContent=_tasksFull?"Exit focus":"⛶ Focus";
   wfpRenderGantt(visible,critical);
   wfpRenderUndated();
   wfpRenderArchive(all);
 }
 
+/* What the chart was last drawn from, and where it was last scrolled to, so
+   the next draw can put the view back on the same day - see wfpRenderGantt. */
+var _wfpDrawn=null,_wfpView=null;
 function wfpRenderGantt(tasks,critical){
   var wrap=wfpEl("wfpChart");
   if(!wrap)return;
+  /* Every change redraws the chart, and emptying it collapses the scroll box
+     to nothing - which is what threw a phone back to the top-left corner after
+     every edit. The view is restored afterwards, anchored on the day at its
+     left edge rather than on a pixel offset: moving the earliest task moves
+     where the range starts, and a pixel offset would then land on another day. */
+  var sc=wrap.closest(".gantt-scroll");
+  /* Read from the last scroll event rather than the box: a box that has been
+     display:none (another tab, the Timeline) has forgotten its offsets. */
+  var at=_wfpView||(sc?{top:sc.scrollTop,left:sc.scrollLeft}:null);
+  var keep=sc&&_wfpDrawn&&at?{top:at.top,left:at.left,start:_wfpDrawn.start,cell:_wfpDrawn.cell,
+    across:_wfpJumped}:null;
   wrap.innerHTML="";
   var range=wfpEl("wfpRange");
   if(!tasks.length){
@@ -8002,7 +8100,7 @@ function wfpRenderGantt(tasks,critical){
     if(range)range.textContent="";
     return;
   }
-  var zoom=_wfp.zoom,cfg=WFP_ZOOM_CFG[zoom],cell=cfg.cell,today=todayKey();
+  var zoom=_wfp.zoom,cfg=WFP_ZOOM_CFG[zoom],cell=wfpCell(zoom),today=todayKey();
   var rangeStart=today,rangeEnd=shiftDay(today,cfg.minDays);
   tasks.forEach(function(t){
     var s=taskStart(t),e=taskEnd(t),rec=wfpRec(t);
@@ -8138,7 +8236,9 @@ function wfpRenderGantt(tasks,critical){
           var ei=Math.max(0,wfpDaysBetween(rangeStart,o.end));
           if(ei>=days)return;
           var dia=el("div","gantt-milestone"+mods);
-          dia.style.insetInlineStart=(dayOffset(ei)+Math.max(0,(dayWidth(ei)-20)/2))+"px";
+          var msW=20;   /* the diamond's box - 16px on a phone, see the CSS */
+          if(wfpNarrow())msW=16;
+          dia.style.insetInlineStart=(dayOffset(ei)+Math.max(0,(dayWidth(ei)-msW)/2))+"px";
           dia.style.setProperty("--project-color",colour.solid);dia.style.backgroundColor=colour.solid;
           dia.style.borderColor=late?"var(--red)":atRisk?"var(--amber)":colour.solid;
           dia.setAttribute("data-id",t.id);dia.setAttribute("data-cell",String(cell));dia.setAttribute("data-occurrence",o.start);
@@ -8170,6 +8270,14 @@ function wfpRenderGantt(tasks,critical){
     });
   });
   wrap.appendChild(chart);
+  _wfpDrawn={start:rangeStart,cell:cell};
+  if(keep){
+    sc.scrollTop=keep.top;
+    /* Sideways, shift by however many days the range start moved. A new zoom
+       has no day-for-day answer - wfpSetZoom clears _wfpJumped and the jump
+       to today below places it instead. */
+    if(keep.across&&keep.cell===cell)sc.scrollLeft=Math.max(0,keep.left+wfpDaysBetween(rangeStart,keep.start)*cell);
+  }
   wfpJumpToToday();
 }
 /** The chart opens at the start of its range, as the reference does - which
@@ -8202,7 +8310,7 @@ function wfpRenderUndated(){
   box.innerHTML="";
   var undated=wfpOrdered(liveItems("tasks").filter(function(t){
     var p=wfpProject(t.projectId);
-    return p&&!p.archived&&!t.done&&!taskHasSpan(t);
+    return p&&!p.archived&&!t.done&&!taskHasSpan(t)&&wfpInCategory(p.id);
   }));
   var c=wfpEl("wfpUndatedCount");if(c)c.textContent=String(undated.length);
   if(!undated.length){box.appendChild(el("div","wfp-empty","Every open task has dates."));return;}
@@ -8221,11 +8329,11 @@ function wfpRenderArchive(all){
   var wrap=wfpEl("wfpArchive");
   if(!wrap)return;
   wrap.innerHTML="";
-  var done=liveItems("tasks").filter(function(t){return t.done&&wfpProject(t.projectId);})
+  var done=liveItems("tasks").filter(function(t){return t.done&&wfpProject(t.projectId)&&wfpInCategory(t.projectId);})
     .sort(function(a,b){
       return String(b.completedAt||"").localeCompare(String(a.completedAt||""))||((b.updated_at||0)-(a.updated_at||0));
     });
-  var archivedProjects=projectList().filter(function(p){return p.archived;});
+  var archivedProjects=projectList().filter(function(p){return p.archived&&wfpInCategory(p.id);});
   var c=wfpEl("wfpArchiveCount");if(c)c.textContent=String(done.length+archivedProjects.length);
   if(!done.length&&!archivedProjects.length){
     wrap.appendChild(el("div","wfp-empty","No archived tasks or projects."));
@@ -8318,10 +8426,12 @@ function wfpOpenTaskMenu(button,id){
   wfpItem(m,"Delete task","delete",d,"wfp-danger");
   wfpPositionMenu(button,m,"task:"+id);
 }
+/** The projects the chart is drawing - so "Move up" swaps with the row you
+ * can see above, not one the category filter is hiding. */
 function wfpVisibleProjects(){
   var tasks=wfpActiveTasks(false);
   return projectList().filter(function(p){
-    return !p.archived&&tasks.some(function(t){return t.projectId===p.id;});
+    return !p.archived&&wfpInCategory(p.id)&&tasks.some(function(t){return t.projectId===p.id;});
   });
 }
 function wfpOpenProjectMenu(button,pid){
@@ -8332,6 +8442,8 @@ function wfpOpenProjectMenu(button,pid){
   m.appendChild(el("div","wfp-menu-sep"));
   wfpItem(m,"Project colour…","colour-menu",d);
   wfpItem(m,"Rename project…","rename-project",d);
+  var other=wfpCategoryOf(p)==="EY"?"YR":"EY";
+  wfpItem(m,other==="EY"?"Move to Work (EY)":"Move to Personal (YR)","set-category",{project:pid,cat:other});
   wfpItem(m,"Mark all tasks complete","project-complete",d);
   wfpItem(m,"Repeat all weekly","project-weekly",d);
   wfpItem(m,"Repeat all monthly","project-monthly",d);
@@ -8404,14 +8516,29 @@ function wfpSetProjectOptions(currentId,newProject){
      new one - an empty select with "+ New project" the only option. */
   sel.value=newProject||!list.length?"__new__":(currentId&&list.some(function(p){return p.id===currentId;})?currentId:list[0].id);
   wfpEl("wfpDialogNewProject").value="";
+  /* A new project starts in the category on screen - adding one while looking
+     at EY means a work project - and in personal otherwise. */
+  wfpPickDialogCategory(_wfp.category==="all"?"YR":_wfp.category);
   wfpToggleNewProject();
 }
 function wfpToggleNewProject(){
-  var sel=wfpEl("wfpDialogProject"),input=wfpEl("wfpDialogNewProject");
+  var sel=wfpEl("wfpDialogProject"),input=wfpEl("wfpDialogNewProject"),cat=wfpEl("wfpDialogCategory");
   if(!sel||!input)return;
   var isNew=sel.value==="__new__";
   input.hidden=!isNew;
+  if(cat)cat.hidden=!isNew;
   if(isNew&&wfpDialogOpen())wfpNextFrame(function(){input.focus();});
+}
+function wfpDialogCategory(){
+  var on=document.querySelector("#wfpDialogCategory [aria-checked='true']");
+  var c=on&&on.getAttribute("data-cat");
+  return WFP_CATS.indexOf(c)>=0?c:"YR";
+}
+function wfpPickDialogCategory(cat){
+  Array.prototype.forEach.call(document.querySelectorAll("#wfpDialogCategory [data-cat]"),function(b){
+    var on=b.getAttribute("data-cat")===cat;
+    b.setAttribute("aria-checked",String(on));b.classList.toggle("wfp-on",on);
+  });
 }
 function wfpRenderDialogDeps(taskId,selected){
   var box=wfpEl("wfpDialogDependencies");
@@ -8529,7 +8656,11 @@ function wfpSaveDialog(){
   if(!newName&&!wfpProject(projectId)){flash("That project no longer exists - choose another.","warn");return;}
   /* Only now that everything validates: a refused save must not leave an
      empty project behind on the board. */
-  if(newName)projectId=addProject(newName);
+  if(newName){
+    projectId=addProject(newName);
+    itemStore("projects")[projectId].category=wfpDialogCategory();
+    touchItem(itemStore("projects")[projectId]);
+  }
   if(creating)t=itemStore("tasks")[addTask(projectId,name)];
   else{
     if(t.projectId!==projectId)moveTaskTo(t.id,projectId);
@@ -8537,9 +8668,8 @@ function wfpSaveDialog(){
   }
   t.progress=progress;t.recurrence=recurrence;t.milestone=wfpEl("wfpDialogMilestone").checked;
   t.dependencies=deps;
-  var archived=false;
   if(recurrence==="none"){
-    if(progress>=100){t.done=true;t.completedAt=t.completedAt||new Date().toISOString();archived=true;}
+    if(progress>=100){t.done=true;t.completedAt=t.completedAt||new Date().toISOString();}
     else t.completedAt="";
   }else{
     t.seriesId=t.seriesId||t.id;
@@ -8547,9 +8677,14 @@ function wfpSaveDialog(){
     else t.completedAt="";
   }
   setTaskSpan(t,start,end);   /* stamps and saves, and keeps `due` inside the span */
+  /* Saved into the category that is not on screen: follow it there, rather
+     than have the task vanish the moment it is made. */
+  if(!wfpInCategory(projectId)){_wfp.category=wfpCategoryOf(wfpProject(projectId));wfpSaveView();}
   wfpCloseDialog();
+  /* No "saved" banner, here or anywhere else in the planner: the change is on
+     the chart, sync carries it, and the banner sat above the page and shoved
+     everything down by its own height while it showed. Warnings still speak. */
   renderTaskViews();
-  flash(archived?"Task completed and moved to Archive ✓":(creating?"Workflow task added ✓":"Workflow task saved ✓"),"good");
 }
 function wfpDialogComplete(){
   var t=wfpTask(_wfpDlg.id);if(!t)return;
@@ -8564,31 +8699,31 @@ function wfpDialogComplete(){
 }
 
 /* ---- task actions ---- */
-function wfpCommit(t,msg){touchItem(t);renderTaskViews();if(msg)flash(msg,"good");}
+function wfpCommit(t){touchItem(t);renderTaskViews();}
 function wfpComplete(id){
   var t=wfpTask(id);if(!t)return;
-  if(wfpRec(t)!=="none"){wfpMarkNext(t);t.progress=0;wfpCommit(t,"Recurring occurrence completed ✓");return;}
+  if(wfpRec(t)!=="none"){wfpMarkNext(t);t.progress=0;wfpCommit(t);return;}
   t.done=true;t.progress=100;t.completedAt=t.completedAt||new Date().toISOString();
-  wfpCommit(t,"Task completed and moved to Archive ✓");
+  wfpCommit(t);
 }
 function wfpReopen(id){
   var t=wfpTask(id);if(!t)return;
   if(wfpRec(t)!=="none"&&wfpOccList(t).length){var l=wfpOccList(t);l.pop();t.completedOccurrences=l;}
   else t.progress=0;
   t.completedAt="";
-  wfpCommit(t,"Completion undone ✓");
+  wfpCommit(t);
 }
 function wfpCompleteOccurrence(id,start){
   var t=wfpTask(id);if(!t||wfpRec(t)==="none"||!wfpParse(start))return;
   var l=wfpOccList(t);if(l.indexOf(start)<0)l.push(start);
   t.completedOccurrences=l.sort();t.completedAt=new Date().toISOString();
-  wfpCommit(t,"Occurrence completed ✓");
+  wfpCommit(t);
 }
 function wfpReopenOccurrence(id,start){
   var t=wfpTask(id);if(!t||wfpRec(t)==="none")return;
   t.completedOccurrences=wfpOccList(t).filter(function(x){return x!==start;});
   if(!t.completedOccurrences.length)t.completedAt="";
-  wfpCommit(t,"Occurrence reopened ✓");
+  wfpCommit(t);
 }
 function wfpSetRecurrence(id,rec){
   var t=wfpTask(id);if(!t)return;
@@ -8600,12 +8735,12 @@ function wfpSetRecurrence(id,rec){
   /* Leaving a series whose first occurrence was done leaves a finished task -
      and a finished one-off is a done one. */
   if(rec==="none"&&Number(t.progress)>=100){t.done=true;t.completedAt=t.completedAt||new Date().toISOString();}
-  wfpCommit(t,rec==="none"?"Recurrence removed ✓":"Task set to repeat "+rec+" ✓");
+  wfpCommit(t);
 }
 function wfpToggleMilestone(id){
   var t=wfpTask(id);if(!t)return;
   t.milestone=!t.milestone;
-  wfpCommit(t,t.milestone?"Milestone added ✓":"Milestone removed ✓");
+  wfpCommit(t);
 }
 function wfpToggleDep(id,depId,button){
   var t=wfpTask(id),dep=wfpTask(depId);if(!t||!dep)return;
@@ -8630,12 +8765,12 @@ function wfpDeleteTask(id){
   var t=wfpTask(id);if(!t)return;
   if(!window.confirm("Delete “"+t.title+"”? It is removed from the board too."))return;
   wfpForgetDeps([id]);deleteItem("tasks",id);
-  renderTaskViews();flash("Workflow task deleted.","good");
+  renderTaskViews();
 }
 function wfpRestoreTask(id){
   var t=wfpTask(id);if(!t)return;
   t.done=false;t.progress=0;t.completedAt="";
-  wfpCommit(t,"Task restored to Workflow ✓");
+  wfpCommit(t);
 }
 /** Move a task to a project and place it beside another, or at the end. The
  * target project's rows are renumbered, stamping only those that moved. */
@@ -8655,7 +8790,7 @@ function wfpReorderTask(id,projectId,targetId,after){
   }
   list.splice(at,0,t);
   list.forEach(function(x,k){if(x.order!==k||x===t){x.order=k;touchItem(x,true);}});
-  save();renderTaskViews();flash("Task order updated ✓","good");
+  save();renderTaskViews();
 }
 
 /* ---- project actions ---- */
@@ -8669,7 +8804,7 @@ function wfpMoveProject(pid,delta){
   var list=wfpVisibleProjects(),p=wfpProject(pid),at=list.indexOf(p),to=at+delta;
   if(at<0||to<0||to>=list.length)return;
   wfpSwapProjects(p,list[to]);
-  renderTaskViews();flash("Project moved "+(delta<0?"up":"down")+" ✓","good");
+  renderTaskViews();
 }
 /** Drag a project row onto another. The whole board order is recomputed, but
  * only the rows whose position actually changed are stamped and pushed. */
@@ -8682,13 +8817,13 @@ function wfpReorderProject(sourceId,targetId,after){
   if(at<0)return;
   list.splice(at+(after?1:0),0,src);
   list.forEach(function(p,k){if((p.order||0)!==k){p.order=k;touchItem(p,true);}});
-  save();renderTaskViews();flash("Project order updated ✓","good");
+  save();renderTaskViews();
 }
 function wfpSetColour(pid,hex){
   var p=wfpProject(pid);
   if(!p||!/^#[0-9a-f]{6}$/i.test(hex||""))return;
   p.color=hex.toUpperCase();
-  wfpCommit(p,"Project colour updated ✓");
+  wfpCommit(p);
 }
 /** "Automatic" is what the board would give it: the first palette colour no
  * other project is using. */
@@ -8698,7 +8833,7 @@ function wfpResetColour(pid){
   projectList().forEach(function(q){if(q!==p)used[String(projectColor(q)).toLowerCase()]=1;});
   var free=PROJECT_COLORS.filter(function(c){return !used[c.toLowerCase()];});
   p.color=free.length?free[0]:PROJECT_COLORS[projectList().indexOf(p)%PROJECT_COLORS.length];
-  wfpCommit(p,"Automatic project colour restored ✓");
+  wfpCommit(p);
 }
 function wfpCustomColour(pid){
   var p=wfpProject(pid);if(!p)return;
@@ -8716,7 +8851,7 @@ function wfpRenameProject(pid){
   var name=next.trim().slice(0,80);
   if(!name||name===p.name)return;
   p.name=name;
-  wfpCommit(p,"Project renamed ✓");
+  wfpCommit(p);
 }
 function wfpUpdateProject(pid,action){
   var p=wfpProject(pid);if(!p)return;
@@ -8728,7 +8863,7 @@ function wfpUpdateProject(pid,action){
     wfpForgetDeps(all.map(function(t){return t.id;}));
     all.forEach(function(t){deleteItem("tasks",t.id);});
     deleteItem("projects",pid);
-    renderTaskViews();flash("Project deleted.","good");
+    renderTaskViews();
     return;
   }
   if(!tasks.length)return;
@@ -8747,12 +8882,12 @@ function wfpUpdateProject(pid,action){
     }
     touchItem(t,true);
   });
-  save();renderTaskViews();flash("Project tasks updated ✓","good");
+  save();renderTaskViews();
 }
 function wfpArchiveProject(pid,on){
   var p=wfpProject(pid);if(!p)return;
   p.archived=!!on;
-  wfpCommit(p,on?"Project archived ✓":"Project restored ✓");
+  wfpCommit(p);
 }
 
 /* ---- view controls ---- */
@@ -8762,15 +8897,24 @@ function wfpSetStatus(status){
   _wfp.status=(next!=="all"&&_wfp.status===next)?"all":next;
   wfpSaveView();renderPlanner();
 }
+/** One category at a time; pressing the lit one again shows both. Two
+ * categories make "both lit" the same as "neither", so a second press on the
+ * other button switches rather than adding. */
+function wfpSetCategory(cat){
+  if(WFP_CATS.indexOf(cat)<0)return;
+  _wfp.category=_wfp.category===cat?"all":cat;
+  wfpSaveView();renderPlanner();
+}
+function wfpSetProjectCategory(pid,cat){
+  var p=wfpProject(pid);
+  if(!p||WFP_CATS.indexOf(cat)<0)return;
+  p.category=cat;
+  wfpCommit(p);
+}
 function wfpSetZoom(zoom){
   if(WFP_ZOOMS.indexOf(zoom)<0)return;
   _wfp.zoom=zoom;wfpSaveView();_wfpJumped=false;renderPlanner();
 }
-/** Focus is the app's own full screen plus the reference's own hiding of the
- * metric cards and lists (CSS, off body.tasks-full). Not persisted, the same
- * call as full screen: waking to a page with its header gone and no memory
- * of asking for it reads as a broken app. */
-function wfpToggleFocus(){setTasksFull(!_tasksFull);}
 
 /** Which day a click on an empty stretch of a row means. Today is two cells
  * wide, so past it the pointer is one cell further on than it looks. */
@@ -8827,7 +8971,9 @@ function wfpClick(e){
   else if(a==="deps-menu"){e.stopPropagation();wfpOpenDepsMenu(b,id);}
   else if(a==="toggle-dep"){e.stopPropagation();wfpToggleDep(id,b.getAttribute("data-dependency"),b);}
   else if(a==="set-status")wfpSetStatus(b.getAttribute("data-status"));
-  else if(a==="focus")wfpToggleFocus();
+  else if(a==="category")wfpSetCategory(b.getAttribute("data-cat"));
+  else if(a==="dialog-category")wfpPickDialogCategory(b.getAttribute("data-cat"));
+  else if(a==="set-category")wfpSetProjectCategory(pid,b.getAttribute("data-cat"));
   else if(a==="new-project")wfpOpenCreate("",todayKey(),b,true);
   else if(a==="add-task")wfpOpenCreate("",todayKey(),b,false);
   else if(a==="project-add-task")wfpOpenCreate(pid,todayKey(),b,false);
@@ -8865,7 +9011,7 @@ function wfpClick(e){
 /* ---- pointer gestures: move/stretch a bar, resize the name column, and
    reorder projects and tasks. Each has its own state, so two can never be
    mixed up, and each cleans up on pointercancel as well as pointerup. ---- */
-var _wfpDrag=null,_wfpBarHold=null,_wfpDragged=false;
+var _wfpDrag=null,_wfpHold=null,_wfpDragged=false;
 function wfpBarFor(id,occ){
   return document.querySelector('#wfp .gantt-bar[data-id="'+id+'"][data-occurrence="'+occ+'"],'+
     '#wfp .gantt-milestone[data-id="'+id+'"][data-occurrence="'+occ+'"]');
@@ -8878,8 +9024,17 @@ function wfpStartBarDrag(bar,id,mode,pointerId,x,y){
   bar.classList.add("dragging");
   try{bar.setPointerCapture(pointerId);}catch(err){}
 }
-function wfpCancelBarHold(){
-  if(_wfpBarHold){clearTimeout(_wfpBarHold.timer);_wfpBarHold=null;}
+function wfpCancelHold(){
+  if(_wfpHold){clearTimeout(_wfpHold.timer);_wfpHold=null;}
+}
+/** A finger has to be held still for WF_HOLD_MS before it grabs anything:
+ * until then the touch may be the start of a scroll, so nothing may be
+ * prevented. Moving first (wfpPointerMove) or lifting (wfpPointerUp) cancels;
+ * a completed hold hands the press to `grab`. */
+function wfpHoldThen(e,grab){
+  wfpCancelHold();
+  _wfpHold={pointerId:e.pointerId,x:e.clientX,y:e.clientY,
+    timer:setTimeout(function(){var h=_wfpHold;_wfpHold=null;if(h)grab(h);},WF_HOLD_MS)};
 }
 function wfpPointerDown(e){
   var t=e.target;
@@ -8892,12 +9047,8 @@ function wfpPointerDown(e){
        CSS. Until the hold completes this may be a scroll, so nothing here
        may preventDefault. The grip is exempt: it is a deliberate target. */
     if(e.pointerType!=="mouse"&&!resize){
-      wfpCancelBarHold();
-      _wfpBarHold={bar:bar,id:bar.getAttribute("data-id"),pointerId:e.pointerId,x:e.clientX,y:e.clientY,
-        timer:setTimeout(function(){
-          var h=_wfpBarHold;_wfpBarHold=null;
-          if(h&&h.bar.isConnected)wfpStartBarDrag(h.bar,h.id,"move",h.pointerId,h.x,h.y);
-        },WF_HOLD_MS)};
+      var barId=bar.getAttribute("data-id");
+      wfpHoldThen(e,function(h){if(bar.isConnected)wfpStartBarDrag(bar,barId,"move",h.pointerId,h.x,h.y);});
       return;
     }
     e.preventDefault();e.stopPropagation();
@@ -8925,11 +9076,22 @@ function wfpPointerDown(e){
   }
   var pname=t.closest(".gantt-project-name[data-project]");
   if(pname&&!t.closest("button,a,input")){
+    /* A project's name is most of its row, so on a phone it is where a
+       vertical swipe through the chart lands. It used to grab on contact,
+       which turned that swipe into a reorder - and the browser's cancel then
+       redrew the chart mid-scroll. A finger now holds first, like a bar. */
+    if(e.pointerType!=="mouse"){
+      wfpHoldThen(e,function(h){if(pname.isConnected)wfpStartProjectDrag(pname,h.pointerId);});
+      return;
+    }
     e.preventDefault();
-    _wfpDrag={mode:"project",pointerId:e.pointerId,project:pname.getAttribute("data-project"),target:null};
-    pname.closest(".gantt-project-row").classList.add("structure-dragging");
-    try{pname.setPointerCapture(e.pointerId);}catch(err){}
+    wfpStartProjectDrag(pname,e.pointerId);
   }
+}
+function wfpStartProjectDrag(pname,pointerId){
+  _wfpDrag={mode:"project",pointerId:pointerId,project:pname.getAttribute("data-project"),target:null};
+  pname.closest(".gantt-project-row").classList.add("structure-dragging");
+  try{pname.setPointerCapture(pointerId);}catch(err){}
 }
 function wfpClearDropTargets(){
   Array.prototype.forEach.call(document.querySelectorAll(
@@ -8938,9 +9100,9 @@ function wfpClearDropTargets(){
   });
 }
 function wfpPointerMove(e){
-  if(_wfpBarHold&&e.pointerId===_wfpBarHold.pointerId){
+  if(_wfpHold&&e.pointerId===_wfpHold.pointerId){
     /* Moved before the hold completed: that was a scroll, not a grab. */
-    if(Math.abs(e.clientX-_wfpBarHold.x)>WF_HOLD_SLOP||Math.abs(e.clientY-_wfpBarHold.y)>WF_HOLD_SLOP)wfpCancelBarHold();
+    if(Math.abs(e.clientX-_wfpHold.x)>WF_HOLD_SLOP||Math.abs(e.clientY-_wfpHold.y)>WF_HOLD_SLOP)wfpCancelHold();
     return;
   }
   var d=_wfpDrag;
@@ -8980,10 +9142,10 @@ function wfpPointerMove(e){
   }
 }
 function wfpPointerUp(e){
-  if(_wfpBarHold&&e.pointerId===_wfpBarHold.pointerId){
+  if(_wfpHold&&e.pointerId===_wfpHold.pointerId){
     /* Lifted before the hold completed: a tap. The click that follows opens
        the editor - see wfpClick for why it is not opened here. */
-    wfpCancelBarHold();
+    wfpCancelHold();
     return;
   }
   var d=_wfpDrag;
@@ -9007,7 +9169,6 @@ function wfpPointerUp(e){
         setTaskSpan(t,d.baseStart,end<d.baseStart?d.baseStart:end);
       }
       renderTaskViews();
-      flash(d.mode==="move"?"Task dates moved ✓":"Finish date updated ✓","good");
     }else renderPlanner();
   }else if(d.mode==="column"){
     if(d.handle)d.handle.classList.remove("dragging");
@@ -9025,8 +9186,12 @@ function wfpPointerUp(e){
     }
   }
 }
+/** The browser took the gesture back (a scroll won, or the page lost focus).
+ * Put back whatever the drag had moved by hand - not by redrawing, which is
+ * what this used to do: a cancel usually means a scroll has just begun, and a
+ * redraw under a moving finger is how the chart came to stick and jump. */
 function wfpPointerCancel(e){
-  if(_wfpBarHold&&e.pointerId===_wfpBarHold.pointerId){wfpCancelBarHold();return;}
+  if(_wfpHold&&e.pointerId===_wfpHold.pointerId){wfpCancelHold();return;}
   var d=_wfpDrag;
   if(!d||e.pointerId!==d.pointerId)return;
   _wfpDrag=null;
@@ -9034,7 +9199,20 @@ function wfpPointerCancel(e){
   Array.prototype.forEach.call(document.querySelectorAll("#wfp .structure-dragging,#wfp .dragging"),function(x){
     x.classList.remove("structure-dragging","dragging");
   });
-  renderPlanner();
+  if(d.mode==="move"||d.mode==="resize"){
+    var bar=wfpBarFor(d.id,d.occ);
+    if(bar){bar.style.insetInlineStart=d.baseLeft+"px";if(bar.classList.contains("gantt-bar"))bar.style.width=d.baseWidth+"px";}
+  }else if(d.mode==="column"&&d.chart)d.chart.style.setProperty("--gantt-label-width",d.base+"px");
+}
+/** Once a held finger has grabbed something, the touch that follows must not
+ * also scroll the chart out from under it. touch-action is fixed when a touch
+ * starts, so it cannot say "pan, unless this turns into a drag" - but a
+ * touchmove can still be cancelled before scrolling begins, and a hold that
+ * completed means the finger has not moved far enough for that yet. Bound to
+ * the planner alone: a non-passive touch listener on the document would make
+ * every scroll in the app wait on the main thread. */
+function wfpTouchMove(e){
+  if(_wfpDrag&&e.cancelable)e.preventDefault();
 }
 
 /* Another tab saved. The board's rows merge in exactly as a sync pull would:
@@ -9077,15 +9255,24 @@ function initPlanner(){
   });
   window.addEventListener("storage",mergeItemsFromOtherTab);
   window.addEventListener("resize",wfpCloseMenu);
+  /* A phone turned sideways can cross WFP_NARROW, which changes the day cell
+     and the name column - drawn in JS, so redrawn, but only on the crossing. */
+  var narrowAt=wfpNarrow();
+  window.addEventListener("resize",function(){
+    if(wfpNarrow()===narrowAt)return;
+    narrowAt=wfpNarrow();_wfpJumped=false;renderPlanner();
+  });
   window.addEventListener("scroll",wfpCloseMenu,true);
   var search=wfpEl("wfpSearch");
   if(search)search.addEventListener("input",function(){_wfp.search=search.value;wfpSaveView();renderPlanner();});
   var proj=wfpEl("wfpProjectFilter");
   if(proj)proj.addEventListener("change",function(){_wfp.project=proj.value;wfpSaveView();renderPlanner();});
-  var status=wfpEl("wfpStatusFilter");
-  if(status)status.addEventListener("change",function(){
-    _wfp.status=WFP_STATUSES.indexOf(status.value)>=0?status.value:"all";wfpSaveView();renderPlanner();
-  });
+  var host=wfpEl("wfp");
+  if(host)host.addEventListener("touchmove",wfpTouchMove,{passive:false});
+  var gs=document.querySelector("#wfp .gantt-scroll");
+  if(gs)gs.addEventListener("scroll",function(){
+    if(gs.clientWidth)_wfpView={top:gs.scrollTop,left:gs.scrollLeft};
+  },{passive:true});
   var zoom=wfpEl("wfpZoomSelect");
   if(zoom)zoom.addEventListener("change",function(){wfpSetZoom(zoom.value);});
   var dprog=wfpEl("wfpDialogProgress");
@@ -10313,6 +10500,11 @@ function sizeTasksPanes(){
     var h=Math.max(240,(window.innerHeight||640)-top-pad-(bar?bar.offsetHeight:0));
     document.documentElement.style.setProperty(pair[1],Math.round(h)+"px");
   });
+  /* The planner's chart sits below its cards, so its height cannot come from
+     where it starts; on a phone it is the screen less the header and this bar
+     (CSS, off --hdr-h and --tabs-h). */
+  var tabs=document.querySelector("nav.tabs");
+  document.documentElement.style.setProperty("--tabs-h",(tabs?tabs.offsetHeight:0)+"px");
 }
 
 /* ---------- THE BOTTOM BAR'S ORDER ----------

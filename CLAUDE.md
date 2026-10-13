@@ -637,7 +637,8 @@ ninth tab, and **the reference's own look**.
   only scrolls when today would be off the right edge (`wfpJumpToToday`).
 - **Focus = `setTasksFull()`** plus CSS off `body.tasks-full` hiding the cards
   and lists. Not persisted, as with full screen everywhere (the reference
-  persisted it). Escape is left to the editor while it is open.
+  persisted it). Escape is left to the editor while it is open. (1.49.0
+  removed the planner's own Focus button; `#fullBtn` is the route.)
 - **Cross-tab:** `mergeItemsFromOtherTab` on `storage` for the main key merges
   `ITEM_STORES` rows per row, newer `updated_at` wins, and **saves nothing**
   (the other tab already wrote them). It refuses another account's store and
@@ -651,6 +652,61 @@ ninth tab, and **the reference's own look**.
   (`wfpNextFrame`). Chromium exercises the real paths - screenshot it.
 - Tests: `test/planner.test.js` (36), following the package's
   `ACCEPTANCE-CHECKLIST.md` plus the shared-row guarantees.
+
+## Planner: YR/EY, phone scrolling, no jump (1.49.0)
+- **YR / EY is a property of the project** (`project.category`, `"YR"`
+  personal / `"EY"` work), riding the synced row like `archived`. Read it
+  through **`wfpCategoryOf(p)`**, never the field: an unset row counts as EY
+  only if it is *named* "EY" (the real board had projects called YR and EY
+  before categories existed), and as YR otherwise. Derived, not migrated -
+  nothing is restamped or pushed for a field the app has just learned. An
+  explicit choice outranks the name.
+- **The filter** is `_wfp.category` (`all`/`YR`/`EY`) in `yawarPlannerView`,
+  per device. One at a time, the lit one again = all; with two categories,
+  "both lit" would just be "all". `wfpInCategory()` is applied **upstream of
+  everything** in `renderPlanner` - metrics, chart, undated, archive - and in
+  `wfpVisibleProjects()`, so "Move up" swaps with a row you can see.
+  Saving a task into the category not on screen switches the view to it.
+- The status `<select>` is gone (the metric cards still filter by status). A
+  stored status only the select could set is read back as `all`
+  (`WFP_CARD_STATUSES`) - otherwise it would hide tasks with no way back.
+- The planner's own **Focus button is gone**; `#fullBtn` does the same, and
+  `body.tasks-full` still hides the cards and lists.
+- **Why phone scrolling stuck - three causes, all confirmed in Chromium with
+  real touch events** (`Input.dispatchTouchEvent`; `synthesizeScrollGesture`
+  does nothing in this headless build, so don't trust it):
+  1. `overscroll-behavior:contain` on `.gantt-scroll` meant a swipe could
+     never leave the chart, and on a phone the chart is most of the screen.
+     Touch/narrow now has `overscroll-behavior-y:auto` (x stays contained:
+     running off the timeline must not become a back swipe).
+  2. A project name grabbed for reordering on contact, so a vertical swipe
+     landing on it became a drag, and the browser's pointercancel then
+     **redrew the chart mid-scroll**. Touch now holds first (`wfpHoldThen`,
+     shared with bars), and **`wfpPointerCancel` restores by hand instead of
+     re-rendering.** A completed hold blocks scrolling through a non-passive
+     `touchmove` on `#wfp` only (`wfpTouchMove`), never the document.
+  3. `100vh` on a phone is the address-bar-hidden height. The chart is now
+     `100dvh - --hdr-h - --tabs-h - 20px`; `--tabs-h` is measured in
+     `sizeTasksPanes()`.
+- **The jump to the top-left after every change**: `wfpRenderGantt` empties
+  `#wfpChart`, and anything that forces layout meanwhile (`innerWidth` does,
+  via `wfpLabelWidth`) clamps the box's offsets to 0. The view is restored
+  after the rebuild, **anchored on the day at the left edge** (`_wfpDrawn`
+  holds the last range start and cell), because moving the earliest task moves
+  the range start and a pixel offset would land on another day. It is read
+  from `_wfpView`, recorded on every scroll event, since a box that has been
+  `display:none` has forgotten its offsets. The test stubs that clamp on
+  `innerHTML=""`; without the stub jsdom never resets anything and the test
+  would pass on the broken code.
+- **No success banners in the planner** (`wfpCommit(item)` takes no message).
+  `#statusBar` is in-flow at the top of `<body>`, so every banner pushed the
+  page down by its height. Warnings stay.
+- **Phone sizes** (≤560px only): name column 40% (`wfpLabelRange`), day cells
+  ×0.75 (`wfpCell`), rows/type/bars a size down in the last
+  `@media(max-width:560px)` block, the project row's `+` hidden. A resize
+  across `WFP_NARROW` redraws. Note `?16:20` in a comment or code tripped the
+  "no 24-hour clock anywhere" test, which scans `body.textContent`, scripts
+  included.
 
 ## Repeating events (1.47.0)
 - **The client sends a structured repeat, never an RRULE.** `buildRecurrenceRule

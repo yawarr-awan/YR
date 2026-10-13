@@ -1,5 +1,26 @@
 # Changelog
 
+## 1.49.0
+
+**Planner fixes, and YR / EY.**
+
+**YR and EY at the top of the planner.** The "All statuses" dropdown is replaced by two small buttons, **YR** (personal) and **EY** (work). Tap one and the whole planner narrows to that category: the chart, the cards, the project list, the undated tasks and the archive. Tap it again to see everything. Tapping the other one switches to it. The category doesn't appear in the chart itself. Which one you have lit is remembered per device, like the zoom.
+
+- **Adding a project asks Personal (YR) or Work (EY).** Choose "+ New project…" (or press "New project") and the choice appears under the name. It starts on whichever category you're looking at.
+- **A project's ⋯ menu has "Move to Work (EY)" / "Move to Personal (YR)"**, so existing projects can be sorted. Your project named **EY** counts as work automatically. Every other existing project starts as personal until you move it.
+- The category is stored on the project, so it syncs with everything else.
+
+**Scrolling on a phone no longer gets stuck.** Three separate causes:
+- The chart held onto every swipe, even after it had reached its last row, so swiping could never reach the page below it. Now, once the chart has gone as far as it can, the next swipe scrolls the page.
+- A swipe that started on a project's name was treated as a drag to reorder projects. With a finger you now hold a project name for a moment before it drags, the same as a bar.
+- The chart was sized to the screen with the address bar hidden, which put its last rows behind the bottom bar. It now fits the space between the header and the bottom bar.
+
+**Making a change no longer throws you back to the start of the chart.** Every edit redrew the chart from scratch, which reset it to the top-left. It now stays on the same rows and the same day, even when moving a task changes where the timeline starts. The "Task dates moved ✓", "Finish date updated ✓" and other "saved" banners are gone too: the change is visible on the chart and sync saves it. The banner also pushed the whole page down while it showed. Warnings, such as a finish date before the start, still appear.
+
+**The Focus button is gone.** The app's own full-screen button does the same thing, including hiding the cards.
+
+**A size down on a phone:** the project and task list is a little narrower (40% of the width, was 45%) with smaller type and shorter rows, and the chart's day cells, bars and dates are smaller too. On a phone the per-project "+" is hidden so the name has room; "Add task", or tapping a project's row, does the same. Laptop and desktop are unchanged.
+
 ## 1.48.0
 
 **The Workflow Planner from your porting package, built in beside the existing timeline.** The Workflow tab now has a **Timeline | Planner** switch at the top. Timeline is the one you had; Planner is the package's planner, in its own look (dark and light both). When you've decided which to keep, say so and the switch goes.
