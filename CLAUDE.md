@@ -571,6 +571,87 @@ felt built for a desktop.
 - `profile.calendarId` remembers the choice (synced). `scheduleTaskAt()`
   uses the same default, so a scheduled task doesn't land somewhere else.
 
+## The Workflow Planner, ported (1.48.0)
+Built from the user's `workflow-porting-package` zip (a standalone, browser-only
+Gantt planner from another dashboard) **in addition to** the existing Timeline,
+behind a **Timeline | Planner** switch in the Workflow tab
+(`WORKFLOW_SUBVIEWS`, `navWorkflowSub`, `yawarLastWorkflowSub`). Yawar will
+say which to keep; deleting either is then a contained removal. Three choices
+he made up front: **shared data** with the board, **the switch** rather than a
+ninth tab, and **the reference's own look**.
+- **A planner task IS a board task.** No separate store: the reference's eight
+  localStorage keys became fields on the synced `projects`/`tasks` rows -
+  `progress`, `recurrence`, `seriesId`, `completedOccurrences`, `dependencies`,
+  `milestone`, `completedAt` on tasks; `archived` on projects; colour is the
+  board's `project.color`. The Worker stores rows as opaque JSON, so **no
+  server change**. Mapping: name→title, project (a name)→projectId,
+  "completed and archived"→`done`. Read through the `wfp*` accessors
+  (`wfpProg`, `wfpRec`, `wfpOccList`, `wfpDeps`) - never assume the fields
+  exist on a row, the board creates rows without them.
+  - `wfpProg()`: done is 100; a non-recurring task at ≥100 that is *not* done
+    was reopened by the board's tick, so it reads 0 - which is what the
+    reference's own reopen sets. Without that a board-unticked task would sit
+    on the chart claiming 100%.
+  - Undated tasks are listed under the chart ("Not on the timeline", not in the
+    reference) - otherwise a board task without dates is invisible here.
+  - A missing or deleted dependency counts as **satisfied** (it can hold
+    nothing up); deletes also strip themselves from dependents
+    (`wfpForgetDeps`) as the reference did.
+- **The reference's snapshot / rollback / backup layer is not ported** - it
+  protected a store nothing else backed up. Because there is no rollback,
+  deleting a task or a project now **confirms** (the reference did not).
+- **`renderTaskViews()` = board + timeline + planner.** `renderPlanner()` bails
+  while hidden (`wfpVisible()`): its chart is a cell per day per row, and every
+  task change anywhere calls it. `nav()` and `navWorkflowSub()` render it when
+  it is shown.
+- **CSS was transformed by script, not retyped,** under one invariant: every
+  rule gains exactly one ID, so any two compare as in the reference. Hence
+  `#wfp#wfp` where the reference had `#tab-workflow`, and `div#wfp.wfp-light` /
+  `div#wfp:not(.wfp-light)` for its `body.theme-light` / `:not` rules. **Don't
+  hand-flatten those** - a `#wfp` that was `#tab-workflow` starts losing to
+  rules it used to beat (the input focus ring turned yellow instead of purple).
+  The reference's palette is set on `#wfp`/`.wfp-pop`, never `:root`: the
+  names (`--bg`, `--line`, `--muted`, `--accent`) are this app's too.
+  `wfpSyncTone()` sets `.wfp-light` from `currentTheme()`, called from
+  `applyTheme()` and a `prefers-color-scheme` listener.
+- **Generic reference classes are renamed** (`wfp-card`, `wfp-btn`, `wfp-stat`,
+  `wfp-grid`, `wfp-count`, `wfp-on`…): this app's `.grid` is a two-column grid
+  and its `.stat`/`.card`/`.muted` would bleed in. IDs are `wfp`-prefixed.
+  `data-wfp` is the action attribute (the reference's `data-action`). A test
+  asserts no generic app class appears inside `#wfp`.
+- **Menus** are `.task-menu.floating-task-menu.wfp-pop`, fixed, appended to
+  `<body>` so the chart's scroll box cannot clip them - outside `#wfp`, which
+  is why they carry `.wfp-pop` (and `.wfp-light`).
+- **Deliberate departures from the reference**, each for a reason it did not
+  have: on ≤560px the six metric cards are a **sideways-scrolling strip of
+  96px cards** (asked for by Yawar; the reference stacked them one per row);
+  the **name column is 45% of a phone's width** (`wfpLabelRange`; the
+  reference's 252px left a third of a 390px screen); **touch bars must be held**
+  (`WF_HOLD_MS`) with `touch-action:pan-y`, where the reference's
+  `touch-action:none` made every swipe over a bar move its dates; **the editor
+  opens on `click`, not `pointerup`** - opened on pointerup it appeared under
+  the finger and the click that followed landed inside it (it opened the
+  Finish date picker on a phone; it could as easily have pressed Delete).
+  `_wfpDragged` swallows the click after a real drag, same pattern as
+  `_wfDragged`. The chart opens at its range start like the reference, and
+  only scrolls when today would be off the right edge (`wfpJumpToToday`).
+- **Focus = `setTasksFull()`** plus CSS off `body.tasks-full` hiding the cards
+  and lists. Not persisted, as with full screen everywhere (the reference
+  persisted it). Escape is left to the editor while it is open.
+- **Cross-tab:** `mergeItemsFromOtherTab` on `storage` for the main key merges
+  `ITEM_STORES` rows per row, newer `updated_at` wins, and **saves nothing**
+  (the other tab already wrote them). It refuses another account's store and
+  runs only when `SAFE`. Nothing else in the app listened for `storage`.
+- Per-device display key: **`yawarPlannerView`** (zoom, name-column width,
+  search, filters) - same rule as `yawarBoardView`, never synced. The
+  reference's `portableWorkflowDemo_*` keys are never written; a test pins it.
+- **jsdom gaps it relies on fallbacks for:** no `HTMLDialogElement.showModal`
+  (the reference's own `open`-attribute fallback; `wfpFinishDialog` is shared
+  by both close paths) and no `requestAnimationFrame` in this harness
+  (`wfpNextFrame`). Chromium exercises the real paths - screenshot it.
+- Tests: `test/planner.test.js` (36), following the package's
+  `ACCEPTANCE-CHECKLIST.md` plus the shared-row guarantees.
+
 ## Repeating events (1.47.0)
 - **The client sends a structured repeat, never an RRULE.** `buildRecurrenceRule
   (rec, allDay)` in worker.js turns `{freq, interval?, byDay?, count?, until?}`

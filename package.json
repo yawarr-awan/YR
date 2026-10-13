@@ -1,7 +1,7 @@
 {
   "name": "yr-wellness",
   "private": true,
-  "version": "1.47.0",
+  "version": "1.48.0",
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",

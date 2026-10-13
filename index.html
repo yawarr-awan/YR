@@ -1011,6 +1011,354 @@ a.btn{text-decoration:none;display:inline-block}
 .center{text-align:center}
 .legend{display:flex;gap:14px;flex-wrap:wrap;font-size:.76rem;color:var(--muted);margin-top:8px}
 .legend i{width:10px;height:10px;border-radius:3px;display:inline-block;margin-inline-end:5px;vertical-align:middle}
+
+/* ===================== WORKFLOW PLANNER (ported) =====================
+   The reference planner's own look. Its rules were carried over by a
+   scripted transform rather than retyped, with one invariant: every
+   rule gains exactly one ID, so any two of them compare exactly as they did
+   in the reference. That is why some selectors read #wfp#wfp - those had
+   #tab-workflow in the reference and must keep beating the rules they beat
+   there - and why the theme rules read div#wfp.wfp-light, which is the
+   reference's body.theme-light (0,1,1) plus that one ID.
+
+   The palette is set on the host, not on :root. The names (--bg, --line,
+   --muted, --accent) are also this app's, and on :root they would repaint the
+   whole app. Menus are appended to <body> so the chart's scroll box cannot
+   clip them, which puts them outside #wfp: they carry .wfp-pop instead, and
+   .wfp-light alongside it in the light theme. */
+#wfp,.wfp-pop{
+  --bg:#0f1117; --bg2:#151823; --card:#1b1f2c; --card2:#212636;
+  --line:#2b3145; --line2:#363d54;
+  --txt:#e9ecf5; --muted:#9aa3bd; --faint:#6b7392;
+  --accent:#ffe600; --accent-dim:#3a3717;
+  --green:#37d399; --green-bg:#10301f;
+  --amber:#ffb84d; --amber-bg:#3a2a10;
+  --blue:#5aa9ff; --blue-bg:#13243d;
+  --purple:#b18bff; --purple-bg:#241a3d;
+  --red:#ff6b7a; --red-bg:#3a1620;
+  --radius:16px; --radius-sm:10px;
+  --shadow:0 1px 0 rgba(255,255,255,.03), 0 8px 24px rgba(0,0,0,.35);
+  --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  --workflow-accent:var(--purple);--workflow-accent-soft:var(--purple-bg);--workflow-button:#6f47d6;
+  font-family:var(--font);color:var(--txt);line-height:1.45;-webkit-font-smoothing:antialiased
+}
+#wfp.wfp-light,.wfp-pop.wfp-light{
+  --bg:#eef1f7; --bg2:#ffffff; --card:#ffffff; --card2:#f2f4fa;
+  --line:#e0e4ee; --line2:#ccd3e2;
+  --txt:#1a2030; --muted:#586074; --faint:#8b93a7;
+  --accent:#ffd400; --accent-dim:#fff4c2;
+  --green:#1f9d63; --green-bg:#e2f6ec;
+  --amber:#b9750f; --amber-bg:#fbeed6;
+  --blue:#2f6fed; --blue-bg:#e5edff;
+  --purple:#6f47d6; --purple-bg:#ede4fb;
+  --red:#d83a4a; --red-bg:#fde3e7;
+  --shadow:0 1px 0 rgba(0,0,0,.02), 0 10px 26px rgba(24,38,74,.10)
+}
+/* The reference widened itself with negative side margins; here that would
+   push the page sideways on a phone, so the host sits inside the page. The
+   glow is kept, inside the host's own box for the same reason. */
+#wfp{position:relative;isolation:isolate;padding:4px 0 8px;margin-top:6px}
+#wfp::before{content:"";position:absolute;z-index:-1;inset:0 0 auto;height:380px;pointer-events:none;
+  background:radial-gradient(ellipse at 18% 15%,color-mix(in srgb,var(--blue) 12%,transparent),transparent 46%),
+    radial-gradient(ellipse at 78% 8%,color-mix(in srgb,var(--purple) 13%,transparent),transparent 44%)}
+#wfp a{color:var(--blue)}
+#wfp h2{margin:0;font-weight:700;letter-spacing:-.01em}
+#wfp .wfp-grid{display:grid;gap:16px}
+#wfp .wfp-card{background:linear-gradient(180deg,var(--card) 0%,var(--bg2) 100%); border:1px solid var(--line); border-radius:var(--radius); padding:18px; box-shadow:var(--shadow); min-width:0;}
+#wfp .wfp-card h2{font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted); display:flex;align-items:center;gap:8px;margin-bottom:14px}
+#wfp .wfp-card h2 .wfp-count{margin-inline-start:auto;background:var(--card2);border:1px solid var(--line2); color:var(--txt);font-size:12px;letter-spacing:0;padding:1px 9px;border-radius:999px;text-transform:none}
+#wfp .wfp-dot{width:8px;height:8px;border-radius:50%;background:var(--accent);box-shadow:0 0 10px var(--accent)}
+#wfp .wfp-stat{background:var(--card2);border:1px solid var(--line);border-radius:var(--radius-sm);padding:12px 14px}
+#wfp .wfp-stat b{font-size:26px;font-weight:800;display:block;line-height:1.05}
+#wfp .wfp-stat span{font-size:11.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+#wfp .wfp-stat.wfp-accent b{color:var(--accent)}
+#wfp .wfp-stat.wfp-green b{color:var(--green)}
+#wfp .wfp-stat[data-wfp]{cursor:pointer;transition:transform .1s ease,border-color .1s ease}
+#wfp .wfp-stat[data-wfp]:hover{border-color:var(--accent);transform:translateY(-1px)}
+#wfp button{font-family:inherit;cursor:pointer}
+#wfp .wfp-btn{background:var(--accent);color:#111;border:none;border-radius:9px;padding:9px 14px; font-weight:700;font-size:13.5px}
+#wfp .wfp-btn:hover{filter:brightness(1.06)}
+#wfp .wfp-btn:active{transform:translateY(1px)}
+#wfp .wfp-btn.wfp-ghost{background:transparent;color:var(--muted);border:1px solid var(--line)}
+#wfp .wfp-btn.wfp-ghost:hover{color:var(--txt);border-color:var(--line2)}
+#wfp .wfp-btn.wfp-sm{padding:5px 10px;font-size:12px}
+#wfp .task-actions{position:relative;flex:0 0 auto}
+#wfp .more-btn{background:none;border:none;color:var(--faint);font-size:21px;line-height:1;padding:0 7px 4px; border-radius:7px;opacity:.45;transition:.15s}
+#wfp .more-btn:focus{opacity:1;color:var(--txt);background:var(--card2);outline:none}
+.task-menu.wfp-pop{display:none;position:absolute;inset-inline-end:0;top:30px;z-index:40;min-width:155px;padding:5px; background:var(--card);border:1px solid var(--line2);border-radius:10px;box-shadow:var(--shadow)}
+.task-menu.wfp-open.wfp-pop{display:block}
+.task-menu.wfp-pop button{display:block;width:100%;border:0;background:transparent;color:var(--txt);text-align:start; border-radius:7px;padding:8px 10px;font-size:12.5px}
+.task-menu.wfp-pop button:hover{background:var(--card2)}
+.task-menu.wfp-pop button.wfp-danger{color:var(--red)}
+.task-menu.wfp-pop .wfp-menu-sep{height:1px;background:var(--line);margin:4px 3px}
+.floating-task-menu.wfp-pop{display:block;position:fixed;inset:auto;z-index:10000;min-width:195px;max-height:min(70vh,420px); overflow:auto}
+#wfp .wfp-empty{color:var(--faint);font-size:12.5px;text-align:center;padding:18px 6px}
+#wfp .workflow-actions{display:flex;gap:9px;align-items:center;flex-wrap:wrap}
+#wfp .workflow-actions .wfp-btn{min-height:32px}
+#wfp .workflow-primary{background:var(--workflow-button);color:#fff}
+#wfp .workflow-secondary{background:var(--card);color:var(--txt);border:1px solid var(--line2)}
+#wfp .workflow-secondary:hover{border-color:var(--workflow-accent);color:var(--workflow-accent)}
+#wfp#wfp .wfp-dot{background:var(--workflow-accent);box-shadow:0 0 10px var(--workflow-accent)}
+#wfp#wfp .workflow-stats .wfp-stat.wfp-accent b{color:var(--workflow-accent)}
+#wfp#wfp .wfp-input:focus{border-color:var(--workflow-accent);box-shadow:0 0 0 2px var(--workflow-accent-soft)}
+#wfp#wfp > .wfp-card{border-color:color-mix(in srgb,var(--workflow-accent) 18%,var(--line));box-shadow:0 10px 28px rgba(0,0,0,.16)}
+div#wfp#wfp.wfp-light > .wfp-card{box-shadow:0 10px 28px rgba(53,35,104,.09)}
+#wfp .workflow-stats{grid-template-columns:minmax(190px,1.35fr) repeat(5,minmax(120px,1fr));margin-bottom:16px}
+#wfp#wfp .workflow-stats .wfp-stat{position:relative;overflow:hidden;min-height:88px;padding:16px 17px;border:1px solid var(--line); background:linear-gradient(150deg,var(--card),color-mix(in srgb,var(--card2) 82%,var(--workflow-accent)));box-shadow:0 9px 24px rgba(0,0,0,.12)}
+#wfp#wfp .workflow-stats .wfp-stat::after{content:"";position:absolute;width:70px;height:70px;border-radius:50%;inset-inline-end:-30px;inset-block-end:-38px; background:color-mix(in srgb,currentColor 12%,transparent)}
+#wfp#wfp .workflow-stats .wfp-stat b{font-size:26px;letter-spacing:-.04em}
+#wfp#wfp .workflow-stats button.wfp-stat{font-family:inherit;color:var(--txt);text-align:start;cursor:pointer}
+#wfp#wfp .workflow-stats button.wfp-stat:focus-visible{outline:2px solid var(--metric);outline-offset:2px}
+#wfp#wfp .workflow-stats button.wfp-stat.wfp-on{border-color:color-mix(in srgb,var(--metric) 70%,#fff); box-shadow:0 0 0 2px color-mix(in srgb,var(--metric) 32%,transparent),0 16px 38px rgba(0,0,0,.28),inset 0 1px 0 rgba(255,255,255,.1)}
+#wfp#wfp .workflow-stats button.wfp-stat.wfp-on::before{width:5px;background:var(--metric);box-shadow:0 0 20px var(--metric)}
+#wfp#wfp .workflow-stats .workflow-progress-card{--metric:var(--accent);display:flex;align-items:center;gap:11px;padding:10px 13px;min-width:0}
+#wfp#wfp .workflow-stats .workflow-week-progress-card,#wfp#wfp .workflow-stats .workflow-risk-progress-card{--metric:var(--amber)}
+#wfp .workflow-week-progress-card .workflow-progress-value,#wfp .workflow-risk-progress-card .workflow-progress-value{stroke:var(--amber);filter:drop-shadow(0 0 5px color-mix(in srgb,var(--amber) 42%,transparent))}
+#wfp .workflow-week-progress-card .workflow-progress-copy b,#wfp .workflow-risk-progress-card .workflow-progress-copy b{color:var(--amber)!important}
+#wfp .workflow-progress-ring{position:relative;width:66px;height:66px;flex:0 0 66px;display:grid;place-items:center}
+#wfp .workflow-progress-ring svg{position:absolute;inset:0;width:100%;height:100%;transform:rotate(-90deg);overflow:visible}
+#wfp .workflow-progress-ring circle{fill:none;stroke-width:8}
+#wfp .workflow-progress-track{stroke:color-mix(in srgb,var(--line2) 85%,transparent)}
+#wfp .workflow-progress-value{stroke:var(--accent);stroke-linecap:round;stroke-dasharray:163.36;stroke-dashoffset:163.36; filter:drop-shadow(0 0 5px color-mix(in srgb,var(--accent) 42%,transparent));transition:stroke-dashoffset .28s ease}
+#wfp .workflow-progress-pct{position:relative;z-index:1;color:var(--txt);font-size:18px;font-weight:850;letter-spacing:-.04em;font-variant-numeric:tabular-nums}
+#wfp .workflow-progress-copy{display:flex;flex-direction:column;align-items:flex-start;min-width:0}
+#wfp#wfp .workflow-stats .workflow-progress-copy b{font-size:22px;line-height:1;color:var(--accent)}
+#wfp .workflow-progress-copy>span{margin-top:3px;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.07em}
+#wfp .workflow-progress-copy small{margin-top:5px;color:var(--faint);font-size:9.5px;line-height:1.25;white-space:normal;text-align:start}
+#wfp .wfp-field{display:flex;flex-direction:column;gap:5px;min-width:0}
+#wfp .wfp-field span{font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--faint);font-weight:700}
+#wfp .wfp-input{width:100%;min-width:0;background:var(--bg);border:1px solid var(--line);color:var(--txt); border-radius:9px;padding:9px 10px;font-size:13px;font-family:inherit}
+#wfp .wfp-input:focus{outline:none;border-color:var(--accent)}
+#wfp .wfp-new-project{margin-top:6px}
+#wfp .workflow-range{font-size:10.5px;color:var(--faint);white-space:nowrap}
+#wfp .workflow-timeline-card{padding:0;overflow:hidden;margin-bottom:16px;border-radius:18px}
+#wfp .workflow-timeline-card .workflow-card-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap; padding:14px 16px;border-bottom:1px solid color-mix(in srgb,var(--workflow-accent) 22%,var(--line)); background:linear-gradient(135deg,color-mix(in srgb,var(--card) 88%,var(--workflow-accent)),color-mix(in srgb,var(--card2) 92%,transparent))}
+#wfp .workflow-timeline-card .workflow-card-head h2{margin:0;color:var(--txt);font-size:17px;font-weight:700; text-transform:none;letter-spacing:-.01em}
+#wfp .workflow-card-title{display:flex;align-items:baseline;gap:9px;flex:0 0 auto}
+#wfp .workflow-card-actions{display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap}
+#wfp .workflow-shown{font-size:11px;color:var(--faint);white-space:nowrap}
+#wfp .workflow-header-controls{display:flex;align-items:center;justify-content:flex-end;gap:6px;flex:1;min-width:360px}
+#wfp .workflow-header-search{width:clamp(130px,18vw,240px);min-width:110px;background:rgba(8,12,21,.46);border:1px solid var(--line); color:var(--txt);border-radius:8px;padding:7px 9px;font:500 11.5px/1.2 var(--font)}
+#wfp .workflow-header-search:focus{outline:none;border-color:var(--workflow-accent);box-shadow:0 0 0 2px var(--workflow-accent-soft)}
+#wfp .workflow-header-select{max-width:150px;min-width:105px;background:rgba(8,12,21,.46);border:1px solid var(--line);color:var(--txt); border-radius:8px;padding:7px 24px 7px 8px;font:600 11px/1.2 var(--font)}
+#wfp .workflow-view-select{min-width:104px;max-width:115px;color:var(--workflow-accent)}
+div#wfp.wfp-light .workflow-header-search,div#wfp.wfp-light .workflow-header-select{background:rgba(255,255,255,.8)}
+#wfp .gantt-scroll{overflow-x:auto;overflow-y:scroll;position:relative;min-height:360px;overscroll-behavior:contain; scrollbar-gutter:stable both-edges;touch-action:pan-x pan-y;-webkit-overflow-scrolling:touch;scroll-behavior:auto;will-change:scroll-position; background:linear-gradient(150deg,color-mix(in srgb,var(--bg) 90%,var(--workflow-accent)),var(--bg))}
+#wfp .gantt{min-width:max-content;position:relative;isolation:isolate;--gantt-label-width:252px}
+#wfp .gantt-head,#wfp .gantt-row{display:flex;min-width:max-content}
+#wfp .gantt-head{position:sticky;top:0;z-index:30;background:color-mix(in srgb,var(--card) 96%,var(--bg)); box-shadow:0 5px 14px rgba(0,0,0,.16)}
+#wfp .gantt-label{position:sticky;inset-inline-start:0;z-index:18;flex:0 0 var(--gantt-label-width);width:var(--gantt-label-width); min-width:var(--gantt-label-width);padding:7px 10px;border-inline-end:1px solid color-mix(in srgb,var(--workflow-accent) 20%,var(--line2)); border-bottom:1px solid color-mix(in srgb,var(--workflow-accent) 12%,var(--line)); background:color-mix(in srgb,var(--card) 97%,var(--bg));box-shadow:5px 0 12px rgba(0,0,0,.14)}
+#wfp .gantt-head .gantt-label{z-index:42;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted); display:flex;align-items:center;justify-content:space-between;background:color-mix(in srgb,var(--card) 94%,transparent)}
+div#wfp:not(.wfp-light) .workflow-timeline-card{background:linear-gradient(145deg,rgba(26,30,44,.98),rgba(10,13,22,.99)); border-color:rgba(167,139,250,.2);box-shadow:0 18px 48px rgba(0,0,0,.34),inset 0 1px 0 rgba(255,255,255,.05)}
+div#wfp:not(.wfp-light) .gantt-scroll{background: radial-gradient(circle at 20% 0%,rgba(91,140,255,.09),transparent 34%), radial-gradient(circle at 80% 28%,rgba(167,139,250,.08),transparent 30%),rgba(7,10,18,.72)}
+div#wfp:not(.wfp-light) .gantt-head{background:#181c2a;border-bottom:1px solid rgba(255,255,255,.08)}
+div#wfp:not(.wfp-light) .gantt-label{background:#141825;border-color:rgba(255,255,255,.07)}
+div#wfp:not(.wfp-light) .gantt-project-row .gantt-label{background:linear-gradient(90deg,#23283b,#181c2a)}
+div#wfp#wfp:not(.wfp-light) .workflow-stats .wfp-stat{background:linear-gradient(145deg,rgba(35,40,58,.72),rgba(14,17,28,.76));border-color:rgba(255,255,255,.1); box-shadow:0 18px 48px rgba(0,0,0,.28),inset 0 1px 0 rgba(255,255,255,.07); backdrop-filter:blur(18px) saturate(145%);-webkit-backdrop-filter:blur(18px) saturate(145%)}
+div#wfp:not(.wfp-light) .wfp-input{background:rgba(10,14,24,.54);border-color:rgba(255,255,255,.1);box-shadow:inset 0 1px 0 rgba(255,255,255,.035)}
+div#wfp:not(.wfp-light) .workflow-primary{background:linear-gradient(135deg,#7c5cff,#5c7cfa);box-shadow:0 9px 25px rgba(108,79,240,.28)}
+div#wfp:not(.wfp-light) .workflow-secondary{background:rgba(255,255,255,.055);border-color:rgba(255,255,255,.12)}
+#wfp#wfp .workflow-stats .wfp-stat{transition:transform .18s ease,border-color .18s ease,box-shadow .18s ease;--metric:var(--workflow-accent)}
+#wfp#wfp .workflow-stats .wfp-stat:nth-child(2){--metric:var(--amber)}
+#wfp#wfp .workflow-stats .wfp-stat:nth-child(3){--metric:var(--amber)}
+#wfp#wfp .workflow-stats .wfp-stat:nth-child(4){--metric:var(--green)}
+#wfp#wfp .workflow-stats .wfp-stat:nth-child(5){--metric:var(--red)}
+#wfp#wfp .workflow-stats .wfp-stat:nth-child(6){--metric:var(--workflow-accent)}
+#wfp#wfp .workflow-stats .wfp-stat::before{content:"";position:absolute;inset-block:0;inset-inline-start:0;width:3px; background:linear-gradient(180deg,var(--metric),transparent);box-shadow:0 0 14px var(--metric)}
+#wfp#wfp .workflow-stats .wfp-stat:hover{transform:translateY(-2px);border-color:color-mix(in srgb,var(--metric) 48%,var(--line)); box-shadow:0 14px 34px rgba(0,0,0,.22),inset 0 1px 0 rgba(255,255,255,.08)}
+#wfp .workflow-timeline-card{border:1px solid color-mix(in srgb,var(--workflow-accent) 28%,var(--line));box-shadow:0 28px 80px rgba(0,0,0,.3)}
+#wfp .workflow-timeline-card .workflow-card-head{min-height:58px;padding:11px 14px;flex-wrap:wrap}
+#wfp .gantt-scroll{height:min(72vh,760px);max-height:calc(100vh - 180px);min-height:420px; scrollbar-color:color-mix(in srgb,var(--workflow-accent) 45%,var(--line2)) transparent}
+#wfp .gantt-head{top:0!important;z-index:50!important}
+#wfp .gantt-head .gantt-label{z-index:60!important}
+#wfp .gantt-day{height:62px;letter-spacing:.02em}
+#wfp .gantt-day b{font-size:11.5px}
+#wfp .gantt-day.today{z-index:3;color:#fff;background:linear-gradient(180deg,rgba(255,230,0,.3),rgba(255,230,0,.12)); box-shadow:inset 2px 0 0 rgba(255,230,0,.95),inset -2px 0 0 rgba(255,230,0,.95),0 0 28px rgba(255,230,0,.18)}
+#wfp .gantt-day.today b{color:#fff}
+#wfp .gantt-today-column{position:absolute;inset-block:0;z-index:2;pointer-events:none; background:linear-gradient(180deg,rgba(255,230,0,.12),rgba(255,230,0,.045) 70%,rgba(255,230,0,.09)); border-inline:1px solid rgba(255,230,0,.7)}
+div#wfp.wfp-light .gantt-today-column{background:linear-gradient(180deg,rgba(255,212,0,.2),rgba(255,212,0,.07));border-inline-color:#c7ad00}
+#wfp .gantt-project-row .gantt-label{min-height:46px}
+#wfp .gantt-project-track{height:46px}
+#wfp .gantt-project-track:hover::after{height:46px}
+#wfp .gantt-project-dot{width:11px;height:11px;box-shadow:0 0 12px color-mix(in srgb,var(--project-color,var(--workflow-accent)) 70%,transparent)}
+#wfp .gantt-project-meter{width:42px;height:4px;overflow:hidden;border-radius:999px;background:rgba(255,255,255,.09);flex:0 0 auto}
+#wfp .gantt-project-meter span{display:block;height:100%;border-radius:inherit;background:var(--project-color,var(--workflow-accent)); box-shadow:0 0 8px var(--project-color,var(--workflow-accent))}
+#wfp .gantt-project-progress{min-width:30px;text-align:end;font-weight:700}
+#wfp .gantt-task-label{min-height:58px;padding-block:9px}
+#wfp .gantt-track{height:58px}
+#wfp .gantt-bar{top:10px;height:38px;border-radius:12px;transition:filter .16s ease,box-shadow .16s ease,transform .16s ease}
+#wfp .gantt-bar:hover{filter:brightness(1.05);box-shadow:0 7px 16px rgba(0,0,0,.34),inset 0 1px 0 rgba(255,255,255,.26)}
+#wfp .gantt-bar-text{margin:5px 17px 5px 5px;padding:3px 8px;line-height:20px;font-size:11.5px;letter-spacing:.005em}
+#wfp .gantt-milestone{top:18px}
+#wfp .gantt-cell.today{background:linear-gradient(180deg,rgba(255,230,0,.12),rgba(255,230,0,.045)); box-shadow:inset 1px 0 0 rgba(255,230,0,.5),inset -1px 0 0 rgba(255,230,0,.5)}
+body.tasks-full #wfp#wfp .workflow-stats{display:none!important}
+body.tasks-full #wfp#wfp{max-width:none;padding:0}
+body.tasks-full #wfp .gantt-scroll{height:calc(100vh - 116px);max-height:calc(100vh - 116px);min-height:320px}
+body.tasks-full #wfp .workflow-timeline-card{margin:0}
+#wfp .gantt-column-resizer{position:absolute;inset-block:0;inset-inline-end:-5px;width:10px;cursor:col-resize;z-index:20; background:transparent;touch-action:none}
+#wfp .gantt-column-resizer:hover,#wfp .gantt-column-resizer.dragging{background:var(--workflow-accent)}
+#wfp .gantt-label-main{display:flex;align-items:center;gap:6px;min-width:0}
+#wfp .gantt-task-drag-handle{width:22px;height:30px;flex:0 0 22px;display:grid;place-items:center;padding:0;border:0;border-radius:7px; background:transparent;color:var(--faint);font:800 13px/1 var(--font);letter-spacing:-3px;cursor:grab;touch-action:none}
+#wfp .gantt-task-drag-handle:hover,#wfp .gantt-task-drag-handle:focus-visible{color:var(--txt);background:color-mix(in srgb,var(--workflow-accent) 16%,transparent);outline:none}
+#wfp .gantt-task-drag-handle:active{cursor:grabbing}
+#wfp .gantt-label-copy{flex:1;min-width:0}
+#wfp .gantt-task-label.reorder-before{box-shadow:inset 0 3px 0 var(--workflow-accent),9px 0 24px rgba(0,0,0,.18)}
+#wfp .gantt-task-label.reorder-after{box-shadow:inset 0 -3px 0 var(--workflow-accent),9px 0 24px rgba(0,0,0,.18)}
+#wfp .gantt-project-row.task-drop-target .gantt-label{outline:2px dashed var(--workflow-accent);outline-offset:-3px;background:var(--workflow-accent-soft)}
+#wfp .gantt-label:hover .more-btn{opacity:1}
+#wfp .gantt-title{font-size:12.5px;font-weight:600;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#wfp a.gantt-title{display:block;color:var(--blue);text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px}
+#wfp a.gantt-title:hover{color:var(--workflow-accent);text-decoration-style:solid}
+#wfp .gantt-sub{font-size:10px;color:var(--faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px;line-height:1.25}
+#wfp .wfp-repeat{color:var(--purple);font-weight:700}
+#wfp .gantt-project-row .gantt-label{min-height:40px;padding-block:6px;background:var(--card2);display:flex;align-items:center;gap:5px}
+#wfp .gantt-project-name{display:flex;align-items:center;gap:7px;font-size:12.5px;font-weight:650;flex:1;min-width:0}
+#wfp .gantt-project-title{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#wfp .gantt-project-name[data-project],#wfp .gantt-task-label[data-task-id]{cursor:grab}
+#wfp .gantt-project-name[data-project]:active,#wfp .gantt-task-label[data-task-id]:active{cursor:grabbing}
+#wfp .gantt-project-dot{width:10px;height:10px;border-radius:50%;flex:0 0 auto}
+#wfp .gantt-project-count{margin-inline-start:auto;color:var(--faint);font-size:10.5px}
+#wfp .gantt-project-actions{display:flex;align-items:center;gap:1px;flex:0 0 auto}
+#wfp .project-add-btn{width:28px;height:28px;padding:0;border:0;border-radius:7px;background:transparent;color:var(--muted); font-size:19px;line-height:1;display:grid;place-items:center}
+#wfp .project-add-btn:hover,#wfp .project-add-btn:focus-visible{background:var(--workflow-accent-soft);color:var(--workflow-accent);outline:none}
+#wfp .gantt-project-track{height:40px;border-bottom:1px solid var(--line);flex:0 0 auto;position:relative;cursor:crosshair}
+#wfp .gantt-project-track:hover::after{content:"＋";position:sticky;inset-inline-start:18px;display:inline-flex;align-items:center;height:40px; color:var(--workflow-accent);font-size:18px;font-weight:800;pointer-events:none}
+#wfp .gantt-project-progress{color:var(--muted);font-size:10px;font-variant-numeric:tabular-nums}
+#wfp .gantt-task-label{border-inline-start:3px solid transparent;padding-inline-start:10px;min-height:52px}
+#wfp .gantt-task-label.critical{background:linear-gradient(90deg,var(--purple-bg),var(--card) 55%);border-inline-start-color:var(--purple)!important}
+#wfp .gantt-project-row.drop-target .gantt-label{outline:2px dashed var(--workflow-accent);outline-offset:-3px;background:var(--workflow-accent-soft)}
+#wfp .gantt-row.structure-dragging{opacity:.45}
+#wfp .wfp-status{font-size:10px;font-weight:800;padding:2px 7px;border-radius:999px;margin-inline-start:5px}
+#wfp .wfp-overdue{color:var(--red);background:var(--red-bg)}
+#wfp .wfp-risk{color:var(--amber);background:var(--amber-bg)}
+#wfp .wfp-milestone{color:var(--accent);background:var(--accent-dim)}
+#wfp .wfp-dep{color:var(--purple);background:var(--purple-bg)}
+#wfp .wfp-critical{color:var(--purple);background:var(--purple-bg)}
+#wfp .archive-list{display:flex;flex-direction:column;gap:8px}
+#wfp .archive-row{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--card2)}
+#wfp .archive-row b{flex:1;font-size:13px}
+#wfp .archive-section-label{margin:9px 2px 1px;color:var(--faint);font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.09em}
+#wfp .archive-task-row{align-items:center}
+#wfp .archive-task-copy{flex:1;min-width:0}
+#wfp .archive-task-copy b{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#wfp .archive-task-copy span{display:block;margin-top:2px;color:var(--faint);font-size:10.5px}
+.wfp-pop .snapshot-menu-label{padding:7px 10px 3px;color:var(--faint);font-size:10px;text-transform:uppercase;letter-spacing:.06em}
+.project-colour-menu.wfp-pop{min-width:226px}
+.wfp-pop .project-colour-palette{display:grid;grid-template-columns:repeat(6,28px);gap:7px;padding:7px 10px 10px}
+.wfp-pop .project-colour-swatch{position:relative;width:28px!important;height:28px;padding:0!important;border-radius:9px!important; background:var(--swatch)!important;border:2px solid transparent!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.35),0 4px 10px rgba(0,0,0,.25)}
+.wfp-pop .project-colour-swatch:hover{transform:translateY(-1px);filter:brightness(1.08)}
+.wfp-pop .project-colour-swatch.selected{border-color:#fff!important;box-shadow:0 0 0 2px var(--swatch),0 6px 14px rgba(0,0,0,.3)}
+.wfp-pop.wfp-light .project-colour-swatch.selected{border-color:#1a2030!important}
+#wfp .gantt-days{display:flex;border-bottom:1px solid var(--line)}
+#wfp .gantt-day{height:54px;border-inline-end:1px solid var(--line);display:flex; flex-direction:column;justify-content:center;align-items:center;font-size:10px;color:var(--faint)}
+#wfp .gantt-day b{font-size:11px;color:var(--muted)}
+#wfp .gantt-day.weekend,#wfp .gantt-cell.weekend{background:color-mix(in srgb,var(--workflow-accent) 5%,transparent)}
+#wfp .gantt-day.today,#wfp .gantt-cell.today{background:color-mix(in srgb,var(--workflow-accent) 16%,transparent);color:var(--workflow-accent)}
+#wfp .gantt-track{position:relative;display:flex;flex:0 0 auto;height:52px;border-bottom:1px solid color-mix(in srgb,var(--workflow-accent) 10%,var(--line));cursor:crosshair}
+#wfp .gantt-cell{border-inline-end:1px solid color-mix(in srgb,var(--workflow-accent) 9%,var(--line));position:relative}
+div#wfp:not(.wfp-light) .gantt-row:hover .gantt-label{background:rgba(34,39,56,.88)}
+div#wfp:not(.wfp-light) .gantt-row:hover .gantt-track{background:rgba(255,255,255,.018)}
+#wfp .gantt-track[data-project] .gantt-cell:hover{background:color-mix(in srgb,var(--workflow-accent) 17%,transparent)}
+#wfp .gantt-track[data-project] .gantt-cell:hover::after{content:"＋";position:absolute;inset:0;display:grid;place-items:center;color:var(--workflow-accent); font-size:18px;font-weight:800;pointer-events:none;filter:drop-shadow(0 0 7px var(--workflow-accent))}
+#wfp .gantt-bar{position:absolute;top:9px;height:34px;border-radius:10px; background:linear-gradient(180deg,color-mix(in srgb,var(--project-color,var(--blue)) 88%,#fff),color-mix(in srgb,var(--project-color,var(--blue)) 70%,#111827)); border:1px solid color-mix(in srgb,var(--project-color,var(--blue)) 72%,rgba(255,255,255,.2));overflow:hidden; box-shadow:0 5px 12px rgba(0,0,0,.28),inset 0 1px 0 rgba(255,255,255,.24); cursor:grab;touch-action:none;user-select:none;z-index:5}
+#wfp .gantt-bar.dragging{cursor:grabbing;opacity:.8;box-shadow:0 0 0 2px var(--workflow-accent),0 6px 18px rgba(0,0,0,.4)}
+#wfp .gantt-bar.completed{filter:saturate(.82)}
+#wfp .gantt-bar.completed .gantt-bar-text{text-decoration:line-through}
+#wfp .gantt-bar.overdue{box-shadow:0 0 0 2px var(--red),0 4px 12px rgba(255,107,122,.25)}
+#wfp .gantt-bar.at-risk{box-shadow:0 0 0 2px var(--amber),0 4px 12px rgba(255,184,77,.2)}
+#wfp .gantt-bar.critical{box-shadow:0 0 0 2px var(--purple),0 0 16px rgba(177,139,255,.38)}
+#wfp .gantt-milestone{position:absolute;top:15px;width:20px;height:20px;transform:rotate(45deg);border:1px solid color-mix(in srgb,var(--project-color,var(--workflow-accent)) 78%,#fff); background:linear-gradient(135deg,color-mix(in srgb,var(--project-color,var(--workflow-accent)) 78%,#fff),color-mix(in srgb,var(--project-color,var(--workflow-accent)) 42%,#09101c)); cursor:grab;touch-action:none;box-shadow:0 7px 18px rgba(0,0,0,.38),inset 0 1px 0 rgba(255,255,255,.4),0 0 15px color-mix(in srgb,var(--project-color,var(--workflow-accent)) 24%,transparent);z-index:5}
+#wfp .gantt-milestone.completed{filter:saturate(.82)}
+#wfp .gantt-milestone.overdue{border-color:var(--red);box-shadow:0 0 0 2px var(--red)}
+#wfp .gantt-milestone.at-risk{border-color:var(--amber);box-shadow:0 0 0 2px var(--amber)}
+#wfp .gantt-milestone.critical{box-shadow:0 0 0 3px var(--purple)}
+#wfp .gantt-bar-fill{position:absolute;inset-block:0;inset-inline-start:0; background:linear-gradient(90deg,color-mix(in srgb,var(--project-color,var(--blue)) 42%,#07101e),color-mix(in srgb,var(--project-color,var(--blue)) 28%,#030711)); opacity:.88;border-inline-end:1px solid rgba(255,255,255,.28)}
+#wfp .gantt-bar-text{position:relative;z-index:1;display:block;margin:3px 15px 3px 4px;padding:3px 7px; border-radius:5px;background:transparent;color:#fff;font-size:11.5px;font-weight:750;line-height:18px; white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-shadow:0 1px 2px #000,0 0 5px rgba(0,0,0,.85)}
+#wfp .gantt-bar:focus-visible,#wfp .gantt-milestone:focus-visible{outline:3px solid #fff;outline-offset:3px}
+#wfp .gantt-resize{position:absolute;z-index:2;inset-block:0;inset-inline-end:0;width:12px;cursor:ew-resize; border-inline-start:1px solid rgba(255,255,255,.45);background:rgba(255,255,255,.08);touch-action:none}
+.task-menu.wfp-pop button:disabled{cursor:not-allowed;opacity:.42;background:transparent}
+#wfp .workflow-dialog{width:min(760px,calc(100vw - 28px));max-height:min(88vh,820px);padding:0;border:1px solid var(--line2); border-radius:16px;background:var(--card);color:var(--txt);box-shadow:0 24px 80px rgba(0,0,0,.55)}
+#wfp .workflow-dialog::backdrop{background:rgba(3,5,10,.72);backdrop-filter:blur(3px)}
+#wfp .workflow-dialog-shell{display:flex;flex-direction:column;max-height:min(88vh,820px)}
+#wfp .workflow-dialog-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding:18px 20px 14px;border-bottom:1px solid var(--line)}
+#wfp .workflow-dialog-head h2{font-size:20px;color:var(--txt)}
+#wfp .workflow-dialog-head p{margin:4px 0 0;color:var(--muted);font-size:12.5px}
+#wfp .workflow-dialog-close{border:0;background:transparent;color:var(--muted);font-size:25px;line-height:1;border-radius:8px;padding:3px 7px}
+#wfp .workflow-dialog-close:hover,#wfp .workflow-dialog-close:focus-visible{background:var(--card2);color:var(--txt);outline:none}
+#wfp .workflow-dialog-body{padding:18px 20px;overflow:auto}
+#wfp .workflow-dialog-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+#wfp .workflow-dialog-grid .wfp-full{grid-column:1/-1}
+#wfp .workflow-dialog-progress{display:grid;grid-template-columns:1fr 52px;gap:10px;align-items:center}
+#wfp .workflow-dialog-progress input{width:100%;accent-color:var(--workflow-accent)}
+#wfp .workflow-dialog-progress output{text-align:end;color:var(--workflow-accent);font-weight:800}
+#wfp .workflow-dialog-check{display:flex;align-items:center;gap:9px;min-height:41px;padding:9px 10px;border:1px solid var(--line);border-radius:9px;background:var(--bg)}
+#wfp .workflow-dialog-check input{accent-color:var(--workflow-accent)}
+#wfp .workflow-dialog-source{display:inline-flex;align-items:center;gap:6px;font-size:12.5px}
+#wfp .workflow-dialog-dependencies{border:1px solid var(--line);border-radius:10px;padding:10px;max-height:190px;overflow:auto;background:var(--bg)}
+#wfp .workflow-dialog-dependencies legend{padding-inline:5px;color:var(--muted);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em}
+#wfp .wfp-dep-option{display:flex;align-items:flex-start;gap:9px;padding:7px;border-radius:7px;font-size:12.5px}
+#wfp .wfp-dep-option:hover{background:var(--card2)}
+#wfp .wfp-dep-option input{margin-top:3px;accent-color:var(--workflow-accent)}
+#wfp .wfp-dep-option small{display:block;color:var(--faint)}
+#wfp .workflow-dialog-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:14px 20px;border-top:1px solid var(--line)}
+#wfp .workflow-dialog-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+#wfp .workflow-dialog .wfp-danger-btn{color:#fff;background:var(--red)}
+body.wfp-dialog-open{overflow:hidden}
+@media(max-width:980px){
+  #wfp .workflow-stats{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:560px){
+  #wfp .workflow-stats{grid-template-columns:1fr}
+  #wfp .workflow-actions{width:100%}
+  #wfp .workflow-actions .wfp-btn{flex:1}
+  #wfp .workflow-card-title{width:100%;justify-content:space-between}
+  #wfp .workflow-header-controls{width:100%;min-width:0;justify-content:flex-start;flex-wrap:wrap}
+  #wfp .workflow-header-search{width:100%;max-width:none}
+  #wfp .workflow-header-select{flex:1;max-width:none}
+  #wfp .workflow-range{display:none}
+  #wfp .workflow-card-actions{justify-content:flex-start;width:100%}
+  #wfp .workflow-dialog-grid{grid-template-columns:1fr}
+  #wfp .workflow-dialog-grid .wfp-full{grid-column:auto}
+  #wfp .gantt-scroll{height:calc(100vh - 170px);max-height:calc(100vh - 170px);min-height:300px}
+}
+/* -- Departures from the reference, each for a reason the reference did not have -- */
+#wfp .wfp-side-card{margin-top:16px}
+/* Focus hides what the reference hid: the metric cards and the lists under
+   the chart. The reference found the archive as the last card; here the
+   dialog follows it, so the lists are named instead. */
+body.tasks-full #wfp#wfp .wfp-side-card{display:none!important}
+/* With a finger a bar must be held before it moves. The chart is a long
+   sideways scroll, and with the reference's touch-action:none every swipe
+   that began on a bar dragged it - moving that task's dates. pan-y keeps
+   vertical scrolling native and gives the sideways axis to the drag; the
+   resize grip is a deliberate target and still starts at once. */
+#wfp .gantt-bar,#wfp .gantt-milestone{touch-action:pan-y}
+/* The narrower name column on a phone (see wfpLabelRange) cannot hold the
+   project row's meter and count as well as its name - the name lost, and
+   vanished. The percentage stays; the bar of it and the count go. */
+@media(max-width:560px){
+  #wfp .gantt-project-meter,#wfp .gantt-project-count{display:none}
+  /* On a phone the six metric cards are one narrow, sideways-scrolling strip
+     at the top, as asked - stacked one per row they pushed the chart a full
+     screen down. Each card is deliberately small: the ring sits above its
+     figure, and the long "1 today · 1 tomorrow…" line goes (it is still the
+     card's tooltip). The app's tab swipe ignores touches that start here. */
+  #wfp#wfp .workflow-stats{display:flex;gap:8px;overflow-x:auto;overflow-y:hidden;
+    overscroll-behavior-x:contain;scroll-snap-type:x proximity;scrollbar-width:none;
+    padding:2px 2px 6px;margin-bottom:12px}
+  #wfp#wfp .workflow-stats::-webkit-scrollbar{display:none}
+  #wfp#wfp .workflow-stats .wfp-stat{flex:0 0 96px;width:96px;min-height:0;padding:9px 10px;
+    scroll-snap-align:start;border-radius:12px}
+  #wfp#wfp .workflow-stats .wfp-stat::after{width:40px;height:40px;inset-inline-end:-18px;inset-block-end:-22px}
+  #wfp#wfp .workflow-stats .wfp-stat b{font-size:19px}
+  #wfp#wfp .workflow-stats .wfp-stat span{font-size:8.5px;letter-spacing:.04em;line-height:1.25}
+  #wfp#wfp .workflow-stats .workflow-progress-card{flex-direction:column;align-items:flex-start;gap:6px;padding:9px 10px}
+  #wfp#wfp .workflow-stats .workflow-progress-ring{width:40px;height:40px;flex:0 0 40px}
+  #wfp#wfp .workflow-stats .wfp-stat .workflow-progress-pct{font-size:9.5px;letter-spacing:0}
+  #wfp#wfp .workflow-stats .workflow-progress-copy b{font-size:17px}
+  #wfp#wfp .workflow-stats .workflow-progress-copy>span{margin-top:2px}
+  #wfp#wfp .workflow-stats .workflow-progress-copy small{display:none}
+}
 </style>
 </head>
 <body>
@@ -1321,6 +1669,16 @@ a.btn{text-decoration:none;display:inline-block}
        are two ways of working, not two views of one screen, and a sub-tab row
        cost a line of height on both. -->
   <section id="view-workflow" class="view">
+    <!-- Two workflows side by side while one is chosen: the original Timeline
+         and the Planner ported from the workflow-porting package. Both read
+         the same project and task rows as the board, so removing either one
+         later loses no task. -->
+    <nav class="subtabs" id="workflowSubTabs">
+      <button data-wsub="timeline" class="active">Timeline</button>
+      <button data-wsub="planner">Planner</button>
+    </nav>
+
+    <div class="subview active" id="wsub-timeline">
     <div class="datebar">
       <button id="wfPrev" title="Earlier">‹</button>
       <div class="dlabel" id="wfLabel">Timeline</div>
@@ -1333,6 +1691,147 @@ a.btn{text-decoration:none;display:inline-block}
       <h3>📥 Not on the timeline<span class="count" id="wfUndatedCount"></span></h3>
       <p class="muted" style="font-size:.78rem;margin-top:0">Give a task a start and end date to plot it.</p>
       <div id="wfUndated"></div>
+    </div>
+    </div>
+
+    <!-- The Planner. Everything inside #wfp carries the reference's own look,
+         so its classes are wfp- prefixed where the reference used a name this
+         app already styles (.card, .btn, .stat, .grid...) and every rule for
+         it is scoped under #wfp - neither side's styles can reach the other. -->
+    <div class="subview" id="wsub-planner">
+    <div id="wfp" class="wfp">
+      <div class="wfp-grid workflow-stats" aria-label="Planner filters">
+        <button type="button" class="wfp-stat workflow-progress-card workflow-metric-filter" data-wfp="set-status" data-status="today-progress" title="Show tasks due today, tomorrow or the day after">
+          <span class="workflow-progress-ring" aria-hidden="true">
+            <svg viewBox="0 0 68 68"><circle class="workflow-progress-track" cx="34" cy="34" r="26"></circle><circle class="workflow-progress-value" id="wfpFocusRing" cx="34" cy="34" r="26"></circle></svg>
+            <span class="workflow-progress-pct" id="wfpFocusPct">0%</span>
+          </span>
+          <span class="workflow-progress-copy"><b id="wfpFocusCount">0</b><span>3-day tasks</span><small id="wfpFocusMeta">0 today · 0 tomorrow · 0 day after</small></span>
+        </button>
+        <button type="button" class="wfp-stat workflow-progress-card workflow-week-progress-card workflow-metric-filter" data-wfp="set-status" data-status="due-soon" title="Show task occurrences due in the next 7 days">
+          <span class="workflow-progress-ring" aria-hidden="true">
+            <svg viewBox="0 0 68 68"><circle class="workflow-progress-track" cx="34" cy="34" r="26"></circle><circle class="workflow-progress-value" id="wfpWeekRing" cx="34" cy="34" r="26"></circle></svg>
+            <span class="workflow-progress-pct" id="wfpWeekPct">0%</span>
+          </span>
+          <span class="workflow-progress-copy"><b id="wfpWeekCount">0</b><span>Due in 7 days</span><small id="wfpWeekMeta">0 complete · 0 open</small></span>
+        </button>
+        <button type="button" class="wfp-stat workflow-progress-card workflow-risk-progress-card workflow-metric-filter" data-wfp="set-status" data-status="at-risk" title="Show tasks that are at risk or blocked">
+          <span class="workflow-progress-ring" aria-hidden="true">
+            <svg viewBox="0 0 68 68"><circle class="workflow-progress-track" cx="34" cy="34" r="26"></circle><circle class="workflow-progress-value" id="wfpRiskRing" cx="34" cy="34" r="26"></circle></svg>
+            <span class="workflow-progress-pct" id="wfpRiskPct">0%</span>
+          </span>
+          <span class="workflow-progress-copy"><b id="wfpRisk">0</b><span>At risk</span><small id="wfpRiskMeta">0 of 0 open tasks</small></span>
+        </button>
+        <button type="button" class="wfp-stat wfp-green workflow-metric-filter" data-wfp="set-status" data-status="below-average" title="Show tasks below the current average progress"><b id="wfpAverage">0%</b><span>Average progress</span></button>
+        <button type="button" class="wfp-stat workflow-metric-filter" data-wfp="set-status" data-status="overdue" title="Show overdue tasks"><b id="wfpOverdue" style="color:var(--red)">0</b><span>Overdue</span></button>
+        <button type="button" class="wfp-stat wfp-accent workflow-metric-filter" data-wfp="set-status" data-status="all" title="Show all workflow tasks"><b id="wfpTotal">0</b><span>Total tasks</span></button>
+      </div>
+
+      <div class="wfp-card workflow-timeline-card" role="region" aria-labelledby="wfpTimelineHeading">
+        <div class="workflow-card-head">
+          <div class="workflow-card-title">
+            <h2 id="wfpTimelineHeading">Project timeline</h2>
+            <span class="workflow-shown" id="wfpShownCount">0 tasks shown</span>
+          </div>
+          <div class="workflow-header-controls" role="search" aria-label="Timeline search and filters">
+            <input class="workflow-header-search" id="wfpSearch" placeholder="Search" aria-label="Search workflow tasks or projects">
+            <select class="workflow-header-select" id="wfpProjectFilter" aria-label="Filter by project"></select>
+            <select class="workflow-header-select" id="wfpStatusFilter" aria-label="Filter by status">
+              <option value="all">All statuses</option>
+              <option value="open">Open</option>
+              <option value="in-progress">In progress</option>
+              <option value="today-progress">Due today / next 2 days</option>
+              <option value="due-today">Due today</option>
+              <option value="due-soon">Due in 7 days</option>
+              <option value="below-average">Below average progress</option>
+              <option value="overdue">Overdue</option>
+              <option value="at-risk">At risk / blocked</option>
+              <option value="critical">Critical path</option>
+              <option value="milestone">Milestones</option>
+              <option value="completed">Completed</option>
+            </select>
+            <select class="workflow-header-select workflow-view-select" id="wfpZoomSelect" aria-label="Timeline view">
+              <option value="day">Day view</option>
+              <option value="week">Week view</option>
+              <option value="month">Month view</option>
+            </select>
+            <span class="workflow-range" id="wfpRange"></span>
+          </div>
+          <div class="workflow-card-actions">
+            <div class="workflow-actions" aria-label="Workflow actions">
+              <button type="button" class="wfp-btn workflow-secondary wfp-sm" id="wfpFocusBtn" data-wfp="focus">⛶ Focus</button>
+              <button type="button" class="wfp-btn workflow-secondary wfp-sm" data-wfp="new-project">＋ New project</button>
+              <button type="button" class="wfp-btn workflow-primary wfp-sm" data-wfp="add-task">▣ Add task</button>
+            </div>
+          </div>
+        </div>
+        <div class="gantt-scroll" role="region" aria-label="Project Gantt chart" tabindex="0"><div id="wfpChart"></div></div>
+      </div>
+
+      <!-- Not in the reference, which has no undated tasks to speak of. Here the
+           tasks are the board's, and a board task with no dates would otherwise
+           be invisible from this tab. -->
+      <div class="wfp-card wfp-side-card" id="wfpUndatedCard">
+        <h2><span class="wfp-dot"></span>Not on the timeline<span class="wfp-count" id="wfpUndatedCount">0</span></h2>
+        <div class="archive-list" id="wfpUndated"></div>
+      </div>
+
+      <div class="wfp-card wfp-side-card" id="wfpArchiveCard">
+        <h2><span class="wfp-dot"></span>Archive<span class="wfp-count" id="wfpArchiveCount">0</span></h2>
+        <div class="archive-list" id="wfpArchive"></div>
+      </div>
+
+      <dialog aria-labelledby="wfpDialogTitle" aria-modal="true" class="workflow-dialog" id="wfpDialog">
+        <form class="workflow-dialog-shell" id="wfpDialogForm" method="dialog">
+          <div class="workflow-dialog-head">
+            <div><h2 id="wfpDialogTitle">Edit workflow task</h2></div>
+            <button aria-label="Close task editor" class="workflow-dialog-close" data-wfp="dialog-close" type="button">×</button>
+          </div>
+          <div class="workflow-dialog-body">
+            <div class="workflow-dialog-grid">
+              <label class="wfp-field wfp-full"><span>Task name</span><input class="wfp-input" id="wfpDialogName" maxlength="160" required></label>
+              <div class="wfp-field"><span id="wfpDialogProjectLabel">Project</span>
+                <select aria-labelledby="wfpDialogProjectLabel" class="wfp-input" id="wfpDialogProject"></select>
+                <input aria-label="New project name" class="wfp-input wfp-new-project" hidden id="wfpDialogNewProject" maxlength="80" placeholder="New project name">
+              </div>
+              <label class="wfp-field"><span>Recurrence</span>
+                <select class="wfp-input" id="wfpDialogRecurrence">
+                  <option value="none">None</option>
+                  <option value="weekly">Weekly</option>
+                  <option value="monthly">Monthly</option>
+                </select>
+              </label>
+              <label class="wfp-field"><span>Start</span><input class="wfp-input wfp-date" id="wfpDialogStart" required type="date"></label>
+              <label class="wfp-field"><span>Finish</span><input class="wfp-input wfp-date" id="wfpDialogEnd" required type="date"></label>
+              <label class="wfp-field wfp-full"><span>Progress</span>
+                <span class="workflow-dialog-progress">
+                  <input id="wfpDialogProgress" max="100" min="0" step="5" type="range">
+                  <output for="wfpDialogProgress" id="wfpDialogProgressValue">0%</output>
+                </span>
+              </label>
+              <label class="workflow-dialog-check wfp-full"><input id="wfpDialogMilestone" type="checkbox"> <span>Milestone</span></label>
+              <div class="wfp-full" hidden id="wfpDialogSourceWrap">
+                <a class="workflow-dialog-source" id="wfpDialogSource" rel="noopener" target="_blank">Open source ↗</a>
+              </div>
+              <fieldset class="workflow-dialog-dependencies wfp-full">
+                <legend>Dependencies</legend>
+                <div id="wfpDialogDependencies"></div>
+              </fieldset>
+            </div>
+          </div>
+          <div class="workflow-dialog-foot">
+            <div class="workflow-dialog-actions">
+              <button class="wfp-btn wfp-danger-btn" data-wfp="dialog-delete" id="wfpDialogDelete" type="button">Delete</button>
+              <button class="wfp-btn wfp-ghost" data-wfp="dialog-complete" id="wfpDialogComplete" type="button">Mark complete</button>
+            </div>
+            <div class="workflow-dialog-actions">
+              <button class="wfp-btn wfp-ghost" data-wfp="dialog-close" type="button">Cancel</button>
+              <button class="wfp-btn workflow-primary" data-wfp="dialog-save" id="wfpDialogSave" type="button">Save</button>
+            </div>
+          </div>
+        </form>
+      </dialog>
+    </div>
     </div>
   </section>
 
@@ -2732,6 +3231,7 @@ function renderAll(){
   renderNotes(true);
   renderBoard();
   renderWorkflow();
+  renderPlanner();
   if(currentSub==="duas")renderDuasList();   /* the links live on the profile */
   renderPrayerModal();          /* no-ops unless the modal is actually open */
   if(currentView==="calendar"){_calWin=null;renderCalendarTab();}
@@ -5172,6 +5672,9 @@ function attachTabSwipe(){
     /* Same for the Gantt: it is a long horizontal scroll, so a drag along it
        is a scroll through the weeks, never a tab change. */
     if(e.target&&e.target.closest&&e.target.closest(".wf-scroll"))return;
+    /* The planner's chart scrolls both ways too, and on a phone its metric
+       cards are a sideways strip of their own. */
+    if(e.target&&e.target.closest&&e.target.closest(".gantt-scroll,#wfp .workflow-stats"))return;
     startX=t.clientX;startY=t.clientY;
   },{passive:true});
   wrap.addEventListener("touchend",function(e){
@@ -5194,6 +5697,10 @@ function attachTabSwipe(){
     if(currentView==="journal"){
       var j=JOURNAL_SUBVIEWS.indexOf(currentJournalSub)+dir;
       if(j>=0&&j<JOURNAL_SUBVIEWS.length){navJournalSub(JOURNAL_SUBVIEWS[j]);return;}
+    }
+    if(currentView==="workflow"){
+      var w=WORKFLOW_SUBVIEWS.indexOf(currentWorkflowSub)+dir;
+      if(w>=0&&w<WORKFLOW_SUBVIEWS.length){navWorkflowSub(WORKFLOW_SUBVIEWS[w]);return;}
     }
     /* The bar's own order, not VIEWS - the bar can be rearranged, and a
        swipe that went somewhere else than the tab beside it would be wrong. */
@@ -6370,10 +6877,11 @@ function reorderBoardTask(projectId,id,overId,before){
   save();renderTaskViews();
 }
 
-/** The board and the timeline are two views of one set of rows. Anything that
- * changes a task redraws both, or the one you are not looking at goes stale -
- * which is how marking a task done on the timeline left its bar uncrossed. */
-function renderTaskViews(){renderBoard();renderWorkflow();}
+/** The board, the timeline and the planner are three views of one set of
+ * rows. Anything that changes a task redraws all of them, or one you are not
+ * looking at goes stale - which is how marking a task done on the timeline
+ * left its bar uncrossed. (The planner skips the work while it is hidden.) */
+function renderTaskViews(){renderBoard();renderWorkflow();renderPlanner();}
 
 function renderBoard(){
   var box=document.getElementById("board");
@@ -7123,6 +7631,1479 @@ function renderWorkflowUndated(){
     row.appendChild(btn);
     box.appendChild(row);
   });
+}
+
+/* ---------- THE WORKFLOW PLANNER ----------
+   Ported from the workflow-porting package, whose reference is a planner of
+   its own with its own browser-only store. Two things differ here by design,
+   and both follow from one choice: a planner task IS a board task.
+
+   1. No separate store. The reference kept its tasks, order, archives and
+      colours in eight localStorage keys. Here they are fields on the synced
+      project and task rows that the board and the Timeline already read, so
+      all three are views of one record and whichever workflow view is
+      removed later takes no task with it. The extra fields (progress,
+      recurrence, completedOccurrences, dependencies, milestone, completedAt)
+      ride the row's JSON blob, which the Worker stores opaquely - they sync
+      with no server change.
+   2. No snapshot / rollback / backup layer. That layer protected a store
+      nothing else backed up. These rows are synced, kept in the app's own
+      backup key and exported from Settings, and a second browser-only copy
+      could only ever diverge from them. Destructive actions ask first
+      instead, since there is no rollback to undo them with.
+
+   Reference -> row: name -> title; project (a name) -> projectId; start/end
+   as they are; "completed and moved to the archive" -> done; project colour
+   -> project.color, which the board's cards use too; archived projects ->
+   project.archived; task and project order -> each row's own order. */
+var WFP_VIEW_KEY="yawarPlannerView";
+var WFP_ZOOMS=["day","week","month"];
+var WFP_STATUSES=["all","open","in-progress","today-progress","due-today","due-soon",
+  "below-average","overdue","at-risk","critical","milestone","completed"];
+var WFP_PALETTE=["#4F8CFF","#7C5CFC","#B05CFF","#E85AAD","#FF5D73","#FF8A4C",
+  "#F6C344","#70C85C","#23C58B","#23BFC7","#3AA7E8","#7C8AA5"];
+/* Circumference of the metric rings (r=26), matching their stroke-dasharray. */
+var WFP_RING=163.36;
+var WFP_ZOOM_CFG={day:{cell:72,minDays:14},week:{cell:24,minDays:70},month:{cell:9,minDays:366}};
+
+/* How you are looking at the planner is per device, the same call as the
+   board's zoom (yawarBoardView): never synced, never in the health record. */
+function wfpLoadView(){
+  var v={};
+  try{v=JSON.parse(localStorage.getItem(WFP_VIEW_KEY)||"{}")||{};}catch(e){v={};}
+  return {
+    zoom:WFP_ZOOMS.indexOf(v.zoom)>=0?v.zoom:"day",
+    labelWidth:Number(v.labelWidth)>0?Number(v.labelWidth):null,   /* null = automatic */
+    search:typeof v.search==="string"?v.search:"",
+    project:typeof v.project==="string"?v.project:"all",
+    status:WFP_STATUSES.indexOf(v.status)>=0?v.status:"all"
+  };
+}
+var _wfp=wfpLoadView();
+function wfpSaveView(){try{localStorage.setItem(WFP_VIEW_KEY,JSON.stringify(_wfp));}catch(e){}}
+/* The reference's name column is 252px. On a 390px phone that leaves the
+   chart about a third of the screen - less than today's own double-width
+   column - and its resizer would not go below 240. The package asks for
+   responsive behaviour on mobile, so narrow screens get a column of 45% of
+   the width (and a resizer range to match); a desktop is exactly as the
+   reference has it. The stored width is per device, so the two never mix. */
+var WFP_NARROW=560;
+function wfpLabelRange(){
+  var vw=window.innerWidth||1024;
+  return vw<=WFP_NARROW?{min:150,max:Math.round(vw*0.7),auto:Math.max(150,Math.round(vw*0.45))}
+                       :{min:240,max:560,auto:252};
+}
+function wfpLabelWidth(){
+  var r=wfpLabelRange(),w=_wfp.labelWidth;
+  return w?Math.max(r.min,Math.min(r.max,w)):r.auto;
+}
+function wfpEl(id){return document.getElementById(id);}
+/** Next frame where there is one; a plain tick where there is not (an
+ * embedded or headless view without requestAnimationFrame). */
+function wfpNextFrame(fn){
+  if(typeof window.requestAnimationFrame==="function")window.requestAnimationFrame(fn);
+  else setTimeout(fn,0);
+}
+
+/* ---- dates: plain YYYY-MM-DD keys, arithmetic in UTC like shiftDay() ---- */
+function wfpParse(v){
+  var m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(v||"");
+  return m?new Date(+m[1],+m[2]-1,+m[3]):null;
+}
+function wfpDaysBetween(a,b){
+  var p=String(a).split("-"),q=String(b).split("-");
+  return Math.round((Date.UTC(+q[0],+q[1]-1,+q[2])-Date.UTC(+p[0],+p[1]-1,+p[2]))/86400000);
+}
+/** Same day of the month n months on, clamped to the month's last day - the
+ * reference's rule, so a monthly series from the 31st lands on the 30th. */
+function wfpAddMonths(v,n){
+  var p=String(v).split("-");
+  var d=new Date(Date.UTC(+p[0],+p[1]-1+n,1));
+  var last=new Date(Date.UTC(d.getUTCFullYear(),d.getUTCMonth()+1,0)).getUTCDate();
+  d.setUTCDate(Math.min(+p[2],last));
+  return d.toISOString().slice(0,10);
+}
+function wfpShortDate(v){
+  var d=wfpParse(v);
+  return d?d.toLocaleDateString("en-GB",{day:"numeric",month:"short"}):(v||"");
+}
+
+/* ---- reading the planner's fields off a board row ---- */
+function wfpRec(t){return t.recurrence==="weekly"||t.recurrence==="monthly"?t.recurrence:"none";}
+function wfpStep(key,rec){return rec==="weekly"?shiftDay(key,7):wfpAddMonths(key,1);}
+/** Progress as the planner sees it. A done task is 100%. A non-recurring task
+ * at 100% that is not done was reopened somewhere that knows nothing of
+ * progress - the board's tick - so it reads as reopened, which is what
+ * reopening sets in the reference too. */
+function wfpProg(t){
+  if(t.done)return 100;
+  var p=Math.max(0,Math.min(100,Number(t.progress)||0));
+  return (p>=100&&wfpRec(t)==="none")?0:p;
+}
+function wfpOccList(t){
+  return Array.isArray(t.completedOccurrences)?t.completedOccurrences.filter(function(x){return !!wfpParse(x);}):[];
+}
+function wfpDeps(t){
+  return Array.isArray(t.dependencies)?t.dependencies.filter(function(x){return typeof x==="string"&&x;}):[];
+}
+function wfpProject(id){var p=itemStore("projects")[id];return p&&!p.deleted?p:null;}
+function wfpTask(id){var t=itemStore("tasks")[id];return t&&!t.deleted?t:null;}
+function wfpProjectName(id){var p=wfpProject(id);return p?p.name:"";}
+/** The reference's active store: every open, dated task whose project is
+ * live. Done tasks are its archive; undated ones are listed beside it. */
+function wfpActiveTasks(includeArchived){
+  return liveItems("tasks").filter(function(t){
+    var p=wfpProject(t.projectId);
+    return p&&!t.done&&taskHasSpan(t)&&(includeArchived||!p.archived);
+  });
+}
+function wfpOrdered(tasks){
+  var at={};
+  projectList().forEach(function(p,i){at[p.id]=i;});
+  return tasks.slice().sort(function(a,b){
+    return ((at[a.projectId]||0)-(at[b.projectId]||0))||((a.order||0)-(b.order||0));
+  });
+}
+function wfpColourOf(p){
+  var hex=String((p&&projectColor(p))||"#B18BFF");
+  var m=/^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex);
+  var soft=m?"rgba("+parseInt(m[1],16)+","+parseInt(m[2],16)+","+parseInt(m[3],16)+",.15)":"rgba(177,139,255,.15)";
+  return {solid:hex,soft:soft};
+}
+
+/* ---- occurrences, completion, dependencies, status ---- */
+function wfpOccurrences(t,rangeStart,rangeEnd){
+  var out=[],start=taskStart(t),end=taskEnd(t),rec=wfpRec(t),guard=0;
+  if(!start||!end)return out;
+  while(guard++<160&&start<=rangeEnd){
+    if(end>=rangeStart)out.push({start:start,end:end,index:guard-1});
+    if(rec==="none")break;
+    start=wfpStep(start,rec);end=wfpStep(end,rec);
+  }
+  return out;
+}
+function wfpOccDone(t,start){
+  var prog=wfpProg(t),rec=wfpRec(t);
+  return wfpOccList(t).indexOf(start)>=0||(rec==="none"&&prog>=100)||
+    (rec!=="none"&&start===taskStart(t)&&prog>=100);
+}
+/** Marks the first open occurrence complete and says which it was. */
+function wfpMarkNext(t){
+  var start=taskStart(t),rec=wfpRec(t),guard=0;
+  while(start&&guard++<260){
+    if(!wfpOccDone(t,start)){
+      var list=wfpOccList(t);
+      if(list.indexOf(start)<0)list.push(start);
+      t.completedOccurrences=list.sort();
+      t.completedAt=new Date().toISOString();
+      return start;
+    }
+    start=wfpStep(start,rec);
+  }
+  return "";
+}
+function wfpNextOpen(t){
+  var start=taskStart(t),end=taskEnd(t),rec=wfpRec(t),guard=0;
+  while(start&&guard++<260){
+    if(!wfpOccDone(t,start))return {start:start,end:end};
+    if(rec==="none")return null;
+    start=wfpStep(start,rec);end=wfpStep(end,rec);
+  }
+  return null;
+}
+/** A finished task satisfies whatever depends on it, archived or not. A
+ * dependency that no longer exists can hold nothing up. */
+function wfpDepSatisfied(id){
+  var d=itemStore("tasks")[id];
+  if(!d||d.deleted||d.done)return true;
+  return wfpRec(d)==="none"?wfpProg(d)>=100:wfpOccList(d).indexOf(taskStart(d))>=0;
+}
+function wfpBlocked(t){return wfpDeps(t).some(function(id){return !wfpDepSatisfied(id);});}
+function wfpStatus(t){
+  var occ=wfpNextOpen(t);
+  if(!occ)return {overdue:false,risk:false,blocked:false,occ:null};
+  var blocked=wfpBlocked(t),days=wfpDaysBetween(todayKey(),occ.end),overdue=days<0;
+  return {overdue:overdue,risk:!overdue&&(blocked||(days<=3&&days>=0&&wfpProg(t)<50)),blocked:blocked,occ:occ};
+}
+function wfpDependsOn(taskId,targetId,seen){
+  if(taskId===targetId)return true;
+  seen=seen||{};
+  if(seen[taskId])return false;
+  seen[taskId]=1;
+  var t=wfpTask(taskId);
+  if(!t)return false;
+  return wfpDeps(t).some(function(id){return wfpDependsOn(id,targetId,seen);});
+}
+/** The longest chain, by days, through tasks that depend on each other. */
+function wfpCriticalIds(tasks){
+  var open=tasks.filter(function(t){return wfpRec(t)!=="none"||wfpProg(t)<100;});
+  var map={};open.forEach(function(t){map[t.id]=t;});
+  var network={},any=false;
+  open.forEach(function(t){wfpDeps(t).forEach(function(d){if(map[d]){network[t.id]=1;network[d]=1;any=true;}});});
+  if(!any)return {};
+  var memo={},prev={};
+  function score(id,visiting){
+    if(id in memo)return memo[id];
+    if(visiting[id])return 0;
+    var t=map[id];if(!t)return 0;
+    var next={};for(var k in visiting)next[k]=1;next[id]=1;
+    var best=0,bestId="";
+    wfpDeps(t).filter(function(d){return network[d];}).forEach(function(d){
+      var s=score(d,next);if(s>best){best=s;bestId=d;}
+    });
+    var dur=t.milestone?1:Math.max(1,wfpDaysBetween(taskStart(t),taskEnd(t))+1);
+    memo[id]=best+dur;
+    if(bestId)prev[id]=bestId;
+    return best+dur;
+  }
+  var dependedOn={};
+  open.forEach(function(t){wfpDeps(t).forEach(function(d){dependedOn[d]=1;});});
+  var ids=Object.keys(network),terminals=ids.filter(function(id){return !dependedOn[id];});
+  var endId="",best=-1;
+  (terminals.length?terminals:ids).forEach(function(id){var s=score(id,{});if(s>best){best=s;endId=id;}});
+  var path={};
+  while(endId&&!path[endId]){path[endId]=1;endId=prev[endId]||"";}
+  return path;
+}
+
+/* ---- filters ---- */
+function wfpMatchesStatus(t,status,critical,average){
+  if(status==="all")return true;
+  var today=todayKey(),s=wfpStatus(t),prog=wfpProg(t),completed=wfpRec(t)==="none"&&prog>=100;
+  if(status==="open")return !completed;
+  if(status==="in-progress")return prog>0&&prog<100;
+  if(status==="today-progress"){
+    return wfpOccurrences(t,today,shiftDay(today,2)).some(function(o){
+      var d=wfpDaysBetween(today,o.end);return d>=0&&d<=2;
+    });
+  }
+  if(status==="due-today"){
+    return wfpOccurrences(t,today,today).some(function(o){return o.end===today&&!wfpOccDone(t,o.start);});
+  }
+  if(status==="due-soon"){
+    var days=s.occ?wfpDaysBetween(today,s.occ.end):999;
+    return days>=0&&days<=7;
+  }
+  if(status==="below-average")return prog<average;
+  if(status==="overdue")return s.overdue;
+  if(status==="at-risk")return s.risk;
+  if(status==="critical")return !!critical[t.id];
+  if(status==="milestone")return !!t.milestone;
+  if(status==="completed")return completed;
+  return true;
+}
+function wfpFilter(tasks,critical){
+  var q=(_wfp.search||"").trim().toLowerCase();
+  var active=tasks.filter(function(x){return wfpRec(x)!=="none"||wfpProg(x)<100;});
+  var average=active.length?active.reduce(function(n,x){return n+wfpProg(x);},0)/active.length:0;
+  return tasks.filter(function(t){
+    var hay=[t.title,wfpProjectName(t.projectId),t.sourceType||"",t.sourceUrl||""].join(" ").toLowerCase();
+    return (!q||hay.indexOf(q)>=0)&&(_wfp.project==="all"||t.projectId===_wfp.project)&&
+      wfpMatchesStatus(t,_wfp.status,critical,average);
+  });
+}
+function wfpInitFilters(projects){
+  var search=wfpEl("wfpSearch"),proj=wfpEl("wfpProjectFilter"),status=wfpEl("wfpStatusFilter");
+  if(search&&search.value!==_wfp.search&&document.activeElement!==search)search.value=_wfp.search;
+  if(proj){
+    proj.innerHTML="";
+    var all=el("option",null,"All projects");all.value="all";proj.appendChild(all);
+    projects.forEach(function(p){var o=el("option",null,p.name);o.value=p.id;proj.appendChild(o);});
+    if(_wfp.project!=="all"&&!projects.some(function(p){return p.id===_wfp.project;}))_wfp.project="all";
+    proj.value=_wfp.project;
+  }
+  if(status)status.value=_wfp.status;
+  var zoom=wfpEl("wfpZoomSelect");
+  if(zoom)zoom.value=_wfp.zoom;
+}
+
+/* ---- theme: the reference's palette follows the app's own light/dark ---- */
+function wfpLight(){return currentTheme()==="light";}
+function wfpSyncTone(){
+  var host=wfpEl("wfp");
+  if(host)host.classList.toggle("wfp-light",wfpLight());
+  if(_wfpMenu)_wfpMenu.classList.toggle("wfp-light",wfpLight());
+}
+
+/* ---- render ---- */
+var currentWorkflowSub="timeline";
+var _wfpJumped=false;
+function wfpVisible(){return currentView==="workflow"&&currentWorkflowSub==="planner";}
+/** Only while it is on screen: the chart is a cell per day per row, and every
+ * task change anywhere calls this. Showing the planner renders it. */
+function renderPlanner(){
+  var host=wfpEl("wfp");
+  if(!host||!wfpVisible())return;
+  wfpSyncTone();
+  var all=wfpOrdered(wfpActiveTasks(true));
+  var tasks=all.filter(function(t){return !wfpProject(t.projectId).archived;});
+  var critical=wfpCriticalIds(tasks);
+  var projects=projectList().filter(function(p){
+    return !p.archived&&tasks.some(function(t){return t.projectId===p.id;});
+  });
+  wfpInitFilters(projects);
+  var visible=wfpFilter(tasks,critical);
+  var today=todayKey();
+  var total=tasks.length;
+  var openCount=tasks.filter(function(t){return wfpRec(t)!=="none"||wfpProg(t)<100;}).length;
+  var avg=total?Math.round(tasks.reduce(function(n,t){return n+wfpProg(t);},0)/total):0;
+  var statuses=tasks.map(wfpStatus);
+  /* Completed tasks still count towards the windows they fell in - the
+     reference's archive did, and a ring that dropped every task the moment
+     it was finished would only ever read 0%. */
+  var finished=liveItems("tasks").filter(function(t){
+    return t.done&&wfpRec(t)==="none"&&taskHasSpan(t)&&wfpProject(t.projectId);
+  });
+  var metric=tasks.concat(finished);
+  var week=[],focus=[];
+  metric.forEach(function(t){
+    wfpOccurrences(t,today,shiftDay(today,7)).forEach(function(o){
+      var off=wfpDaysBetween(today,o.end);
+      if(off>=0&&off<=7)week.push(wfpOccDone(t,o.start));
+      if(off>=0&&off<=2)focus.push({day:off,done:wfpOccDone(t,o.start)});
+    });
+  });
+  var weekDone=week.filter(Boolean).length,weekPct=week.length?Math.round(weekDone/week.length*100):0;
+  var focusDone=focus.filter(function(x){return x.done;}).length;
+  var focusPct=focus.length?Math.round(focusDone/focus.length*100):0;
+  var counts=[0,1,2].map(function(d){return focus.filter(function(x){return x.day===d;}).length;});
+  var overdue=statuses.filter(function(s){return s.overdue;}).length;
+  var risk=statuses.filter(function(s){return s.risk;}).length;
+  var riskPct=openCount?Math.round(risk/openCount*100):0;
+  function txt(id,v){var n=wfpEl(id);if(n)n.textContent=String(v);}
+  function ring(id,pct){var n=wfpEl(id);if(n)n.style.strokeDashoffset=String(WFP_RING-(WFP_RING*pct/100));}
+  txt("wfpTotal",total);txt("wfpAverage",avg+"%");
+  txt("wfpWeekCount",week.length);txt("wfpWeekPct",weekPct+"%");
+  txt("wfpWeekMeta",weekDone+" complete · "+(week.length-weekDone)+" open");ring("wfpWeekRing",weekPct);
+  txt("wfpRiskPct",riskPct+"%");txt("wfpRisk",risk);
+  txt("wfpRiskMeta",risk+" of "+openCount+" open task"+(openCount===1?"":"s"));ring("wfpRiskRing",riskPct);
+  txt("wfpFocusCount",focus.length);txt("wfpFocusPct",focusPct+"%");
+  txt("wfpFocusMeta",counts[0]+" today · "+counts[1]+" tomorrow · "+counts[2]+" day after");ring("wfpFocusRing",focusPct);
+  txt("wfpOverdue",overdue);
+  txt("wfpShownCount",visible.length+" task"+(visible.length===1?"":"s")+" shown");
+  Array.prototype.forEach.call(host.querySelectorAll("[data-wfp='set-status']"),function(b){
+    var on=b.getAttribute("data-status")===_wfp.status;
+    b.classList.toggle("wfp-on",on);b.setAttribute("aria-pressed",String(on));
+  });
+  var fb=wfpEl("wfpFocusBtn");
+  if(fb)fb.textContent=_tasksFull?"Exit focus":"⛶ Focus";
+  wfpRenderGantt(visible,critical);
+  wfpRenderUndated();
+  wfpRenderArchive(all);
+}
+
+function wfpRenderGantt(tasks,critical){
+  var wrap=wfpEl("wfpChart");
+  if(!wrap)return;
+  wrap.innerHTML="";
+  var range=wfpEl("wfpRange");
+  if(!tasks.length){
+    wrap.appendChild(el("div","wfp-empty","Your Gantt chart will appear here."));
+    if(range)range.textContent="";
+    return;
+  }
+  var zoom=_wfp.zoom,cfg=WFP_ZOOM_CFG[zoom],cell=cfg.cell,today=todayKey();
+  var rangeStart=today,rangeEnd=shiftDay(today,cfg.minDays);
+  tasks.forEach(function(t){
+    var s=taskStart(t),e=taskEnd(t),rec=wfpRec(t);
+    if(rec==="weekly")e=shiftDay(e,56);
+    else if(rec==="monthly")e=wfpAddMonths(e,6);
+    if(s<rangeStart)rangeStart=s;
+    if(e>rangeEnd)rangeEnd=e;
+  });
+  rangeStart=shiftDay(rangeStart,-1);rangeEnd=shiftDay(rangeEnd,1);
+  if(wfpDaysBetween(rangeStart,rangeEnd)>366)rangeEnd=shiftDay(rangeStart,366);
+  var days=wfpDaysBetween(rangeStart,rangeEnd)+1;
+  var todayIndex=wfpDaysBetween(rangeStart,today),hasToday=todayIndex>=0&&todayIndex<days;
+  /* Today is two cells wide, so every offset after it is one cell further on. */
+  function dayWidth(i){return hasToday&&i===todayIndex?cell*2:cell;}
+  function dayOffset(i){return i*cell+(hasToday&&i>todayIndex?cell:0);}
+  function spanWidth(si,dur){return dur*cell+(hasToday&&todayIndex>=si&&todayIndex<si+dur?cell:0);}
+  var timelineWidth=days*cell+(hasToday?cell:0);
+  if(range)range.textContent=rangeStart+" to "+rangeEnd;
+  var dayKeys=[],dayDates=[];
+  for(var i=0;i<days;i++){
+    var k=shiftDay(rangeStart,i);dayKeys.push(k);dayDates.push(wfpParse(k));
+  }
+  var chart=el("div","gantt");
+  chart.style.setProperty("--gantt-label-width",wfpLabelWidth()+"px");
+  var head=el("div","gantt-head"),headLabel=el("div","gantt-label");
+  headLabel.appendChild(document.createTextNode("Projects and tasks"));
+  var resizer=el("span","gantt-column-resizer");
+  resizer.setAttribute("data-gantt-column-resize","1");resizer.title="Resize task column";
+  headLabel.appendChild(resizer);head.appendChild(headLabel);
+  var dayHead=el("div","gantt-days");
+  dayDates.forEach(function(d,i){
+    var dow=d.getDay();
+    var cls="gantt-day"+((dow===0||dow===6)?" weekend":"")+(dayKeys[i]===today?" today":"");
+    var day=el("div",cls),w=dayWidth(i);
+    day.style.flex="0 0 "+w+"px";day.style.width=w+"px";
+    var label=zoom==="day"||(zoom==="week"&&(dow===1||i===0))||(zoom==="month"&&d.getDate()===1);
+    if(label){
+      if(zoom==="day"){
+        day.appendChild(el("b",null,d.toLocaleDateString("en-GB",{weekday:"short"})));
+        day.appendChild(document.createTextNode(d.toLocaleDateString("en-GB",{day:"2-digit",month:"short"})));
+      }else if(zoom==="week"){
+        day.appendChild(el("b",null,"Wk"));
+        day.appendChild(document.createTextNode(d.toLocaleDateString("en-GB",{day:"2-digit",month:"short"})));
+      }else{
+        day.appendChild(el("b",null,d.toLocaleDateString("en-GB",{month:"short"})));
+        day.appendChild(document.createTextNode(String(d.getFullYear())));
+      }
+    }
+    dayHead.appendChild(day);
+  });
+  head.appendChild(dayHead);chart.appendChild(head);
+  if(hasToday){
+    var col=el("div","gantt-today-column");
+    col.style.insetInlineStart="calc(var(--gantt-label-width) + "+dayOffset(todayIndex)+"px)";
+    col.style.width=(cell*2)+"px";
+    chart.appendChild(col);
+  }
+  function trackData(node,projectId){
+    node.setAttribute("data-project",projectId);node.setAttribute("data-range-start",rangeStart);
+    node.setAttribute("data-cell",String(cell));node.setAttribute("data-days",String(days));
+    node.setAttribute("data-today-index",hasToday?String(todayIndex):"-1");
+  }
+  projectList().forEach(function(p){
+    var projTasks=tasks.filter(function(t){return t.projectId===p.id;});
+    if(!projTasks.length)return;
+    var colour=wfpColourOf(p);
+    var ph=el("div","gantt-row gantt-project-row"),pl=el("div","gantt-label"),pn=el("div","gantt-project-name");
+    ph.setAttribute("data-project",p.id);pn.setAttribute("data-project",p.id);pn.title=p.name;
+    var dot=el("span","gantt-project-dot");dot.style.backgroundColor=colour.solid;
+    pn.appendChild(dot);pn.appendChild(el("span","gantt-project-title",p.name));
+    pn.appendChild(el("span","gantt-project-count",projTasks.length+" task"+(projTasks.length===1?"":"s")));
+    var pavg=Math.round(projTasks.reduce(function(n,t){return n+wfpProg(t);},0)/projTasks.length);
+    var meter=el("span","gantt-project-meter"),fill=el("span");
+    fill.style.width=pavg+"%";meter.style.setProperty("--project-color",colour.solid);meter.appendChild(fill);
+    pn.appendChild(meter);pn.appendChild(el("span","gantt-project-progress",pavg+"%"));
+    var actions=el("div","gantt-project-actions");
+    var add=el("button","project-add-btn","+");
+    add.type="button";add.setAttribute("data-wfp","project-add-task");add.setAttribute("data-project",p.id);
+    add.setAttribute("aria-label","Add task to "+p.name);add.title="Add task to "+p.name;
+    actions.appendChild(add);actions.appendChild(wfpMoreButton("project-menu",{project:p.id},"Project actions"));
+    pl.appendChild(pn);pl.appendChild(actions);
+    var ptrack=el("div","gantt-project-track");
+    ptrack.style.width=timelineWidth+"px";ptrack.style.backgroundColor=colour.soft;
+    trackData(ptrack,p.id);ptrack.title=p.name;
+    ph.appendChild(pl);ph.appendChild(ptrack);chart.appendChild(ph);
+
+    projTasks.forEach(function(t){
+      var row=el("div","gantt-row"),isCrit=!!critical[t.id];
+      var label=el("div","gantt-label gantt-task-label"+(isCrit?" critical":""));
+      var main=el("div","gantt-label-main"),copy=el("div","gantt-label-copy");
+      label.setAttribute("data-task-id",t.id);label.title=t.title;
+      label.style.borderInlineStartColor=colour.solid;
+      var title=el(t.sourceUrl?"a":"div","gantt-title",t.title);
+      title.title=t.title;
+      if(t.sourceUrl){title.href=t.sourceUrl;title.target="_blank";title.rel="noopener";}
+      copy.appendChild(title);
+      var prog=wfpProg(t),rec=wfpRec(t),st=wfpStatus(t);
+      var stateLabel=prog>=100&&rec==="none"?"Completed":(prog+"%");
+      var sub=el("div","gantt-sub",wfpShortDate(taskStart(t))+"–"+wfpShortDate(taskEnd(t))+" · "+stateLabel);
+      function badge(cls,text){sub.appendChild(document.createTextNode(" · "));sub.appendChild(el("span",cls,text));}
+      if(rec!=="none")badge("wfp-repeat","↻ "+(rec==="weekly"?"Weekly":"Monthly"));
+      if(t.milestone)badge("wfp-status wfp-milestone","◆ Milestone");
+      var deps=wfpDeps(t);
+      if(deps.length)badge("wfp-status wfp-dep",deps.length+" dep.");
+      if(isCrit)sub.appendChild(el("span","wfp-status wfp-critical","Critical"));
+      if(st.overdue)sub.appendChild(el("span","wfp-status wfp-overdue","Overdue"));
+      else if(st.risk)sub.appendChild(el("span","wfp-status wfp-risk",st.blocked?"Blocked":"At risk"));
+      copy.appendChild(sub);
+      var handle=el("button","gantt-task-drag-handle","⋮⋮");
+      handle.type="button";handle.setAttribute("data-wfp-task-drag","1");handle.setAttribute("data-id",t.id);
+      handle.setAttribute("aria-label","Reorder "+t.title);handle.title="Reorder task";
+      main.appendChild(handle);main.appendChild(copy);
+      main.appendChild(wfpMoreButton("task-menu",{id:t.id},"Workflow task actions"));
+      label.appendChild(main);
+
+      var track=el("div","gantt-track");
+      track.style.width=timelineWidth+"px";trackData(track,p.id);track.title=p.name;
+      for(var c=0;c<days;c++){
+        var dw=dayDates[c].getDay();
+        var gc=el("div","gantt-cell"+((dw===0||dw===6)?" weekend":"")+(dayKeys[c]===today?" today":""));
+        var cw=dayWidth(c);gc.style.flex="0 0 "+cw+"px";gc.style.width=cw+"px";
+        track.appendChild(gc);
+      }
+      var blocked=wfpBlocked(t);
+      wfpOccurrences(t,rangeStart,rangeEnd).forEach(function(o){
+        var si=Math.max(0,wfpDaysBetween(rangeStart,o.start));
+        if(si>=days)return;
+        var dur=Math.max(1,Math.min(Math.max(1,wfpDaysBetween(o.start,o.end)+1),days-si));
+        var done=wfpOccDone(t,o.start),od=wfpDaysBetween(today,o.end);
+        var late=!done&&od<0,atRisk=!done&&!late&&(blocked||(od>=0&&od<=3&&prog<50));
+        var mods=(done?" completed":"")+(late?" overdue":atRisk?" at-risk":"")+(isCrit?" critical":"");
+        if(t.milestone){
+          var ei=Math.max(0,wfpDaysBetween(rangeStart,o.end));
+          if(ei>=days)return;
+          var dia=el("div","gantt-milestone"+mods);
+          dia.style.insetInlineStart=(dayOffset(ei)+Math.max(0,(dayWidth(ei)-20)/2))+"px";
+          dia.style.setProperty("--project-color",colour.solid);dia.style.backgroundColor=colour.solid;
+          dia.style.borderColor=late?"var(--red)":atRisk?"var(--amber)":colour.solid;
+          dia.setAttribute("data-id",t.id);dia.setAttribute("data-cell",String(cell));dia.setAttribute("data-occurrence",o.start);
+          dia.tabIndex=0;dia.setAttribute("role","button");
+          dia.setAttribute("aria-label","Edit "+t.title+", milestone "+wfpShortDate(o.end)+(done?", completed":""));
+          dia.title=t.title+" — milestone "+o.end+(done?" (completed)":"");
+          track.appendChild(dia);
+          return;
+        }
+        var bar=el("div","gantt-bar"+mods);
+        bar.style.insetInlineStart=(dayOffset(si)+2)+"px";
+        bar.style.width=Math.max(20,spanWidth(si,dur)-4)+"px";
+        bar.style.setProperty("--project-color",colour.solid);
+        bar.setAttribute("data-id",t.id);bar.setAttribute("data-cell",String(cell));bar.setAttribute("data-occurrence",o.start);
+        bar.tabIndex=0;bar.setAttribute("role","button");
+        var bfill=el("div","gantt-bar-fill");bfill.style.width=(done?100:prog)+"%";
+        var grip=el("span","gantt-resize");grip.setAttribute("data-gantt-resize","1");
+        grip.setAttribute("aria-label","Drag to change finish date");
+        var bstate=done?"Completed":(prog+"%");
+        bar.title=t.title+" — "+wfpShortDate(o.start)+" to "+wfpShortDate(o.end)+" — "+bstate+
+          (rec!=="none"?" — repeats "+rec:"");
+        bar.setAttribute("aria-label","Edit "+t.title+", "+wfpShortDate(o.start)+" to "+wfpShortDate(o.end)+", "+bstate);
+        bar.appendChild(bfill);
+        bar.appendChild(el("span","gantt-bar-text",t.title+" · "+bstate+(rec!=="none"?" · ↻":"")));
+        bar.appendChild(grip);
+        track.appendChild(bar);
+      });
+      row.appendChild(label);row.appendChild(track);chart.appendChild(row);
+    });
+  });
+  wrap.appendChild(chart);
+  wfpJumpToToday();
+}
+/** The chart opens at the start of its range, as the reference does - which
+ * shows the recent past, overdue bars included. Only when that would leave
+ * today off the right-hand edge (a task that began months ago) is it scrolled,
+ * and then today lands a quarter of the way in, not against the names, so
+ * the last few days stay in view. Once per page: a later render must never
+ * yank a chart the user has scrolled. */
+function wfpJumpToToday(){
+  if(_wfpJumped)return;
+  var sc=document.querySelector("#wfp .gantt-scroll"),td=document.querySelector("#wfp .gantt-day.today");
+  if(!sc||!td||!sc.clientWidth)return;
+  _wfpJumped=true;
+  var lw=wfpLabelWidth(),visible=sc.clientWidth-lw,x=td.offsetLeft-lw;
+  if(x+td.offsetWidth<=visible)return;
+  sc.scrollLeft=Math.max(0,x-Math.round(visible/4));
+}
+function wfpMoreButton(action,data,label){
+  var wrap=el("div","task-actions"),b=el("button","more-btn","⋯");
+  b.type="button";b.setAttribute("data-wfp",action);
+  Object.keys(data).forEach(function(k){b.setAttribute("data-"+k,data[k]);});
+  b.setAttribute("aria-label",label);b.setAttribute("aria-expanded","false");
+  wrap.appendChild(b);
+  return wrap;
+}
+
+function wfpRenderUndated(){
+  var box=wfpEl("wfpUndated");
+  if(!box)return;
+  box.innerHTML="";
+  var undated=wfpOrdered(liveItems("tasks").filter(function(t){
+    var p=wfpProject(t.projectId);
+    return p&&!p.archived&&!t.done&&!taskHasSpan(t);
+  }));
+  var c=wfpEl("wfpUndatedCount");if(c)c.textContent=String(undated.length);
+  if(!undated.length){box.appendChild(el("div","wfp-empty","Every open task has dates."));return;}
+  undated.forEach(function(t){
+    var row=el("div","archive-row archive-task-row"),copy=el("div","archive-task-copy");
+    row.setAttribute("data-task",t.id);
+    copy.appendChild(el("b",null,t.title));
+    copy.appendChild(el("span",null,wfpProjectName(t.projectId)));
+    var b=el("button","wfp-btn wfp-ghost wfp-sm","Set dates");
+    b.type="button";b.setAttribute("data-wfp","set-dates");b.setAttribute("data-id",t.id);
+    row.appendChild(copy);row.appendChild(b);box.appendChild(row);
+  });
+}
+
+function wfpRenderArchive(all){
+  var wrap=wfpEl("wfpArchive");
+  if(!wrap)return;
+  wrap.innerHTML="";
+  var done=liveItems("tasks").filter(function(t){return t.done&&wfpProject(t.projectId);})
+    .sort(function(a,b){
+      return String(b.completedAt||"").localeCompare(String(a.completedAt||""))||((b.updated_at||0)-(a.updated_at||0));
+    });
+  var archivedProjects=projectList().filter(function(p){return p.archived;});
+  var c=wfpEl("wfpArchiveCount");if(c)c.textContent=String(done.length+archivedProjects.length);
+  if(!done.length&&!archivedProjects.length){
+    wrap.appendChild(el("div","wfp-empty","No archived tasks or projects."));
+    return;
+  }
+  function btn(text,action,attr,val){
+    var b=el("button","wfp-btn wfp-ghost wfp-sm",text);
+    b.type="button";b.setAttribute("data-wfp",action);b.setAttribute(attr,val);
+    return b;
+  }
+  if(done.length){
+    wrap.appendChild(el("div","archive-section-label","Completed tasks"));
+    done.forEach(function(t){
+      var row=el("div","archive-row archive-task-row"),copy=el("div","archive-task-copy");
+      row.setAttribute("data-task",t.id);
+      copy.appendChild(el("b",null,t.title));
+      var when=t.completedAt?new Date(t.completedAt):null;
+      var d=when&&!isNaN(when.getTime())?when.toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"}):"";
+      copy.appendChild(el("span",null,wfpProjectName(t.projectId)+(d?" · completed "+d:"")));
+      row.appendChild(copy);
+      row.appendChild(btn("Restore","restore-task","data-id",t.id));
+      row.appendChild(btn("Delete","delete-archived","data-id",t.id));
+      wrap.appendChild(row);
+    });
+  }
+  if(archivedProjects.length){
+    wrap.appendChild(el("div","archive-section-label","Archived projects"));
+    archivedProjects.forEach(function(p){
+      var row=el("div","archive-row"),n=all.filter(function(t){return t.projectId===p.id;}).length;
+      row.setAttribute("data-project",p.id);
+      row.appendChild(el("b",null,p.name));
+      row.appendChild(el("span","wfp-muted",n+" active task"+(n===1?"":"s")));
+      row.appendChild(btn("Restore","restore-project","data-project",p.id));
+      row.appendChild(btn("Delete","delete-project","data-project",p.id));
+      wrap.appendChild(row);
+    });
+  }
+}
+
+/* ---- floating menus ---- */
+var _wfpMenu=null;
+function wfpCloseMenu(){
+  if(_wfpMenu){_wfpMenu.remove();_wfpMenu=null;}
+  Array.prototype.forEach.call(document.querySelectorAll("#wfp .more-btn[aria-expanded='true']"),function(b){
+    b.setAttribute("aria-expanded","false");
+  });
+}
+function wfpNewMenu(extra){
+  var m=el("div","task-menu wfp-open floating-task-menu wfp-pop"+(extra?" "+extra:""));
+  if(wfpLight())m.classList.add("wfp-light");
+  return m;
+}
+/** Fixed and appended to <body>, so the chart's scroll box can neither move
+ * nor clip it. A second press on the same button closes it. */
+function wfpPositionMenu(button,menu,key){
+  if(_wfpMenu&&_wfpMenu.getAttribute("data-menu-key")===key){wfpCloseMenu();return false;}
+  var r=button.getBoundingClientRect();
+  wfpCloseMenu();
+  menu.setAttribute("data-menu-key",key);
+  document.body.appendChild(menu);
+  var margin=8,width=Math.max(195,menu.offsetWidth);
+  var left=Math.max(margin,Math.min(window.innerWidth-width-margin,Math.max(margin,r.right-width)));
+  var top=r.bottom+6;
+  if(top+menu.offsetHeight>window.innerHeight-margin)top=Math.max(margin,r.top-menu.offsetHeight-6);
+  menu.style.left=left+"px";menu.style.top=top+"px";
+  _wfpMenu=menu;button.setAttribute("aria-expanded","true");
+  return true;
+}
+function wfpItem(menu,text,action,data,cls){
+  var b=el("button",cls||null,text);
+  b.type="button";b.setAttribute("data-wfp",action);
+  Object.keys(data||{}).forEach(function(k){b.setAttribute("data-"+k,data[k]);});
+  menu.appendChild(b);
+  return b;
+}
+function wfpOpenTaskMenu(button,id){
+  var t=wfpTask(id);if(!t)return;
+  var m=wfpNewMenu(),rec=wfpRec(t),d={id:id};
+  wfpItem(m,"Edit task","edit",d);
+  var reopen=rec==="none"&&wfpProg(t)>=100;
+  wfpItem(m,rec!=="none"?"Mark next occurrence complete":(reopen?"Reopen task":"Mark complete"),reopen?"reopen":"complete",d);
+  if(rec!=="none"&&wfpOccList(t).length)wfpItem(m,"Reopen completed occurrence…","occurrences",d);
+  wfpItem(m,"Move to another project…","move-menu",d);
+  wfpItem(m,"Dependencies…","deps-menu",d);
+  wfpItem(m,t.milestone?"Remove milestone":"Mark as milestone","milestone",d);
+  wfpItem(m,(rec==="weekly"?"✓ ":"")+"Repeat weekly","repeat-weekly",d);
+  wfpItem(m,(rec==="monthly"?"✓ ":"")+"Repeat monthly","repeat-monthly",d);
+  if(rec!=="none")wfpItem(m,"Stop repeating","repeat-stop",d);
+  m.appendChild(el("div","wfp-menu-sep"));
+  wfpItem(m,"Delete task","delete",d,"wfp-danger");
+  wfpPositionMenu(button,m,"task:"+id);
+}
+function wfpVisibleProjects(){
+  var tasks=wfpActiveTasks(false);
+  return projectList().filter(function(p){
+    return !p.archived&&tasks.some(function(t){return t.projectId===p.id;});
+  });
+}
+function wfpOpenProjectMenu(button,pid){
+  var p=wfpProject(pid);if(!p)return;
+  var m=wfpNewMenu(),list=wfpVisibleProjects(),at=list.indexOf(p),d={project:pid};
+  wfpItem(m,"Move up","project-up",d).disabled=at<=0;
+  wfpItem(m,"Move down","project-down",d).disabled=at<0||at>=list.length-1;
+  m.appendChild(el("div","wfp-menu-sep"));
+  wfpItem(m,"Project colour…","colour-menu",d);
+  wfpItem(m,"Rename project…","rename-project",d);
+  wfpItem(m,"Mark all tasks complete","project-complete",d);
+  wfpItem(m,"Repeat all weekly","project-weekly",d);
+  wfpItem(m,"Repeat all monthly","project-monthly",d);
+  wfpItem(m,"Stop all recurrence","project-stop",d);
+  wfpItem(m,"Archive project","archive-project",d);
+  m.appendChild(el("div","wfp-menu-sep"));
+  wfpItem(m,"Delete project and tasks…","delete-project",d,"wfp-danger");
+  wfpPositionMenu(button,m,"project:"+pid);
+}
+function wfpOpenColourMenu(button,pid){
+  var p=wfpProject(pid);if(!p)return;
+  var m=wfpNewMenu("project-colour-menu");
+  m.appendChild(el("div","snapshot-menu-label","Project colour"));
+  var palette=el("div","project-colour-palette"),current=wfpColourOf(p).solid.toUpperCase();
+  WFP_PALETTE.forEach(function(hex){
+    var s=el("button","project-colour-swatch"+(current===hex?" selected":""));
+    s.type="button";s.style.setProperty("--swatch",hex);
+    s.setAttribute("data-wfp","set-colour");s.setAttribute("data-project",pid);s.setAttribute("data-colour",hex);
+    s.setAttribute("aria-label","Set project colour to "+hex);s.title=hex;
+    palette.appendChild(s);
+  });
+  m.appendChild(palette);m.appendChild(el("div","wfp-menu-sep"));
+  wfpItem(m,"Custom colour…","custom-colour",{project:pid});
+  wfpItem(m,"Reset automatic colour","reset-colour",{project:pid});
+  wfpPositionMenu(button,m,"project-colour:"+pid);
+}
+function wfpOpenMoveMenu(button,id){
+  var t=wfpTask(id);if(!t)return;
+  var m=wfpNewMenu();
+  var others=projectList().filter(function(p){return !p.archived&&p.id!==t.projectId;});
+  if(!others.length)m.appendChild(el("div","wfp-empty","No other project available."));
+  others.forEach(function(p){wfpItem(m,p.name,"move-to",{id:id,project:p.id});});
+  wfpPositionMenu(button,m,"task-picker:"+id);
+}
+function wfpOpenOccurrenceMenu(button,id){
+  var t=wfpTask(id);if(!t)return;
+  var m=wfpNewMenu();
+  m.appendChild(el("div","snapshot-menu-label","Completed occurrences"));
+  var list=wfpOccList(t).slice().sort().reverse();
+  if(!list.length)m.appendChild(el("div","wfp-empty","No completed occurrences."));
+  list.forEach(function(start){
+    wfpItem(m,"Reopen "+wfpParse(start).toLocaleDateString("en-GB",{weekday:"short",day:"2-digit",month:"short",year:"numeric"}),
+      "reopen-occurrence",{id:id,occurrence:start});
+  });
+  wfpPositionMenu(button,m,"occurrences:"+id);
+}
+function wfpDepLabel(dep,selected){return (selected?"✓ ":"")+wfpProjectName(dep.projectId)+" — "+dep.title;}
+function wfpOpenDepsMenu(button,id){
+  var t=wfpTask(id);if(!t)return;
+  var m=wfpNewMenu(),mine=wfpDeps(t);
+  var others=wfpOrdered(wfpActiveTasks(false)).filter(function(x){return x.id!==id;});
+  if(!others.length)m.appendChild(el("div","wfp-empty","No other tasks available."));
+  others.forEach(function(dep){
+    wfpItem(m,wfpDepLabel(dep,mine.indexOf(dep.id)>=0),"toggle-dep",{id:id,dependency:dep.id});
+  });
+  wfpPositionMenu(button,m,"dependencies:"+id);
+}
+
+/* ---- the task editor ---- */
+var _wfpDlg={mode:"edit",id:"",occurrence:"",returnFocus:null};
+function wfpDialog(){return wfpEl("wfpDialog");}
+function wfpDialogOpen(){var d=wfpDialog();return !!(d&&(d.open||d.hasAttribute("open")));}
+function wfpSetProjectOptions(currentId,newProject){
+  var sel=wfpEl("wfpDialogProject");
+  sel.innerHTML="";
+  var list=projectList().filter(function(p){return !p.archived||p.id===currentId;});
+  list.forEach(function(p){var o=el("option",null,p.name);o.value=p.id;sel.appendChild(o);});
+  var add=el("option",null,"+ New project…");add.value="__new__";sel.appendChild(add);
+  /* With no project to put a task in, the only sensible preselection is a
+     new one - an empty select with "+ New project" the only option. */
+  sel.value=newProject||!list.length?"__new__":(currentId&&list.some(function(p){return p.id===currentId;})?currentId:list[0].id);
+  wfpEl("wfpDialogNewProject").value="";
+  wfpToggleNewProject();
+}
+function wfpToggleNewProject(){
+  var sel=wfpEl("wfpDialogProject"),input=wfpEl("wfpDialogNewProject");
+  if(!sel||!input)return;
+  var isNew=sel.value==="__new__";
+  input.hidden=!isNew;
+  if(isNew&&wfpDialogOpen())wfpNextFrame(function(){input.focus();});
+}
+function wfpRenderDialogDeps(taskId,selected){
+  var box=wfpEl("wfpDialogDependencies");
+  box.innerHTML="";
+  var sel={};(selected||[]).forEach(function(id){sel[id]=1;});
+  /* The reference offered its active tasks. Keep that, plus anything already
+     ticked, so a dependency that has since finished can still be unticked. */
+  var others=liveItems("tasks").filter(function(x){
+    return x.id!==taskId&&wfpProject(x.projectId)&&((!x.done&&taskHasSpan(x))||sel[x.id]);
+  }).sort(function(a,b){
+    return wfpProjectName(a.projectId).localeCompare(wfpProjectName(b.projectId))||String(a.title).localeCompare(String(b.title));
+  });
+  if(!others.length)box.appendChild(el("div","wfp-empty","No other tasks available."));
+  others.forEach(function(dep){
+    var isSel=!!sel[dep.id];
+    var circular=!!taskId&&!isSel&&wfpDependsOn(dep.id,taskId);
+    var archived=!!wfpProject(dep.projectId).archived;
+    var label=el("label","wfp-dep-option");
+    var input=el("input");input.type="checkbox";input.value=dep.id;input.checked=isSel;
+    input.disabled=circular||(archived&&!isSel);
+    input.setAttribute("data-wfp-dependency","1");
+    var copy=el("span",null,dep.title);
+    copy.appendChild(el("small",null,wfpProjectName(dep.projectId)+(dep.done?" · completed":"")+
+      (archived?" · archived":"")+(circular?" · would create a circular dependency":"")));
+    label.appendChild(input);label.appendChild(copy);box.appendChild(label);
+  });
+}
+function wfpDialogMode(creating){
+  wfpEl("wfpDialogTitle").textContent=creating?"Add workflow task":"Edit workflow task";
+  wfpEl("wfpDialogDelete").hidden=creating;
+  wfpEl("wfpDialogComplete").hidden=creating;
+  wfpEl("wfpDialogSave").textContent=creating?"Add task":"Save";
+}
+function wfpShowDialog(returnFocus){
+  var d=wfpDialog();
+  _wfpDlg.returnFocus=returnFocus&&returnFocus.isConnected?returnFocus:document.activeElement;
+  document.body.classList.add("wfp-dialog-open");
+  if(typeof d.showModal==="function"){if(!d.open)d.showModal();}
+  else d.setAttribute("open","");
+  wfpNextFrame(function(){var i=wfpEl("wfpDialogName");if(i){i.focus();i.select();}});
+}
+/** Shared by the native close event and the no-<dialog> fallback, so both
+ * leave the page in the same state. */
+function wfpFinishDialog(){
+  document.body.classList.remove("wfp-dialog-open");
+  _wfpDlg.id="";_wfpDlg.occurrence="";_wfpDlg.mode="edit";
+  var back=_wfpDlg.returnFocus;_wfpDlg.returnFocus=null;
+  if(back&&back.isConnected&&typeof back.focus==="function")wfpNextFrame(function(){back.focus();});
+}
+function wfpCloseDialog(){
+  var d=wfpDialog();if(!d)return;
+  if(d.open&&typeof d.close==="function")d.close("cancel");   /* fires "close" -> wfpFinishDialog */
+  else{d.removeAttribute("open");wfpFinishDialog();}
+}
+function wfpOpenEdit(id,returnFocus){
+  var t=wfpTask(id);if(!t)return;
+  wfpCloseMenu();
+  _wfpDlg.mode="edit";_wfpDlg.id=id;
+  _wfpDlg.occurrence=(returnFocus&&returnFocus.getAttribute&&returnFocus.getAttribute("data-occurrence"))||"";
+  var today=todayKey(),prog=wfpProg(t);
+  wfpEl("wfpDialogName").value=t.title||"";
+  wfpSetProjectOptions(t.projectId,false);
+  /* An undated task opens on today - the dialog cannot save without dates. */
+  wfpEl("wfpDialogStart").value=taskStart(t)||today;
+  wfpEl("wfpDialogEnd").value=taskEnd(t)||taskStart(t)||today;
+  wfpEl("wfpDialogProgress").value=String(prog);
+  wfpEl("wfpDialogProgressValue").textContent=prog+"%";
+  wfpEl("wfpDialogRecurrence").value=wfpRec(t);
+  wfpEl("wfpDialogMilestone").checked=!!t.milestone;
+  var wrap=wfpEl("wfpDialogSourceWrap"),src=wfpEl("wfpDialogSource");
+  if(t.sourceUrl){src.href=t.sourceUrl;src.textContent="Open "+(t.sourceType||"source")+" ↗";wrap.hidden=false;}
+  else{src.removeAttribute("href");wrap.hidden=true;}
+  wfpRenderDialogDeps(id,wfpDeps(t));
+  var rec=wfpRec(t),occDone=rec!=="none"&&_wfpDlg.occurrence&&wfpOccDone(t,_wfpDlg.occurrence);
+  wfpEl("wfpDialogComplete").textContent=rec==="none"&&prog>=100?"Reopen":(occDone?"Reopen occurrence":"Mark complete");
+  wfpDialogMode(false);
+  wfpShowDialog(returnFocus);
+}
+function wfpOpenCreate(projectId,startDate,returnFocus,newProject){
+  wfpCloseMenu();
+  _wfpDlg.mode="create";_wfpDlg.id="";_wfpDlg.occurrence="";
+  var start=wfpParse(startDate)?startDate:todayKey();
+  wfpEl("wfpDialogName").value="";
+  var first=wfpVisibleProjects()[0]||projectList().filter(function(p){return !p.archived;})[0];
+  wfpSetProjectOptions(projectId||(first&&first.id)||"",!!newProject);
+  wfpEl("wfpDialogStart").value=start;
+  wfpEl("wfpDialogEnd").value=start;
+  wfpEl("wfpDialogProgress").value="0";
+  wfpEl("wfpDialogProgressValue").textContent="0%";
+  wfpEl("wfpDialogRecurrence").value="none";
+  wfpEl("wfpDialogMilestone").checked=false;
+  wfpEl("wfpDialogSource").removeAttribute("href");wfpEl("wfpDialogSourceWrap").hidden=true;
+  wfpRenderDialogDeps("",[]);
+  wfpDialogMode(true);
+  wfpShowDialog(returnFocus);
+}
+function wfpSaveDialog(){
+  var creating=_wfpDlg.mode==="create";
+  var t=creating?null:wfpTask(_wfpDlg.id);
+  if(!creating&&!t)return;
+  var nameIn=wfpEl("wfpDialogName"),name=nameIn.value.trim().slice(0,160);
+  var start=wfpEl("wfpDialogStart").value,end=wfpEl("wfpDialogEnd").value;
+  var sel=wfpEl("wfpDialogProject"),newIn=wfpEl("wfpDialogNewProject");
+  var projectId=sel.value,newName=sel.value==="__new__"?newIn.value.trim().slice(0,80):"";
+  if(!name){flash("Add a task name before saving.","warn");nameIn.focus();return;}
+  if(sel.value==="__new__"&&!newName){flash("Choose or enter a project before saving.","warn");newIn.focus();return;}
+  if(!wfpParse(start)||!wfpParse(end)||end<start){
+    flash("Finish must be on or after the start date.","warn");wfpEl("wfpDialogEnd").focus();return;
+  }
+  var recurrence=wfpEl("wfpDialogRecurrence").value;
+  if(recurrence!=="weekly"&&recurrence!=="monthly")recurrence="none";
+  var progress=Math.max(0,Math.min(100,Number(wfpEl("wfpDialogProgress").value)||0));
+  var deps=Array.prototype.map.call(
+    document.querySelectorAll("#wfpDialogDependencies [data-wfp-dependency]:checked"),function(x){return x.value;});
+  if(!newName&&!wfpProject(projectId)){flash("That project no longer exists - choose another.","warn");return;}
+  /* Only now that everything validates: a refused save must not leave an
+     empty project behind on the board. */
+  if(newName)projectId=addProject(newName);
+  if(creating)t=itemStore("tasks")[addTask(projectId,name)];
+  else{
+    if(t.projectId!==projectId)moveTaskTo(t.id,projectId);
+    t.title=name;
+  }
+  t.progress=progress;t.recurrence=recurrence;t.milestone=wfpEl("wfpDialogMilestone").checked;
+  t.dependencies=deps;
+  var archived=false;
+  if(recurrence==="none"){
+    if(progress>=100){t.done=true;t.completedAt=t.completedAt||new Date().toISOString();archived=true;}
+    else t.completedAt="";
+  }else{
+    t.seriesId=t.seriesId||t.id;
+    if(progress>=100){wfpMarkNext(t);t.progress=0;}
+    else t.completedAt="";
+  }
+  setTaskSpan(t,start,end);   /* stamps and saves, and keeps `due` inside the span */
+  wfpCloseDialog();
+  renderTaskViews();
+  flash(archived?"Task completed and moved to Archive ✓":(creating?"Workflow task added ✓":"Workflow task saved ✓"),"good");
+}
+function wfpDialogComplete(){
+  var t=wfpTask(_wfpDlg.id);if(!t)return;
+  var id=t.id,occ=_wfpDlg.occurrence,rec=wfpRec(t);
+  var reopen=rec==="none"&&wfpProg(t)>=100;
+  var reopenOcc=rec!=="none"&&occ&&wfpOccDone(t,occ);
+  wfpCloseDialog();
+  if(reopenOcc)wfpReopenOccurrence(id,occ);
+  else if(rec!=="none"&&occ)wfpCompleteOccurrence(id,occ);
+  else if(reopen)wfpReopen(id);
+  else wfpComplete(id);
+}
+
+/* ---- task actions ---- */
+function wfpCommit(t,msg){touchItem(t);renderTaskViews();if(msg)flash(msg,"good");}
+function wfpComplete(id){
+  var t=wfpTask(id);if(!t)return;
+  if(wfpRec(t)!=="none"){wfpMarkNext(t);t.progress=0;wfpCommit(t,"Recurring occurrence completed ✓");return;}
+  t.done=true;t.progress=100;t.completedAt=t.completedAt||new Date().toISOString();
+  wfpCommit(t,"Task completed and moved to Archive ✓");
+}
+function wfpReopen(id){
+  var t=wfpTask(id);if(!t)return;
+  if(wfpRec(t)!=="none"&&wfpOccList(t).length){var l=wfpOccList(t);l.pop();t.completedOccurrences=l;}
+  else t.progress=0;
+  t.completedAt="";
+  wfpCommit(t,"Completion undone ✓");
+}
+function wfpCompleteOccurrence(id,start){
+  var t=wfpTask(id);if(!t||wfpRec(t)==="none"||!wfpParse(start))return;
+  var l=wfpOccList(t);if(l.indexOf(start)<0)l.push(start);
+  t.completedOccurrences=l.sort();t.completedAt=new Date().toISOString();
+  wfpCommit(t,"Occurrence completed ✓");
+}
+function wfpReopenOccurrence(id,start){
+  var t=wfpTask(id);if(!t||wfpRec(t)==="none")return;
+  t.completedOccurrences=wfpOccList(t).filter(function(x){return x!==start;});
+  if(!t.completedOccurrences.length)t.completedAt="";
+  wfpCommit(t,"Occurrence reopened ✓");
+}
+function wfpSetRecurrence(id,rec){
+  var t=wfpTask(id);if(!t)return;
+  var prog=Number(t.progress)||0,start=taskStart(t),l=wfpOccList(t);
+  if(rec!=="none"&&prog>=100&&l.indexOf(start)<0){l.push(start);t.completedOccurrences=l;t.progress=0;t.completedAt="";}
+  if(rec==="none"&&l.indexOf(start)>=0)t.progress=100;
+  t.recurrence=rec;
+  if(rec!=="none"&&!t.seriesId)t.seriesId=t.id;
+  /* Leaving a series whose first occurrence was done leaves a finished task -
+     and a finished one-off is a done one. */
+  if(rec==="none"&&Number(t.progress)>=100){t.done=true;t.completedAt=t.completedAt||new Date().toISOString();}
+  wfpCommit(t,rec==="none"?"Recurrence removed ✓":"Task set to repeat "+rec+" ✓");
+}
+function wfpToggleMilestone(id){
+  var t=wfpTask(id);if(!t)return;
+  t.milestone=!t.milestone;
+  wfpCommit(t,t.milestone?"Milestone added ✓":"Milestone removed ✓");
+}
+function wfpToggleDep(id,depId,button){
+  var t=wfpTask(id),dep=wfpTask(depId);if(!t||!dep)return;
+  var mine=wfpDeps(t),on=mine.indexOf(depId)>=0;
+  if(!on&&wfpDependsOn(depId,id)){flash("That dependency would create a circular chain.","warn");return;}
+  t.dependencies=on?mine.filter(function(x){return x!==depId;}):mine.concat(depId);
+  touchItem(t);renderTaskViews();
+  if(button)button.textContent=wfpDepLabel(dep,!on);
+}
+/** Strip a removed task out of everything that depended on it - the
+ * reference did, and a dangling id would otherwise sit in the row forever. */
+function wfpForgetDeps(ids){
+  var gone={};ids.forEach(function(id){gone[id]=1;});
+  liveItems("tasks").forEach(function(t){
+    var d=wfpDeps(t);
+    if(d.some(function(x){return gone[x];})){
+      t.dependencies=d.filter(function(x){return !gone[x];});touchItem(t,true);
+    }
+  });
+}
+function wfpDeleteTask(id){
+  var t=wfpTask(id);if(!t)return;
+  if(!window.confirm("Delete “"+t.title+"”? It is removed from the board too."))return;
+  wfpForgetDeps([id]);deleteItem("tasks",id);
+  renderTaskViews();flash("Workflow task deleted.","good");
+}
+function wfpRestoreTask(id){
+  var t=wfpTask(id);if(!t)return;
+  t.done=false;t.progress=0;t.completedAt="";
+  wfpCommit(t,"Task restored to Workflow ✓");
+}
+/** Move a task to a project and place it beside another, or at the end. The
+ * target project's rows are renumbered, stamping only those that moved. */
+function wfpReorderTask(id,projectId,targetId,after){
+  var t=wfpTask(id);if(!t||!wfpProject(projectId))return;
+  t.projectId=projectId;
+  var list=tasksIn(projectId).filter(function(x){return x.id!==id;});
+  var at=list.length;
+  if(targetId&&targetId!==id){
+    var i=list.map(function(x){return x.id;}).indexOf(targetId);
+    if(i>=0)at=i+(after?1:0);
+  }else{
+    /* Dropped on the project's row: after its last open task, not after the
+       done ones that tasksIn() sinks to the bottom. */
+    var lastOpen=-1;list.forEach(function(x,k){if(!x.done)lastOpen=k;});
+    at=lastOpen+1;
+  }
+  list.splice(at,0,t);
+  list.forEach(function(x,k){if(x.order!==k||x===t){x.order=k;touchItem(x,true);}});
+  save();renderTaskViews();flash("Task order updated ✓","good");
+}
+
+/* ---- project actions ---- */
+function wfpSwapProjects(a,b){
+  var oa=a.order||0,ob=b.order||0;
+  a.order=ob;b.order=oa;
+  if(a.order===b.order){var all=projectList();a.order=all.indexOf(b);b.order=all.indexOf(a);}
+  touchItem(a,true);touchItem(b,true);save();
+}
+function wfpMoveProject(pid,delta){
+  var list=wfpVisibleProjects(),p=wfpProject(pid),at=list.indexOf(p),to=at+delta;
+  if(at<0||to<0||to>=list.length)return;
+  wfpSwapProjects(p,list[to]);
+  renderTaskViews();flash("Project moved "+(delta<0?"up":"down")+" ✓","good");
+}
+/** Drag a project row onto another. The whole board order is recomputed, but
+ * only the rows whose position actually changed are stamped and pushed. */
+function wfpReorderProject(sourceId,targetId,after){
+  if(!sourceId||!targetId||sourceId===targetId)return;
+  var list=projectList(),src=wfpProject(sourceId);
+  if(!src||!wfpProject(targetId))return;
+  list=list.filter(function(p){return p.id!==sourceId;});
+  var at=list.map(function(p){return p.id;}).indexOf(targetId);
+  if(at<0)return;
+  list.splice(at+(after?1:0),0,src);
+  list.forEach(function(p,k){if((p.order||0)!==k){p.order=k;touchItem(p,true);}});
+  save();renderTaskViews();flash("Project order updated ✓","good");
+}
+function wfpSetColour(pid,hex){
+  var p=wfpProject(pid);
+  if(!p||!/^#[0-9a-f]{6}$/i.test(hex||""))return;
+  p.color=hex.toUpperCase();
+  wfpCommit(p,"Project colour updated ✓");
+}
+/** "Automatic" is what the board would give it: the first palette colour no
+ * other project is using. */
+function wfpResetColour(pid){
+  var p=wfpProject(pid);if(!p)return;
+  var used={};
+  projectList().forEach(function(q){if(q!==p)used[String(projectColor(q)).toLowerCase()]=1;});
+  var free=PROJECT_COLORS.filter(function(c){return !used[c.toLowerCase()];});
+  p.color=free.length?free[0]:PROJECT_COLORS[projectList().indexOf(p)%PROJECT_COLORS.length];
+  wfpCommit(p,"Automatic project colour restored ✓");
+}
+function wfpCustomColour(pid){
+  var p=wfpProject(pid);if(!p)return;
+  var input=el("input");input.type="color";input.value=wfpColourOf(p).solid.toLowerCase();
+  input.style.position="fixed";input.style.opacity="0";input.style.pointerEvents="none";
+  input.addEventListener("input",function(){wfpSetColour(pid,input.value);},{once:true});
+  input.addEventListener("change",function(){input.remove();},{once:true});
+  document.body.appendChild(input);input.click();
+  setTimeout(function(){if(input.isConnected)input.remove();},60000);
+}
+function wfpRenameProject(pid){
+  var p=wfpProject(pid);if(!p)return;
+  var next=window.prompt("Rename project",p.name);
+  if(next==null)return;
+  var name=next.trim().slice(0,80);
+  if(!name||name===p.name)return;
+  p.name=name;
+  wfpCommit(p,"Project renamed ✓");
+}
+function wfpUpdateProject(pid,action){
+  var p=wfpProject(pid);if(!p)return;
+  var tasks=wfpActiveTasks(true).filter(function(t){return t.projectId===pid;});
+  if(action==="delete"){
+    var all=liveItems("tasks").filter(function(t){return t.projectId===pid;});
+    if(!window.confirm("Delete “"+p.name+"” and its "+all.length+" task"+(all.length===1?"":"s")+
+      "? It is removed from the board too."))return;
+    wfpForgetDeps(all.map(function(t){return t.id;}));
+    all.forEach(function(t){deleteItem("tasks",t.id);});
+    deleteItem("projects",pid);
+    renderTaskViews();flash("Project deleted.","good");
+    return;
+  }
+  if(!tasks.length)return;
+  var now=new Date().toISOString();
+  tasks.forEach(function(t){
+    var l=wfpOccList(t),prog=Number(t.progress)||0;
+    if(action==="complete"){
+      if(wfpRec(t)!=="none"){wfpMarkNext(t);t.progress=0;}
+      else{t.done=true;t.progress=100;t.completedAt=t.completedAt||now;}
+    }else if(action==="weekly"||action==="monthly"){
+      if(prog>=100&&l.indexOf(taskStart(t))<0){l.push(taskStart(t));t.completedOccurrences=l;t.progress=0;t.completedAt="";}
+      t.recurrence=action;t.seriesId=t.seriesId||t.id;
+    }else if(action==="stop"){
+      if(l.indexOf(taskStart(t))>=0){t.progress=100;t.done=true;t.completedAt=t.completedAt||now;}
+      t.recurrence="none";
+    }
+    touchItem(t,true);
+  });
+  save();renderTaskViews();flash("Project tasks updated ✓","good");
+}
+function wfpArchiveProject(pid,on){
+  var p=wfpProject(pid);if(!p)return;
+  p.archived=!!on;
+  wfpCommit(p,on?"Project archived ✓":"Project restored ✓");
+}
+
+/* ---- view controls ---- */
+function wfpSetStatus(status){
+  var next=WFP_STATUSES.indexOf(status)>=0?status:"all";
+  /* A second press on the active card goes back to everything. */
+  _wfp.status=(next!=="all"&&_wfp.status===next)?"all":next;
+  wfpSaveView();renderPlanner();
+}
+function wfpSetZoom(zoom){
+  if(WFP_ZOOMS.indexOf(zoom)<0)return;
+  _wfp.zoom=zoom;wfpSaveView();_wfpJumped=false;renderPlanner();
+}
+/** Focus is the app's own full screen plus the reference's own hiding of the
+ * metric cards and lists (CSS, off body.tasks-full). Not persisted, the same
+ * call as full screen: waking to a page with its header gone and no memory
+ * of asking for it reads as a broken app. */
+function wfpToggleFocus(){setTasksFull(!_tasksFull);}
+
+/** Which day a click on an empty stretch of a row means. Today is two cells
+ * wide, so past it the pointer is one cell further on than it looks. */
+function wfpDateFromPointer(track,clientX){
+  var rect=track.getBoundingClientRect(),cell=Number(track.getAttribute("data-cell"))||34;
+  var start=track.getAttribute("data-range-start")||todayKey();
+  var days=Math.max(1,Number(track.getAttribute("data-days"))||Math.round(rect.width/cell));
+  var ti=Number(track.getAttribute("data-today-index")),hasToday=isFinite(ti)&&ti>=0&&ti<days;
+  var rtl=getComputedStyle(track).direction==="rtl";
+  var raw=rtl?(rect.right-clientX):(clientX-rect.left),idx;
+  if(hasToday){
+    var a=ti*cell,b=a+cell*2;
+    if(raw>=a&&raw<b)idx=ti;
+    else{if(raw>=b)raw-=cell;idx=Math.floor(raw/cell);}
+  }else idx=Math.floor(raw/cell);
+  idx=Math.max(0,Math.min(days-1,idx));
+  return shiftDay(start,idx);
+}
+
+/* ---- one delegated click handler for everything the planner draws ---- */
+function wfpClick(e){
+  var t=e.target;
+  if(!t||!t.closest)return;
+  var dateIn=t.closest("#wfp input[type='date'].wfp-date");
+  if(dateIn&&typeof dateIn.showPicker==="function"){try{dateIn.showPicker();}catch(err){}}
+  /* A bar opens its editor on the click, not on pointerup as the reference
+     did. Opened on pointerup, the editor appears under the finger and the
+     click that follows lands inside it - on a phone that opened the Finish
+     date picker, and could as easily have pressed Delete. The resize grip is
+     a handle, not a button, as in the reference. */
+  var barHit=t.closest("#wfp .gantt-bar[data-id],#wfp .gantt-milestone[data-id]");
+  if(barHit){
+    if(_wfpDragged||t.closest(".gantt-resize"))return;
+    wfpCloseMenu();
+    wfpOpenEdit(barHit.getAttribute("data-id"),barHit);
+    return;
+  }
+  var track=t.closest("#wfp .gantt-track[data-project],#wfp .gantt-project-track[data-project]");
+  if(track&&!t.closest(".gantt-bar,.gantt-milestone,.gantt-resize,[data-wfp]")){
+    e.preventDefault();
+    wfpOpenCreate(track.getAttribute("data-project"),wfpDateFromPointer(track,e.clientX),track,false);
+    return;
+  }
+  var b=t.closest("[data-wfp]");
+  if(!b){wfpCloseMenu();return;}
+  var a=b.getAttribute("data-wfp"),id=b.getAttribute("data-id"),pid=b.getAttribute("data-project");
+  var keeps=["task-menu","project-menu","colour-menu","occurrences","move-menu","deps-menu","toggle-dep"];
+  if(keeps.indexOf(a)<0)wfpCloseMenu();
+  if(a==="task-menu"){e.stopPropagation();wfpOpenTaskMenu(b,id);}
+  else if(a==="project-menu"){e.stopPropagation();wfpOpenProjectMenu(b,pid);}
+  else if(a==="colour-menu"){e.stopPropagation();wfpOpenColourMenu(b,pid);}
+  else if(a==="occurrences"){e.stopPropagation();wfpOpenOccurrenceMenu(b,id);}
+  else if(a==="move-menu"){e.stopPropagation();wfpOpenMoveMenu(b,id);}
+  else if(a==="deps-menu"){e.stopPropagation();wfpOpenDepsMenu(b,id);}
+  else if(a==="toggle-dep"){e.stopPropagation();wfpToggleDep(id,b.getAttribute("data-dependency"),b);}
+  else if(a==="set-status")wfpSetStatus(b.getAttribute("data-status"));
+  else if(a==="focus")wfpToggleFocus();
+  else if(a==="new-project")wfpOpenCreate("",todayKey(),b,true);
+  else if(a==="add-task")wfpOpenCreate("",todayKey(),b,false);
+  else if(a==="project-add-task")wfpOpenCreate(pid,todayKey(),b,false);
+  else if(a==="edit"||a==="set-dates")wfpOpenEdit(id,b);
+  else if(a==="dialog-close")wfpCloseDialog();
+  else if(a==="dialog-save")wfpSaveDialog();
+  else if(a==="dialog-complete")wfpDialogComplete();
+  else if(a==="dialog-delete"){var did=_wfpDlg.id;if(wfpTask(did)){wfpCloseDialog();wfpDeleteTask(did);}}
+  else if(a==="complete")wfpComplete(id);
+  else if(a==="reopen")wfpReopen(id);
+  else if(a==="reopen-occurrence")wfpReopenOccurrence(id,b.getAttribute("data-occurrence"));
+  else if(a==="move-to"){if(moveTaskTo(id,pid))renderTaskViews();}
+  else if(a==="milestone")wfpToggleMilestone(id);
+  else if(a==="repeat-weekly")wfpSetRecurrence(id,"weekly");
+  else if(a==="repeat-monthly")wfpSetRecurrence(id,"monthly");
+  else if(a==="repeat-stop")wfpSetRecurrence(id,"none");
+  else if(a==="delete")wfpDeleteTask(id);
+  else if(a==="project-up")wfpMoveProject(pid,-1);
+  else if(a==="project-down")wfpMoveProject(pid,1);
+  else if(a==="set-colour")wfpSetColour(pid,b.getAttribute("data-colour"));
+  else if(a==="custom-colour")wfpCustomColour(pid);
+  else if(a==="reset-colour")wfpResetColour(pid);
+  else if(a==="rename-project")wfpRenameProject(pid);
+  else if(a==="project-complete")wfpUpdateProject(pid,"complete");
+  else if(a==="project-weekly")wfpUpdateProject(pid,"weekly");
+  else if(a==="project-monthly")wfpUpdateProject(pid,"monthly");
+  else if(a==="project-stop")wfpUpdateProject(pid,"stop");
+  else if(a==="archive-project")wfpArchiveProject(pid,true);
+  else if(a==="restore-project")wfpArchiveProject(pid,false);
+  else if(a==="delete-project")wfpUpdateProject(pid,"delete");
+  else if(a==="restore-task")wfpRestoreTask(id);
+  else if(a==="delete-archived")wfpDeleteTask(id);
+}
+
+/* ---- pointer gestures: move/stretch a bar, resize the name column, and
+   reorder projects and tasks. Each has its own state, so two can never be
+   mixed up, and each cleans up on pointercancel as well as pointerup. ---- */
+var _wfpDrag=null,_wfpBarHold=null,_wfpDragged=false;
+function wfpBarFor(id,occ){
+  return document.querySelector('#wfp .gantt-bar[data-id="'+id+'"][data-occurrence="'+occ+'"],'+
+    '#wfp .gantt-milestone[data-id="'+id+'"][data-occurrence="'+occ+'"]');
+}
+function wfpStartBarDrag(bar,id,mode,pointerId,x,y){
+  var t=wfpTask(id);if(!t)return;
+  _wfpDrag={id:id,occ:bar.getAttribute("data-occurrence"),mode:mode,pointerId:pointerId,startX:x,startY:y,
+    baseStart:taskStart(t),baseEnd:taskEnd(t),baseLeft:parseFloat(bar.style.insetInlineStart)||0,
+    baseWidth:parseFloat(bar.style.width)||34,cell:Number(bar.getAttribute("data-cell"))||34,delta:0,moved:false};
+  bar.classList.add("dragging");
+  try{bar.setPointerCapture(pointerId);}catch(err){}
+}
+function wfpCancelBarHold(){
+  if(_wfpBarHold){clearTimeout(_wfpBarHold.timer);_wfpBarHold=null;}
+}
+function wfpPointerDown(e){
+  var t=e.target;
+  if(!t||!t.closest||!t.closest("#wfp"))return;
+  var bar=t.closest(".gantt-bar[data-id],.gantt-milestone[data-id]");
+  if(bar){
+    if(!wfpTask(bar.getAttribute("data-id")))return;
+    var resize=!!t.closest("[data-gantt-resize]");
+    /* With a finger the bar is held first - see the touch-action note in the
+       CSS. Until the hold completes this may be a scroll, so nothing here
+       may preventDefault. The grip is exempt: it is a deliberate target. */
+    if(e.pointerType!=="mouse"&&!resize){
+      wfpCancelBarHold();
+      _wfpBarHold={bar:bar,id:bar.getAttribute("data-id"),pointerId:e.pointerId,x:e.clientX,y:e.clientY,
+        timer:setTimeout(function(){
+          var h=_wfpBarHold;_wfpBarHold=null;
+          if(h&&h.bar.isConnected)wfpStartBarDrag(h.bar,h.id,"move",h.pointerId,h.x,h.y);
+        },WF_HOLD_MS)};
+      return;
+    }
+    e.preventDefault();e.stopPropagation();
+    wfpStartBarDrag(bar,bar.getAttribute("data-id"),resize?"resize":"move",e.pointerId,e.clientX,e.clientY);
+    return;
+  }
+  var colHandle=t.closest("[data-gantt-column-resize]");
+  if(colHandle){
+    e.preventDefault();e.stopPropagation();
+    var lw=wfpLabelWidth();
+    _wfpDrag={mode:"column",pointerId:e.pointerId,startX:e.clientX,base:lw,range:wfpLabelRange(),
+      chart:colHandle.closest(".gantt"),handle:colHandle,width:lw};
+    colHandle.classList.add("dragging");
+    try{colHandle.setPointerCapture(e.pointerId);}catch(err){}
+    return;
+  }
+  var taskHandle=t.closest("[data-wfp-task-drag]");
+  if(taskHandle){
+    var label=taskHandle.closest(".gantt-task-label[data-task-id]");if(!label)return;
+    e.preventDefault();e.stopPropagation();
+    _wfpDrag={mode:"task",pointerId:e.pointerId,id:label.getAttribute("data-task-id"),targetId:"",targetProject:"",after:false};
+    label.closest(".gantt-row").classList.add("structure-dragging");
+    try{taskHandle.setPointerCapture(e.pointerId);}catch(err){}
+    return;
+  }
+  var pname=t.closest(".gantt-project-name[data-project]");
+  if(pname&&!t.closest("button,a,input")){
+    e.preventDefault();
+    _wfpDrag={mode:"project",pointerId:e.pointerId,project:pname.getAttribute("data-project"),target:null};
+    pname.closest(".gantt-project-row").classList.add("structure-dragging");
+    try{pname.setPointerCapture(e.pointerId);}catch(err){}
+  }
+}
+function wfpClearDropTargets(){
+  Array.prototype.forEach.call(document.querySelectorAll(
+    "#wfp .reorder-before,#wfp .reorder-after,#wfp .task-drop-target,#wfp .drop-target"),function(x){
+    x.classList.remove("reorder-before","reorder-after","task-drop-target","drop-target");
+  });
+}
+function wfpPointerMove(e){
+  if(_wfpBarHold&&e.pointerId===_wfpBarHold.pointerId){
+    /* Moved before the hold completed: that was a scroll, not a grab. */
+    if(Math.abs(e.clientX-_wfpBarHold.x)>WF_HOLD_SLOP||Math.abs(e.clientY-_wfpBarHold.y)>WF_HOLD_SLOP)wfpCancelBarHold();
+    return;
+  }
+  var d=_wfpDrag;
+  if(!d||e.pointerId!==d.pointerId)return;
+  e.preventDefault();
+  if(d.mode==="move"||d.mode==="resize"){
+    var rx=e.clientX-d.startX,ry=e.clientY-d.startY;
+    if(Math.abs(rx)>4||Math.abs(ry)>4)d.moved=true;
+    d.delta=Math.round(rx/d.cell);
+    if(!d.moved)return;
+    var bar=wfpBarFor(d.id,d.occ);if(!bar)return;
+    if(d.mode==="move")bar.style.insetInlineStart=(d.baseLeft+d.delta*d.cell)+"px";
+    else bar.style.width=Math.max(d.cell-4,d.baseWidth+d.delta*d.cell)+"px";
+  }else if(d.mode==="column"){
+    var w=Math.round(Math.max(d.range.min,Math.min(d.range.max,d.base+(e.clientX-d.startX))));
+    d.width=w;
+    if(d.chart)d.chart.style.setProperty("--gantt-label-width",w+"px");
+  }else if(d.mode==="task"){
+    wfpClearDropTargets();
+    var under=document.elementFromPoint(e.clientX,e.clientY);
+    var tl=under&&under.closest&&under.closest("#wfp .gantt-task-label[data-task-id]");
+    if(tl&&tl.getAttribute("data-task-id")!==d.id){
+      var target=wfpTask(tl.getAttribute("data-task-id"));if(!target)return;
+      var r=tl.getBoundingClientRect(),after=e.clientY>r.top+r.height/2;
+      tl.classList.add(after?"reorder-after":"reorder-before");
+      d.targetId=target.id;d.targetProject=target.projectId;d.after=after;
+      return;
+    }
+    var pr=under&&under.closest&&under.closest("#wfp .gantt-project-row[data-project]");
+    if(pr){pr.classList.add("task-drop-target");d.targetId="";d.targetProject=pr.getAttribute("data-project");d.after=true;}
+  }else if(d.mode==="project"){
+    wfpClearDropTargets();
+    var u=document.elementFromPoint(e.clientX,e.clientY);
+    var row=u&&u.closest&&u.closest("#wfp .gantt-project-row[data-project]");
+    d.target=null;
+    if(row&&row.getAttribute("data-project")!==d.project){row.classList.add("drop-target");d.target=row;}
+  }
+}
+function wfpPointerUp(e){
+  if(_wfpBarHold&&e.pointerId===_wfpBarHold.pointerId){
+    /* Lifted before the hold completed: a tap. The click that follows opens
+       the editor - see wfpClick for why it is not opened here. */
+    wfpCancelBarHold();
+    return;
+  }
+  var d=_wfpDrag;
+  if(!d||e.pointerId!==d.pointerId)return;
+  _wfpDrag=null;
+  if(d.mode==="move"||d.mode==="resize"){
+    var bar=wfpBarFor(d.id,d.occ);if(bar)bar.classList.remove("dragging");
+    var t=wfpTask(d.id);
+    /* A press that never moved is a tap: leave the bar exactly where it is.
+       Re-rendering here would replace it before the click that follows, and
+       that click is what opens the editor. */
+    if(!d.moved)return;
+    /* Anything that did move ends with a click on whatever is under the
+       pointer; that one is swallowed (same pattern as _wfDragged). */
+    _wfpDragged=true;
+    setTimeout(function(){_wfpDragged=false;},0);
+    if(t&&d.delta){
+      if(d.mode==="move")setTaskSpan(t,shiftDay(d.baseStart,d.delta),shiftDay(d.baseEnd,d.delta));
+      else{
+        var end=shiftDay(d.baseEnd,d.delta);
+        setTaskSpan(t,d.baseStart,end<d.baseStart?d.baseStart:end);
+      }
+      renderTaskViews();
+      flash(d.mode==="move"?"Task dates moved ✓":"Finish date updated ✓","good");
+    }else renderPlanner();
+  }else if(d.mode==="column"){
+    if(d.handle)d.handle.classList.remove("dragging");
+    _wfp.labelWidth=d.width||d.base;wfpSaveView();renderPlanner();
+  }else if(d.mode==="task"){
+    wfpClearDropTargets();
+    Array.prototype.forEach.call(document.querySelectorAll("#wfp .structure-dragging"),function(x){x.classList.remove("structure-dragging");});
+    if(d.targetProject)wfpReorderTask(d.id,d.targetProject,d.targetId,d.after);
+  }else if(d.mode==="project"){
+    wfpClearDropTargets();
+    Array.prototype.forEach.call(document.querySelectorAll("#wfp .structure-dragging"),function(x){x.classList.remove("structure-dragging");});
+    if(d.target){
+      var r=d.target.getBoundingClientRect();
+      wfpReorderProject(d.project,d.target.getAttribute("data-project"),e.clientY>r.top+r.height/2);
+    }
+  }
+}
+function wfpPointerCancel(e){
+  if(_wfpBarHold&&e.pointerId===_wfpBarHold.pointerId){wfpCancelBarHold();return;}
+  var d=_wfpDrag;
+  if(!d||e.pointerId!==d.pointerId)return;
+  _wfpDrag=null;
+  wfpClearDropTargets();
+  Array.prototype.forEach.call(document.querySelectorAll("#wfp .structure-dragging,#wfp .dragging"),function(x){
+    x.classList.remove("structure-dragging","dragging");
+  });
+  renderPlanner();
+}
+
+/* Another tab saved. The board's rows merge in exactly as a sync pull would:
+   per row, newer updated_at wins - so two tabs open on one laptop agree
+   without waiting for a round trip through the server, and neither can
+   overwrite the other's newer edit on its next save. Only the item rows: the
+   rest of the store has its own merge in runSync. Nothing is saved here; the
+   other tab already wrote these rows to storage. */
+function mergeItemsFromOtherTab(e){
+  if(!e||e.key!==KEY||!e.newValue||!SAFE)return false;
+  var other;
+  try{other=JSON.parse(e.newValue);}catch(err){return false;}
+  if(!other||typeof other!=="object")return false;
+  if(other.account&&state.account&&other.account!==state.account)return false;
+  var changed=false;
+  ITEM_STORES.forEach(function(name){
+    var theirs=other[name];
+    if(!theirs||typeof theirs!=="object")return;
+    var mine=itemStore(name);
+    Object.keys(theirs).forEach(function(id){
+      var r=theirs[id];
+      if(!r||typeof r!=="object")return;
+      var cur=mine[id];
+      if(!cur||(Number(r.updated_at)||0)>(Number(cur.updated_at)||0)){mine[id]=r;changed=true;}
+    });
+  });
+  if(changed){renderTaskViews();renderNotes(true);}
+  return changed;
+}
+
+function initPlanner(){
+  document.addEventListener("click",wfpClick);
+  document.addEventListener("pointerdown",wfpPointerDown);
+  document.addEventListener("pointermove",wfpPointerMove,{passive:false});
+  document.addEventListener("pointerup",wfpPointerUp);
+  document.addEventListener("pointercancel",wfpPointerCancel);
+  document.addEventListener("keydown",function(e){
+    var item=e.target&&e.target.closest&&e.target.closest("#wfp .gantt-bar[data-id],#wfp .gantt-milestone[data-id]");
+    if(item&&(e.key==="Enter"||e.key===" ")){e.preventDefault();wfpOpenEdit(item.getAttribute("data-id"),item);}
+  });
+  window.addEventListener("storage",mergeItemsFromOtherTab);
+  window.addEventListener("resize",wfpCloseMenu);
+  window.addEventListener("scroll",wfpCloseMenu,true);
+  var search=wfpEl("wfpSearch");
+  if(search)search.addEventListener("input",function(){_wfp.search=search.value;wfpSaveView();renderPlanner();});
+  var proj=wfpEl("wfpProjectFilter");
+  if(proj)proj.addEventListener("change",function(){_wfp.project=proj.value;wfpSaveView();renderPlanner();});
+  var status=wfpEl("wfpStatusFilter");
+  if(status)status.addEventListener("change",function(){
+    _wfp.status=WFP_STATUSES.indexOf(status.value)>=0?status.value:"all";wfpSaveView();renderPlanner();
+  });
+  var zoom=wfpEl("wfpZoomSelect");
+  if(zoom)zoom.addEventListener("change",function(){wfpSetZoom(zoom.value);});
+  var dprog=wfpEl("wfpDialogProgress");
+  if(dprog)dprog.addEventListener("input",function(){wfpEl("wfpDialogProgressValue").textContent=dprog.value+"%";});
+  var dproj=wfpEl("wfpDialogProject");
+  if(dproj)dproj.addEventListener("change",wfpToggleNewProject);
+  var dlg=wfpDialog();
+  if(dlg){
+    dlg.addEventListener("close",wfpFinishDialog);
+    dlg.addEventListener("click",function(e){if(e.target===dlg)wfpCloseDialog();});
+    var form=wfpEl("wfpDialogForm");
+    if(form)form.addEventListener("submit",function(e){e.preventDefault();});
+  }
+  if(window.matchMedia){
+    var mq=window.matchMedia("(prefers-color-scheme: dark)");
+    if(mq.addEventListener)mq.addEventListener("change",wfpSyncTone);
+    else if(mq.addListener)mq.addListener(wfpSyncTone);
+  }
 }
 
 /* ---------- RENDER: JOURNAL ---------- */
@@ -8285,6 +10266,8 @@ var SUBVIEWS=["plan","recipes","exercises","duas"];
 var JOURNAL_SUBVIEWS=["journal","notes"];
 var currentJournalSub="journal";
 var LASTJOURNALSUB_KEY="yawarLastJournalSub";
+var WORKFLOW_SUBVIEWS=["timeline","planner"];
+var LASTWORKFLOWSUB_KEY="yawarLastWorkflowSub";
 var currentView="today",currentSub="plan";
 /* Which tab you were on is remembered so a refresh (or reopening the
    installed app) puts you back where you were, not always on Today. */
@@ -8430,8 +10413,30 @@ function nav(view){
   if(view==="settings")renderSettings();
   if(view==="journal"){if(currentJournalSub==="notes")renderNotes();else renderJournal();}
   if(view==="tasks"){renderBoard();sizeTasksPanes();}
-  if(view==="workflow"){renderWorkflow();sizeTasksPanes();}
+  if(view==="workflow"){
+    if(currentWorkflowSub==="planner")renderPlanner();else renderWorkflow();
+    sizeTasksPanes();
+  }
+  if(view!=="workflow")wfpCloseMenu();
   window.scrollTo(0,0);
+}
+
+/** Timeline | Planner inside the Workflow tab, while one of them is chosen.
+ * Remembered per device, like the Journal's sub-tab. */
+function navWorkflowSub(sub){
+  if(WORKFLOW_SUBVIEWS.indexOf(sub)<0)return;
+  currentWorkflowSub=sub;
+  var tabs=document.getElementById("workflowSubTabs").children;
+  for(var i=0;i<tabs.length;i++){
+    tabs[i].classList.toggle("active",tabs[i].getAttribute("data-wsub")===sub);
+  }
+  WORKFLOW_SUBVIEWS.forEach(function(v){
+    document.getElementById("wsub-"+v).classList.toggle("active",v===sub);
+  });
+  try{localStorage.setItem(LASTWORKFLOWSUB_KEY,sub);}catch(e){}
+  wfpCloseMenu();
+  if(sub==="planner")renderPlanner();else renderWorkflow();
+  sizeTasksPanes();
 }
 
 function navJournalSub(sub){
@@ -8469,18 +10474,20 @@ function navSub(sub){
 document.addEventListener("click",function(ev){
   var t=ev.target;
   if(!t||!t.closest)return;
-  var hit=t.closest("[data-recipe],[data-exercise],[data-nav],[data-sub],[data-jsub]");
+  var hit=t.closest("[data-recipe],[data-exercise],[data-nav],[data-sub],[data-jsub],[data-wsub]");
   if(!hit)return;
   var rec=hit.getAttribute("data-recipe");
   var exc=hit.getAttribute("data-exercise");
   var nv=hit.getAttribute("data-nav");
   var sub=hit.getAttribute("data-sub");
   var jsub=hit.getAttribute("data-jsub");
+  var wsub=hit.getAttribute("data-wsub");
   if(rec){ev.preventDefault();openRecipe(rec);}
   else if(exc){ev.preventDefault();openExercise(exc);}
   else if(nv){nav(nv);}
   else if(sub){navSub(sub);}
   else if(jsub){navJournalSub(jsub);}
+  else if(wsub){navWorkflowSub(wsub);}
 });
 document.getElementById("modalClose").addEventListener("click",hideModal);
 document.getElementById("overlay").addEventListener("click",function(e){if(e.target===this)hideModal();});
@@ -8618,8 +10625,10 @@ document.getElementById("fullBtn").addEventListener("click",function(){
 /* Escape is the way out everyone tries first, and on a desktop it is the only
    obvious one once the bottom bar is gone. */
 document.addEventListener("keydown",function(e){
-  if(e.key==="Escape"&&_tasksFull)setTasksFull(false);
+  /* With the planner's editor open, Escape belongs to the editor. */
+  if(e.key==="Escape"&&_tasksFull&&!wfpDialogOpen())setTasksFull(false);
 });
+initPlanner();
 
 document.getElementById("projectAddBtn").addEventListener("click",function(){
   var id=addProject("New project");
@@ -8784,6 +10793,7 @@ function applyThemeColor(){
 function applyTheme(t){
   if(t==="dark"||t==="light")document.documentElement.setAttribute("data-theme",t);
   applyThemeColor();
+  wfpSyncTone();   /* the planner carries its own palette, switched by class */
   var btn=document.getElementById("themeToggle");
   /* It lives in Settings now, where there's room to say what it does rather
      than leaving an unlabelled glyph in the header. */
@@ -8887,6 +10897,9 @@ openingReminders();
   var savedJrnSub=null;
   try{savedJrnSub=localStorage.getItem(LASTJOURNALSUB_KEY);}catch(e){}
   if(JOURNAL_SUBVIEWS.indexOf(savedJrnSub)>=0)navJournalSub(savedJrnSub);
+  var savedWfSub=null;
+  try{savedWfSub=localStorage.getItem(LASTWORKFLOWSUB_KEY);}catch(e){}
+  if(WORKFLOW_SUBVIEWS.indexOf(savedWfSub)>=0)navWorkflowSub(savedWfSub);
   if(saved&&saved!=="today"&&VIEWS.indexOf(saved)>=0)nav(saved);
 })();
 flushMsgs();
