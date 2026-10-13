@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.50.0
+
+**The planner's look, across the whole app.** As asked: the glass finish, the premium buttons and the planner's theme now run through every tab, in both light and dark.
+
+- **Palette:** the planner's deep navy (dark) and soft lilac-white (light), with violet and blue as the accent in place of teal. The colours that mean something (prayer colours, green/amber/red, project colours) are unchanged.
+- **Glass cards** over a soft violet-and-blue glow that sits behind the whole page.
+- **Gradient buttons:** every main action (Add, Connect, Today, the active sub-tab, the + button) is the planner's violet-to-blue with a glow underneath. Secondary buttons and inputs are the planner's translucent style, and fields get a violet focus ring.
+- **Frosted header and bottom bar,** with content scrolling visibly underneath. The active tab sits in a lit pill.
+- **Frosted menus, notification panel and pop-ups.** The Progress figures get the planner's lit edge.
+- **Messages float as a toast above the bottom bar** instead of appearing at the top and pushing the page down while they show.
+- Fixed in passing: the Progress figures sat flush against the first chart.
+
+All of this is one self-contained block of styling, so if any part of it isn't right it can be adjusted or taken back without touching anything else. An installed copy may keep its old status-bar colour until the phone refreshes the app's icon/manifest; reinstalling does it straight away.
+
 ## 1.49.0
 
 **Planner fixes, and YR / EY.**
