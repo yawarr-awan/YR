@@ -653,6 +653,42 @@ ninth tab, and **the reference's own look**.
 - Tests: `test/planner.test.js` (36), following the package's
   `ACCEPTANCE-CHECKLIST.md` plus the shared-row guarantees.
 
+## The premium finish, app-wide (1.50.0)
+- **One block, `PREMIUM FINISH (1.50.0)`, placed after every base rule and
+  before the planner's.** It re-declares the palette (all three variants:
+  `:root`, the `prefers-color-scheme` one, `[data-theme="dark"]`) and restyles
+  shared components. Deleting it restores 1.49.0 exactly - keep it that way:
+  put further theme work inside it, not scattered back into the base rules.
+- Component values are **custom properties next to the palette** (`--glass`,
+  `--glass-2`, `--glass-line`, `--glass-shadow`, `--chrome`, `--pop`,
+  `--field`, `--field-line`, `--btn2`, `--btn2-line`, `--grad`, `--grad-glow`,
+  `--glow-a/b/c`), so each component is written once. Don't name one
+  `--hdr-bg`: `uiShell.test.js` asserts no separate header palette exists
+  (the 1.17.1 white header was rejected). The header is `--chrome`, which is
+  the page's own `--bg`, translucent and frosted - the same surface, so the
+  1.17.2 rule still holds.
+- **`--brand` is violet now** (`#6f47d6` light, `#a78bfa` dark), `--accent`
+  blue. The dark violet is light enough that white text on it is faint, so
+  **every brand-*filled* control uses `--grad` instead** (`.btn.primary`,
+  `.fab`, `.today-btn`, `.subtabs button.active`, `.pray-seg button.on`,
+  `.repeat-day.is-on`). A new filled control should join that list.
+  `--wf-link` (blue) is still distinct from `--brand` (violet) in both themes,
+  which 1.44.1 requires.
+- **`backdrop-filter` only where something scrolls underneath** (header,
+  bottom bar, menus, notification panel, overlay, `.fs-btn`). Behind a card
+  there is only the fixed glow (`body::before`, `z-index:-1` in the root
+  stacking context); blurring it is invisible and costs every scroll frame.
+- **`#statusBar` is a fixed toast** above the bottom bar (`--tabs-h`), not in
+  the flow - an in-flow banner shoved the whole page down while it showed. It
+  is still the same element with the same classes; `statusText()` reads it.
+- The active tab's pill is `::before` at `min(100%,4.6rem)`, not the button's
+  background - on a desktop a tab button is a sixth of the screen wide.
+- `THEME_BG`, the `theme-color` meta and the manifest colours follow the new
+  `--bg` (`#0f1117` / `#eef1f7`). An installed WebAPK keeps the old manifest
+  colour until Chrome rebuilds it (see 1.24.1).
+- The navy/gold note in 1.15.0 ("Don't re-theme without being asked") still
+  stands: this re-theme was asked for.
+
 ## Planner: YR/EY, phone scrolling, no jump (1.49.0)
 - **YR / EY is a property of the project** (`project.category`, `"YR"`
   personal / `"EY"` work), riding the synced row like `archived`. Read it

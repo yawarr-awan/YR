@@ -330,7 +330,7 @@ test("the Android status-bar colour follows the theme rather than sitting at one
   assert.notEqual(after, before, "switching theme must repaint the status bar too");
 
   const dark = app.document.documentElement.getAttribute("data-theme") === "dark";
-  assert.equal(after, dark ? "#0f1420" : "#f4f6fb");
+  assert.equal(after, dark ? "#0f1117" : "#eef1f7");
 });
 
 test("the notes-for-the-day card is gone from Today, and past notes are left untouched", () => {
