@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.53.0
+
+**Calendar events in the app's violet-blue, by kind.** Events used to be painted in Google's own calendar colours, which came out brown, mauve and olive against the rest of the app. Each kind of entry now gets its own shade of the app's violet-to-blue, with the same gloss as the Workflow planner's bars:
+- **Personal** (your main calendar): violet
+- **Family** calendar: blue
+- **Tasks** (the app's own and Google Tasks): purple. Google Tasks keep their dotted edge.
+- **Any other calendar** you can see (work, shared, holidays) gets a shade in between. Each calendar keeps the same shade week to week.
+
+A small key under the prayer legend says which colour is which.
+
+**Workflow: the "Project timeline" heading and the "N tasks shown" line are gone.** The chart's card now starts with the search box. On a laptop the search box sits at the left of the card.
+
 ## 1.52.0
 
 **The Tasks board fits the screen.**

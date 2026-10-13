@@ -652,6 +652,24 @@ ninth tab, and **the reference's own look**.
 - Tests: `test/planner.test.js` (36), following the package's
   `ACCEPTANCE-CHECKLIST.md` plus the shared-row guarantees.
 
+## Calendar entries are toned by kind, not by Google's colour (1.53.0)
+- **`calEntryTone(x)`** is the one place a chip's colour is decided:
+  `CAL_TONES.task` for `kind` task/gtask, `.family` when the calendar's name
+  matches /family/i or its id starts "family" (Google's family calendars),
+  `.personal` for the primary calendar (`_calWin.calendars[].primary`; no
+  `calendarId` at all also counts as personal), and otherwise one of
+  `.others` picked by a hash of the calendar id, so it is stable.
+- **Google's `event.color` is no longer painted**, inline or otherwise - not
+  even on the chip's edge (`borderInlineStartColor` is no longer set; the CSS
+  edge is a lighter mix of `--chip-c`). It is still on the event object.
+- The planner's timeline card has no heading and no `#wfpShownCount`
+  (removed on request); it opens on the search box, and the header controls
+  are `justify-content:flex-start`. Tests count `.gantt-task-label` rows
+  (`rowsShown`) where they used to read the count.
+- The calendar legend carries a Personal / Family / Tasks key after a
+  `.legend-break`. Keep the `.others` shades away from the family blue - the
+  first pick had a sky blue that read as Family.
+
 ## The board fits the screen; gloss; calendar lanes (1.52.0)
 - **The free canvas is gone** (supersedes the 1.38.0 and 1.39.0 notes about
   stored positions, panning, bring-to-front and the resize corner). Cards

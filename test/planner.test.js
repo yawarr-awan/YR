@@ -76,6 +76,8 @@ function pointer(app, type, target, x, y, pointerType) {
 }
 const bars = (app, id) => $$(app, `#wfp .gantt-bar[data-id="${id}"]`);
 const label = (app, id) => $(app, `#wfp .gantt-task-label[data-task-id="${id}"]`);
+/** The task rows the chart is drawing (the "N tasks shown" line is gone). */
+const rowsShown = (app) => $$(app, "#wfp .gantt-task-label");
 const stored = (app, id) => app.state().tasks[id];
 const dialog = (app) => $(app, "#wfpDialog");
 const dialogOpen = (app) => dialog(app).hasAttribute("open");
@@ -95,6 +97,15 @@ function setVal(app, id, value, type) {
 }
 
 /* ---------------- the switch, and what the planner reads ---------------- */
+
+test("the timeline card has no heading or task count: it starts with the search box", () => {
+  const app = openPlanner(load());
+  assert.equal($(app, "#wfpTimelineHeading"), null);
+  assert.equal($(app, "#wfpShownCount"), null);
+  const head = $(app, "#wfp .workflow-timeline-card .workflow-card-head");
+  assert.equal(head.firstElementChild.className, "workflow-header-controls");
+  assert.equal(head.querySelector("input").id, "wfpSearch", "the first thing in the card");
+});
 
 test("the Workflow tab is the planner: no Timeline, no switch", () => {
   const app = load();
@@ -615,10 +626,10 @@ test("deleting a project asks first and takes its tasks with it", () => {
 test("search, project and the metric cards combine; a card toggles back to All", () => {
   const app = openPlanner(load());
   setVal(app, "wfpSearch", "approve", "input");
-  assert.equal($(app, "#wfpShownCount").textContent, "1 task shown");
+  assert.equal(rowsShown(app).length, 1);
   setVal(app, "wfpSearch", "", "input");
   setVal(app, "wfpProjectFilter", "p2");
-  assert.equal($(app, "#wfpShownCount").textContent, "2 tasks shown");
+  assert.equal(rowsShown(app).length, 2);
   setVal(app, "wfpProjectFilter", "all");
 
   const overdue = $(app, '#wfp [data-wfp="set-status"][data-status="overdue"]');
@@ -628,14 +639,14 @@ test("search, project and the metric cards combine; a card toggles back to All",
   assert.deepEqual($$(app, "#wfp .gantt-task-label").map((l) => l.getAttribute("data-task-id")), ["b2"]);
   fire(app, $(app, '#wfp [data-wfp="set-status"][data-status="overdue"]'));
   assert.equal(overdue.getAttribute("aria-pressed"), "false", "pressing the active card again shows everything");
-  assert.equal($(app, "#wfpShownCount").textContent, "5 tasks shown");
+  assert.equal(rowsShown(app).length, 5);
 });
 
 test("the status <select> is gone, and a stored status no card can clear is read back as All", () => {
   const app = openPlanner(loadApp({ fetchImpl: idle, localStorageSeed: seed(null, null,
     { yawarPlannerView: JSON.stringify({ status: "critical" }) }) }));
   assert.equal($(app, "#wfpStatusFilter"), null);
-  assert.equal($(app, "#wfpShownCount").textContent, "5 tasks shown",
+  assert.equal(rowsShown(app).length, 5,
     "\"critical\" was only reachable from the old select - honouring it would hide tasks with no way back");
 });
 
