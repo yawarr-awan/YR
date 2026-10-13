@@ -115,14 +115,60 @@ test("projects and their tasks are their own synced rows, stamped and un-deleted
   assert.ok(!s.profile.projects, "and none of it is on the profile blob");
 });
 
-test("ticking a task sinks it below the open ones", () => {
+const doneToggle = (col) => col.querySelector(".board-done-toggle");
+
+test("ticking a task folds it away under Show completed", () => {
   const app = openBoard(loadApp({ fetchImpl: idle }));
-  const col = newProject(app, "Errands");
+  newProject(app, "Errands");
   ["First", "Second", "Third"].forEach((t) => addTaskTo(app, colNamed(app, "Errands"), t));
+  assert.equal(doneToggle(colNamed(app, "Errands")), null, "nothing done, nothing to show");
 
   tasksIn(colNamed(app, "Errands"))[0].querySelector("input[type=checkbox]").click();
-  assert.deepEqual(titles(colNamed(app, "Errands")), ["Second", "Third", "First"]);
+  assert.deepEqual(titles(colNamed(app, "Errands")), ["Second", "Third"], "gone from the list at once");
+  assert.equal(doneToggle(colNamed(app, "Errands")).textContent, "Show completed (1)");
   assert.match(colNamed(app, "Errands").querySelector(".board-n").textContent, /2\/3/);
+
+  doneToggle(colNamed(app, "Errands")).click();
+  assert.deepEqual(titles(colNamed(app, "Errands")), ["Second", "Third", "First"], "shown below the open ones");
+  assert.equal(doneToggle(colNamed(app, "Errands")).textContent, "Hide completed (1)");
+  assert.equal(doneToggle(colNamed(app, "Errands")).getAttribute("aria-expanded"), "true");
+
+  // Open stays open while you keep ticking: the next one joins the shown list.
+  tasksIn(colNamed(app, "Errands"))[0].querySelector("input[type=checkbox]").click();
+  assert.deepEqual(titles(colNamed(app, "Errands")), ["Third", "First", "Second"]);
+  assert.equal(doneToggle(colNamed(app, "Errands")).textContent, "Hide completed (2)");
+
+  // Unticking a shown one brings it back to the open list.
+  tasksIn(colNamed(app, "Errands"))[1].querySelector("input[type=checkbox]").click();
+  assert.deepEqual(titles(colNamed(app, "Errands")).slice(0, 2).sort(), ["First", "Third"]);
+
+  doneToggle(colNamed(app, "Errands")).click();
+  assert.deepEqual(titles(colNamed(app, "Errands")).sort(), ["First", "Third"], "folded again");
+});
+
+test("Show completed is per card, and folded again after a reload", () => {
+  const app = openBoard(loadApp({ fetchImpl: idle }));
+  newProject(app, "A"); addTaskTo(app, colNamed(app, "A"), "A1");
+  newProject(app, "B"); addTaskTo(app, colNamed(app, "B"), "B1");
+  tasksIn(colNamed(app, "A"))[0].querySelector("input[type=checkbox]").click();
+  tasksIn(colNamed(app, "B"))[0].querySelector("input[type=checkbox]").click();
+  assert.equal(colNamed(app, "A").querySelector(".board-empty").textContent, "All done.");
+
+  doneToggle(colNamed(app, "A")).click();
+  assert.deepEqual(titles(colNamed(app, "A")), ["A1"]);
+  assert.deepEqual(titles(colNamed(app, "B")), [], "the other card stays folded");
+
+  const again = openBoard(loadApp({ fetchImpl: idle, localStorageSeed: { [MAIN_KEY]: app.window.localStorage.getItem(MAIN_KEY) } }));
+  assert.deepEqual(titles(colNamed(again, "A")), [], "a view of the moment, not a stored preference");
+  assert.equal(doneToggle(colNamed(again, "A")).textContent, "Show completed (1)");
+});
+
+test("Mark as done from the menu folds the task away too", () => {
+  const app = openBoard(loadApp({ fetchImpl: idle }));
+  newProject(app, "P"); addTaskTo(app, colNamed(app, "P"), "Keep"); addTaskTo(app, colNamed(app, "P"), "Finish");
+  menuItem(openTaskMenu(app, colNamed(app, "P"), "Finish"), /Mark as done/).click();
+  assert.deepEqual(titles(colNamed(app, "P")), ["Keep"]);
+  assert.equal(doneToggle(colNamed(app, "P")).textContent, "Show completed (1)");
 });
 
 test("deleting a project takes its tasks with it, as tombstones rather than gaps", () => {
@@ -230,7 +276,10 @@ test("the old Today task list arrives as a General project", () => {
 
   const col = colNamed(app, "General");
   assert.ok(col, "into a project of their own");
-  assert.deepEqual(titles(col), ["Bank statements for donations", "Do FX expenses"],
+  assert.deepEqual(titles(col), ["Bank statements for donations"], "the open one on show");
+  assert.equal(col.querySelector(".board-done-toggle").textContent, "Show completed (1)", "the done one folded away");
+  col.querySelector(".board-done-toggle").click();
+  assert.deepEqual(titles(colNamed(app, "General")), ["Bank statements for donations", "Do FX expenses"],
     "done last, but both there");
   assert.match(col.querySelector(".board-n").textContent, /1\/2/);
   assert.deepEqual(app.state().profile.tasks.map((t) => t.title),
@@ -1059,4 +1108,215 @@ test("the sheet offers to take a plotted task back off the workflow", () => {
   assert.equal(t.end, null);
   assert.equal(app.document.querySelector(".btask .btask-title").tagName, "SPAN",
     "and the title stops reading as a link to it");
+});
+
+/* ---------------- YR / EY: one filter, both tabs ---------------- */
+
+const catBtn = (app, cat) => app.document.querySelector('#boardCats [data-board-cat="' + cat + '"]');
+const pickOptions = (app) => [...app.document.querySelectorAll("#boardPick option")].map((o) => o.textContent);
+function categorised() {
+  // "EY" by name, "Audit" by an explicit choice, "Home" personal by default.
+  const app = boardWith(["Home", "EY", "Audit", "Gym"]);
+  const s = JSON.parse(app.window.localStorage.getItem(MAIN_KEY));
+  s.projects.p2.category = "EY";
+  return openBoard(loadApp({ fetchImpl: idle, localStorageSeed: { [MAIN_KEY]: JSON.stringify(s) } }));
+}
+
+test("the Tasks tab has the planner's YR and EY buttons, and they filter the cards", () => {
+  const app = categorised();
+  assert.deepEqual(orderOf(app), ["Home", "EY", "Audit", "Gym"], "everything to begin with");
+  assert.equal(catBtn(app, "YR").getAttribute("aria-pressed"), "false");
+
+  catBtn(app, "EY").click();
+  assert.deepEqual(orderOf(app), ["EY", "Audit"], "work only");
+  assert.equal(catBtn(app, "EY").classList.contains("is-on"), true);
+  assert.deepEqual(pickOptions(app), ["All EY projects (2)", "EY", "Audit"], "and the picker lists only those");
+
+  catBtn(app, "YR").click();
+  assert.deepEqual(orderOf(app), ["Home", "Gym"], "a press on the other switches");
+
+  catBtn(app, "YR").click();
+  assert.deepEqual(orderOf(app), ["Home", "EY", "Audit", "Gym"], "the lit one again shows both");
+});
+
+test("it is the same setting as the Workflow tab's, whichever tab sets it", () => {
+  const app = categorised();
+  // Set on the Workflow tab...
+  app.goTo("workflow");
+  app.document.querySelector('#wfp [data-wfp="category"][data-cat="EY"]').click();
+  openBoard(app);
+  assert.deepEqual(orderOf(app), ["EY", "Audit"], "the board follows the planner");
+  assert.equal(catBtn(app, "EY").getAttribute("aria-pressed"), "true");
+  // ...and back the other way.
+  catBtn(app, "EY").click();
+  app.goTo("workflow");
+  const ey = app.document.querySelector('#wfp [data-wfp="category"][data-cat="EY"]');
+  assert.equal(ey.getAttribute("aria-pressed"), "false", "the planner follows the board");
+  assert.equal(JSON.parse(app.window.localStorage.getItem("yawarPlannerView")).category, "all");
+  // Per device, like the rest of the view: never in the synced store.
+  assert.equal(JSON.stringify(app.state()).includes('"category":"all"'), false);
+});
+
+test("a project chosen in the picker but filtered out is let go, not left showing", () => {
+  const app = categorised();
+  const pick = app.document.getElementById("boardPick");
+  pick.value = "p0";   // Home, a YR project
+  pick.dispatchEvent(new app.window.Event("change", { bubbles: true }));
+  assert.deepEqual(orderOf(app), ["Home"]);
+  catBtn(app, "EY").click();
+  assert.deepEqual(orderOf(app), ["EY", "Audit"]);
+  assert.equal(pick.value, "");
+});
+
+test("a project added while EY is lit is an EY project, so it stays on the board", () => {
+  const app = categorised();
+  catBtn(app, "EY").click();
+  app.click("projectAddBtn");
+  assert.deepEqual(orderOf(app), ["EY", "Audit", "New project"]);
+  const made = Object.values(app.state().projects).find((p) => p.name === "New project");
+  assert.equal(made.category, "EY");
+  assert.ok(made.updated_at > 1, "stamped, so the category syncs");
+});
+
+/* ---------------- scrolling from anywhere on a card ---------------- */
+/* Measured in Chromium with real touches before the fix: a swipe that began
+   on a tick box, a task's grip or the "Add a task" box did not move the board
+   at all - between them most of each row's left side. */
+
+function tallBoard() {
+  const projects = {}, tasks = {};
+  for (let i = 0; i < 6; i++) {
+    projects["p" + i] = { id: "p" + i, name: "P" + i, color: "", order: i, updated_at: 1, deleted: 0 };
+    for (let j = 0; j < 4; j++) {
+      const id = "t" + i + j;
+      tasks[id] = { id, projectId: "p" + i, title: "P" + i + " task " + j, done: false, order: j, due: null, start: null,
+        end: null, calendarEventId: null, scheduled: false, noteId: null, updated_at: 1, deleted: 0 };
+    }
+  }
+  return openBoard(loadApp({ fetchImpl: idle, localStorageSeed: { [MAIN_KEY]: JSON.stringify({
+    schema: SCHEMA, profile: { startWeight: 108, targetWeight: 88, updated_at: 1, tasks: [] }, days: {},
+    projects, tasks, sync: { enabled: false, since: 0, lastSyncAt: null, lastError: null }, account: "me@example.com",
+  }) } }));
+}
+const scrollY = (app) => {
+  const m = /translate\([^,]+, ?(-?[\d.]+)px\)/.exec(plane(app).style.transform);
+  return m ? Number(m[1]) : NaN;
+};
+/* The finger rests before lifting, so these never fling: a glide still
+   running when the next touch lands would (rightly) make that touch a catch
+   rather than a tap. The fling has tests of its own below. */
+function swipeFrom(app, target, dy) {
+  const at = (type, y, ts, t) => {
+    const ev = new app.window.Event(type, { bubbles: true, cancelable: true });
+    ev.pointerId = 1; ev.clientX = 100; ev.clientY = y; ev.pointerType = "touch";
+    Object.defineProperty(ev, "timeStamp", { value: ts });
+    (t || viewport(app)).dispatchEvent(ev);
+  };
+  at("pointerdown", 400, 1000, target);
+  at("pointermove", 400 + dy / 2, 1010);
+  at("pointermove", 400 + dy, 1020);
+  at("pointerup", 400 + dy, 1600);
+}
+
+for (const [where, find] of [
+  ["a tick box", (col) => col.querySelector(".btask input[type=checkbox]")],
+  ["a task's grip", (col) => col.querySelector(".btask .drag-grip")],
+  ["the Add a task box", (col) => col.querySelector(".board-add input")],
+  ["a task's title", (col) => col.querySelector(".btask .btask-title")],
+]) {
+  test("a swipe that starts on " + where + " scrolls the board", () => {
+    const app = tallBoard();
+    const order = JSON.stringify(Object.values(app.state().tasks).map((t) => [t.id, t.order]));
+    swipeFrom(app, find(colNamed(app, "P1")), -200);
+    assert.equal(scrollY(app), -200);
+    assert.equal(JSON.stringify(Object.values(app.state().tasks).map((t) => [t.id, t.order])), order, "nothing reordered");
+  });
+}
+
+test("the click a swipe leaves on a tick box does not tick it", async () => {
+  const app = tallBoard();
+  const cb = colNamed(app, "P1").querySelector(".btask input[type=checkbox]");
+  swipeFrom(app, cb, -200);
+  cb.click();   // what a browser fires on the element the finger started on
+  assert.equal(Object.values(app.state().tasks).filter((t) => t.done).length, 0);
+  await app.wait(5);   // the swallow lasts one tick; a real tap comes later
+  // A plain tap still ticks.
+  const again = colNamed(app, "P1").querySelector(".btask input[type=checkbox]");
+  touch(app, "pointerdown", 2, 100, 400, again);
+  touch(app, "pointerup", 2, 100, 400, again);
+  again.click();
+  assert.equal(Object.values(app.state().tasks).filter((t) => t.done).length, 1);
+});
+
+test("a field being typed in keeps its own gesture", () => {
+  const app = tallBoard();
+  const input = colNamed(app, "P1").querySelector(".board-add input");
+  input.focus();
+  swipeFrom(app, input, -200);
+  assert.equal(scrollY(app), 0, "selecting text in a focused box is not a scroll");
+});
+
+test("a finger held on a task's grip lifts the row and drags it", async () => {
+  const app = tallBoard();
+  const col = colNamed(app, "P1");
+  const row = (title) => [...colNamed(app, "P1").querySelectorAll(".btask")].find((r) => r.querySelector(".btask-title").textContent === title);
+  touch(app, "pointerdown", 1, 10, 0, row("P1 task 3").querySelector(".drag-grip"));
+  assert.equal(row("P1 task 3").classList.contains("is-holding"), true);
+  await app.wait(450);
+  const dst = row("P1 task 0");
+  dst.getBoundingClientRect = () => ({ top: 100, height: 40, bottom: 140, left: 0, right: 0, width: 0 });
+  app.document.elementFromPoint = () => dst;
+  touch(app, "pointermove", 1, 10, 110, app.document);
+  touch(app, "pointerup", 1, 10, 110, app.document);
+  assert.deepEqual(titles(colNamed(app, "P1")), ["P1 task 3", "P1 task 0", "P1 task 1", "P1 task 2"]);
+  assert.equal(scrollY(app), 0, "and the board did not scroll under it");
+  assert.ok(col);
+});
+
+/* A flick keeps going: real timestamps, since the speed is read from them. */
+function timedTouch(app, type, y, ts, target) {
+  const ev = new app.window.Event(type, { bubbles: true, cancelable: true });
+  ev.pointerId = 1; ev.clientX = 100; ev.clientY = y; ev.pointerType = "touch";
+  Object.defineProperty(ev, "timeStamp", { value: ts });
+  (target || viewport(app)).dispatchEvent(ev);
+}
+
+test("a quick flick glides on after the finger lifts, and a touch stops it", async () => {
+  const app = tallBoard();
+  timedTouch(app, "pointerdown", 500, 1000);
+  timedTouch(app, "pointermove", 450, 1010);
+  timedTouch(app, "pointermove", 400, 1026);
+  timedTouch(app, "pointermove", 350, 1042);
+  timedTouch(app, "pointerup", 350, 1046);
+  assert.equal(scrollY(app), -150, "as far as the finger went");
+  await app.wait(120);
+  const gliding = scrollY(app);
+  assert.ok(gliding < -150, "then further on its own: " + gliding);
+  timedTouch(app, "pointerdown", 300, 5000);
+  const caught = scrollY(app);
+  await app.wait(120);
+  assert.equal(scrollY(app), caught, "a touch catches it where it is");
+  timedTouch(app, "pointerup", 300, 5010);
+});
+
+test("a finger that stops before lifting does not fling", async () => {
+  const app = tallBoard();
+  timedTouch(app, "pointerdown", 500, 1000);
+  timedTouch(app, "pointermove", 450, 1010);
+  timedTouch(app, "pointermove", 400, 1026);
+  timedTouch(app, "pointerup", 400, 1400);   // held still for a moment first
+  await app.wait(120);
+  assert.equal(scrollY(app), -100);
+});
+
+test("a mouse dragging the board never flings", async () => {
+  const app = tallBoard();
+  for (const [type, y, ts] of [["pointerdown", 500, 1000], ["pointermove", 450, 1010], ["pointermove", 400, 1026], ["pointerup", 400, 1030]]) {
+    const ev = new app.window.Event(type, { bubbles: true, cancelable: true });
+    ev.pointerId = 1; ev.clientX = 100; ev.clientY = y; ev.pointerType = "mouse";
+    Object.defineProperty(ev, "timeStamp", { value: ts });
+    viewport(app).dispatchEvent(ev);
+  }
+  await app.wait(120);
+  assert.equal(scrollY(app), -100);
 });

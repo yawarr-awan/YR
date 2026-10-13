@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.56.0
+
+**The Tasks board scrolls from wherever your finger lands.** A swipe that started on a task's tick box, its drag handle (⠿) or the "Add a task…" box used to do nothing. Between them those cover most of the left side of every row, which is why scrolling seemed to work only some of the time. All three now scroll:
+- A tap still ticks a box or opens the add box.
+- To reorder a task with your finger, press and hold its handle for a moment, then drag. A mouse still drags straight away.
+
+**A flick keeps going.** A quick swipe now glides on after your finger lifts and slows to a stop, like any other list. Touch the board to stop it where it is. Before, the board moved only as far as your finger did and stopped dead, so a fast swipe barely moved it.
+
+**Completed tasks fold away.** Ticking a task moves it straight into **Show completed (N)** at the bottom of its card. Tap that to see them, and **Hide completed** to fold them again. Each card has its own, and they all start folded when you open the app. A card with nothing left to do says "All done."
+
+**YR / EY on the Tasks tab.** The Workflow tab's YR and EY buttons now sit at the top of the Tasks tab too, and they're the same setting on both tabs:
+- Press EY on either tab and both show only your work projects. YR shows only personal ones, and pressing the lit button again shows everything.
+- The project dropdown lists only the projects in the chosen group.
+- A project added while YR or EY is lit is put in that group, so it doesn't vanish as soon as you add it.
+
 ## 1.55.0
 
 **Every card now looks like the Workflow planner's metric cards.** That covers Today's Brief, Supplements, Meals, Medicines, Water, Movement, Prayers, Dhikr, Settings, Progress, Journal, Notes, recipes, exercises and the Tasks board. Each card has:

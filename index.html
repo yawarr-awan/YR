@@ -389,7 +389,23 @@ body[data-view="tasks"] .fab{display:block}
    being dragged, and every card while a pinch is redrawing them each move. */
 .board-col{transition:left .2s ease,top .2s ease,width .2s ease}
 .board-col.is-dragging,.canvas-viewport.is-zooming .board-col{transition:none}
-.board-pickrow{display:flex;margin:4px 0 8px}
+.board-pickrow{display:flex;align-items:center;gap:8px;margin:4px 0 8px}
+/* The planner's YR / EY switch, on the board: one setting, both tabs. */
+.board-cats{display:inline-flex;gap:3px;padding:3px;flex:0 0 auto;border:1px solid var(--line);
+  border-radius:10px;background:var(--panel-2)}
+.board-cat{min-width:40px;padding:5px 10px;border:0;border-radius:7px;background:transparent;
+  color:var(--muted);font:inherit;font-size:.78rem;font-weight:800;letter-spacing:.02em;cursor:pointer}
+.board-cat.is-on{background:var(--brand);color:#fff}
+.board-cat:focus-visible{outline:2px solid var(--brand);outline-offset:1px}
+/* Under a card's open tasks: the fold its ticked ones go into. */
+.board-done-toggle{display:block;width:100%;margin:4px 0 2px;padding:6px 8px;border:1px dashed var(--line);
+  border-radius:9px;background:transparent;color:var(--muted);font:inherit;font-size:.76rem;font-weight:700;
+  text-align:start;cursor:pointer}
+.board-done-toggle::before{content:"▸";display:inline-block;margin-inline-end:6px;transition:transform .15s ease}
+.board-done-toggle.is-open::before{transform:rotate(90deg)}
+.board-done-toggle:hover{color:var(--ink);border-color:var(--brand)}
+/* A finger holding a task's grip, about to lift the row. */
+.btask.is-holding{transition:transform .18s ease;transform:scale(.985);opacity:.85}
 .board-pick{flex:0 1 auto;min-width:0;max-width:100%;border:1px solid var(--line);background:var(--panel-2);
   color:var(--ink);border-radius:10px;padding:7px 30px 7px 12px;font:inherit;font-size:.85rem;font-weight:700}
 .canvas{position:absolute;inset-block-start:0;inset-inline-start:0;
@@ -1055,7 +1071,7 @@ nav.tabs button.active::before{content:"";position:absolute;z-index:-1;inset-blo
   background:linear-gradient(150deg,color-mix(in srgb,var(--bg) 88%,var(--brand)),var(--bg));
   box-shadow:inset 0 1px 0 rgba(255,255,255,.04),var(--glass-shadow)}
 .board-col::before{box-shadow:0 0 14px var(--proj,var(--brand))}
-.board-pick{background:var(--field);border-color:var(--field-line);box-shadow:inset 0 1px 0 rgba(255,255,255,.035)}
+.board-pick,.board-cats{background:var(--field);border-color:var(--field-line);box-shadow:inset 0 1px 0 rgba(255,255,255,.035)}
 .board-pick.is-on{border-color:color-mix(in srgb,var(--brand) 70%,transparent);
   box-shadow:0 0 0 3px color-mix(in srgb,var(--brand) 22%,transparent)}
 /* The planner's metric cards, for the Progress figures: a lit edge in the
@@ -1073,7 +1089,7 @@ nav.tabs button.active::before{content:"";position:absolute;z-index:-1;inset-blo
 .btn:hover{border-color:color-mix(in srgb,var(--brand) 55%,var(--btn2-line))}
 .btn:active{transform:translateY(1px)}
 .btn.primary,.fab,.subtabs button.active,.pray-seg button.on,
-.cal-edit .repeat-days .repeat-day.is-on{
+.cal-edit .repeat-days .repeat-day.is-on,.board-cat.is-on{
   background:var(--grad);border-color:transparent;color:#fff;box-shadow:var(--grad-glow)}
 .today-btn{background:var(--grad)!important;border-color:transparent!important;color:#fff!important;box-shadow:var(--grad-glow)}
 /* The date bar's ‹ › buttons are 1.05rem and .datebar button outranks
@@ -1931,6 +1947,11 @@ div#wfp.wfp-light .wfp-cats{background:rgba(255,255,255,.8)}
   <section id="view-tasks" class="view">
     <!-- Every project, so one card can be shown on its own. -->
     <div class="board-pickrow">
+      <!-- The Workflow planner's YR / EY filter: one setting, both tabs. -->
+      <div class="board-cats" id="boardCats" role="group" aria-label="Filter by category">
+        <button type="button" class="board-cat" data-board-cat="YR" aria-pressed="false" title="Personal projects only">YR</button>
+        <button type="button" class="board-cat" data-board-cat="EY" aria-pressed="false" title="Work projects only">EY</button>
+      </div>
       <select id="boardPick" class="board-pick" aria-label="Show one project"></select>
     </div>
     <div class="canvas-viewport" id="canvasViewport">
@@ -6875,8 +6896,18 @@ function clampZoom(z){return Math.min(boardMaxZoom(),Math.max(CANVAS_MIN_Z,z));}
 /** The projects the board is drawing: all of them, or the one the picker
  * chose. A choice that no longer exists (deleted on another device) is
  * forgotten rather than leaving an empty board. */
+/** The YR / EY filter the Workflow planner sets, shared with the board so the
+ * two tabs show the same projects. "all" before the planner's view is read. */
+function boardCategory(){
+  return (typeof _wfp!=="undefined"&&_wfp&&_wfp.category)||"all";
+}
+function boardCategoryProjects(){
+  var cat=boardCategory(),all=projectList();
+  if(cat==="all")return all;
+  return all.filter(function(p){return wfpCategoryOf(p)===cat;});
+}
 function boardProjects(){
-  var all=projectList();
+  var all=boardCategoryProjects();
   if(_canvas.only){
     var one=all.filter(function(p){return p.id===_canvas.only;});
     if(one.length)return one;
@@ -6887,9 +6918,13 @@ function boardProjects(){
 /** A card's height before it has been measured: what jsdom (no layout) and a
  * hidden tab get. Roughly a heading, a row per task and the add row. */
 function estimateCardHeight(p){
-  var n=tasksIn(p.id).length;
-  return Math.max(CARD_MIN_H,50+(n?n*44:30)+58);
+  var all=tasksIn(p.id),done=all.filter(function(t){return t.done;}).length;
+  var n=all.length-done+(_boardShowDone[p.id]?done:0);
+  return Math.max(CARD_MIN_H,50+(n?n*44:30)+(done?34:0)+58);
 }
+/* Which cards have their completed tasks showing. A view of the moment, not a
+   preference: kept for the session, never stored. */
+var _boardShowDone={};
 /** Where each card goes at zoom z, in canvas pixels. Columns as wide as the
  * screen allows (never narrower than CARD_W, so zooming in drops a column
  * rather than squeezing every card), then each card into whichever column is
@@ -6962,6 +6997,7 @@ function applyCanvasTransform(){
  * under them. Sideways there is nothing to keep: the layout always fills the
  * width. */
 function zoomAt(nextZ,px,py){
+  if(_fling){_fling.stop=true;_fling=null;}
   var z=clampZoom(nextZ);
   if(Math.abs(z-_canvas.z)<1e-4)return;
   var cy=(py-_canvas.y)/_canvas.z;
@@ -6982,6 +7018,64 @@ function canvasFit(){
 }
 function scrollBoardBy(dy){
   _canvas.y-=dy;clampBoardScroll();applyCanvasTransform();
+}
+
+/* ---------- THE BOARD: MOMENTUM ----------
+   The board scrolls itself (the viewport is touch-action:none, for the pinch),
+   so the glide a native list gives after a flick has to be ours too. Touch
+   and pen only: a mouse dragging the board is placing it, not throwing it. */
+var BOARD_FLICK_MIN=0.25;          /* px/ms - slower than this just stops */
+var BOARD_FLICK_MAX=6;
+var BOARD_FLICK_WINDOW=100;        /* ms of samples the speed is read over */
+var BOARD_FLICK_FRICTION=0.95;     /* speed kept per 16ms frame */
+var _fling=null;
+var _flingCaught=false;
+function eventTime(e){
+  var t=e&&e.timeStamp;
+  return (typeof t==="number"&&t>0)?t:Date.now();
+}
+/** How fast the finger was moving as it lifted, in px/ms (+ is downwards).
+ * 0 when it was a mouse, when the finger had stopped before lifting, or when
+ * there is nothing to measure from. */
+function flickSpeed(pan,upAt){
+  if(!pan||(pan.type!=="touch"&&pan.type!=="pen"))return 0;
+  var s=pan.samples;
+  if(s.length<2)return 0;
+  var last=s[s.length-1];
+  if(upAt-last.t>BOARD_FLICK_WINDOW*0.8)return 0;   /* held still, then let go */
+  var first=null;
+  for(var i=s.length-2;i>=0;i--){if(last.t-s[i].t<=BOARD_FLICK_WINDOW)first=s[i];else break;}
+  if(!first||last.t<=first.t)return 0;
+  var v=(last.y-first.y)/(last.t-first.t);
+  if(Math.abs(v)<BOARD_FLICK_MIN)return 0;
+  return Math.max(-BOARD_FLICK_MAX,Math.min(BOARD_FLICK_MAX,v));
+}
+function boardNextFrame(fn){
+  if(typeof window.requestAnimationFrame==="function")window.requestAnimationFrame(fn);
+  else setTimeout(function(){fn(Date.now());},16);
+}
+function stopFling(){
+  if(!_fling)return;
+  _fling.stop=true;_fling=null;saveBoardView();
+}
+function startFling(v){
+  if(_fling){_fling.stop=true;_fling=null;}
+  var f={v:v,t:null,stop:false};_fling=f;
+  function step(ts){
+    if(f.stop)return;
+    var now=typeof ts==="number"?ts:Date.now();
+    var dt=f.t===null?16:Math.max(1,Math.min(48,now-f.t));f.t=now;
+    var before=_canvas.y;
+    _canvas.y+=f.v*dt;clampBoardScroll();applyCanvasTransform();
+    f.v*=Math.pow(BOARD_FLICK_FRICTION,dt/16);
+    /* Stops when it has slowed to nothing or run into either end. */
+    if(Math.abs(f.v)<0.02||Math.abs(_canvas.y-before)<0.01){
+      if(_fling===f){_fling=null;saveBoardView();}
+      return;
+    }
+    boardNextFrame(step);
+  }
+  boardNextFrame(step);
 }
 
 /* ---------- THE BOARD: GESTURES ----------
@@ -7026,15 +7120,27 @@ function attachCanvas(){
       _pinch={dist:pinchDistance(live[0],live[1]),z:_canvas.z};
       return;
     }
+    /* A touch while the board is still gliding stops it there, and is not
+       also a tap on whatever it landed on - the way a native list behaves. */
+    if(_fling){stopFling();_flingCaught=true;}
     var t=e.target;
-    /* Typing, and the task grips, keep their own gestures. A mouse pressed on
-       a card's header is moving the card; a finger there might be either, and
-       the hold decides (startCardDrag ends the scroll if it lifts). */
-    if(t.closest&&t.closest("input,textarea,select,.drag-grip"))return;
+    /* Only a field being typed in keeps the gesture (to place the caret or
+       select text), and a select its own. Everything else scrolls: a tick
+       box, a task's grip and the "Add a task" box used to be excluded, and
+       between them they cover most of a row's left side - a swipe landing
+       there did nothing, which read as the board scrolling only sometimes.
+       A tap still ticks or focuses, because a scroll only becomes one once
+       it has moved; a finger on a grip has to be held to drag the row
+       (holdRowDrag), as on a card's header. A mouse pressed on a header is
+       moving the card. */
+    if(t.closest&&t.closest("select,textarea"))return;
+    if(t.matches&&t.matches("input:focus:not([type=checkbox]):not([type=radio])"))return;
+    if(t.closest&&t.closest(".drag-grip")&&e.pointerType!=="touch"&&e.pointerType!=="pen")return;
     if(e.pointerType==="mouse"&&t.closest&&t.closest(".board-col-head"))return;
     /* A scroll only becomes one once it has moved: until then this may be a
        tap on a button, and capturing the pointer would take its click. */
-    _pan={id:e.pointerId,startY:e.clientY,y:e.clientY-_canvas.y,live:false};
+    _pan={id:e.pointerId,startY:e.clientY,y:e.clientY-_canvas.y,live:false,
+      type:e.pointerType,samples:[]};
   });
 
   vp.addEventListener("pointermove",function(e){
@@ -7053,25 +7159,37 @@ function attachCanvas(){
     if(!_pan.live){
       if(Math.abs(e.clientY-_pan.startY)<BOARD_PAN_SLOP)return;
       _pan.live=true;
+      cancelRowHold();
       vp.classList.add("is-panning");
       try{vp.setPointerCapture(e.pointerId);}catch(err){}
     }
     _canvas.y=e.clientY-_pan.y;
     clampBoardScroll();applyCanvasTransform();
+    /* The last few positions, for the speed the finger leaves with. */
+    _pan.samples.push({t:eventTime(e),y:e.clientY});
+    if(_pan.samples.length>6)_pan.samples.shift();
   });
 
   function release(e){
     delete _pointers[e.pointerId];
     if(canvasPointers().length<2){_pinch=null;vp.classList.remove("is-zooming");}
+    var swallow=_flingCaught;_flingCaught=false;
     if(_pan&&_pan.id===e.pointerId){
       if(_pan.live){
         vp.classList.remove("is-panning");
-        saveBoardView();
-        /* Whatever the scroll started on gets a click now; it was a scroll. */
-        _cardDragged=true;
-        setTimeout(function(){_cardDragged=false;},0);
+        swallow=true;
+        /* A flick keeps going after the finger leaves. Without it a quick
+           swipe moved the board only as far as the finger travelled and
+           stopped dead - which, done fast, looks like nothing happened. */
+        var v=e.type==="pointerup"?flickSpeed(_pan,eventTime(e)):0;
+        if(v)startFling(v);else saveBoardView();
       }
       _pan=null;
+    }
+    /* Whatever the scroll started on gets a click now; it was a scroll. */
+    if(swallow){
+      _cardDragged=true;
+      setTimeout(function(){_cardDragged=false;},0);
     }
   }
   vp.addEventListener("pointerup",release);
@@ -7085,6 +7203,7 @@ function attachCanvas(){
      scrolls the board down and up - there is nothing sideways to scroll. */
   vp.addEventListener("wheel",function(e){
     e.preventDefault();
+    stopFling();
     if(e.ctrlKey){
       var r=vp.getBoundingClientRect();
       zoomAt(_canvas.z*(e.deltaY>0?0.92:1.08),e.clientX-r.left,e.clientY-r.top);
@@ -7096,6 +7215,9 @@ function attachCanvas(){
   var pick=document.getElementById("boardPick");
   if(pick)pick.addEventListener("change",function(){
     _canvas.only=pick.value||"";_canvas.y=0;saveBoardView();renderBoard();
+  });
+  Array.prototype.forEach.call(document.querySelectorAll("#boardCats [data-board-cat]"),function(b){
+    b.addEventListener("click",function(){wfpSetCategory(b.getAttribute("data-board-cat"));});
   });
 }
 
@@ -7245,7 +7367,16 @@ function dragGrip(list,id,commit){
   g.type="button";
   g.title="Drag to reorder";
   g.setAttribute("aria-label","Drag to reorder");
-  g.addEventListener("pointerdown",function(ev){startRowDrag(ev,list,id,commit);});
+  g.addEventListener("pointerdown",function(ev){
+    /* On the board a finger holds first: there the grip sits on the edge
+       every swipe starts from, and grabbing on contact turned a scroll into
+       a reorder (and stopped the scroll before it began). A mouse, and the
+       dhikr list - which is not on the board - still grab at once. */
+    if((ev.pointerType==="touch"||ev.pointerType==="pen")&&g.closest&&g.closest(".canvas-viewport")){
+      holdRowDrag(ev,g,list,id,commit);return;
+    }
+    startRowDrag(ev,list,id,commit);
+  });
   /* The dhikr row is a <label> wrapping its checkbox, so a click that reached
      it would tick the item off as well as having moved it. */
   g.addEventListener("click",function(ev){ev.preventDefault();ev.stopPropagation();});
@@ -7264,6 +7395,41 @@ function rowUnderPoint(list,x,y){
 function clearDropMarks(){
   document.querySelectorAll("[data-row].drop-before,[data-row].drop-after")
     .forEach(function(r){r.classList.remove("drop-before","drop-after");});
+}
+/* Arms a row drag behind a hold, letting the board scroll meanwhile: moving
+   before the hold completes is a scroll and cancels it (the board's own
+   pointermove does that once its scroll goes live); holding still lifts the
+   row and ends the scroll that was waiting to start. */
+var _rowHold=null;
+function holdRowDrag(ev,grip,list,id,commit){
+  cancelRowHold();
+  var row=grip.closest?grip.closest("[data-row]"):null;
+  _rowHold={x:ev.clientX,y:ev.clientY,row:row,timer:setTimeout(function(){
+    var h=_rowHold;_rowHold=null;
+    if(!h)return;
+    if(h.row)h.row.classList.remove("is-holding");
+    _pan=null;
+    var vp=document.getElementById("canvasViewport");
+    if(vp)vp.classList.remove("is-panning");
+    startRowDrag({clientX:h.x,clientY:h.y,preventDefault:function(){},stopPropagation:function(){}},list,id,commit);
+  },WF_HOLD_MS)};
+  if(row)row.classList.add("is-holding");
+  document.addEventListener("pointermove",rowHoldMove);
+  document.addEventListener("pointerup",cancelRowHold);
+  document.addEventListener("pointercancel",cancelRowHold);
+}
+function rowHoldMove(ev){
+  if(!_rowHold)return;
+  if(Math.abs(ev.clientX-_rowHold.x)>WF_HOLD_SLOP||Math.abs(ev.clientY-_rowHold.y)>WF_HOLD_SLOP)cancelRowHold();
+}
+function cancelRowHold(){
+  document.removeEventListener("pointermove",rowHoldMove);
+  document.removeEventListener("pointerup",cancelRowHold);
+  document.removeEventListener("pointercancel",cancelRowHold);
+  if(!_rowHold)return;
+  clearTimeout(_rowHold.timer);
+  if(_rowHold.row)_rowHold.row.classList.remove("is-holding");
+  _rowHold=null;
 }
 function startRowDrag(ev,list,id,commit){
   ev.preventDefault();ev.stopPropagation();
@@ -7349,12 +7515,18 @@ function renderBoard(){
 /** The picker above the board: every project, so one card can be brought up
  * on its own. Rebuilt with the board, since projects come and go. */
 function renderBoardPicker(){
+  var cat=boardCategory();
+  Array.prototype.forEach.call(document.querySelectorAll("#boardCats [data-board-cat]"),function(b){
+    var on=b.getAttribute("data-board-cat")===cat;
+    b.classList.toggle("is-on",on);b.setAttribute("aria-pressed",String(on));
+  });
   var pick=document.getElementById("boardPick");
   if(!pick)return;
-  var list=projectList();
-  boardProjects();   /* drops a choice whose project has gone */
+  var list=boardCategoryProjects();
+  boardProjects();   /* drops a choice whose project has gone, or is filtered out */
   pick.innerHTML="";
-  var all=el("option",null,"All projects ("+list.length+")");all.value="";pick.appendChild(all);
+  var all=el("option",null,(cat==="all"?"All projects":"All "+cat+" projects")+" ("+list.length+")");
+  all.value="";pick.appendChild(all);
   list.forEach(function(p){var o=el("option",null,p.name);o.value=p.id;pick.appendChild(o);});
   pick.value=_canvas.only||"";
   pick.classList.toggle("is-on",!!_canvas.only);
@@ -7404,8 +7576,27 @@ function buildProjectColumn(p){
 
   var list=el("div","board-tasks");
   list.setAttribute("data-droplist","tasks:"+p.id);
+  /* Ticked tasks fold away under "Show completed" - a card is a list of what
+     is still to do. Ticking one moves it there at once; it comes back only
+     when asked for, per card, and the choice is not kept past a reload. */
+  var open=tasks.filter(function(t){return !t.done;});
+  var done=tasks.filter(function(t){return t.done;});
   if(!tasks.length)list.appendChild(el("div","board-empty","Nothing here yet."));
-  tasks.forEach(function(t){list.appendChild(buildBoardTask(t,p.id));});
+  else if(!open.length)list.appendChild(el("div","board-empty","All done."));
+  open.forEach(function(t){list.appendChild(buildBoardTask(t,p.id));});
+  if(done.length){
+    var shown=!!_boardShowDone[p.id];
+    var tog=el("button","board-done-toggle"+(shown?" is-open":""),
+      (shown?"Hide completed":"Show completed")+" ("+done.length+")");
+    tog.type="button";
+    tog.setAttribute("aria-expanded",String(shown));
+    tog.addEventListener("click",function(){
+      if(_cardDragged)return;
+      _boardShowDone[p.id]=!shown;renderBoard();
+    });
+    list.appendChild(tog);
+    if(shown)done.forEach(function(t){list.appendChild(buildBoardTask(t,p.id));});
+  }
   col.appendChild(list);
 
   var add=el("div","board-add");
@@ -9035,6 +9226,9 @@ function wfpSetCategory(cat){
   if(WFP_CATS.indexOf(cat)<0)return;
   _wfp.category=_wfp.category===cat?"all":cat;
   wfpSaveView();renderPlanner();
+  /* The Tasks board follows the same filter (boardCategory), from either
+     tab's buttons - a different set of cards starts from the top. */
+  _canvas.y=0;saveBoardView();renderBoard();
 }
 function wfpSetProjectCategory(pid,cat){
   var p=wfpProject(pid);
@@ -10932,6 +11126,10 @@ initPlanner();
 document.getElementById("projectAddBtn").addEventListener("click",function(){
   var id=addProject("New project");
   if(!id)return;
+  /* Added while YR or EY is lit, it is one of those - otherwise it would be
+     filtered off the board the moment it appeared. */
+  var cat=boardCategory();
+  if(cat!=="all"){var np=itemStore("projects")[id];np.category=cat;touchItem(np);}
   renderBoard();
   var col=document.querySelector('.board-col[data-project="'+id+'"]');
   if(col){

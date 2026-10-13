@@ -794,6 +794,51 @@ ninth tab, and **the reference's own look**.
 - The navy/gold note in 1.15.0 ("Don't re-theme without being asked") still
   stands: this re-theme was asked for.
 
+## Board scrolling, completed fold, shared YR/EY (1.56.0)
+- **"Sometimes it scrolls, sometimes not" was where the finger landed.**
+  Measured in Chromium with real touches (`Input.dispatchTouchEvent`): a
+  swipe starting on a tick box, a task's `.drag-grip` or the "Add a task"
+  input moved the board 0px, fast or slow. The viewport's pointerdown bailed
+  on `input,textarea,select,.drag-grip`, and the grip also
+  `stopPropagation`'d. Now only a `select`, a `textarea` and a **focused**
+  text input keep their gesture. A tap still ticks or focuses, because a pan
+  only goes live past `BOARD_PAN_SLOP`, and `_cardDragged` swallows the click
+  a real pan leaves (a test pins that the swiped-on box stays unticked).
+- **A finger on a grip holds before dragging, on the board only**
+  (`holdRowDrag`, `WF_HOLD_MS`/`WF_HOLD_SLOP`, `.btask.is-holding`). It does
+  not stop propagation, so the board's pan arms alongside it. A live pan
+  cancels the hold (`cancelRowHold` in the pan's pointermove); a completed
+  hold drops `_pan`. A mouse, a pointerType-less synthetic event (the
+  existing grip tests) and the dhikr list still grab at once.
+- **Momentum** (`flickSpeed`/`startFling`/`stopFling`, touch and pen only):
+  - Speed is read over the last `BOARD_FLICK_WINDOW` ms of samples taken from
+    `e.timeStamp`. There is no fling if the finger rested before lifting.
+  - Friction is `BOARD_FLICK_FRICTION` per 16ms. The glide stops at either
+    clamp, and is stopped by a wheel or a zoom.
+  - A touch during a glide stops it and is **not** a tap (`_flingCaught`).
+  - It uses `boardNextFrame`, which falls back to `setTimeout` because this
+    harness has no `requestAnimationFrame`.
+  - Tests set `timeStamp` with `Object.defineProperty` on the event. Without
+    that, two synchronous events share a millisecond and nothing flings.
+- **Probe-point trap:** a touch within ~6px of the viewport's edge lands on
+  `.wrap` in emulated mobile Chromium (the touch radius), and the page, 4px
+  taller than the window, takes the gesture. Aim probes at a real gap
+  between cards, never at the edge.
+- **Completed tasks fold** per card under `.board-done-toggle`. The state is
+  `_boardShowDone[pid]`, kept in memory and never stored, so every card is
+  folded again on reload. `estimateCardHeight` counts only what is shown.
+  Ticking from the row or the ⋮ menu goes through `renderTaskViews()`, so
+  the row leaves at once.
+- **One YR/EY setting for both tabs.** `boardCategory()` reads the planner's
+  `_wfp.category` (`yawarPlannerView`, per device), guarded for before `_wfp`
+  exists. `boardCategoryProjects()` feeds `boardProjects()` and the picker,
+  and the picker drops a chosen project that is filtered out.
+  `wfpSetCategory` now also resets the board's scroll and calls
+  `renderBoard()`. `#boardCats` buttons call it too, so either tab's buttons
+  move both. `.board-cat.is-on` joined the `--grad` filled-control list. A
+  project added from the board's `+` while a category is lit gets that
+  `category`, stamped.
+
 ## Every card is a metric card (1.55.0)
 - **`.card, .subcard, .recipe-card, .ex-card` share one rule** in the PREMIUM
   FINISH block, built from the planner's metric cards: a 150deg glass body
