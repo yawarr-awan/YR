@@ -57,9 +57,9 @@ function seed(tasks, projects, extraKeys) {
 function load(tasks, projects, opts) {
   return loadApp(Object.assign({ fetchImpl: idle, localStorageSeed: seed(tasks, projects) }, opts || {}));
 }
+/** The Workflow tab is the planner (1.51.0 removed the Timeline beside it). */
 function openPlanner(app) {
   app.goTo("workflow");
-  fire(app, app.document.querySelector('[data-wsub="planner"]'));
   return app;
 }
 
@@ -96,20 +96,25 @@ function setVal(app, id, value, type) {
 
 /* ---------------- the switch, and what the planner reads ---------------- */
 
-test("Workflow carries a Timeline | Planner switch, remembered per device and never in the record", () => {
+test("the Workflow tab is the planner: no Timeline, no switch", () => {
   const app = load();
   app.goTo("workflow");
-  assert.ok($(app, "#wsub-timeline").classList.contains("active"), "the original Timeline is what opens first");
-  assert.ok(!$(app, "#wsub-planner").classList.contains("active"));
+  assert.equal($(app, "#workflowSubTabs"), null, "the Timeline | Planner switch is gone");
+  assert.equal($(app, "[data-wsub]"), null);
+  for (const id of ["wfGrid", "wfScroll", "wfUndated", "wsub-timeline", "wsub-planner"]) {
+    assert.equal(app.document.getElementById(id), null, "#" + id);
+  }
+  assert.ok($(app, "#view-workflow > #wfp"), "the planner sits directly in the tab");
+  assert.ok(bars(app, "a1").length, "and is drawn on arrival");
+  assert.doesNotMatch(app.rawMain(), /yawarLast/);
+});
 
-  fire(app, $(app, '[data-wsub="planner"]'));
-  assert.ok($(app, "#wsub-planner").classList.contains("active"));
-  assert.equal(app.window.localStorage.getItem("yawarLastWorkflowSub"), "planner");
-  assert.doesNotMatch(app.rawMain(), /planner|yawarLast/, "which sub-tab is showing is a display preference");
-
-  const again = loadApp({ fetchImpl: idle, localStorageSeed: seed(null, null,
-    { yawarLastTab: "workflow", yawarLastWorkflowSub: "planner" }) });
-  assert.ok(again.document.getElementById("wsub-planner").classList.contains("active"), "and it reopens there");
+test("a device that last had the Timeline showing opens on the planner", () => {
+  const app = loadApp({ fetchImpl: idle, localStorageSeed: seed(null, null,
+    { yawarLastTab: "workflow", yawarLastWorkflowSub: "timeline" }) });
+  assert.ok(app.document.getElementById("view-workflow").classList.contains("active"));
+  assert.ok(app.document.querySelectorAll('#wfp .gantt-bar[data-id="a1"]').length,
+    "the stored sub-tab is ignored rather than leaving an empty tab");
 });
 
 test("the planner draws the board's own rows: dated tasks as bars, undated ones listed, done ones archived", () => {
@@ -126,9 +131,9 @@ test("the planner draws the board's own rows: dated tasks as bars, undated ones 
 
 test("nothing is drawn while the planner is hidden, and showing it draws it", () => {
   const app = load();
-  app.goTo("workflow");
+  app.goTo("today");
   assert.equal($(app, "#wfpChart").children.length, 0, "a cell per day per row is not built for a hidden tab");
-  fire(app, $(app, '[data-wsub="planner"]'));
+  app.goTo("workflow");
   assert.ok(bars(app, "a1").length);
 });
 
@@ -789,7 +794,6 @@ test("a swipe across the phone's metric strip or the chart never changes tab", (
   fireTouch("touchstart", 300);
   fireTouch("touchend", 60);
   assert.ok($(app, "#view-workflow").classList.contains("active"));
-  assert.ok($(app, "#wsub-planner").classList.contains("active"), "not even across to the Timeline");
 });
 
 test("nothing is written under the reference's storage keys, and view settings stay out of the record", () => {

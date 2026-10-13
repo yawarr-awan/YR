@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.51.0
+
+**The Planner is the Workflow tab.** As you asked, the old week-column Timeline is gone, and with it the Timeline | Planner switch at the top of the tab. Opening Workflow now goes straight to the planner.
+
+- **No task is lost.** Both views always read the same projects and tasks as the Tasks board. Everything you had on the Timeline is on the planner, and still on the board.
+- **On the board,** "Add to the workflow…" and "Change workflow dates…" in a task's ⋯ menu work as before and put the task on the planner. Tapping a dated task's blue title still opens Workflow.
+- A phone that last had the Timeline open simply opens on the planner.
+- **Fixed in passing:** in the light theme, the day headings showed through the "Projects and tasks" corner as the chart scrolled.
+
 ## 1.50.0
 
 **The planner's look, across the whole app.** As asked: the glass finish, the premium buttons and the planner's theme now run through every tab, in both light and dark.

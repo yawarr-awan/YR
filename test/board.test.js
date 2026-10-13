@@ -253,10 +253,11 @@ test("the migration runs once, not on every load", () => {
   assert.deepEqual(titles(colNamed(second, "General")), ["Only once"], "not duplicated on reload");
 });
 
-/* ---------------- the Workflow timeline ---------------- */
+/* ---------------- the Workflow tab ---------------- */
 
-const wfCells = (app) => [...app.document.querySelectorAll("#wfGrid .wf-cell")];
-const wfBars = (app) => [...app.document.querySelectorAll("#wfGrid .wf-bar")];
+/* The tab is the Planner since 1.51.0; its own behaviour is covered in
+   test/planner.test.js. What stays here is how the board reaches it. */
+const plannerBar = (app, id) => app.document.querySelector('#wfp .gantt-bar[data-id="' + id + '"]');
 function openWorkflow(app) {
   app.goTo("workflow");
   return app;
@@ -299,102 +300,29 @@ test("Workflow is its own tab, beside Tasks rather than inside it", () => {
   assert.ok(!app.document.getElementById("view-tasks").classList.contains("active"));
 });
 
-test("a bar is as wide as the span is long, in weeks", () => {
-  // Columns are weeks now: a project runs for weeks, and a day-wide column
-  // meant scrolling for an hour to see a month.
-  const app = loadApp({ fetchImpl: idle, localStorageSeed: boardSeed([
-    { title: "Short", start: dayKeyFrom(1), end: dayKeyFrom(2) },
-    { title: "Long", start: dayKeyFrom(1), end: dayKeyFrom(29) },
-  ]) });
-  openWorkflow(app);
-
-  const bars = wfBars(app);
-  assert.equal(bars.length, 2);
-  // A short bar carries no text, so a bar is addressed by its title.
-  const named = (t) => bars.find((b) => b.title.indexOf(t) === 0);
-  const w = (title) => parseFloat(named(title).style.width);
-  assert.ok(w("Long") > w("Short") * 5, "a month reads as far longer than two days");
-  assert.match(bars[0].title, /→/, "and each says its span on hover");
-});
-
-test("even a single-day task is wide enough to see and tap", () => {
-  const app = loadApp({ fetchImpl: idle,
-    localStorageSeed: boardSeed([{ title: "Dentist", start: dayKeyFrom(2), end: dayKeyFrom(2) }]) });
-  openWorkflow(app);
-  assert.ok(parseFloat(wfBars(app)[0].style.width) >= 18, "not a zero-width sliver");
-});
-
-test("each project's bars carry its own colour", () => {
-  const app = loadApp({ fetchImpl: idle, localStorageSeed: (() => {
-    const seed = JSON.parse(boardSeed([{ title: "A", start: dayKeyFrom(0), end: dayKeyFrom(1) }])[MAIN_KEY]);
-    seed.projects.p2 = { id: "p2", name: "Work", color: "", order: 1, updated_at: 1, deleted: 0 };
-    seed.tasks.t2 = { id: "t2", projectId: "p2", title: "B", done: false, order: 0, due: null,
-      start: dayKeyFrom(0), end: dayKeyFrom(1), calendarEventId: null, scheduled: false,
-      noteId: null, updated_at: 1, deleted: 0 };
-    return { [MAIN_KEY]: JSON.stringify(seed) };
-  })() });
-  openWorkflow(app);
-
-  const bars = wfBars(app);
-  const a = bars.find((b) => b.title.indexOf("A") === 0).style.background;
-  const b = bars.find((b) => b.title.indexOf("B") === 0).style.background;
-  assert.ok(a, "a bar is coloured by its project");
-  assert.notEqual(a, b, "and two projects do not look alike");
-});
-
-test("an overdue task reads differently from a finished one", () => {
-  const app = loadApp({ fetchImpl: idle, localStorageSeed: boardSeed([
-    { title: "Late thing", start: dayKeyFrom(-3), end: dayKeyFrom(-1) },
-    { title: "Done thing", start: dayKeyFrom(-3), end: dayKeyFrom(-1), done: true },
-  ]) });
-  openWorkflow(app);
-
-  const late = wfBars(app).find((b) => b.title.indexOf("Late thing") === 0);
-  const done = wfBars(app).find((b) => b.title.indexOf("Done thing") === 0);
-  assert.ok(late.classList.contains("is-late"));
-  assert.ok(!done.classList.contains("is-late"), "finished work is not overdue");
-  assert.ok(done.classList.contains("is-done"));
-});
-
-test("undated tasks are listed separately so they can be given dates", () => {
-  // A fresh board has no dates at all, so the timeline would otherwise be an
-  // empty grid with no way in.
-  const app = loadApp({ fetchImpl: idle, localStorageSeed: boardSeed([
-    { title: "No dates yet" },
-    { title: "Has dates", start: dayKeyFrom(0), end: dayKeyFrom(1) },
-  ]) });
-  openWorkflow(app);
-
-  const rows = [...app.document.querySelectorAll("#wfUndated .wf-undated-row")];
-  assert.equal(rows.length, 1);
-  assert.match(rows[0].textContent, /No dates yet/);
-  assert.match(rows[0].textContent, /House move/, "and says which project it is from");
-  assert.equal(app.document.getElementById("wfUndatedCount").textContent, "1");
-});
-
-test("setting dates from the sheet plots the task", () => {
+test("giving a task dates from the board's menu puts it on the Workflow chart", () => {
   const app = loadApp({ fetchImpl: idle, localStorageSeed: boardSeed([{ title: "Plot me" }]) });
   openWorkflow(app);
-  assert.equal(wfBars(app).length, 0);
-
-  app.document.querySelector("#wfUndated .wf-undated-row .btn").click();
+  assert.equal(plannerBar(app, "t1"), null);
+  openBoard(app);
+  menuItem(openTaskMenu(app, cols(app)[0], "Plot me"), /Add to the workflow/).click();
   const inputs = [...app.document.querySelectorAll(".menu-pop input[type=date]")];
   inputs[0].value = dayKeyFrom(1);
   inputs[1].value = dayKeyFrom(2);
   [...app.document.querySelectorAll(".menu-pop button")].find((b) => b.textContent === "Save").click();
 
-  assert.equal(wfBars(app).length, 1);
-  assert.equal(app.document.getElementById("wfUndatedCount").textContent, "0");
   const t = Object.values(app.state().tasks)[0];
   assert.equal(t.start, dayKeyFrom(1));
   assert.equal(t.end, dayKeyFrom(2));
   assert.ok(t.updated_at > 1, "stamped, so it syncs");
+  openWorkflow(app);
+  assert.ok(plannerBar(app, "t1"), "and the Workflow chart draws it");
 });
 
 test("an end before a start is swapped rather than refused", () => {
   const app = loadApp({ fetchImpl: idle, localStorageSeed: boardSeed([{ title: "Backwards" }]) });
-  openWorkflow(app);
-  app.document.querySelector("#wfUndated .wf-undated-row .btn").click();
+  openBoard(app);
+  menuItem(openTaskMenu(app, cols(app)[0], "Backwards"), /Add to the workflow/).click();
   const inputs = [...app.document.querySelectorAll(".menu-pop input[type=date]")];
   inputs[0].value = dayKeyFrom(5);
   inputs[1].value = dayKeyFrom(2);
@@ -405,82 +333,13 @@ test("an end before a start is swapped rather than refused", () => {
   assert.equal(t.end, dayKeyFrom(5));
 });
 
-test("the timeline is a long scroll, not a fortnight window", () => {
-  /* It used to page a fortnight at a time, which made planning anything
-     further out feel boxed in. The grid now spans years and simply scrolls. */
-  const app = loadApp({ fetchImpl: idle, localStorageSeed: boardSeed([
-    { title: "Way back", start: dayKeyFrom(-200), end: dayKeyFrom(-190) },
-    { title: "Far ahead", start: dayKeyFrom(300), end: dayKeyFrom(330) },
-  ]) });
-  openWorkflow(app);
-
-  const bars = wfBars(app);
-  assert.equal(bars.length, 2, "both ends of the year are on the same timeline");
-  const left = (t) => parseFloat(bars.find((b) => b.textContent === t).style.left);
-  assert.ok(left("Far ahead") > left("Way back"), "laid out in order");
-
-  const grid = app.document.getElementById("wfGrid");
-  assert.ok(parseFloat(grid.style.width) > 5000, "and it is genuinely long, so it scrolls");
-});
-
-test("today is marked, and the view opens near it", () => {
+test("a dated task's title on the board opens the Workflow tab", () => {
   const app = loadApp({ fetchImpl: idle,
-    localStorageSeed: boardSeed([{ title: "Now", start: dayKeyFrom(0), end: dayKeyFrom(2) }]) });
-  openWorkflow(app);
-  assert.ok(app.document.querySelector("#wfGrid .wf-now"), "a line marking today");
-  assert.ok(app.document.querySelector("#wfGrid .wf-wk.is-thisweek"), "and this week's heading stands out");
-
-  /* The line and the bars must share one coordinate system. They did not: the
-     rows start after the name gutter and the line is a child of the grid, so
-     it marked a week earlier until it was given the same offset. */
-  const bar = app.document.querySelector("#wfGrid .wf-bar");
-  assert.equal(app.document.querySelector("#wfGrid .wf-now").style.left, bar.style.left,
-    "a task starting today begins exactly at the today line");
-});
-
-test("the name gutter is solid all the way down its rows", () => {
-  /* It is position:sticky, and the base rule's inset-block:0 stops being
-     sizing once it is - so the label shrank to its text and a bar scrolling
-     past showed through the rest of the row. Reported as bars overlapping the
-     first column. */
-  const app = loadApp({ fetchImpl: idle,
-    localStorageSeed: boardSeed([{ title: "Now", start: dayKeyFrom(0), end: dayKeyFrom(9) }]) });
-  openWorkflow(app);
-
-  const styles = app.document.querySelector("style").textContent;
-  const rule = styles.match(/\.wf-row \.wf-rowlabel\{[^}]*\}/)[0];
-  assert.match(rule, /position:sticky/);
-  assert.match(rule, /height:100%/, "or the box is only as tall as its text");
-
-  const label = app.document.querySelector("#wfGrid .wf-row .wf-rowlabel");
-  const cs = app.window.getComputedStyle(label);
-  assert.notEqual(cs.background + cs.backgroundColor, "", "and it is opaque");
-  const bar = app.document.querySelector("#wfGrid .wf-bar");
-  assert.ok(parseInt(app.window.getComputedStyle(label).zIndex, 10)
-    > parseInt(app.window.getComputedStyle(bar).zIndex, 10), "bars pass underneath it");
-});
-
-test("the week headings have a corner over the name gutter to scroll under", () => {
-  const app = loadApp({ fetchImpl: idle,
-    localStorageSeed: boardSeed([{ title: "Now", start: dayKeyFrom(0), end: dayKeyFrom(2) }]) });
-  openWorkflow(app);
-  assert.ok(app.document.querySelector("#wfGrid .wf-head-row .wf-corner"),
-    "otherwise the leftmost week label slides out from behind the names");
-});
-
-test("a bar too short to hold its title carries none - the name is in the gutter", () => {
-  const app = loadApp({ fetchImpl: idle, localStorageSeed: boardSeed([
-    { title: "Two days", start: dayKeyFrom(0), end: dayKeyFrom(1) },
-    { title: "Two months", start: dayKeyFrom(0), end: dayKeyFrom(60) },
-  ]) });
-  openWorkflow(app);
-
-  const bars = wfBars(app);
-  const short = bars.find((b) => /Two days/.test(b.title));
-  const long = bars.find((b) => /Two months/.test(b.title));
-  assert.equal(short.textContent, "", "clipped to one letter would be worse than blank");
-  assert.equal(long.textContent, "Two months");
-  assert.match(short.title, /Two days/, "the full detail is still on the element");
+    localStorageSeed: boardSeed([{ title: "Spanned", start: dayKeyFrom(1), end: dayKeyFrom(3) }]) });
+  openBoard(app);
+  app.document.querySelector(".btask .btask-wf").click();
+  assert.equal(app.document.querySelector(".view.active").id, "view-workflow");
+  assert.ok(plannerBar(app, "t1"), "with the task on the chart");
 });
 
 test("the board row shows the span, and the menu offers to change it", () => {
@@ -680,11 +539,11 @@ test("the canvas keeps its own gestures, so a pan never changes tab", () => {
   assert.equal(app.document.querySelector(".view.active").id, "view-tasks");
 });
 
-test("scrolling the timeline sideways never changes tab either", () => {
+test("scrolling the Workflow chart sideways never changes tab either", () => {
   // The Gantt is a long horizontal scroll; a drag along it is a scroll
-  // through the weeks, not a request for the next tab.
+  // through the days, not a request for the next tab.
   const app = openWorkflow(loadApp({ fetchImpl: idle }));
-  app.swipe("wfScroll", -180, 0);
+  app.swipe(app.document.querySelector("#wfp .gantt-scroll"), -180, 0);
   assert.equal(app.document.querySelector(".view.active").id, "view-workflow");
 });
 
@@ -730,11 +589,20 @@ test("a card carries its project's colour, and no two new projects share one", (
   assert.notEqual(painted[0], painted[1]);
 });
 
-test("the colour a project is given is the colour its timeline bars use", () => {
+test("the colour a project is given is the colour its Workflow bars use", () => {
   const app = openBoard(loadApp({ fetchImpl: idle }));
   const col = newProject(app, "Coloured");
+  addTaskTo(app, col, "Dated");
   const p = Object.values(app.state().projects)[0];
   assert.equal(col.style.getPropertyValue("--proj"), p.color);
+  const t = Object.values(app.state().tasks)[0];
+  menuItem(openTaskMenu(app, colNamed(app, "Coloured"), "Dated"), /Add to the workflow/).click();
+  const inputs = [...app.document.querySelectorAll(".menu-pop input[type=date]")];
+  inputs[0].value = dayKeyFrom(0);
+  inputs[1].value = dayKeyFrom(2);
+  [...app.document.querySelectorAll(".menu-pop button")].find((b) => b.textContent === "Save").click();
+  openWorkflow(app);
+  assert.equal(plannerBar(app, t.id).style.getPropertyValue("--project-color").toLowerCase(), p.color.toLowerCase());
 });
 
 test("dragging a card brings it to the front, and that is part of the board", () => {
@@ -786,7 +654,7 @@ test("full screen is one button beside the +, and the same button comes back", (
   assert.equal(btn.textContent, "⛶");
 });
 
-test("full screen is offered on the timeline and the calendar, and survives moving between them", () => {
+test("full screen is offered on Workflow and the calendar, and survives moving between them", () => {
   const app = openBoard(loadApp({ fetchImpl: idle }));
   // The buttons live in one fixed cluster, so it is the cluster that is
   // shown or hidden - they cannot drift apart that way.
@@ -1096,98 +964,7 @@ test("rescheduling patches the event it already owns rather than making a second
   assert.equal(write.method, "PATCH");
 });
 
-/* ---------------- moving and stretching a bar ---------------- */
-
-function barPointer(app, type, x, ptype) {
-  const ev = new app.window.Event(type, { bubbles: true, cancelable: true });
-  ev.clientX = x; ev.clientY = 50; ev.pointerType = ptype || "mouse";
-  return ev;
-}
-const theBar = (app, id) => app.document.querySelector('#wfGrid .wf-bar[data-task="' + id + '"]');
-const storedTask = (app, id) => JSON.parse(app.window.localStorage.getItem(MAIN_KEY)).tasks[id];
-
-test("marking a task done from the timeline crosses its bar out at once", () => {
-  // It used to redraw only the board, so the bar stayed uncrossed until a
-  // reload - the two views are of one set of rows.
-  const app = loadApp({ fetchImpl: idle,
-    localStorageSeed: boardSeed([{ title: "Thing", start: dayKeyFrom(0), end: dayKeyFrom(3) }]) });
-  openWorkflow(app);
-  assert.ok(!theBar(app, "t1").classList.contains("is-done"));
-
-  theBar(app, "t1").click();
-  [...app.document.querySelectorAll(".menu-pop button")]
-    .find((b) => /Mark as done/.test(b.textContent)).click();
-
-  assert.ok(theBar(app, "t1").classList.contains("is-done"), "crossed out without a reload");
-});
-
-test("dragging a bar sideways moves the whole span, by the day", () => {
-  const app = loadApp({ fetchImpl: idle,
-    localStorageSeed: boardSeed([{ title: "Thing", start: dayKeyFrom(0), end: dayKeyFrom(3) }]) });
-  openWorkflow(app);
-  const before = storedTask(app, "t1");
-
-  const bar = theBar(app, "t1");
-  bar.dispatchEvent(barPointer(app, "pointerdown", 0));
-  app.document.dispatchEvent(barPointer(app, "pointermove", (92 / 7) * 5));
-  app.document.dispatchEvent(barPointer(app, "pointerup", (92 / 7) * 5));
-
-  const after = storedTask(app, "t1");
-  assert.equal(after.start, dayKeyFrom(5), "columns are weeks, but you place it by day");
-  assert.equal(after.end, dayKeyFrom(8), "and the span keeps its length");
-  assert.ok(after.updated_at > before.updated_at, "stamped, or the move never pushes");
-});
-
-test("dragging the end of a bar stretches it and leaves the start alone", () => {
-  const app = loadApp({ fetchImpl: idle,
-    localStorageSeed: boardSeed([{ title: "Thing", start: dayKeyFrom(0), end: dayKeyFrom(3) }]) });
-  openWorkflow(app);
-
-  const grip = theBar(app, "t1").querySelector(".wf-bar-grip");
-  assert.ok(grip, "there is an end to grab");
-  grip.dispatchEvent(barPointer(app, "pointerdown", 0));
-  app.document.dispatchEvent(barPointer(app, "pointermove", (92 / 7) * 7));
-  app.document.dispatchEvent(barPointer(app, "pointerup", (92 / 7) * 7));
-
-  const after = storedTask(app, "t1");
-  assert.equal(after.start, dayKeyFrom(0), "the start does not move");
-  assert.equal(after.end, dayKeyFrom(10));
-});
-
-test("a finger has to hold a bar before it moves, or every swipe would drag one", async () => {
-  const app = loadApp({ fetchImpl: idle,
-    localStorageSeed: boardSeed([{ title: "Thing", start: dayKeyFrom(0), end: dayKeyFrom(3) }]) });
-  openWorkflow(app);
-
-  // Straight into a sideways move: that is a scroll through the weeks.
-  theBar(app, "t1").dispatchEvent(barPointer(app, "pointerdown", 0, "touch"));
-  app.document.dispatchEvent(barPointer(app, "pointermove", 60, "touch"));
-  await app.wait(500);
-  app.document.dispatchEvent(barPointer(app, "pointermove", 120, "touch"));
-  app.document.dispatchEvent(barPointer(app, "pointerup", 120, "touch"));
-  assert.equal(storedTask(app, "t1").start, dayKeyFrom(0), "nothing moved");
-
-  // Held first, then moved.
-  theBar(app, "t1").dispatchEvent(barPointer(app, "pointerdown", 0, "touch"));
-  await app.wait(500);
-  app.document.dispatchEvent(barPointer(app, "pointermove", (92 / 7) * 2, "touch"));
-  app.document.dispatchEvent(barPointer(app, "pointerup", (92 / 7) * 2, "touch"));
-  assert.equal(storedTask(app, "t1").start, dayKeyFrom(2), "held, so it moved");
-});
-
-test("a press that moves nothing still opens the task menu", () => {
-  // The end of a drag re-renders, which would replace the bar before the
-  // click that follows a plain press - and that click is the menu.
-  const app = loadApp({ fetchImpl: idle,
-    localStorageSeed: boardSeed([{ title: "Thing", start: dayKeyFrom(0), end: dayKeyFrom(3) }]) });
-  openWorkflow(app);
-
-  const bar = theBar(app, "t1");
-  bar.dispatchEvent(barPointer(app, "pointerdown", 0));
-  app.document.dispatchEvent(barPointer(app, "pointerup", 0));
-  bar.click();
-  assert.ok(app.document.querySelector(".menu-pop"), "the menu still opens");
-});
+/* ---------------- the workflow sheet on the board ---------------- */
 
 test("an undated task is offered the workflow by name, not by its fields", () => {
   const app = openBoard(loadApp({ fetchImpl: idle }));
