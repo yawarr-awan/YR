@@ -16,7 +16,7 @@ function createFakeD1() {
   const profileRows = new Map(); // user_email -> { data, updated_at }
   const settings = new Map(); // user_email -> { brief_prompt, brief_model }
   /* The board's own tables, keyed `${email}|${id}` like the rest. */
-  const boardItems = { projects: new Map(), tasks: new Map(), notes: new Map() };
+  const boardItems = { projects: new Map(), tasks: new Map(), notes: new Map(), plans: new Map() };
   const dailyAyah = new Map(); // `${email}|${day}` -> row
 
   // Real D1 statements support .first()/.all()/.run() directly on the
@@ -113,8 +113,8 @@ function createFakeD1() {
               }),
           };
         }
-        if (/FROM (projects|tasks|notes)\b/.test(sql)) {
-          const table = sql.match(/FROM (projects|tasks|notes)\b/)[1];
+        if (/FROM (projects|tasks|notes|plans)\b/.test(sql)) {
+          const table = sql.match(/FROM (projects|tasks|notes|plans)\b/)[1];
           const [email, since] = args;
           /* The sync pull passes a watermark; a plain read (the brief's
              workflow section) passes only the email and filters on deleted in
@@ -153,10 +153,10 @@ function createFakeD1() {
         } else if (/DELETE FROM dua_images/.test(sql)) {
           /* By id, whoever uploaded it. */
           for (const [k, row] of duas) if (row.id === args[0]) duas.delete(k);
-        } else if (/CREATE TABLE IF NOT EXISTS (projects|tasks|notes)/.test(sql)) {
+        } else if (/CREATE TABLE IF NOT EXISTS (projects|tasks|notes|plans)/.test(sql)) {
           /* no-op: the maps are the tables */
-        } else if (/INSERT INTO (projects|tasks|notes)/.test(sql)) {
-          const table = sql.match(/INSERT INTO (projects|tasks|notes)/)[1];
+        } else if (/INSERT INTO (projects|tasks|notes|plans)/.test(sql)) {
+          const table = sql.match(/INSERT INTO (projects|tasks|notes|plans)/)[1];
           const [email, id, data, updated_at, deleted] = args;
           const key = `${email}|${id}`;
           const prev = boardItems[table].get(key);

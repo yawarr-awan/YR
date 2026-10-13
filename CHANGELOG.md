@@ -1,5 +1,28 @@
 # Changelog
 
+## 1.57.0
+
+**Make a new plan with AI.** The Meals, Recipes and Movement tabs under Misc each have an **✨ Ask AI** card at the top.
+1. Say what you need, in your own words, or tap one of the suggestions (for example "Vegetarian on weekdays" or "More protein, about 1,500 kcal a day").
+2. The AI starts from the plan you have now and changes what you asked for. The meal plan comes with its own recipes; the movement plan comes with its own sessions, each with steps and a safety note.
+3. You see the new week before anything changes. Use **Use this plan** to adopt it, or **Try again**.
+
+**The new plan reaches the whole dashboard:**
+- the Today tab's meals and movement;
+- the recipe library;
+- the weekly rhythm table;
+- the calories counted from ticked meals.
+
+It syncs to your other devices. **Days before today keep the plan they had**, so your calorie history doesn't change when the plan does.
+
+Once an AI plan is in use, its card shows what you asked for and offers **Change it** or **Back to the original**.
+
+The AI is told to keep food halal, keep exercise joint-friendly unless you ask otherwise, stay at safe calorie levels, and give no medical advice. It uses the same Gemini setup as Today's Brief. Your request, a short description of your current plan and your start and target weights are sent to Gemini to make it.
+
+**Notes now reach your other devices.** Since notes were added in 1.42.0, they were uploaded to your account but never downloaded to another device: the server sent back projects and tasks only. It now sends back everything it keeps, so notes written on one device appear on the others after the next sync.
+
+**Workflow:** the Overdue and Average progress cards at the top have swapped places, so Overdue now comes 4th. Each keeps its own colour.
+
 ## 1.56.0
 
 **The Tasks board scrolls from wherever your finger lands.** A swipe that started on a task's tick box, its drag handle (⠿) or the "Add a task…" box used to do nothing. Between them those cover most of the left side of every row, which is why scrolling seemed to work only some of the time. All three now scroll:

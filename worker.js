@@ -129,7 +129,14 @@ const MAX_DAYS_PER_PUSH = 500;
    per item, which is what a shared board needs. */
 const MAX_ITEMS_PER_PUSH = 2000;
 const MAX_ITEM_BYTES = 20000;
-const ITEM_TABLES = ["projects", "tasks", "notes"];
+/* `plans` are the AI meal and movement plans (1.57.0): one row per version,
+   each carrying its own recipes or exercises, so a row runs well past what a
+   task ever needs. They get their own ceiling rather than being squeezed
+   under the 20KB one, which would skip them silently in exactly the way the
+   profile note above warns about. */
+const ITEM_MAX_BYTES = { plans: 60000 };
+const itemMaxBytes = (table) => ITEM_MAX_BYTES[table] || MAX_ITEM_BYTES;
+const ITEM_TABLES = ["projects", "tasks", "notes", "plans"];
 const ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
 const MAX_DAY_BYTES = 20000;
 
@@ -170,7 +177,7 @@ function itemStatements(env, email, table, incoming, skipped) {
     const rec = incoming[id];
     const ts = Number(rec && rec.updated_at);
     if (!ID_RE.test(id) || !rec || typeof rec.data !== "string" ||
-        rec.data.length > MAX_ITEM_BYTES || !Number.isFinite(ts) || ts <= 0) {
+        rec.data.length > itemMaxBytes(table) || !Number.isFinite(ts) || ts <= 0) {
       skipped.push(`${table}:${id}`);
       continue;
     }
@@ -327,8 +334,11 @@ async function handleSync(request, env, email) {
     /* So a client that did not know whose store it holds can stamp itself and
        push on the next round. */
     email,
-    projects: items.projects,
-    tasks: items.tasks,
+    /* Every item table, not a list of names: this used to spell out
+       projects and tasks only, so notes (1.42.0) were pushed up but never
+       came back down to another device - and plans would have done the
+       same. A table added to ITEM_TABLES is now pulled with no second edit. */
+    ...items,
     days,
     profile: prof ? { data: prof.data, updated_at: prof.updated_at } : null,
     applied,
@@ -1281,11 +1291,15 @@ function geminiModelList(preferred) {
   return [p].concat(GEMINI_FALLBACK_MODELS.filter((m) => m !== p));
 }
 
-async function callGemini(env, prompt, { models, delays } = {}) {
+async function callGemini(env, prompt, { models, delays, json: asJson } = {}) {
   const list = models || GEMINI_FALLBACK_MODELS;
   const waits = delays || GEMINI_RETRY_DELAYS_MS;
   const url = (m) => `https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${env.GEMINI_API_KEY}`;
-  const body = JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] });
+  /* `json` asks for JSON mode: the reply is a JSON document rather than prose
+     that happens to contain one. The plan generator needs it; the brief and
+     the reflections are prose and must not get it. */
+  const body = JSON.stringify(Object.assign({ contents: [{ parts: [{ text: prompt }] }] },
+    asJson ? { generationConfig: { responseMimeType: "application/json" } } : {}));
 
   /* Models that answered in a way no amount of waiting will change - retired,
      unknown, unavailable to this project. They are dropped from the rotation
@@ -2627,6 +2641,203 @@ async function handlePrayerMonth(request, env, now) {
 
 /* ---------- router ---------- */
 
+
+/* ---------- AI PLANS (1.57.0) ----------
+   "Give it a prompt and it gives me an updated plan." The model answers in
+   JSON mode with a fixed shape; everything it sends back is then read through
+   a normaliser that keeps only known fields, bounds every string and number,
+   and refuses a plan whose days point at recipes (or sessions) it never
+   defined. Nothing is stored here: the client previews the result, and only
+   a plan the user chose to use is written - as a synced `plans` row. */
+const PLAN_KINDS = ["meals", "movement"];
+const PLAN_PROMPT_MAX = 1500;
+const PLAN_KEY_RE = /^[a-z0-9_]{1,24}$/;
+const PLAN_MEALS = ["Breakfast", "Lunch", "Dinner", "Snack"];
+const PLAN_SLOTS = ["breakfast", "lunch", "dinner"];
+
+function clip(v, n) {
+  return String(v == null ? "" : v).replace(/\s+/g, " ").trim().slice(0, n);
+}
+function clipList(v, items, chars) {
+  return (Array.isArray(v) ? v : []).map((x) => clip(x, chars)).filter(Boolean).slice(0, items);
+}
+function clampNum(v, lo, hi) {
+  const n = Math.round(Number(v));
+  return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : lo;
+}
+/** Keys the model chose, made safe and unique. Returns old -> new. */
+function planKeys(obj, max) {
+  const map = {}, used = new Set();
+  let n = 0;
+  for (const k of Object.keys(obj || {}).slice(0, max)) {
+    let key = String(k).toLowerCase().replace(/[^a-z0-9_]/g, "_").replace(/^_+|_+$/g, "").slice(0, 24);
+    if (!PLAN_KEY_RE.test(key) || used.has(key)) {
+      do { key = "k" + (++n); } while (used.has(key));
+    }
+    used.add(key);
+    map[k] = key;
+  }
+  return map;
+}
+/** The first JSON object in a reply - JSON mode should make this the whole
+ * reply, but a fenced block or a stray sentence costs nothing to tolerate. */
+function parseJsonLoose(text) {
+  const t = String(text || "").replace(/^\s*```(?:json)?/i, "").replace(/```\s*$/, "");
+  try { return JSON.parse(t); } catch {}
+  const a = t.indexOf("{"), b = t.lastIndexOf("}");
+  if (a < 0 || b <= a) return null;
+  try { return JSON.parse(t.slice(a, b + 1)); } catch { return null; }
+}
+
+/** {summary, days:[7 x {breakfast,lunch,dinner}] Monday first, recipes:{}} or null. */
+function normalizeMealPlan(raw) {
+  if (!raw || typeof raw !== "object" || !raw.recipes || typeof raw.recipes !== "object") return null;
+  const keys = planKeys(raw.recipes, 40);
+  const recipes = {};
+  for (const k of Object.keys(keys)) {
+    const r = raw.recipes[k];
+    if (!r || typeof r !== "object" || !clip(r.title, 80)) continue;
+    const meal = PLAN_MEALS.find((m) => m.toLowerCase() === String(r.meal || "").trim().toLowerCase()) || "Lunch";
+    recipes[keys[k]] = {
+      title: clip(r.title, 80), meal, time: clip(r.time, 30) || "15 min",
+      kcal: clampNum(r.kcal, 0, 2500), protein: clampNum(r.protein, 0, 250),
+      ing: clipList(r.ing || r.ingredients, 12, 120), steps: clipList(r.steps || r.method, 10, 220),
+      note: clip(r.note, 240),
+    };
+  }
+  const days = Array.isArray(raw.days) ? raw.days.slice(0, 7) : [];
+  if (days.length < 7) return null;
+  const out = [];
+  for (const d of days) {
+    if (!d || typeof d !== "object") return null;
+    const day = {};
+    for (const slot of PLAN_SLOTS) {
+      const key = keys[d[slot]];
+      if (!key || !recipes[key]) return null;      /* a day pointing at nothing */
+      day[slot] = key;
+    }
+    out.push(day);
+  }
+  return { summary: clip(raw.summary, 600), days: out, recipes };
+}
+
+/** {summary, week:[7 ids] Monday first, exercises:{}} or null. */
+function normalizeMovementPlan(raw) {
+  if (!raw || typeof raw !== "object" || !raw.exercises || typeof raw.exercises !== "object") return null;
+  const keys = planKeys(raw.exercises, 12);
+  const exercises = {};
+  for (const k of Object.keys(keys)) {
+    const e = raw.exercises[k];
+    if (!e || typeof e !== "object" || !clip(e.title, 80)) continue;
+    exercises[keys[k]] = {
+      title: clip(e.title, 80), time: clip(e.time, 30) || "10 min", focus: clip(e.focus, 140),
+      steps: clipList(e.steps, 10, 220), safety: clip(e.safety, 300), vid: clip(e.vid, 100),
+    };
+  }
+  const week = Array.isArray(raw.week) ? raw.week.slice(0, 7) : [];
+  if (week.length < 7) return null;
+  const out = [];
+  for (const id of week) {
+    const key = keys[id];
+    if (!key || !exercises[key]) return null;
+    out.push(key);
+  }
+  return { summary: clip(raw.summary, 600), week: out, exercises };
+}
+
+const DAY_NAMES_MON = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+
+/** The current plan, as the client described it, in a few short lines - the
+ * model updates a plan, so it has to be told what the plan is. Read
+ * defensively: it is client-supplied text going into a prompt. */
+function describeCurrentPlan(kind, current) {
+  const c = current && typeof current === "object" ? current : {};
+  const lines = [];
+  if (kind === "meals") {
+    (Array.isArray(c.days) ? c.days : []).slice(0, 7).forEach((d, i) => {
+      if (!d || typeof d !== "object") return;
+      lines.push(`${DAY_NAMES_MON[i]}: ` + PLAN_SLOTS.map((s) => `${s} ${clip(d[s], 80) || "-"}`).join("; "));
+    });
+    if (c.extrasKcal) lines.push(`Daily drinks and supplements (counted separately): about ${clampNum(c.extrasKcal, 0, 3000)} kcal.`);
+  } else {
+    (Array.isArray(c.week) ? c.week : []).slice(0, 7).forEach((t, i) => lines.push(`${DAY_NAMES_MON[i]}: ${clip(t, 100)}`));
+  }
+  if (c.context) lines.push(`About the plan so far: ${clip(c.context, 500)}`);
+  const t = c.targets && typeof c.targets === "object" ? c.targets : {};
+  if (Number(t.startWeight) > 0 || Number(t.targetWeight) > 0) {
+    lines.push(`Weight: started at ${clip(t.startWeight, 8) || "?"} kg, aiming for ${clip(t.targetWeight, 8) || "?"} kg.`);
+  }
+  return lines.join("\n") || "(no current plan described)";
+}
+
+function planPrompt(kind, request, current) {
+  const now = describeCurrentPlan(kind, current);
+  if (kind === "meals") {
+    return `You are updating a personal 7-day meal plan in someone's wellness dashboard.
+
+THEIR REQUEST (their own words - this is the brief):
+"""${request}"""
+
+THEIR CURRENT PLAN (keep what still fits; change what the request asks for):
+${now}
+
+RULES
+- Every food must be halal: no pork or pork products, no alcohol (not even in cooking), no non-halal gelatine.
+- Three meals a day: breakfast, lunch and dinner. You may add up to 4 light snacks to the recipe list with meal "Snack"; never put a snack in a day.
+- Reuse recipes across the week: between 7 and 16 distinct breakfast, lunch and dinner recipes in total.
+- Each recipe: a realistic kcal and grams of protein for one serving, a prep time such as "15 min", at most 8 ingredients and at most 6 short steps, and a one-sentence note on why it suits the request. Keep every line under 100 characters.
+- No medical advice or diagnoses. If the request asks for something unsafe (for example under 1,000 kcal a day for an adult), keep to a safe level and say so in the summary.
+- "summary": 2-3 plain sentences on what changed and the approximate daily calories and protein from the three meals.
+
+Reply with JSON only, in exactly this shape (days are Monday first; recipe ids are lowercase letters, digits and underscores):
+{"summary":"...","days":[{"breakfast":"<recipe id>","lunch":"<recipe id>","dinner":"<recipe id>"}, ... 7 in all],"recipes":{"<id>":{"title":"...","meal":"Breakfast|Lunch|Dinner|Snack","time":"...","kcal":0,"protein":0,"ing":["..."],"steps":["..."],"note":"..."}}}`;
+  }
+  return `You are updating a personal weekly movement plan in someone's wellness dashboard.
+
+THEIR REQUEST (their own words - this is the brief):
+"""${request}"""
+
+THEIR CURRENT WEEK (keep what still fits; change what the request asks for):
+${now}
+
+RULES
+- One session per day of the week. Between 3 and 8 distinct sessions; a session may repeat, and a gentle stretch or rest-style session counts as one.
+- Keep it joint-friendly and low impact unless the request explicitly asks for more. Never suggest pushing through pain.
+- Each session: a title, a time such as "10-15 min", a one-line focus, 3 to 8 clear steps, a short safety note, and a YouTube search phrase for a demo ("vid"). Keep every line under 100 characters.
+- No medical advice or diagnoses. If the request mentions an injury or condition, say in the summary to check with a GP or physiotherapist.
+- "summary": 2-3 plain sentences on what changed.
+
+Reply with JSON only, in exactly this shape (the week is Monday first; session ids are lowercase letters, digits and underscores):
+{"summary":"...","week":["<session id>", ... 7 in all],"exercises":{"<id>":{"title":"...","time":"...","focus":"...","steps":["..."],"safety":"...","vid":"..."}}}`;
+}
+
+/**
+ * POST /api/plan/generate
+ * in : { kind: "meals"|"movement", prompt: string, current?: {...} }
+ * out: { ok, kind, plan } | { error, detail? }
+ */
+async function handleGeneratePlan(request, env, email) {
+  let body;
+  try { body = await request.json(); } catch { return json({ error: "invalid json" }, 400); }
+  const kind = body && body.kind;
+  if (!PLAN_KINDS.includes(kind)) return json({ error: "kind must be meals or movement" }, 400);
+  const ask = clip(body.prompt, PLAN_PROMPT_MAX);
+  if (!ask) return json({ error: "say what you would like the plan to be" }, 400);
+  if (!env.GEMINI_API_KEY) return json({ error: "not_configured" }, 503);
+
+  const model = await getBriefModel(env, email);
+  let text;
+  try {
+    text = await callGemini(env, planPrompt(kind, ask, body.current), { models: geminiModelList(model), json: true });
+  } catch (e) {
+    return json({ error: "gemini_error", detail: String(e.message || e).slice(0, 400) }, 502);
+  }
+  const raw = parseJsonLoose(text);
+  const plan = kind === "meals" ? normalizeMealPlan(raw) : normalizeMovementPlan(raw);
+  if (!plan) return json({ error: "unreadable", detail: "The AI's answer was not a complete plan." }, 502);
+  return json({ ok: true, kind, plan });
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -2716,6 +2927,9 @@ export default {
       if (url.pathname === "/api/google/tasks" && request.method === "PATCH") {
         return await handleUpdateGoogleTask(request, env, email);
       }
+      if (url.pathname === "/api/plan/generate" && request.method === "POST") {
+        return await handleGeneratePlan(request, env, email);
+      }
     } catch (e) {
       return json({ error: "server error", detail: String(e.message || e) }, 500);
     }
@@ -2735,6 +2949,12 @@ export default {
 // coverage is unchanged and already covered separately.
 export {
   handleSync,
+  handleGeneratePlan,
+  normalizeMealPlan,
+  normalizeMovementPlan,
+  parseJsonLoose,
+  planPrompt,
+  ITEM_TABLES,
   fetchWorkflow,
   ALWAYS_RULES,
   ayahRefForDay,
