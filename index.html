@@ -381,9 +381,17 @@ body[data-view="tasks"] .fab{display:block}
   border:1px solid var(--line);border-radius:14px;background:var(--panel-2);
   /* The canvas handles every gesture itself; letting the browser also pan or
      zoom would fight it. */
-  touch-action:none;overscroll-behavior:contain;cursor:grab
+  touch-action:none;overscroll-behavior:contain
 }
 .canvas-viewport.is-panning{cursor:grabbing}
+/* Laying the cards out again (zoom, a new order, a resize) slides them to
+   their new places rather than jumping - except under the finger: the card
+   being dragged, and every card while a pinch is redrawing them each move. */
+.board-col{transition:left .2s ease,top .2s ease,width .2s ease}
+.board-col.is-dragging,.canvas-viewport.is-zooming .board-col{transition:none}
+.board-pickrow{display:flex;margin:4px 0 8px}
+.board-pick{flex:0 1 auto;min-width:0;max-width:100%;border:1px solid var(--line);background:var(--panel-2);
+  color:var(--ink);border-radius:10px;padding:7px 30px 7px 12px;font:inherit;font-size:.85rem;font-weight:700}
 .canvas{position:absolute;inset-block-start:0;inset-inline-start:0;
   transform-origin:0 0;width:0;height:0}
 .board-col{
@@ -412,14 +420,11 @@ body[data-view="tasks"] .fab{display:block}
   overflow-wrap:anywhere;text-align:start
 }
 .board-col-head .board-n{flex:0 0 auto;font-size:.72rem;color:var(--muted);font-weight:700}
-.board-tasks{flex:1 1 auto;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:2px;margin-bottom:8px}
+/* As tall as its tasks: the board is the one thing that scrolls (1.52.0). A
+   card that scrolled inside itself left a phone - where the cards fill the
+   screen - with nowhere to swipe that moved the board. */
+.board-tasks{flex:none;display:flex;flex-direction:column;gap:2px;margin-bottom:8px}
 .board-empty{font-size:.8rem;color:var(--muted);padding:6px 2px}
-.card-resize{
-  position:absolute;inset-block-end:0;inset-inline-end:0;width:20px;height:20px;
-  cursor:nwse-resize;touch-action:none;
-  background:linear-gradient(135deg,transparent 50%,var(--line) 50%);
-  border-end-end-radius:14px
-}
 .btask{display:flex;align-items:flex-start;gap:8px;padding:6px 4px;border-radius:9px}
 .btask:hover{background:var(--panel-2)}
 .btask input[type=checkbox]{width:17px;height:17px;accent-color:var(--brand);flex:0 0 auto;margin-top:2px}
@@ -1012,6 +1017,9 @@ nav.tabs button.active::before{content:"";position:absolute;z-index:-1;inset-blo
   background:linear-gradient(150deg,color-mix(in srgb,var(--bg) 88%,var(--brand)),var(--bg));
   box-shadow:inset 0 1px 0 rgba(255,255,255,.04),var(--glass-shadow)}
 .board-col::before{box-shadow:0 0 14px var(--proj,var(--brand))}
+.board-pick{background:var(--field);border-color:var(--field-line);box-shadow:inset 0 1px 0 rgba(255,255,255,.035)}
+.board-pick.is-on{border-color:color-mix(in srgb,var(--brand) 70%,transparent);
+  box-shadow:0 0 0 3px color-mix(in srgb,var(--brand) 22%,transparent)}
 /* The planner's metric cards, for the Progress figures: a lit edge in the
    accent and a lift on hover. */
 .stat{position:relative;overflow:hidden;background:var(--glass);border-color:var(--glass-line);box-shadow:var(--glass-shadow)}
@@ -1030,6 +1038,11 @@ nav.tabs button.active::before{content:"";position:absolute;z-index:-1;inset-blo
 .cal-edit .repeat-days .repeat-day.is-on{
   background:var(--grad);border-color:transparent;color:#fff;box-shadow:var(--grad-glow)}
 .today-btn{background:var(--grad)!important;border-color:transparent!important;color:#fff!important;box-shadow:var(--grad-glow)}
+/* The date bar's ‹ › buttons are 1.05rem and .datebar button outranks
+   .today-btn, so "Today" came out at the arrows' size and overflowed its
+   34px button on every tab. Sized for the word, centred in the button. */
+.datebar button.today-btn{font-size:.8rem;line-height:1;padding:0 12px;letter-spacing:.01em;
+  display:inline-flex;align-items:center;justify-content:center;white-space:nowrap}
 .btn.primary:hover,.fab:hover{filter:brightness(1.08);transform:translateY(-1px)}
 .btn.danger{background:color-mix(in srgb,var(--bad) 8%,transparent)}
 .ayah-dots button.on{background:var(--grad)}
@@ -1057,6 +1070,68 @@ nav.tabs button.active::before{content:"";position:absolute;z-index:-1;inset-blo
 .modal{background:var(--glass),var(--panel);border:1px solid var(--glass-line);
   box-shadow:0 30px 80px rgba(0,0,0,.4),inset 0 1px 0 rgba(255,255,255,.06)}
 .modal-close{background:var(--btn2);border:1px solid var(--btn2-line)}
+/* ---- Gloss (1.53.0): every colour the app shows gets the finish of the
+   Workflow planner's bars - lighter at the top, deeper at the bottom, a lit
+   top edge and a glow in its own colour. A swatch painted from JS goes
+   through glossPaint(), which keeps the colour as the element's background
+   and passes it as --c; the sheen is an overlay, so it works over any
+   colour, including a prayer colour the user picked themselves. ---- */
+.gloss{position:relative;overflow:hidden;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.45),0 1px 2px rgba(0,0,0,.25),
+    0 0 10px color-mix(in srgb,var(--c,transparent) 50%,transparent)}
+.gloss::after{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;
+  background:linear-gradient(180deg,rgba(255,255,255,.42),rgba(255,255,255,.08) 48%,rgba(0,0,0,.18))}
+/* Round ones catch the light as a sphere does. */
+.pchip-dot.gloss::after,.card h3 .dot::after,.bell-dot::after,.cal-nowline i::after{
+  background:radial-gradient(circle at 34% 30%,rgba(255,255,255,.75),rgba(255,255,255,0) 58%)}
+.card h3 .dot,.bell-dot{position:relative;overflow:hidden;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.4),0 0 8px rgba(255,255,255,.12)}
+.card h3 .dot::after,.bell-dot::after{content:"";position:absolute;inset:0;border-radius:inherit}
+/* A prayer's row carries a wash of its own colour from the bar inward. */
+.pslot,.prow{background:linear-gradient(90deg,color-mix(in srgb,var(--c,transparent) 18%,transparent),transparent 72%),var(--glass-2)}
+/* Calendar entries: the planner's bar, filled with the calendar's colour. */
+.cal-chip,.cal-mini{
+  background:linear-gradient(180deg,color-mix(in srgb,var(--chip-c,var(--brand)) 88%,#fff),color-mix(in srgb,var(--chip-c,var(--brand)) 70%,#111827));
+  border:1px solid color-mix(in srgb,var(--chip-c,var(--brand)) 72%,rgba(255,255,255,.2));
+  border-inline-start:3px solid color-mix(in srgb,var(--chip-c,var(--brand)) 55%,#fff);
+  color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.55)}
+.cal-chip,.cal-chip.is-timed,.cal-mini,.cal-mini.is-timed{
+  box-shadow:0 4px 10px rgba(0,0,0,.24),inset 0 1px 0 rgba(255,255,255,.28)}
+.cal-chip .cal-chip-meta{color:rgba(255,255,255,.84)}
+.cal-chip.is-task,.cal-mini.is-task{border-inline-start-style:dashed}
+.cal-chip.is-gtask,.cal-mini.is-gtask{border-inline-start-style:dotted}
+/* The hour tint is a glossy tile: a sheen across the top of each hour. */
+.cal-cell:not(.cal-allday)::before{content:"";position:absolute;inset:0;pointer-events:none;z-index:0;
+  background:linear-gradient(180deg,rgba(255,255,255,.15),rgba(255,255,255,0) 45%,rgba(0,0,0,.06))}
+.cal-nowline{box-shadow:0 0 8px color-mix(in srgb,var(--bad) 70%,transparent)}
+.cal-nowline i{overflow:hidden;box-shadow:0 0 10px var(--bad)}
+.cal-nowline i::after{content:"";position:absolute;inset:0;border-radius:inherit}
+/* A board card's colour band, lit the same way. */
+.board-col::before{height:5px;
+  background:linear-gradient(180deg,color-mix(in srgb,var(--proj,var(--brand)) 62%,#fff),var(--proj,var(--brand)))}
+/* Ticks, every one of them - meals, supplements, medicines, prayers, dhikr,
+   tasks - one glossy box: glass when empty, the planner's violet-to-blue with
+   a white tick and a glow when done. The meals used to tick green and the
+   rest violet. */
+.chk input,.meal-row input,.btask input[type=checkbox],.prow input[type=checkbox],.task-row input[type=checkbox]{
+  -webkit-appearance:none;appearance:none;border-radius:6px;cursor:pointer;
+  border:1.5px solid color-mix(in srgb,var(--brand) 50%,var(--btn2-line));
+  background:var(--field);box-shadow:inset 0 1px 0 rgba(255,255,255,.06);
+  transition:background .15s ease,box-shadow .15s ease,border-color .15s ease}
+.chk input:checked,.meal-row input:checked,.btask input[type=checkbox]:checked,
+.prow input[type=checkbox]:checked,.task-row input[type=checkbox]:checked{
+  border-color:transparent;
+  background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3.6 8.4l2.9 2.9 5.9-6.6' fill='none' stroke='white' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/78% no-repeat,
+    linear-gradient(180deg,color-mix(in srgb,#7c5cff 78%,#fff),#5c7cfa);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.45),0 3px 10px rgba(108,79,240,.42)}
+.chk input:focus-visible,.meal-row input:focus-visible,.btask input[type=checkbox]:focus-visible,
+.prow input[type=checkbox]:focus-visible,.task-row input[type=checkbox]:focus-visible{
+  outline:2px solid color-mix(in srgb,var(--brand) 70%,transparent);outline-offset:2px}
+/* Water: the same violet-to-blue, as glossy glasses. */
+.glass{border-color:color-mix(in srgb,#7c5cff 55%,transparent);opacity:.5}
+.glass.full{opacity:1;border-color:transparent;
+  background:linear-gradient(180deg,color-mix(in srgb,#7c5cff 72%,#fff),#5c7cfa);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.5),inset -3px 0 0 rgba(255,255,255,.14),0 3px 10px rgba(108,79,240,.4)}
 /* The status line floats as a toast instead of sitting at the top of the
    page: in the flow, every message pushed the whole app down by its own
    height and pulled it back up five seconds later. Above the bottom bar,
@@ -1767,12 +1842,14 @@ div#wfp.wfp-light .wfp-cats{background:rgba(255,255,255,.8)}
 
 
   <!-- ===================== TASKS (the board) ===================== -->
-  <!-- A canvas of project cards that scrolls sideways. Each card is one
-       project and holds its own task list. -->
+  <!-- The project cards, laid out for the screen (see boardLayout): pinch or
+       ctrl+wheel to zoom, scroll down through them, drag a card by its header
+       to give it another place in the order. -->
   <section id="view-tasks" class="view">
-    <!-- A real canvas: pinch or the header menu to zoom, drag the background
-         to pan, drag a card by its header to move it, drag its corner to
-         resize. -->
+    <!-- Every project, so one card can be shown on its own. -->
+    <div class="board-pickrow">
+      <select id="boardPick" class="board-pick" aria-label="Show one project"></select>
+    </div>
     <div class="canvas-viewport" id="canvasViewport">
       <div class="canvas" id="board"></div>
     </div>
@@ -2599,6 +2676,13 @@ function humanShort(d){
 
 /* ---------- HELPERS ---------- */
 function el(tag,cls,txt){var e=document.createElement(tag);if(cls)e.className=cls;if(txt!=null)e.textContent=txt;return e;}
+/** A swatch of colour with the Workflow planner's gloss on it (CSS: .gloss).
+ * The colour stays the element's own background; it is also handed to the
+ * CSS as --c, which is what lets the glow round it be the same colour. */
+function glossPaint(node,color){
+  node.style.background=color;node.style.setProperty("--c",color);node.classList.add("gloss");
+  return node;
+}
 function recipeLink(id){var b=el("button","linklike",RECIPES[id].title);b.setAttribute("data-recipe",id);return b;}
 
 /* ---------- COLLAPSIBLE CARDS ----------
@@ -2906,7 +2990,8 @@ function renderToday(){
     row.setAttribute("data-prayer",pname);
     var cb=el("input");cb.type="checkbox";cb.checked=!!d.prayers[p[0]];
     cb.addEventListener("change",function(){d.prayers[p[0]]=cb.checked;d.updated_at=Date.now();save();renderToday();updateRing();});
-    var sw=el("i","psw");sw.style.background=prayerColorCss(pname);
+    var sw=glossPaint(el("i","psw"),prayerColorCss(pname));
+    row.style.setProperty("--c",prayerColorCss(pname));
     row.appendChild(cb);row.appendChild(sw);
     row.appendChild(el("span","psn",pname));
     row.appendChild(el("span","pst","—"));
@@ -3364,59 +3449,21 @@ function tasksIn(projectId){
       return (a.order||0)-(b.order||0);
     });
 }
-/* Where a card sits on the canvas and how big it is. Unlike the display
-   preferences (fold state, card order, UI scale) this rides the *synced*
-   project row: how you have arranged a board is the board, not a per-device
-   view of it. The zoom and pan are the opposite - those are per-device and
-   live in their own localStorage key. */
-var CARD_W=260,CARD_H=300,CARD_MIN_W=180,CARD_MIN_H=140,CARD_GAP=24;
-function projectBox(p){
-  return {
-    x:typeof p.x==="number"?p.x:0,
-    y:typeof p.y==="number"?p.y:0,
-    w:typeof p.w==="number"?Math.max(CARD_MIN_W,p.w):CARD_W,
-    h:typeof p.h==="number"?Math.max(CARD_MIN_H,p.h):CARD_H
-  };
-}
-/** A slot for a new card that does not land on top of an existing one. Laid
- * out left to right, wrapping - so a board built before positions existed
- * comes out looking like the row it used to be. */
-function nextCardSpot(){
-  var taken=projectList().map(projectBox);
-  var perRow=4;
-  for(var i=0;i<200;i++){
-    var x=(i%perRow)*(CARD_W+CARD_GAP),y=Math.floor(i/perRow)*(CARD_H+CARD_GAP);
-    var clash=taken.some(function(b){
-      return x<b.x+b.w&&x+CARD_W>b.x&&y<b.y+b.h&&y+CARD_H>b.y;
-    });
-    if(!clash)return {x:x,y:y};
-  }
-  return {x:0,y:0};
-}
+/* Card geometry, in canvas pixels (before the zoom). Since 1.52.0 a card is
+   not placed by hand: the board lays its cards out for the screen it is on -
+   see boardLayout(). CARD_W is the width a column is planned around and
+   CARD_H the height of the "one card" the zoom ceiling is measured against.
+   The x/y/w/h/z a project row may still carry from the free canvas are left
+   alone and simply unread, so nothing is restamped or pushed for it. */
+var CARD_W=260,CARD_H=300,CARD_MIN_W=180,CARD_MIN_H=140,BOARD_GAP=16,BOARD_PAD=12,BOARD_ONE_MAX=720;
 function addProject(name){
   var label=String(name||"").trim();
   if(!label)return null;
-  var id=newItemId("p"),spot=nextCardSpot();
+  var id=newItemId("p");
   itemStore("projects")[id]={id:id,name:label,color:nextProjectColor(),
-    order:projectList().length,x:spot.x,y:spot.y,w:CARD_W,h:CARD_H,
-    updated_at:Date.now(),deleted:0};
+    order:projectList().length,updated_at:Date.now(),deleted:0};
   save();
   return id;
-}
-/** Cards from before the canvas have no coordinates. Give them the flow
- * positions they were already drawn in, once, and persist so they stay put. */
-function ensureCardPositions(){
-  var missing=projectList().filter(function(p){return typeof p.x!=="number"||typeof p.y!=="number";});
-  if(!missing.length)return false;
-  missing.forEach(function(p){
-    var spot=nextCardSpot();
-    p.x=spot.x;p.y=spot.y;
-    if(typeof p.w!=="number")p.w=CARD_W;
-    if(typeof p.h!=="number")p.h=CARD_H;
-    p.updated_at=Date.now();
-  });
-  save();
-  return true;
 }
 function addTask(projectId,title){
   var label=String(title||"").trim();
@@ -4397,7 +4444,7 @@ function paintPrayerChips(info){
       return;
     }
     b.classList.remove("is-idle");
-    var dot=el("i","pchip-dot");dot.style.background=info.color;
+    var dot=glossPaint(el("i","pchip-dot"),info.color);
     b.appendChild(dot);
     b.appendChild(el("span",null,info.name));
     if(info.left)b.appendChild(el("span","pchip-left",info.left));
@@ -4536,7 +4583,8 @@ function renderPrayerModal(){
     var row=el("button","pslot"+(curName===name?" is-now":""));
     row.type="button";
     row.setAttribute("data-prayer",name);
-    var sw=el("i","psw");sw.style.background=prayerColorCss(name);
+    var sw=glossPaint(el("i","psw"),prayerColorCss(name));
+    row.style.setProperty("--c",prayerColorCss(name));
     row.appendChild(sw);
     row.appendChild(el("span","psn",PRAYER_SHORT[name]));
     row.appendChild(el("span","pst",s?(fmtMin(s.start)+" – "+fmtMin(s.end%1440)):"—"));
@@ -4629,7 +4677,7 @@ function openColorMenu(name,anchor,ev){
   PC_PALETTE.forEach(function(hex){
     var b=el("button");
     b.type="button";b.setAttribute("data-color",hex);
-    b.style.background=hex;b.title=hex;
+    glossPaint(b,hex);b.title=hex;
     b.addEventListener("click",function(){setPrayerColor(name,hex);closeColorMenu();});
     sw.appendChild(b);
   });
@@ -4895,6 +4943,8 @@ function calChip(x,place){
     +(x.task&&x.task.done?" is-done":""));
   chip.type="button";
   chip.style.borderInlineStartColor=x.color||(x.kind==="gtask"?"var(--accent)":"var(--brand)");
+  /* The fill: the same glossy bar the Workflow planner draws (CSS). */
+  chip.style.setProperty("--chip-c",x.color||(x.kind==="gtask"?"var(--accent)":"var(--brand)"));
   /* No time on the chip: where it sits in the grid already says when it is,
      and in a narrow column those few characters were the difference between
      a title that reads and one that is cut off. The full detail, times
@@ -4911,6 +4961,38 @@ function calChip(x,place){
   chip.addEventListener("click",function(ev){ev.stopPropagation();openCalEntry(x);});
   if(place&&!x.allDay)placeByTime(chip,x,place);
   return chip;
+}
+
+/** Side-by-side lanes for one day's timed entries. Two entries share the
+ * width whenever their times overlap at all, wherever each one starts.
+ * Splitting only entries that began in the same hour - what this replaced -
+ * drew 9:30-11:00 and 10:00-10:30 on top of each other, because they sit in
+ * different hour cells. The usual calendar layout: walk the entries by start,
+ * give each the first lane that is free by then, and size every entry in a
+ * run of transitively overlapping ones by that run's lane count, so a lone
+ * event elsewhere in the day still gets the full width. Writes `lane` and
+ * `lanes` onto each entry. */
+function calLanes(list){
+  var timed=list.filter(function(x){return !x.allDay;}).map(function(x){
+    var s=new Date(x.start).getTime();
+    return {x:x,s:s,e:s+calEntryDuration(x)*60000};
+  }).sort(function(a,b){return (a.s-b.s)||(b.e-a.e);});
+  var group=[],ends=[],groupEnd=-Infinity;
+  function close(){
+    group.forEach(function(g){g.x.lanes=ends.length;});
+    group=[];ends=[];groupEnd=-Infinity;
+  }
+  timed.forEach(function(t){
+    if(group.length&&t.s>=groupEnd)close();
+    var lane=-1;
+    for(var k=0;k<ends.length;k++){if(ends[k]<=t.s){lane=k;break;}}
+    if(lane<0){lane=ends.length;ends.push(t.e);}else ends[lane]=t.e;
+    t.x.lane=lane;
+    group.push(t);
+    if(t.e>groupEnd)groupEnd=t.e;
+  });
+  close();
+  return list;
 }
 
 /** Positions a chip within its hour cell by when the event actually runs:
@@ -4953,6 +5035,7 @@ function calMini(x,place){
   var mini=el("button","cal-mini"+(x.kind==="task"?" is-task":"")+(x.kind==="gtask"?" is-gtask":""),x.title);
   mini.type="button";
   mini.style.borderInlineStartColor=x.color||(x.kind==="gtask"?"var(--accent)":"var(--brand)");
+  mini.style.setProperty("--chip-c",x.color||(x.kind==="gtask"?"var(--accent)":"var(--brand)"));
   mini.title=calEntryDetail(x);
   mini.addEventListener("click",function(ev){ev.stopPropagation();openCalEntry(x);});
   if(place&&!x.allDay)placeByTime(mini,x,place);
@@ -5520,6 +5603,7 @@ function buildDayPanel(dayDate,timesByKey){
 
   var byHour=days.map(function(_,i){
     var m={};
+    calLanes(entries[i]);
     entries[i].forEach(function(x){
       if(x.allDay)return;
       var hour=new Date(x.start).getHours();
@@ -5580,15 +5664,15 @@ function buildDayPanel(dayDate,timesByKey){
       if(true){
         var box=el("div","cal-hour-events");
         var entries=byHour[i][h]||[];
-        entries.forEach(function(x,n){
-          box.appendChild(calChip(x,{hour:h,index:n,of:entries.length,inset:true}));
+        entries.forEach(function(x){
+          box.appendChild(calChip(x,{hour:h,index:x.lane||0,of:x.lanes||1,inset:true}));
         });
         if(!entries.length&&isMain)box.appendChild(el("div","cal-slot-hint","+ Add"));
         cell.appendChild(box);
       }else{
         (function(list,hour){
-          list.forEach(function(x,n){
-            cell.appendChild(calMini(x,{hour:hour,index:n,of:list.length}));
+          list.forEach(function(x){
+            cell.appendChild(calMini(x,{hour:hour,index:x.lane||0,of:x.lanes||1}));
           });
         })(byHour[i][h]||[],h);
       }
@@ -5652,7 +5736,7 @@ function paintCalPanels(days,timesByKey){
     /* "Chasht" everywhere, including here - the legend was the last place
        still calling that window by the astronomical event it starts at. */
     var chip=el("span",null," "+PRAYER_SHORT[name]);
-    var dot=el("i");dot.style.background=prayerColorCss(name);
+    var dot=glossPaint(el("i"),prayerColorCss(name));
     chip.insertBefore(dot,chip.firstChild);
     legend.appendChild(chip);
   });
@@ -6447,7 +6531,8 @@ function renderQada(){
     var owed=Math.max(0,stats.missed[p[0]]-qada[p[0]]);
     var row=el("div","prow qada-row");
     row.setAttribute("data-prayer",p[1]);
-    var sw=el("i","psw");sw.style.background=prayerColorCss(p[1]);
+    var sw=glossPaint(el("i","psw"),prayerColorCss(p[1]));
+    row.style.setProperty("--c",prayerColorCss(p[1]));
     row.appendChild(sw);
     row.appendChild(el("span","psn",p[1]));
     row.appendChild(el("span","pst qada-owed",owed+" owed"));
@@ -6576,7 +6661,7 @@ function openMenuSheet(title,actions,at){
     b.type="button";
     if(a.swatch){
       var dot=el("span","menu-swatch");
-      dot.style.background=a.swatch;
+      glossPaint(dot,a.swatch);
       b.insertBefore(dot,b.firstChild);
     }
     b.addEventListener("click",function(){closeMenuSheet();a.run();});
@@ -6599,80 +6684,186 @@ function positionMenuPop(pop,at){
   pop.style.top=Math.max(pad,y)+"px";
 }
 
-/* ---------- CANVAS: ZOOM AND PAN ----------
-   The view (how far in you are and where you are looking) is per-device and
-   never synced - it is the same kind of thing as the UI scale. Where the
-   cards sit is not: that rides the project rows. */
+/* ---------- THE BOARD: LAYOUT, ZOOM AND SCROLL ----------
+   Until 1.52.0 the board was a free canvas: cards sat wherever they had been
+   dragged and the view panned in every direction, so on a phone most of it
+   was off screen and a laptop showed a few cards in a corner of a big empty
+   plane. Now the cards are laid out for the screen they are on:
+
+   - columns that fill the width, as many as fit at the current zoom, so a
+     card is never off to the side - the left edge and the top are fixed and
+     the board only scrolls down;
+   - zooming in makes the cards bigger and so fewer per row, until they stack
+     one under another; it stops once one card fills the screen
+     (boardMaxZoom), because past that a card would be bigger than the screen;
+   - a card is as tall as its tasks (no scroll inside a card - one scroll, the
+     board's, is what a swipe anywhere on a card should move);
+   - dragging a card by its header puts it somewhere else in the order - the
+     same order the Workflow planner lists projects in.
+
+   How far in you are and how far down you have scrolled are per-device and
+   never synced, the same kind of thing as the UI scale - and so is which card
+   the picker above the board is showing. */
 var BOARDVIEW_KEY="yawarBoardView";
-var CANVAS_MIN_Z=0.35,CANVAS_MAX_Z=2.5;
-var _canvas={z:1,x:0,y:0};
+var CANVAS_MIN_Z=0.35,CANVAS_CAP_Z=3;
+var _canvas={z:1,x:0,y:0,only:""};
 function loadBoardView(){
   try{
     var raw=JSON.parse(localStorage.getItem(BOARDVIEW_KEY)||"null");
-    if(raw&&typeof raw.z==="number")_canvas={z:clampZoom(raw.z),x:raw.x||0,y:raw.y||0};
+    if(raw&&typeof raw.z==="number"){
+      _canvas={z:Math.max(CANVAS_MIN_Z,Math.min(CANVAS_CAP_Z,raw.z)),x:0,y:Number(raw.y)||0,
+        only:typeof raw.only==="string"?raw.only:""};
+    }
   }catch(e){}
 }
 function saveBoardView(){
-  try{localStorage.setItem(BOARDVIEW_KEY,JSON.stringify(_canvas));}catch(e){}
+  try{localStorage.setItem(BOARDVIEW_KEY,JSON.stringify({z:_canvas.z,y:_canvas.y,only:_canvas.only}));}catch(e){}
 }
-function clampZoom(z){return Math.min(CANVAS_MAX_Z,Math.max(CANVAS_MIN_Z,z));}
+/** The viewport in screen pixels. A hidden tab (and jsdom, which has no
+ * layout) measures 0, so fall back to the window - which is close to what the
+ * board will have once it is shown, and is re-measured then. */
+function boardViewport(){
+  var vp=document.getElementById("canvasViewport");
+  var w=vp&&vp.clientWidth,h=vp&&vp.clientHeight;
+  return {w:w||Math.max(240,(window.innerWidth||1024)-28),
+          h:h||Math.max(320,(window.innerHeight||700)-200)};
+}
+/** As far in as the board goes: one card, at its planned width and the
+ * default height, fully on screen with the margin round it. */
+function boardMaxZoom(){
+  var v=boardViewport();
+  var z=Math.min(v.w/(CARD_W+BOARD_PAD*2),v.h/(CARD_H+BOARD_PAD*2));
+  return Math.max(CANVAS_MIN_Z,Math.min(CANVAS_CAP_Z,z));
+}
+function clampZoom(z){return Math.min(boardMaxZoom(),Math.max(CANVAS_MIN_Z,z));}
+/** The projects the board is drawing: all of them, or the one the picker
+ * chose. A choice that no longer exists (deleted on another device) is
+ * forgotten rather than leaving an empty board. */
+function boardProjects(){
+  var all=projectList();
+  if(_canvas.only){
+    var one=all.filter(function(p){return p.id===_canvas.only;});
+    if(one.length)return one;
+    _canvas.only="";
+  }
+  return all;
+}
+/** A card's height before it has been measured: what jsdom (no layout) and a
+ * hidden tab get. Roughly a heading, a row per task and the add row. */
+function estimateCardHeight(p){
+  var n=tasksIn(p.id).length;
+  return Math.max(CARD_MIN_H,50+(n?n*44:30)+58);
+}
+/** Where each card goes at zoom z, in canvas pixels. Columns as wide as the
+ * screen allows (never narrower than CARD_W, so zooming in drops a column
+ * rather than squeezing every card), then each card into whichever column is
+ * shortest so far - the first row reads left to right in order, and a short
+ * card leaves no hole under it. `heights` are the cards' real heights at that
+ * width, measured by the caller; anything missing is estimated. */
+function boardLayout(z,heights){
+  var v=boardViewport(),avail=v.w/z-BOARD_PAD*2,list=boardProjects();
+  var n=Math.max(1,Math.floor((avail+BOARD_GAP)/(CARD_W+BOARD_GAP)));
+  /* One card on its own - the picker's choice - gets the width a single
+     column would, not a sliver of a row of four; on a laptop it stops at a
+     comfortable reading width rather than running the whole screen. */
+  if(list.length===1)n=1;
+  var colW=Math.max(CARD_MIN_W,(avail-(n-1)*BOARD_GAP)/n);
+  if(list.length===1)colW=Math.max(CARD_MIN_W,Math.min(colW,BOARD_ONE_MAX));
+  var tops=[];for(var i=0;i<n;i++)tops.push(BOARD_PAD);
+  var boxes={};
+  list.forEach(function(p){
+    var c=0;for(var k=1;k<n;k++)if(tops[k]<tops[c]-0.5)c=k;
+    var h=(heights&&heights[p.id])||estimateCardHeight(p);
+    boxes[p.id]={x:BOARD_PAD+c*(colW+BOARD_GAP),y:tops[c],w:colW,h:h};
+    tops[c]+=h+BOARD_GAP;
+  });
+  var bottom=Math.max.apply(null,tops)-BOARD_GAP+BOARD_PAD;
+  return {boxes:boxes,cols:n,width:colW,height:Math.max(bottom,BOARD_PAD*2)};
+}
+var _boardLayout=null;
+/** Lay the drawn cards out again - after a render, a zoom, a resize - moving
+ * the existing elements rather than rebuilding them, since a pinch calls this
+ * on every move. Widths first, then one read of every height at that width,
+ * then the positions. */
+function layoutBoardCards(){
+  _canvas.z=clampZoom(_canvas.z);   /* the screen may have changed since */
+  var cols=Array.prototype.slice.call(document.querySelectorAll("#board .board-col"));
+  var first=boardLayout(_canvas.z,null);
+  cols.forEach(function(col){col.style.width=first.width+"px";});
+  var heights={};
+  cols.forEach(function(col){
+    var h=col.offsetHeight;
+    if(h)heights[col.getAttribute("data-project")]=h;
+  });
+  _boardLayout=boardLayout(_canvas.z,heights);
+  cols.forEach(function(col){
+    var b=_boardLayout.boxes[col.getAttribute("data-project")];if(!b)return;
+    col.style.left=b.x+"px";col.style.top=b.y+"px";col.style.width=b.w+"px";
+  });
+  clampBoardScroll();
+  applyCanvasTransform();
+}
+/** The left edge never moves and the top cannot be pulled down past the
+ * first row; the bottom stops at the last card. */
+function clampBoardScroll(){
+  var v=boardViewport(),content=(_boardLayout?_boardLayout.height:0)*_canvas.z;
+  _canvas.x=0;
+  _canvas.y=Math.min(0,Math.max(Math.min(0,v.h-content),_canvas.y||0));
+}
 function applyCanvasTransform(){
   var plane=document.getElementById("board");
   if(!plane)return;
   plane.style.transform="translate("+_canvas.x+"px,"+_canvas.y+"px) scale("+_canvas.z+")";
-  /* The zoom is no longer written anywhere on screen - the toolbar that
-     showed it is gone. Kept on the viewport so it is still inspectable. */
+  /* Nothing displays these; they keep the view inspectable, and the tests
+     read them. */
   var vp=document.getElementById("canvasViewport");
-  if(vp)vp.setAttribute("data-zoom",String(Math.round(_canvas.z*100)));
+  if(vp){
+    vp.setAttribute("data-zoom",String(Math.round(_canvas.z*100)));
+    if(_boardLayout)vp.setAttribute("data-cols",String(_boardLayout.cols));
+  }
 }
-/** Zoom about a point in viewport coordinates, so what is under the fingers
- * (or the cursor) stays under them - anchoring to the origin instead makes
- * zooming feel like the board is running away. */
+/** Zoom about a point, keeping the row under the fingers (or the cursor)
+ * under them. Sideways there is nothing to keep: the layout always fills the
+ * width. */
 function zoomAt(nextZ,px,py){
   var z=clampZoom(nextZ);
-  if(z===_canvas.z)return;
-  _canvas.x=px-(px-_canvas.x)*(z/_canvas.z);
-  _canvas.y=py-(py-_canvas.y)*(z/_canvas.z);
-  _canvas.z=z;
-  applyCanvasTransform();saveBoardView();
+  if(Math.abs(z-_canvas.z)<1e-4)return;
+  var cy=(py-_canvas.y)/_canvas.z;
+  _canvas.z=z;_canvas.y=py-cy*z;
+  layoutBoardCards();saveBoardView();
 }
 function zoomByStep(factor){
-  var vp=document.getElementById("canvasViewport");
-  if(!vp)return;
-  var r=vp.getBoundingClientRect();
-  zoomAt(_canvas.z*factor,r.width/2,r.height/2);
+  var v=boardViewport();
+  zoomAt(_canvas.z*factor,v.w/2,v.h/2);
 }
-/** Frame everything, so "I have lost my cards" is one tap from fixed. */
+/** Everything on one screen if it can be: the largest zoom, no further in
+ * than 100%, at which the whole board's height fits. */
 function canvasFit(){
-  var vp=document.getElementById("canvasViewport");
-  var boxes=projectList().map(projectBox);
-  if(!vp||!boxes.length){_canvas={z:1,x:16,y:16};applyCanvasTransform();saveBoardView();return;}
-  var r=vp.getBoundingClientRect();
-  var minX=Math.min.apply(null,boxes.map(function(b){return b.x;}));
-  var minY=Math.min.apply(null,boxes.map(function(b){return b.y;}));
-  var maxX=Math.max.apply(null,boxes.map(function(b){return b.x+b.w;}));
-  var maxY=Math.max.apply(null,boxes.map(function(b){return b.y+b.h;}));
-  var pad=20;
-  var z=clampZoom(Math.min((r.width-pad*2)/Math.max(1,maxX-minX),
-                           (r.height-pad*2)/Math.max(1,maxY-minY),1));
-  _canvas.z=z;
-  _canvas.x=pad-minX*z+Math.max(0,(r.width-pad*2-(maxX-minX)*z)/2);
-  _canvas.y=pad-minY*z;
-  applyCanvasTransform();saveBoardView();
+  var v=boardViewport(),z=Math.min(1,boardMaxZoom());
+  while(z>CANVAS_MIN_Z&&boardLayout(z,null).height*z>v.h)z=Math.max(CANVAS_MIN_Z,z*0.92);
+  _canvas.z=z;_canvas.y=0;
+  layoutBoardCards();saveBoardView();
+}
+function scrollBoardBy(dy){
+  _canvas.y-=dy;clampBoardScroll();applyCanvasTransform();
 }
 
-/* ---------- CANVAS: GESTURES ----------
+/* ---------- THE BOARD: GESTURES ----------
    Pointer events throughout, so one code path covers finger, mouse and pen -
-   and two pointers give pinch without a separate touch handler. */
+   and two pointers give pinch without a separate touch handler. The viewport
+   is touch-action:none, so scrolling is ours too: a finger drag anywhere that
+   is not a control scrolls the board. */
 var _pointers={};                 /* live pointers on the viewport, by id */
 var _pinch=null;                  /* {dist, z} when two are down */
-var _pan=null;                    /* {x, y} while dragging the background */
-var _cardDrag=null;               /* {p, mode, ...} while moving or resizing */
+var _pan=null;                    /* {startY, y, live} while scrolling by drag */
+var BOARD_PAN_SLOP=6;
+var _cardDrag=null;               /* {p, ...} while a card is being moved */
 /* True for one tick after a drag that actually moved, so the click it
-   generates does not also open the rename prompt. */
+   generates does not also open the rename prompt (or press whatever button
+   a scroll began on). */
 var _cardDragged=false;
 /* A touch has to be held before it becomes a drag. Without it, brushing the
-   header while panning the canvas moved the card - the finger is a blunt
+   header while scrolling the board moved the card - the finger is a blunt
    instrument and the header is most of the card's top edge. A mouse is exempt:
    a press with a mouse is already deliberate, and there is no accidental-scroll
    case to protect against. */
@@ -6694,16 +6885,20 @@ function attachCanvas(){
     _pointers[e.pointerId]={x:e.clientX,y:e.clientY};
     var live=canvasPointers();
     if(live.length===2){
-      /* A second finger turns a pan into a pinch. */
-      _pan=null;
+      /* A second finger turns a scroll into a pinch. */
+      _pan=null;cancelCardHold();vp.classList.add("is-zooming");
       _pinch={dist:pinchDistance(live[0],live[1]),z:_canvas.z};
       return;
     }
-    /* A drag that starts on a card is the card's, not the canvas's. */
-    if(e.target.closest&&e.target.closest(".board-col"))return;
-    _pan={x:e.clientX-_canvas.x,y:e.clientY-_canvas.y};
-    vp.classList.add("is-panning");
-    vp.setPointerCapture(e.pointerId);
+    var t=e.target;
+    /* Typing, and the task grips, keep their own gestures. A mouse pressed on
+       a card's header is moving the card; a finger there might be either, and
+       the hold decides (startCardDrag ends the scroll if it lifts). */
+    if(t.closest&&t.closest("input,textarea,select,.drag-grip"))return;
+    if(e.pointerType==="mouse"&&t.closest&&t.closest(".board-col-head"))return;
+    /* A scroll only becomes one once it has moved: until then this may be a
+       tap on a button, and capturing the pointer would take its click. */
+    _pan={id:e.pointerId,startY:e.clientY,y:e.clientY-_canvas.y,live:false};
   });
 
   vp.addEventListener("pointermove",function(e){
@@ -6715,55 +6910,66 @@ function attachCanvas(){
       if(!_pinch.dist)return;
       var r=vp.getBoundingClientRect();
       /* Anchor on the midpoint between the fingers. */
-      var cx=(live[0].x+live[1].x)/2-r.left;
-      var cy=(live[0].y+live[1].y)/2-r.top;
-      zoomAt(_pinch.z*(d/_pinch.dist),cx,cy);
+      zoomAt(_pinch.z*(d/_pinch.dist),(live[0].x+live[1].x)/2-r.left,(live[0].y+live[1].y)/2-r.top);
       return;
     }
-    if(_pan){
-      _canvas.x=e.clientX-_pan.x;
-      _canvas.y=e.clientY-_pan.y;
-      applyCanvasTransform();
+    if(!_pan||_pan.id!==e.pointerId||_cardDrag)return;
+    if(!_pan.live){
+      if(Math.abs(e.clientY-_pan.startY)<BOARD_PAN_SLOP)return;
+      _pan.live=true;
+      vp.classList.add("is-panning");
+      try{vp.setPointerCapture(e.pointerId);}catch(err){}
     }
+    _canvas.y=e.clientY-_pan.y;
+    clampBoardScroll();applyCanvasTransform();
   });
 
   function release(e){
     delete _pointers[e.pointerId];
-    if(canvasPointers().length<2)_pinch=null;
-    if(_pan&&!canvasPointers().length){
+    if(canvasPointers().length<2){_pinch=null;vp.classList.remove("is-zooming");}
+    if(_pan&&_pan.id===e.pointerId){
+      if(_pan.live){
+        vp.classList.remove("is-panning");
+        saveBoardView();
+        /* Whatever the scroll started on gets a click now; it was a scroll. */
+        _cardDragged=true;
+        setTimeout(function(){_cardDragged=false;},0);
+      }
       _pan=null;
-      vp.classList.remove("is-panning");
-      saveBoardView();
     }
   }
   vp.addEventListener("pointerup",release);
   vp.addEventListener("pointercancel",release);
+  /* A click that ends a scroll is swallowed before it reaches a button. */
+  vp.addEventListener("click",function(e){
+    if(_cardDragged){e.stopPropagation();e.preventDefault();}
+  },true);
 
-  /* Trackpad pinch arrives as a wheel event with ctrlKey; a plain wheel is a
-     scroll, which on a canvas means pan. */
+  /* Trackpad pinch arrives as a wheel event with ctrlKey; a plain wheel
+     scrolls the board down and up - there is nothing sideways to scroll. */
   vp.addEventListener("wheel",function(e){
-    var r=vp.getBoundingClientRect();
+    e.preventDefault();
     if(e.ctrlKey){
-      e.preventDefault();
+      var r=vp.getBoundingClientRect();
       zoomAt(_canvas.z*(e.deltaY>0?0.92:1.08),e.clientX-r.left,e.clientY-r.top);
       return;
     }
-    e.preventDefault();
-    _canvas.x-=e.deltaX;_canvas.y-=e.deltaY;
-    applyCanvasTransform();saveBoardView();
+    scrollBoardBy(e.deltaY);saveBoardView();
   },{passive:false});
+
+  var pick=document.getElementById("boardPick");
+  if(pick)pick.addEventListener("change",function(){
+    _canvas.only=pick.value||"";_canvas.y=0;saveBoardView();renderBoard();
+  });
 }
 
-/** Moving and resizing a card. Bound to the document rather than the handle:
- * the pointer routinely leaves the small grab area mid-drag, and a re-render
- * would replace the element the gesture started on. */
 /** A press on the header. With a finger it arms a timer and only becomes a
  * drag once held; with a mouse it starts immediately. */
-function beginCardPress(p,mode,ev){
-  if(ev.pointerType==="mouse"){startCardDrag(p,mode,ev);return;}
+function beginCardPress(p,ev){
+  if(ev.pointerType==="mouse"){startCardDrag(p,ev);return;}
   cancelCardHold();
   var col=document.querySelector('.board-col[data-project="'+p.id+'"]');
-  _cardHold={p:p,mode:mode,x:ev.clientX,y:ev.clientY,pointerId:ev.pointerId,
+  _cardHold={p:p,x:ev.clientX,y:ev.clientY,pointerId:ev.pointerId,
     ev:{clientX:ev.clientX,clientY:ev.clientY,pointerType:ev.pointerType,
         preventDefault:function(){},stopPropagation:function(){}},
     timer:setTimeout(function(){
@@ -6771,7 +6977,7 @@ function beginCardPress(p,mode,ev){
       _cardHold=null;
       if(!held)return;
       if(col)col.classList.add("is-lifted");
-      startCardDrag(held.p,held.mode,held.ev);
+      startCardDrag(held.p,held.ev);
     },CARD_HOLD_MS)};
   if(col)col.classList.add("is-holding");
   document.addEventListener("pointermove",cardHoldMove);
@@ -6780,7 +6986,7 @@ function beginCardPress(p,mode,ev){
 }
 function cardHoldMove(ev){
   if(!_cardHold)return;
-  /* Moved before the hold completed - that was a scroll or a pan, not a grab. */
+  /* Moved before the hold completed - that was a scroll, not a grab. */
   if(Math.abs(ev.clientX-_cardHold.x)>CARD_HOLD_SLOP||
      Math.abs(ev.clientY-_cardHold.y)>CARD_HOLD_SLOP)cancelCardHold();
 }
@@ -6795,43 +7001,61 @@ function cancelCardHold(){
   _cardHold=null;
 }
 
-function startCardDrag(p,mode,ev){
-  /* Not preventDefault on a move: the header carries the name button, and
-     suppressing the default would take its click with it. stopPropagation is
-     enough to keep the canvas from panning underneath. */
-  if(mode!=="move")ev.preventDefault();
+/** Moving a card: it follows the pointer, and where it is let go decides its
+ * place in the order. Bound to the document rather than the header: the
+ * pointer routinely leaves it mid-drag. */
+function startCardDrag(p,ev){
+  /* Not preventDefault: the header carries the name button, and suppressing
+     the default would take its click with it. stopPropagation is enough to
+     keep the board from scrolling underneath. */
   ev.stopPropagation();
-  var box=projectBox(p);
-  _cardDrag={p:p,mode:mode,startX:ev.clientX,startY:ev.clientY,
-    ox:box.x,oy:box.y,ow:box.w,oh:box.h,moved:false};
+  _pan=null;
+  var box=_boardLayout&&_boardLayout.boxes[p.id];
+  if(!box){layoutBoardCards();box=_boardLayout&&_boardLayout.boxes[p.id];}
+  if(!box)return;
+  _cardDrag={p:p,startX:ev.clientX,startY:ev.clientY,startScroll:_canvas.y,
+    ox:box.x,oy:box.y,moved:false,lastX:ev.clientX,lastY:ev.clientY};
   var col=document.querySelector('.board-col[data-project="'+p.id+'"]');
-  if(col){
-    col.classList.add("is-dragging");
-    /* Bring it to the front now, by moving the node rather than re-rendering -
-       a re-render would replace the element this gesture is holding. The
-       stored z is written at the end of the drag to match. */
-    if(col.parentNode&&col.parentNode.lastChild!==col)col.parentNode.appendChild(col);
-  }
+  if(col)col.classList.add("is-dragging");
   document.addEventListener("pointermove",cardDragMove);
   document.addEventListener("pointerup",cardDragEnd);
   document.addEventListener("pointercancel",cardDragEnd);
 }
 function cardDragMove(ev){
-  if(!_cardDrag)return;
-  /* Screen pixels are canvas pixels divided by the zoom - drag at 50% and the
-     card must follow the finger, not travel twice as far. */
-  var dx=(ev.clientX-_cardDrag.startX)/_canvas.z;
-  var dy=(ev.clientY-_cardDrag.startY)/_canvas.z;
-  if(Math.abs(dx)>2||Math.abs(dy)>2)_cardDrag.moved=true;
-  var col=document.querySelector('.board-col[data-project="'+_cardDrag.p.id+'"]');
-  if(!col)return;
-  if(_cardDrag.mode==="move"){
-    col.style.left=(_cardDrag.ox+dx)+"px";
-    col.style.top=(_cardDrag.oy+dy)+"px";
-  }else{
-    col.style.width=Math.max(CARD_MIN_W,_cardDrag.ow+dx)+"px";
-    col.style.height=Math.max(CARD_MIN_H,_cardDrag.oh+dy)+"px";
+  var d=_cardDrag;
+  if(!d)return;
+  d.lastX=ev.clientX;d.lastY=ev.clientY;
+  /* Near the top or bottom edge the board scrolls under the card, so a card
+     can be carried past what fits on one screen. */
+  var vp=document.getElementById("canvasViewport");
+  var r=vp?vp.getBoundingClientRect():null;
+  if(r&&r.height){
+    if(ev.clientY<r.top+40)scrollBoardBy(-14);
+    else if(ev.clientY>r.bottom-40)scrollBoardBy(14);
   }
+  /* Screen pixels are canvas pixels divided by the zoom, and any scroll since
+     the drag began moved the board under the pointer as well. */
+  var dx=(ev.clientX-d.startX)/_canvas.z;
+  var dy=(ev.clientY-d.startY-(_canvas.y-d.startScroll))/_canvas.z;
+  if(Math.abs(dx)>2||Math.abs(dy)>2)d.moved=true;
+  var col=document.querySelector('.board-col[data-project="'+d.p.id+'"]');
+  if(!col)return;
+  col.style.left=(d.ox+dx)+"px";
+  col.style.top=(d.oy+dy)+"px";
+}
+/** The card whose slot the pointer is over, or failing that the nearest -
+ * a drop in the gap between two cards still means one of them. */
+function boardCardAt(cx,cy,except){
+  var best=null,bestD=Infinity;
+  Object.keys((_boardLayout&&_boardLayout.boxes)||{}).forEach(function(id){
+    if(id===except)return;
+    var b=_boardLayout.boxes[id];
+    if(cx>=b.x&&cx<=b.x+b.w&&cy>=b.y&&cy<=b.y+b.h){best=id;bestD=-1;return;}
+    if(bestD<0)return;
+    var ex=b.x+b.w/2-cx,ey=b.y+b.h/2-cy,dist=ex*ex+ey*ey;
+    if(dist<bestD){bestD=dist;best=id;}
+  });
+  return best;
 }
 function cardDragEnd(){
   document.removeEventListener("pointermove",cardDragMove);
@@ -6841,22 +7065,28 @@ function cardDragEnd(){
   var d=_cardDrag;_cardDrag=null;
   var col=document.querySelector('.board-col[data-project="'+d.p.id+'"]');
   if(col){col.classList.remove("is-dragging");col.classList.remove("is-lifted");col.classList.remove("is-holding");}
-  if(!d.moved)return;
-  bringCardToFront(d.p);
+  if(!d.moved){layoutBoardCards();return;}
   _cardDragged=true;
   setTimeout(function(){_cardDragged=false;},0);
-  /* Commit what the element ended up at, so the stored value and the pixels
-     agree exactly. */
-  if(col){
-    if(d.mode==="move"){
-      d.p.x=Math.round(parseFloat(col.style.left)||0);
-      d.p.y=Math.round(parseFloat(col.style.top)||0);
-    }else{
-      d.p.w=Math.round(parseFloat(col.style.width)||CARD_W);
-      d.p.h=Math.round(parseFloat(col.style.height)||CARD_H);
-    }
-  }
-  touchItem(d.p);
+  var vp=document.getElementById("canvasViewport");
+  var r=vp?vp.getBoundingClientRect():{left:0,top:0};
+  var cx=(d.lastX-r.left-_canvas.x)/_canvas.z,cy=(d.lastY-r.top-_canvas.y)/_canvas.z;
+  var target=boardCardAt(cx,cy,d.p.id);
+  if(target&&moveProjectBeside(d.p.id,target))return;
+  layoutBoardCards();   /* nowhere new: back into its own slot */
+}
+/** Put a project in another's place in the order: after it when moving later,
+ * before it when moving earlier - the slot it was dropped on is the slot it
+ * gets. Only rows whose position changed are stamped and pushed. */
+function moveProjectBeside(id,targetId){
+  var list=projectList(),from=-1,to=-1;
+  list.forEach(function(p,i){if(p.id===id)from=i;if(p.id===targetId)to=i;});
+  if(from<0||to<0||from===to)return false;
+  var next=insertBeside(list,function(p){return p.id;},id,targetId,from>to);
+  if(!next)return false;
+  next.forEach(function(p,i){if((p.order||0)!==i||p.order==null){p.order=i;touchItem(p,true);}});
+  save();renderTaskViews();
+  return true;
 }
 
 /* ---------- DRAG TO REORDER A LIST ----------
@@ -6964,33 +7194,43 @@ function renderTaskViews(){renderBoard();renderPlanner();}
 function renderBoard(){
   var box=document.getElementById("board");
   if(!box)return;
-  ensureCardPositions();
   box.innerHTML="";
-  var projects=projectList();
+  renderBoardPicker();
+  var projects=boardProjects();
   if(!projects.length){
     var empty=el("div","board-empty","No projects yet — add one to get started.");
-    empty.style.position="absolute";empty.style.left="16px";empty.style.top="16px";
+    empty.style.position="absolute";empty.style.left=BOARD_PAD+"px";empty.style.top=BOARD_PAD+"px";
     empty.style.width="240px";
     box.appendChild(empty);
+    _boardLayout=null;applyCanvasTransform();
     return;
   }
-  /* Cards overlap on a canvas, so which is on top is part of the board - and
-     it rides the project row with the position, for the same reason. Painted
-     by DOM order rather than a z-index, so nothing has to be renumbered and
-     the drag class's own z-index still wins while a card is being moved. */
-  projects.slice().sort(function(a,b){return (a.z||0)-(b.z||0);})
-    .forEach(function(p){box.appendChild(buildProjectColumn(p));});
-  applyCanvasTransform();
+  /* In the order the projects are kept in - which is where a dragged card is
+     put, and the order the Workflow planner lists them in too. */
+  projects.forEach(function(p){box.appendChild(buildProjectColumn(p));});
+  layoutBoardCards();
+}
+/** The picker above the board: every project, so one card can be brought up
+ * on its own. Rebuilt with the board, since projects come and go. */
+function renderBoardPicker(){
+  var pick=document.getElementById("boardPick");
+  if(!pick)return;
+  var list=projectList();
+  boardProjects();   /* drops a choice whose project has gone */
+  pick.innerHTML="";
+  var all=el("option",null,"All projects ("+list.length+")");all.value="";pick.appendChild(all);
+  list.forEach(function(p){var o=el("option",null,p.name);o.value=p.id;pick.appendChild(o);});
+  pick.value=_canvas.only||"";
+  pick.classList.toggle("is-on",!!_canvas.only);
 }
 
 function buildProjectColumn(p){
   var col=el("div","board-col");
   col.setAttribute("data-project",p.id);
-  var box=projectBox(p);
-  col.style.left=box.x+"px";col.style.top=box.y+"px";
-  col.style.width=box.w+"px";col.style.height=box.h+"px";
-  /* Same colour the project's bars carry on the timeline, so a card is
-     recognisable in either sub-tab without reading its name. */
+  /* Placed by layoutBoardCards(), which also sets the width; the height is
+     the card's own. */
+  /* Same colour the project's bars carry in the Workflow planner, so a card
+     is recognisable in either tab without reading its name. */
   col.style.setProperty("--proj",projectColor(p));
 
   var head=el("div","board-col-head");
@@ -7005,7 +7245,7 @@ function buildProjectColumn(p){
      drag that started on it does not also fire a rename. */
   head.addEventListener("pointerdown",function(ev){
     if(ev.target.closest&&ev.target.closest(".btask-menu"))return;
-    beginCardPress(p,"move",ev);
+    beginCardPress(p,ev);
   });
   /* The heading is the rename field - one tap, no separate edit mode. */
   var name=el("button","board-name",p.name);
@@ -7052,10 +7292,6 @@ function buildProjectColumn(p){
   add.appendChild(input);add.appendChild(go);
   col.appendChild(add);
 
-  var grip=el("div","card-resize");
-  grip.setAttribute("aria-label","Resize "+p.name);
-  grip.addEventListener("pointerdown",function(ev){startCardDrag(p,"resize",ev);});
-  col.appendChild(grip);
   return col;
 }
 
@@ -7251,14 +7487,6 @@ function openProjectMenu(p,at){
   ],at);
 }
 
-/** The card you just handled belongs on top of the ones it overlaps. Only
- * called from a drag that actually moved, so a tap never rewrites the row. */
-function bringCardToFront(p){
-  var top=0;
-  projectList().forEach(function(o){if((o.z||0)>top)top=o.z||0;});
-  if((p.z||0)===top&&top>0)return;
-  p.z=top+1;
-}
 function chooseProjectColour(p){
   openMenuSheet("Colour · "+p.name,PROJECT_COLORS.map(function(c){
     return {label:(projectColor(p)===c?"Current":"Use this"),swatch:c,run:function(){
@@ -7478,6 +7706,8 @@ var WFP_PALETTE=["#4F8CFF","#7C5CFC","#B05CFF","#E85AAD","#FF5D73","#FF8A4C",
 /* Circumference of the metric rings (r=26), matching their stroke-dasharray. */
 var WFP_RING=163.36;
 var WFP_ZOOM_CFG={day:{cell:72,minDays:14},week:{cell:24,minDays:70},month:{cell:9,minDays:366}};
+/* How much of a bar a title shown from today's column keeps to itself. */
+var WFP_TITLE_ROOM=96;
 
 /* How you are looking at the planner is per device, the same call as the
    board's zoom (yawarBoardView): never synced, never in the health record. */
@@ -8017,7 +8247,18 @@ function wfpRenderGantt(tasks,critical){
           (rec!=="none"?" — repeats "+rec:"");
         bar.setAttribute("aria-label","Edit "+t.title+", "+wfpShortDate(o.start)+" to "+wfpShortDate(o.end)+", "+bstate);
         bar.appendChild(bfill);
-        bar.appendChild(el("span","gantt-bar-text",t.title+" · "+bstate+(rec!=="none"?" · ↻":"")));
+        var btext=el("span","gantt-bar-text",t.title+" · "+bstate+(rec!=="none"?" · ↻":""));
+        /* A bar running through today shows its title from today's column, so
+           it is readable without scrolling back to where the task began -
+           which is usually behind the name column. It is held back far enough
+           from the bar's end to leave room to read; a bar that ends today or
+           tomorrow just shows it as near today as fits. */
+        if(hasToday&&todayIndex>si&&todayIndex<si+dur){
+          var barW=Math.max(20,spanWidth(si,dur)-4);
+          var shift=Math.max(0,Math.min(dayOffset(todayIndex)-dayOffset(si),barW-WFP_TITLE_ROOM));
+          if(shift>0){btext.style.marginInlineStart=(shift+4)+"px";bar.classList.add("title-today");}
+        }
+        bar.appendChild(btext);
         bar.appendChild(grip);
         track.appendChild(bar);
       });
@@ -9871,6 +10112,9 @@ var _calColsAt=calCols();
 window.addEventListener("resize",function(){
   syncHeaderHeight();
   sizeTasksPanes();
+  /* The board's columns are the screen's width (a phone turned sideways, a
+     window dragged narrower) - laid out again, not rebuilt. */
+  if(currentView==="tasks")layoutBoardCards();
   var n=calCols();
   if(n===_calColsAt)return;
   _calColsAt=n;
@@ -10357,7 +10601,7 @@ function nav(view){
   if(view==="prayers")renderPrayersTab();
   if(view==="settings")renderSettings();
   if(view==="journal"){if(currentJournalSub==="notes")renderNotes();else renderJournal();}
-  if(view==="tasks"){renderBoard();sizeTasksPanes();}
+  if(view==="tasks"){sizeTasksPanes();renderBoard();}
   if(view==="workflow"){renderPlanner();sizeTasksPanes();}
   if(view!=="workflow")wfpCloseMenu();
   window.scrollTo(0,0);

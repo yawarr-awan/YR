@@ -152,6 +152,12 @@ test("a custom colour reaches the checklist too, and can be handed back to the d
     "the custom colour is used everywhere the prayer appears");
   const qadaBar = app.document.querySelector('#qadaBox .qada-row[data-prayer="Fajr"] .psw');
   assert.match(qadaBar.style.background, /248, 113, 113|#f87171/i, "the qada card too");
+  // The planner's gloss: a sheen over the colour, and a glow in the same colour.
+  for (const b of [bar(), qadaBar]) {
+    assert.ok(b.classList.contains("gloss"));
+    assert.equal(b.style.getPropertyValue("--c"), "#f87171");
+  }
+  assert.equal(bar().parentNode.style.getPropertyValue("--c"), "#f87171", "and the row a wash of it");
 
   app.click("headerChip");
   const row = app.document.querySelector('#pmSlots .pslot[data-prayer="Fajr"]');

@@ -474,6 +474,64 @@ test("the focused column sizes an event by its length too, not just the peeks", 
   assert.match(bday.style.top, /var\(--cal-pad-t\)/);
 });
 
+test("events that overlap sit side by side, even when they start in different hours", async () => {
+  // Reported on a real day: two events in the same afternoon drew on top of
+  // one another. Only entries starting in the *same* hour were split, so one
+  // running 9:30-11:00 and another at 10:00 each got the full width.
+  const at = (h, m) => { const d = new Date(); d.setHours(h, m || 0, 0, 0); return d.toISOString(); };
+  const ev = (id, title, a, b) => ({ id, calendarId: "p", title, start: at(...a), end: at(...b), writable: true, calendar: "Home" });
+  const app = loadApp({
+    fetchImpl: fetchRouter([
+      ["/api/calendar/events", () => jsonRes({ connected: true, status: "ok", events: [
+        ev("e1", "Long meeting", [9, 30], [11, 0]),
+        ev("e2", "Call", [10, 0], [10, 30]),
+        ev("e3", "Follow-up", [10, 45], [11, 30]),
+        ev("e4", "Lunch", [13, 0], [14, 0]),
+      ] })],
+      ["/api/prayer", () => jsonRes({ source: "ummahapi", timings: { Fajr: "04:45", Sunrise: "05:50", Dhuhr: "13:00", Asr: "17:00", Maghrib: "20:30", Isha: "22:00" } })],
+    ]),
+  });
+  app.goTo("calendar");
+  await app.flush();
+  await app.flush();
+
+  const chip = (title) => [...app.document.querySelectorAll("#calDayCur .cal-chip")]
+    .find((c) => c.querySelector(".cal-chip-title").textContent === title);
+  const share = (c) => Number((c.style.width.match(/calc\(([\d.]+)%/) || [])[1]);
+  const from = (c) => Number((c.style.insetInlineStart.match(/calc\(([\d.]+)%/) || [])[1]);
+
+  // The long meeting overlaps both the call and the follow-up, and those two
+  // do not overlap each other - so two lanes, the second shared by them.
+  assert.equal(share(chip("Long meeting")), 50);
+  assert.equal(share(chip("Call")), 50);
+  assert.equal(share(chip("Follow-up")), 50);
+  assert.equal(from(chip("Long meeting")), 0);
+  assert.equal(from(chip("Call")), 50, "beside the meeting, not on top of it");
+  assert.equal(from(chip("Follow-up")), 50, "the call's lane is free again by 10:45");
+  // Nothing overlaps lunch, so it keeps the whole column.
+  assert.equal(share(chip("Lunch")), 100);
+});
+
+test("an event is a glossy bar in its calendar's colour, like the Workflow planner's", async () => {
+  const at = (h, m) => { const d = new Date(); d.setHours(h, m || 0, 0, 0); return d.toISOString(); };
+  const app = loadApp({
+    fetchImpl: fetchRouter([
+      ["/api/calendar/events", () => jsonRes({ connected: true, status: "ok", events: [
+        { id: "e1", calendarId: "p", title: "Dentist", start: at(9, 0), end: at(10, 0), writable: true, calendar: "Home", color: "#33b679" },
+      ] })],
+      ["/api/prayer", () => jsonRes({ source: "ummahapi", timings: { Fajr: "04:45", Sunrise: "05:50", Dhuhr: "13:00", Asr: "17:00", Maghrib: "20:30", Isha: "22:00" } })],
+    ]),
+  });
+  app.goTo("calendar");
+  await app.flush();
+  await app.flush();
+  const chip = app.document.querySelector("#calDayCur .cal-chip");
+  assert.equal(chip.style.getPropertyValue("--chip-c"), "#33b679");
+  const css = app.document.querySelector("style").textContent;
+  assert.match(css, /\.cal-chip,\.cal-mini\{\s*background:linear-gradient\(180deg,color-mix\(in srgb,var\(--chip-c/,
+    "filled the way the planner fills a bar");
+});
+
 /* --- the wide (week) layout -------------------------------------------- */
 
 test("on a desktop every one of the seven days is tinted, including the Monday", async () => {

@@ -383,77 +383,105 @@ function touch(app, type, id, x, y, target) {
   return pointer(app, type, id, x, y, target, "touch");
 }
 
-test("cards are placed on a canvas, each with its own position and size", () => {
-  const app = openBoard(loadApp({ fetchImpl: idle }));
-  newProject(app, "One");
-  newProject(app, "Two");
+/* The board lays its cards out for the screen (1.52.0): columns that fill
+   the width, top-left anchored, scrolling down only. jsdom has no layout, so
+   the app falls back to the window's size and to an estimated card height -
+   which is what these numbers come from: a 390px window is a 362px board, one
+   column 338px wide at 100%, and a card with no tasks is 140px tall. */
+const cardBox = (col) => ({ x: parseFloat(col.style.left), y: parseFloat(col.style.top), w: parseFloat(col.style.width) });
+const colsOf = (app) => Number(viewport(app).getAttribute("data-cols"));
+const orderOf = (app) => cols(app).map((c) => c.querySelector(".board-name").textContent);
+function boardWith(names, opts) {
+  const projects = {};
+  names.forEach((n, i) => { projects["p" + i] = { id: "p" + i, name: n, color: "", order: i, updated_at: 1, deleted: 0 }; });
+  return openBoard(loadApp(Object.assign({ fetchImpl: idle, localStorageSeed: { [MAIN_KEY]: JSON.stringify({
+    schema: SCHEMA, profile: { startWeight: 108, targetWeight: 88, updated_at: 1, tasks: [] }, days: {},
+    projects, tasks: {}, sync: { enabled: false, since: 0, lastSyncAt: null, lastError: null }, account: "me@example.com",
+  }) } }, opts || {})));
+}
+/** Drag a card by its header from one screen point to another. */
+function dragCard(app, name, from, to, pointerType) {
+  const head = colNamed(app, name).querySelector(".board-col-head");
+  pointer(app, "pointerdown", 1, from[0], from[1], head, pointerType);
+  pointer(app, "pointermove", 1, to[0], to[1], app.document, pointerType);
+  pointer(app, "pointerup", 1, to[0], to[1], app.document, pointerType);
+}
 
+test("on a phone the cards fill the width in one column, one under another", () => {
+  const app = boardWith(["One", "Two"]);
   const [a, b] = cols(app);
+  assert.equal(colsOf(app), 1);
+  assert.equal(cardBox(a).x, 12, "pinned to the left edge");
+  assert.equal(cardBox(a).y, 12, "and to the top");
+  assert.equal(cardBox(b).x, 12);
+  assert.ok(cardBox(b).y > cardBox(a).y + 100, "the next card sits under the first");
+  assert.equal(cardBox(a).w, 338, "as wide as the screen allows");
   assert.equal(app.window.getComputedStyle(a).position, "absolute");
-  assert.notEqual(a.style.left + a.style.top, b.style.left + b.style.top,
-    "a new card is laid beside the last, not on top of it");
-
-  const stored = Object.values(app.state().projects);
-  stored.forEach((p) => {
-    assert.equal(typeof p.x, "number");
-    assert.equal(typeof p.y, "number");
-    assert.ok(p.w > 0 && p.h > 0);
-  });
 });
 
-test("a board made before the canvas gets positions once, and keeps them", () => {
+test("on a laptop as many columns fit as the width allows, filling it edge to edge", () => {
+  const app = boardWith(["A", "B", "C", "D", "E"], { innerWidth: 1280 });
+  assert.equal(colsOf(app), 4);
+  const boxes = cols(app).map(cardBox);
+  assert.deepEqual(boxes.slice(0, 4).map((b) => b.y), [12, 12, 12, 12], "the first row reads across, in order");
+  assert.ok(boxes[0].x < boxes[1].x && boxes[1].x < boxes[2].x && boxes[2].x < boxes[3].x);
+  const right = boxes[3].x + boxes[3].w + 12;
+  assert.ok(Math.abs(right - 1252) < 1, "the last column ends at the right edge, got " + right);
+  assert.equal(boxes[4].x, boxes[0].x, "and the fifth card starts the next row");
+  assert.ok(boxes[4].y > 12);
+});
+
+test("old hand-placed positions are ignored, not rewritten", () => {
+  // A free-canvas board stored x/y on each project. The layout reads none of
+  // it, and leaves the rows alone - nothing is restamped or pushed for it.
   const seed = {
     schema: SCHEMA, profile: { startWeight: 108, targetWeight: 88, updated_at: 1, tasks: [] }, days: {},
-    projects: { p1: { id: "p1", name: "Old", color: "", order: 0, updated_at: 1, deleted: 0 } },
+    projects: { p1: { id: "p1", name: "Old", color: "", order: 0, x: 900, y: -400, w: 500, h: 700, z: 3, updated_at: 1, deleted: 0 } },
     tasks: {}, sync: { enabled: false, since: 0, lastSyncAt: null, lastError: null }, account: "me@example.com",
   };
   const app = openBoard(loadApp({ fetchImpl: idle, localStorageSeed: { [MAIN_KEY]: JSON.stringify(seed) } }));
-
-  const p = Object.values(app.state().projects)[0];
-  assert.equal(typeof p.x, "number", "given a place on the canvas");
-  assert.ok(p.updated_at > 1, "and stamped, so every device agrees where it sits");
-
-  const again = openBoard(loadApp({ fetchImpl: idle,
-    localStorageSeed: { [MAIN_KEY]: app.window.localStorage.getItem(MAIN_KEY) } }));
-  assert.equal(Object.values(again.state().projects)[0].x, p.x, "not reshuffled on reload");
+  const box = cardBox(cols(app)[0]);
+  assert.equal(box.x, 12);
+  assert.equal(box.y, 12);
+  assert.equal(cols(app)[0].style.height, "", "as tall as its tasks, not a stored height");
+  assert.equal(app.state().projects.p1.updated_at, 1, "the row is not touched");
+  const fresh = newProject(app, "New");
+  assert.ok(fresh);
+  const made = Object.values(app.state().projects).find((p) => p.name === "New");
+  assert.equal(made.x, undefined, "and a new project carries no position at all");
 });
 
-test("dragging a card by its header moves it, and the move is stored", () => {
-  const app = openBoard(loadApp({ fetchImpl: idle }));
-  newProject(app, "Movable");
-  const before = Object.values(app.state().projects)[0];
-  const startX = before.x, startY = before.y;
+test("dragging a card by its header gives it another place in the order", () => {
+  const app = boardWith(["First", "Second", "Third"]);
+  // One column: First at y 12, Second at 168, Third at 324 (140px cards).
+  dragCard(app, "Third", [100, 330], [100, 40]);
+  assert.deepEqual(orderOf(app), ["Third", "First", "Second"], "dropped on the first slot, it takes it");
+  const ps = app.state().projects;
+  assert.deepEqual([ps.p2.order, ps.p0.order, ps.p1.order], [0, 1, 2]);
+  assert.ok(ps.p2.updated_at > 1, "stamped, so the new order syncs");
+  assert.equal(cardBox(colNamed(app, "Third")).y, 12, "and the layout follows it");
 
-  const head = cols(app)[0].querySelector(".board-col-head");
-  pointer(app, "pointerdown", 1, 100, 100, head);
-  pointer(app, "pointermove", 1, 180, 160, app.document);
-  pointer(app, "pointerup", 1, 180, 160, app.document);
-
-  const after = Object.values(app.state().projects)[0];
-  assert.equal(after.x, startX + 80);
-  assert.equal(after.y, startY + 60);
-  assert.ok(after.updated_at > before.updated_at || after.x !== startX, "stamped for sync");
+  dragCard(app, "Third", [100, 20], [100, 340]);
+  assert.deepEqual(orderOf(app), ["First", "Second", "Third"], "dragged down past the others, it goes after");
 });
 
-test("dragging the corner resizes, and never below a usable size", () => {
-  const app = openBoard(loadApp({ fetchImpl: idle }));
-  newProject(app, "Sizable");
-  const grip = cols(app)[0].querySelector(".card-resize");
-  assert.ok(grip, "there is a corner to grab");
+test("the order a card is dragged into is the order the Workflow planner lists", () => {
+  const app = boardWith(["First", "Second"]);
+  app.state().tasks = app.state().tasks;   // nothing to seed beyond the projects
+  dragCard(app, "Second", [100, 174], [100, 20]);
+  const ps = app.state().projects;
+  assert.ok(ps.p1.order < ps.p0.order, "one order, shared by both tabs");
+});
 
-  pointer(app, "pointerdown", 1, 300, 300, grip);
-  pointer(app, "pointermove", 1, 380, 400, app.document);
-  pointer(app, "pointerup", 1, 380, 400, app.document);
-  let p = Object.values(app.state().projects)[0];
-  assert.equal(p.w, 260 + 80);
-  assert.equal(p.h, 300 + 100);
-
-  // Now drag it far smaller than is usable.
-  pointer(app, "pointerdown", 1, 300, 300, cols(app)[0].querySelector(".card-resize"));
-  pointer(app, "pointermove", 1, -900, -900, app.document);
-  pointer(app, "pointerup", 1, -900, -900, app.document);
-  p = Object.values(app.state().projects)[0];
-  assert.ok(p.w >= 180 && p.h >= 140, "clamped to something you can still use");
+test("a card is as tall as its tasks: no resize corner, and nothing scrolls inside it", () => {
+  // One scroll - the board's - is what a swipe anywhere on a card should move.
+  const app = boardWith(["Tall"]);
+  addTaskTo(app, colNamed(app, "Tall"), "One");
+  addTaskTo(app, colNamed(app, "Tall"), "Two");
+  assert.equal(app.document.querySelector(".card-resize"), null);
+  const css = app.document.querySelector("style").textContent;
+  assert.match(css, /\.board-tasks\{flex:none;/);
+  assert.doesNotMatch(css.match(/\.board-tasks\{[^}]*\}/)[0], /overflow-y:auto/);
 });
 
 test("a tap that doesn't move the card doesn't rewrite it", () => {
@@ -468,25 +496,17 @@ test("a tap that doesn't move the card doesn't rewrite it", () => {
   assert.equal(Object.values(app.state().projects)[0].updated_at, before);
 });
 
-test("dragging at half zoom moves the card by half as many canvas pixels", () => {
-  // Screen pixels are canvas pixels divided by the zoom - get this wrong and
-  // the card runs away from the finger.
-  const app = openBoard(loadApp({ fetchImpl: idle }));
-  newProject(app, "Zoomed");
-  // Zoom in/out left the menu - pinching does it better - so this drives the
-  // wheel, which is the other real way in.
+test("zoomed out, a drop still lands on the card under the pointer", () => {
+  // Screen pixels are canvas pixels times the zoom - get this wrong and a
+  // drop lands a card or two away from where the finger let go.
+  const app = boardWith(["A", "B", "C"], { innerWidth: 1280 });
   for (let i = 0; i < 4; i++) wheelZoom(app, 1);
   const z = zoomOf(app) / 100;
-  assert.ok(z < 1, "we are zoomed out");
-
-  const start = Object.values(app.state().projects)[0].x;
-  const head = cols(app)[0].querySelector(".board-col-head");
-  pointer(app, "pointerdown", 1, 100, 100, head);
-  pointer(app, "pointermove", 1, 200, 100, app.document);
-  pointer(app, "pointerup", 1, 200, 100, app.document);
-
-  const moved = Object.values(app.state().projects)[0].x - start;
-  assert.ok(Math.abs(moved - 100 / z) < 2, `expected ~${Math.round(100 / z)} canvas px, got ${moved}`);
+  assert.ok(z < 1, "zoomed out");
+  assert.ok(colsOf(app) > 4, "so more columns fit");
+  const c = cardBox(colNamed(app, "C"));
+  dragCard(app, "A", [20, 20], [(c.x + 20) * z, (c.y + 20) * z]);
+  assert.deepEqual(orderOf(app), ["B", "C", "A"]);
 });
 
 test("zoom is clamped, shown, and remembered per device rather than synced", () => {
@@ -504,23 +524,39 @@ test("zoom is clamped, shown, and remembered per device rather than synced", () 
   assert.equal(app.state().zoom, undefined, "the view is not part of the synced record");
 });
 
-test("dragging the background pans the canvas", () => {
-  const app = openBoard(loadApp({ fetchImpl: idle }));
-  newProject(app, "Anything");
-  const before = plane(app).style.transform;
+test("dragging the board scrolls it down - never sideways - and stops at both ends", () => {
+  const app = boardWith(["1", "2", "3", "4", "5", "6", "7", "8"]);
+  pointer(app, "pointerdown", 1, 200, 400);
+  pointer(app, "pointermove", 1, 260, 200);
+  pointer(app, "pointerup", 1, 260, 200);
+  assert.match(plane(app).style.transform, /^translate\(0px, ?-200px\) scale\(1\)$/, "down by the drag, not across");
 
-  pointer(app, "pointerdown", 1, 200, 200);
-  pointer(app, "pointermove", 1, 260, 240);
-  pointer(app, "pointerup", 1, 260, 240);
+  pointer(app, "pointerdown", 1, 200, 100);
+  pointer(app, "pointermove", 1, 200, 2000);
+  pointer(app, "pointerup", 1, 200, 2000);
+  assert.match(plane(app).style.transform, /^translate\(0px, ?0px\)/, "the top is fixed: no pulling past it");
 
-  assert.notEqual(plane(app).style.transform, before);
-  assert.match(plane(app).style.transform, /translate\(/);
+  pointer(app, "pointerdown", 1, 200, 2000);
+  pointer(app, "pointermove", 1, 200, -5000);
+  pointer(app, "pointerup", 1, 200, -5000);
+  const y = parseFloat(plane(app).style.transform.match(/, ?(-?[\d.]+)px\)/)[1]);
+  const last = cardBox(cols(app)[7]);
+  // 568 is the fallback viewport height on jsdom's 768px window.
+  assert.ok(Math.abs(y - (568 - (last.y + 140 + 12))) < 1, "and the bottom stops at the last card, got " + y);
 });
 
-test("a second finger pinches instead of panning", () => {
-  const app = openBoard(loadApp({ fetchImpl: idle }));
-  newProject(app, "Pinch me");
+test("a press that does not move is not a scroll, so the button under it still works", () => {
+  const app = boardWith(["Tap my menu"]);
+  pointer(app, "pointerdown", 1, 200, 30, colNamed(app, "Tap my menu").querySelector(".btask-menu"), "touch");
+  pointer(app, "pointerup", 1, 200, 31, app.document, "touch");
+  colNamed(app, "Tap my menu").querySelector(".btask-menu").click();
+  assert.ok(app.document.querySelector(".menu-pop"), "the menu opened");
+});
+
+test("a second finger pinches instead of scrolling", () => {
+  const app = boardWith(["Pinch me", "And me"], { innerWidth: 1280 });
   assert.equal(zoomOf(app), 100);
+  const before = colsOf(app);
 
   pointer(app, "pointerdown", 1, 100, 300);
   pointer(app, "pointerdown", 2, 200, 300);   // 100px apart
@@ -530,6 +566,25 @@ test("a second finger pinches instead of panning", () => {
   pointer(app, "pointerup", 2, 250, 300);
 
   assert.ok(zoomOf(app) > 150, "spreading two fingers zoomed in, got " + zoomOf(app));
+  assert.ok(colsOf(app) < before, "and the bigger cards are fewer to a row");
+});
+
+test("zooming in stops once one card fills the screen", () => {
+  // A phone: the width is what runs out first, so the ceiling is one card
+  // across - and from there the cards are simply one under another.
+  const phone = boardWith(["A", "B", "C"]);
+  for (let i = 0; i < 30; i++) wheelZoom(phone, -1);
+  const zp = zoomOf(phone) / 100;
+  assert.ok(zp > 1.2 && zp < 1.3, "about 127%, got " + zp);
+  assert.equal(colsOf(phone), 1);
+  assert.ok(cardBox(cols(phone)[0]).w * zp <= 362, "the card is no wider than the screen");
+
+  // A laptop: there the height runs out first - one card, 300 tall, fits.
+  const laptop = boardWith(["A", "B", "C"], { innerWidth: 1280 });
+  for (let i = 0; i < 30; i++) wheelZoom(laptop, -1);
+  const zl = zoomOf(laptop) / 100;
+  assert.ok(Math.abs(zl - 568 / 324) < 0.02, "a card's height fits the screen, got " + zl);
+  assert.ok(300 * zl <= 568);
 });
 
 test("the canvas keeps its own gestures, so a pan never changes tab", () => {
@@ -547,7 +602,7 @@ test("scrolling the Workflow chart sideways never changes tab either", () => {
   assert.equal(app.document.querySelector(".view.active").id, "view-workflow");
 });
 
-test("the board has no toolbar - just the canvas and one + button", () => {
+test("the board has no toolbar - just the picker, the board and one + button", () => {
   // The row above the canvas cost a whole line of the height the board is
   // short of; zoom moved to the header menu with the other view controls.
   const app = openBoard(loadApp({ fetchImpl: idle }));
@@ -565,6 +620,46 @@ test("the board has no toolbar - just the canvas and one + button", () => {
 
   fab.click();
   assert.equal(cols(app).length, 1, "and it still adds one");
+});
+
+test("a picker above the board lists every project, and choosing one shows only that card", () => {
+  const app = boardWith(["Home", "Work", "Money"], { innerWidth: 1280 });
+  const pick = app.document.getElementById("boardPick");
+  assert.ok(pick.closest("#view-tasks"), "at the top of the Tasks tab");
+  assert.deepEqual([...pick.options].map((o) => o.textContent), ["All projects (3)", "Home", "Work", "Money"]);
+
+  pick.value = "p1";
+  pick.dispatchEvent(new app.window.Event("change", { bubbles: true }));
+  assert.deepEqual(orderOf(app), ["Work"], "just that card");
+  assert.equal(colsOf(app), 1);
+  assert.equal(cardBox(cols(app)[0]).w, 720, "at a reading width, not a quarter of the screen");
+  assert.ok(pick.classList.contains("is-on"), "and the picker says a filter is on");
+  assert.equal(JSON.parse(app.window.localStorage.getItem("yawarBoardView")).only, "p1", "remembered on this device");
+  assert.doesNotMatch(app.rawMain(), /"only"/, "never in the synced record");
+
+  const again = openBoard(loadApp({ fetchImpl: idle, innerWidth: 1280, localStorageSeed: {
+    [MAIN_KEY]: app.rawMain(), yawarBoardView: app.window.localStorage.getItem("yawarBoardView") } }));
+  assert.deepEqual(orderOf(again), ["Work"], "and still showing after a reload");
+
+  pick.value = "";
+  pick.dispatchEvent(new app.window.Event("change", { bubbles: true }));
+  assert.deepEqual(orderOf(app), ["Home", "Work", "Money"], "All projects brings every card back");
+});
+
+test("on a phone the chosen card fills the width", () => {
+  const app = boardWith(["Home", "Work"]);
+  const pick = app.document.getElementById("boardPick");
+  pick.value = "p0";
+  pick.dispatchEvent(new app.window.Event("change", { bubbles: true }));
+  assert.equal(cardBox(cols(app)[0]).w, 338);
+});
+
+test("a chosen project that has been deleted falls back to showing them all", () => {
+  const app = boardWith(["Home", "Work"]);
+  const seeded = openBoard(loadApp({ fetchImpl: idle, localStorageSeed: {
+    [MAIN_KEY]: app.rawMain(), yawarBoardView: JSON.stringify({ z: 1, y: 0, only: "gone" }) } }));
+  assert.deepEqual(orderOf(seeded), ["Home", "Work"]);
+  assert.equal(seeded.document.getElementById("boardPick").value, "");
 });
 
 test("the board hint is gone - the gestures are not worth a permanent caption", () => {
@@ -605,22 +700,12 @@ test("the colour a project is given is the colour its Workflow bars use", () => 
   assert.equal(plannerBar(app, t.id).style.getPropertyValue("--project-color").toLowerCase(), p.color.toLowerCase());
 });
 
-test("dragging a card brings it to the front, and that is part of the board", () => {
-  const app = openBoard(loadApp({ fetchImpl: idle }));
-  newProject(app, "Under");
-  newProject(app, "Over");
-  const under = colNamed(app, "Under");
-
-  pointer(app, "pointerdown", 1, 100, 100, under.querySelector(".board-col-head"));
-  pointer(app, "pointermove", 1, 150, 140, app.document);
-  pointer(app, "pointerup", 1, 150, 140, app.document);
-
-  const moved = Object.values(app.state().projects).find((p) => p.name === "Under");
-  const other = Object.values(app.state().projects).find((p) => p.name === "Over");
-  assert.ok((moved.z || 0) > (other.z || 0), "the one you handled is on top");
-  // Painted by DOM order, so the drag class's own z-index still wins mid-drag.
-  const order = cols(app).map((c) => c.querySelector(".board-name").textContent);
-  assert.equal(order[order.length - 1], "Under");
+test("Move left and Move right in a card's menu move it through the same order", () => {
+  const app = boardWith(["Left", "Right"], { innerWidth: 1280 });
+  colNamed(app, "Right").querySelector(".btask-menu").click();
+  menuItem([...app.document.querySelectorAll(".menu-pop button")], /Move left/).click();
+  assert.deepEqual(orderOf(app), ["Right", "Left"]);
+  assert.ok(cardBox(colNamed(app, "Right")).x < cardBox(colNamed(app, "Left")).x, "and it is drawn there");
 });
 
 test("a tap on a card still doesn't rewrite it, front or not", () => {
@@ -765,18 +850,12 @@ test("a drag that starts on the project name still moves the card", () => {
      browser it - not the header - is what the pointer lands on. Dispatching at
      the header instead passes whatever the handler does, which is how the
      original bug got through. */
-  const app = openBoard(loadApp({ fetchImpl: idle }));
-  newProject(app, "Grab me");
-  const before = Object.values(app.state().projects)[0];
-  const name = cols(app)[0].querySelector(".board-name");
-
-  pointer(app, "pointerdown", 1, 100, 100, name);
-  pointer(app, "pointermove", 1, 170, 150, app.document);
-  pointer(app, "pointerup", 1, 170, 150, app.document);
-
-  const after = Object.values(app.state().projects)[0];
-  assert.equal(after.x, before.x + 70, "it moved, even though the name was the target");
-  assert.equal(after.y, before.y + 50);
+  const app = boardWith(["First", "Grab me"]);
+  const name = colNamed(app, "Grab me").querySelector(".board-name");
+  pointer(app, "pointerdown", 1, 100, 174, name);
+  pointer(app, "pointermove", 1, 100, 30, app.document);
+  pointer(app, "pointerup", 1, 100, 30, app.document);
+  assert.deepEqual(orderOf(app), ["Grab me", "First"], "it moved, even though the name was the target");
 });
 
 test("a drag that started on the name does not also open the rename prompt", () => {
@@ -797,36 +876,26 @@ test("a drag that started on the name does not also open the rename prompt", () 
 
 test("a finger has to hold the header before the card moves", async () => {
   /* Otherwise brushing a heading while scrolling the board drags the card. */
-  const app = openBoard(loadApp({ fetchImpl: idle }));
-  newProject(app, "Held");
-  const before = Object.values(app.state().projects)[0];
-  const head = cols(app)[0].querySelector(".board-col-head");
-
-  touch(app, "pointerdown", 1, 100, 100, head);
+  const app = boardWith(["First", "Held"]);
+  const head = colNamed(app, "Held").querySelector(".board-col-head");
+  touch(app, "pointerdown", 1, 100, 174, head);
   await app.wait(500);                       // held past the threshold
-  touch(app, "pointermove", 1, 180, 160, app.document);
-  touch(app, "pointerup", 1, 180, 160, app.document);
-
-  const after = Object.values(app.state().projects)[0];
-  assert.equal(after.x, before.x + 80, "held, so it dragged");
-  assert.equal(after.y, before.y + 60);
+  touch(app, "pointermove", 1, 100, 30, app.document);
+  touch(app, "pointerup", 1, 100, 30, app.document);
+  assert.deepEqual(orderOf(app), ["Held", "First"], "held, so it dragged");
 });
 
-test("a finger that moves before the hold completes does not drag the card", async () => {
-  const app = openBoard(loadApp({ fetchImpl: idle }));
-  newProject(app, "Brushed");
-  const before = Object.values(app.state().projects)[0];
-  const head = cols(app)[0].querySelector(".board-col-head");
-
-  touch(app, "pointerdown", 1, 100, 100, head);
-  touch(app, "pointermove", 1, 160, 100, app.document);   // moved straight away
-  await app.wait(500);                                    // past the threshold
-  touch(app, "pointermove", 1, 220, 140, app.document);
-  touch(app, "pointerup", 1, 220, 140, app.document);
-
-  const after = Object.values(app.state().projects)[0];
-  assert.equal(after.x, before.x, "the card stayed put");
-  assert.equal(after.y, before.y);
+test("a finger that moves before the hold completes scrolls the board instead", async () => {
+  const app = boardWith(["1", "2", "3", "4", "5", "6", "7", "8"]);
+  const head = colNamed(app, "3").querySelector(".board-col-head");
+  // The moves go to the board, which is where a finger's events land.
+  touch(app, "pointerdown", 1, 100, 330, head);
+  touch(app, "pointermove", 1, 100, 230);   // moved straight away
+  await app.wait(500);                      // past the threshold
+  touch(app, "pointermove", 1, 100, 130);
+  touch(app, "pointerup", 1, 100, 130);
+  assert.deepEqual(orderOf(app), ["1", "2", "3", "4", "5", "6", "7", "8"], "the card stayed in its place");
+  assert.match(plane(app).style.transform, /translate\(0px, ?-200px\)/, "and the swipe scrolled the board");
 });
 
 test("tapping the name without moving still renames", () => {
