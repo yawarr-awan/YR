@@ -794,6 +794,68 @@ ninth tab, and **the reference's own look**.
 - The navy/gold note in 1.15.0 ("Don't re-theme without being asked") still
   stands: this re-theme was asked for.
 
+## AI plans, the notes pull bug, Overdue first (1.57.0)
+- **A plan is a version, not an overwrite.** `plans` is the fourth
+  `ITEM_STORES`/`ITEM_TABLES` entry. Each row is
+  `{id, kind:"meals"|"movement", from:"YYYY-MM-DD", created, prompt,
+  plan|builtin:true}`, in force from `from` until the next version.
+  - `planVersionFor(kind, day)` picks the version for a day, so `dayKcal`
+    (and so the calorie chart) and the Today card for a past date read
+    *that day's* plan. A new plan never rewrites history, because meal
+    ticks are keyed by slot and the plan decides what they meant.
+  - "Back to the original" is a `{builtin:true}` version, never a delete.
+  - A second version chosen the same day tombstones the first and **drops
+    its `plan`**: no day can use it, and a tombstone still rides every sync.
+- **Nothing reads `PLAN`/`RECIPES`/`WEEK_EX`/`EXERCISES` directly any
+  more.** Every reader goes through these resolvers: `mealsForDay`,
+  `recipeById`, `currentRecipes`, `mealWeek`, `exerciseForDay`,
+  `exerciseById`, `currentExercises`, `movementWeek`.
+  - An AI recipe or session id is `"<version id>:<key>"`, so keys never
+    collide across versions, and `data-recipe`/`data-exercise` carry it.
+  - The weekly rhythm table is Monday-first now; `EX_WEEK_LABELS` is gone.
+- **A plan is per account, like every other table** (Yawar asked for this
+  explicitly: three people use the dashboard). Plans ride the generic item
+  path, so rows are written under the **verified** Access email and pulled
+  `WHERE user_email = ?1`. A push claiming another account is a 409. The
+  generator stores nothing. A test round-trips three accounts and pins
+  each one seeing only its own plan. Don't make `plans` shared the way
+  `dua_images` is.
+- **Worker: `POST /api/plan/generate`** (`handleGeneratePlan`):
+  - It sends `planPrompt()` to `callGemini(..., {json:true})`. That is
+    JSON mode (`generationConfig.responseMimeType`), applied **only here**;
+    a test pins that the brief's call is not in JSON mode.
+  - The reply goes through `parseJsonLoose` and then
+    `normalizeMealPlan`/`normalizeMovementPlan`. These keep known fields
+    only, clamp numbers, clip strings, make keys safe and unique, and
+    **return null for a day pointing at a recipe or session that was never
+    defined**.
+  - Errors are distinct: 400 (bad kind or empty prompt), 503
+    `not_configured`, 502 `gemini_error`, 502 `unreadable`.
+  - Nothing is stored server-side. The client previews the plan and writes
+    the row only on "Use this plan".
+  - It uses the user's brief model (`getBriefModel`) at the front of the
+    rotation.
+- **The prompt's floor:** halal food; joint-friendly movement unless the
+  request says otherwise; a safe calorie level, saying so in the summary;
+  no medical advice; for movement, a GP/physio pointer when a condition is
+  mentioned. The current plan goes in as **titles with kcal**, never whole
+  recipes (`planContext`).
+- **`plans` rows get `ITEM_MAX_BYTES.plans` = 60000**; every other table
+  stays at 20000. The client refuses a row over `PLAN_AI_MAX_BYTES` (55000)
+  before saving, so a plan can never be skipped silently on push.
+- **The notes pull bug.** `handleSync`'s response named `projects` and
+  `tasks` only, so notes (1.42.0) were pushed and never pulled; the next
+  table would have done the same. It now spreads `...items`. The client
+  tests could not see it, because `test/mockServer.js` returned notes
+  itself. `test/aiPlan.test.js` round-trips every `ITEM_TABLES` entry
+  through the real `handleSync` and fails on the old code.
+- **Workflow metric strip:** Overdue is 4th, Average progress 5th, as
+  requested. Their `--metric` colours are keyed on `data-status`, not on
+  `:nth-child`, so a reorder can't hand a card another card's edge colour.
+- Gemini is mocked in every test, and the build sandbox can't reach it, so
+  the live generation path has not run from here. It shares
+  `callGemini`/`getBriefModel` with the brief, which does run in production.
+
 ## Board scrolling, completed fold, shared YR/EY (1.56.0)
 - **"Sometimes it scrolls, sometimes not" was where the finger landed.**
   Measured in Chromium with real touches (`Input.dispatchTouchEvent`): a

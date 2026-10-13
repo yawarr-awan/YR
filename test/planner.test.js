@@ -894,3 +894,15 @@ test("with storage writes blocked the planner still draws and its actions do not
   setVal(app, "wfpZoomSelect", "week");
   assert.equal($(app, "#wfp .gantt-day.today").style.width, "36px");
 });
+
+test("Overdue sits before Average progress, and each keeps its own colour", () => {
+  const app = openPlanner(load());
+  const order = [...app.document.querySelectorAll("#wfp .workflow-stats .wfp-stat")].map((b) => b.getAttribute("data-status"));
+  assert.deepEqual(order, ["today-progress", "due-soon", "at-risk", "overdue", "below-average", "all"]);
+  // Coloured by the card, not by its place - a positional rule would have
+  // handed Overdue the green edge when the two swapped.
+  const css = app.document.querySelector("style").textContent;
+  assert.match(css, /\.wfp-stat\[data-status="overdue"\]\{--metric:var\(--red\)\}/);
+  assert.match(css, /\.wfp-stat\[data-status="below-average"\]\{--metric:var\(--green\)\}/);
+  assert.doesNotMatch(css, /workflow-stats \.wfp-stat:nth-child\([45]\)/);
+});

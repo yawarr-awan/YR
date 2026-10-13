@@ -911,6 +911,26 @@ th{color:var(--muted);font-size:.74rem;text-transform:uppercase;letter-spacing:.
 .plan-day{margin-bottom:12px}
 .plan-day h4{margin:0 0 6px;font-size:.9rem;color:var(--brand)}
 .recipe-card,.ex-card{border:1px solid var(--line);border-radius:14px;padding:14px;background:var(--panel-2);margin-bottom:10px}
+/* The AI plan card at the top of Meals, Recipes and Movement, and its dialog
+   (1.57.0). */
+.ai-plan{margin-bottom:12px}
+.ai-plan h3{margin-bottom:6px}
+.ai-sum{margin:6px 0 0;font-size:.86rem;line-height:1.45}
+.ai-asked{margin-top:6px;font-size:.78rem;color:var(--muted);font-style:italic;overflow-wrap:anywhere}
+.ai-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.plan-ai-in{display:block;width:100%;box-sizing:border-box;min-height:96px;resize:vertical;margin-top:8px;
+  border:1px solid var(--line);background:var(--panel-2);color:var(--ink);border-radius:12px;padding:10px;font:inherit;font-size:.9rem}
+.ai-chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.ai-chip{border:1px solid var(--line);background:var(--panel-2);color:var(--ink);border-radius:999px;
+  padding:5px 10px;font:inherit;font-size:.74rem;font-weight:700;cursor:pointer}
+.plan-ai-status{margin-top:10px;font-size:.84rem;min-height:1.2em}
+.plan-ai-status.busy{color:var(--muted)}
+.plan-ai-status.bad{color:var(--bad)}
+.plan-ai-days{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+.plan-ai-day{display:flex;gap:10px;padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:var(--panel-2)}
+.pad-name{flex:0 0 2.4rem;font-weight:800;font-size:.8rem;color:var(--brand)}
+.pad-body{flex:1 1 auto;min-width:0;font-size:.84rem}
+.pad-line{margin-bottom:2px;overflow-wrap:anywhere}
 .recipe-card h4,.ex-card h4{margin:0 0 4px;font-size:.95rem}
 canvas{width:100%;height:auto;background:var(--panel-2);border-radius:12px;border:1px solid var(--line)}
 a.btn{text-decoration:none;display:inline-block}
@@ -1111,6 +1131,11 @@ nav.tabs button.active::before{content:"";position:absolute;z-index:-1;inset-blo
 .jrn-search input,.food-add input,.sheet-form input,.cal-edit .field input,.cal-edit .field select,
 .cal-edit .field textarea,.datebar input[type=date],.card-tools select{
   background:var(--field);border-color:var(--field-line);box-shadow:inset 0 1px 0 rgba(255,255,255,.035)}
+.plan-ai-in{background:var(--field);border-color:var(--field-line);box-shadow:inset 0 1px 0 rgba(255,255,255,.035)}
+.ai-chip{background:var(--btn2);border-color:var(--btn2-line)}
+.ai-chip:hover{border-color:color-mix(in srgb,var(--brand) 55%,var(--btn2-line))}
+.plan-ai-day{background:var(--glass-2);border-color:var(--glass-line)}
+.plan-ai-in:focus,
 .field input:focus,.field textarea:focus,.field select:focus,.jrn-search input:focus,.food-add input:focus,
 .sheet-form input:focus,.cal-edit .field input:focus,.cal-edit .field select:focus,.cal-edit .field textarea:focus{
   outline:none;border-color:color-mix(in srgb,var(--brand) 70%,transparent);
@@ -1394,8 +1419,10 @@ div#wfp:not(.wfp-light) .workflow-secondary{background:rgba(255,255,255,.055);bo
 #wfp#wfp .workflow-stats .wfp-stat{transition:transform .18s ease,border-color .18s ease,box-shadow .18s ease;--metric:var(--workflow-accent)}
 #wfp#wfp .workflow-stats .wfp-stat:nth-child(2){--metric:var(--amber)}
 #wfp#wfp .workflow-stats .wfp-stat:nth-child(3){--metric:var(--amber)}
-#wfp#wfp .workflow-stats .wfp-stat:nth-child(4){--metric:var(--green)}
-#wfp#wfp .workflow-stats .wfp-stat:nth-child(5){--metric:var(--red)}
+/* By the card, not its place: Overdue and Average progress swapped places in
+   1.57.0, and a positional colour would have swapped their edges with them. */
+#wfp#wfp .workflow-stats .wfp-stat[data-status="below-average"]{--metric:var(--green)}
+#wfp#wfp .workflow-stats .wfp-stat[data-status="overdue"]{--metric:var(--red)}
 #wfp#wfp .workflow-stats .wfp-stat:nth-child(6){--metric:var(--workflow-accent)}
 #wfp#wfp .workflow-stats .wfp-stat::before{content:"";position:absolute;inset-block:0;inset-inline-start:0;width:3px; background:linear-gradient(180deg,var(--metric),transparent);box-shadow:0 0 14px var(--metric)}
 #wfp#wfp .workflow-stats .wfp-stat:hover{transform:translateY(-2px);border-color:color-mix(in srgb,var(--metric) 48%,var(--line)); box-shadow:0 14px 34px rgba(0,0,0,.22),inset 0 1px 0 rgba(255,255,255,.08)}
@@ -1852,18 +1879,21 @@ div#wfp.wfp-light .wfp-cats{background:rgba(255,255,255,.8)}
     </nav>
 
     <div id="sub-plan" class="subview active">
+    <div id="planAi"></div>
     <div class="section-title">Your 7-Day Meal Plan</div>
-    <div class="note">A tasty halal rotation — a mix of desi, Mediterranean and simple Western meals, now with <b>no snacks</b> and leaner portions (starchy sides removed). Each day is about <b>950–1,000 kcal</b> from three meals + <b>~370 kcal</b> from your milk, chai, whey and collagen ≈ <b>1,300–1,400 kcal total</b>, kept high in protein to protect muscle. Tap any meal to see its recipe.</div>
+    <div class="note" id="planNote">A tasty halal rotation — a mix of desi, Mediterranean and simple Western meals, now with <b>no snacks</b> and leaner portions (starchy sides removed). Each day is about <b>950–1,000 kcal</b> from three meals + <b>~370 kcal</b> from your milk, chai, whey and collagen ≈ <b>1,300–1,400 kcal total</b>, kept high in protein to protect muscle. Tap any meal to see its recipe.</div>
     <div id="planBox"></div>
     </div>
 
     <div id="sub-recipes" class="subview">
+    <div id="recipesAi"></div>
     <div class="section-title">Recipe Library</div>
-    <div class="note">Every recipe is quick (mostly 10–20 min), halal, and built for fat loss + healthy joints. Tap a card for the full method.</div>
+    <div class="note" id="recipesNote">Every recipe is quick (mostly 10–20 min), halal, and built for fat loss + healthy joints. Tap a card for the full method.</div>
     <div id="recipesBox"></div>
     </div>
 
     <div id="sub-exercises" class="subview">
+    <div id="exAi"></div>
     <div class="section-title">Gentle, Joint-Friendly Movement</div>
     <div class="warnbox"><b>Because your joints are hurting right now, start light.</b> For the first 1–2 weeks do just the <b>Morning Joint Mobility</b> and a <b>short gentle walk</b>. Add the strength and isometric work as you feel able. Move only within a comfortable, <b>pain-free</b> range, and stop if you feel sharp or increasing pain. If a joint is hot or swollen, rest it. Please check with your GP or a physiotherapist before starting, especially with your arthritis.</div>
     <div id="exercisesBox"></div>
@@ -1994,8 +2024,8 @@ div#wfp.wfp-light .wfp-cats{background:rgba(255,255,255,.8)}
           </span>
           <span class="workflow-progress-copy"><b id="wfpRisk">0</b><span>At risk</span><small id="wfpRiskMeta">0 of 0 open tasks</small></span>
         </button>
-        <button type="button" class="wfp-stat wfp-green workflow-metric-filter" data-wfp="set-status" data-status="below-average" title="Show tasks below the current average progress"><b id="wfpAverage">0%</b><span>Average progress</span></button>
         <button type="button" class="wfp-stat workflow-metric-filter" data-wfp="set-status" data-status="overdue" title="Show overdue tasks"><b id="wfpOverdue" style="color:var(--red)">0</b><span>Overdue</span></button>
+        <button type="button" class="wfp-stat wfp-green workflow-metric-filter" data-wfp="set-status" data-status="below-average" title="Show tasks below the current average progress"><b id="wfpAverage">0%</b><span>Average progress</span></button>
         <button type="button" class="wfp-stat wfp-accent workflow-metric-filter" data-wfp="set-status" data-status="all" title="Show all workflow tasks"><b id="wfpTotal">0</b><span>Total tasks</span></button>
       </div>
 
@@ -2489,7 +2519,83 @@ var PLAN = {
 };
 // getDay index -> exercise id
 var WEEK_EX = ["ex_stretch","ex_mobility","ex_chair","ex_walk","ex_isometric","ex_chair","ex_walk"];
-var EX_WEEK_LABELS = [["Sunday","ex_stretch"],["Monday","ex_mobility"],["Tuesday","ex_chair"],["Wednesday","ex_walk"],["Thursday","ex_isometric"],["Friday","ex_chair"],["Saturday","ex_walk"]];
+
+/* ---------- PLANS: BUILT-IN OR AI (1.57.0) ----------
+   The constants above are the built-in plan. An AI plan, made from a prompt
+   on the Misc tab, is a synced `plans` row: a *version*, in force from the
+   day it was chosen until the next one. Past days keep the plan they had, so
+   a new plan never rewrites what an old day's ticked meals added up to
+   (dayKcal reads the version for that day, not today's).
+   Rows: {id, kind:"meals"|"movement", from:"YYYY-MM-DD", created, prompt,
+   plan:{...}} - or {builtin:true}, which is how "back to the original" is
+   recorded. Every reader goes through the functions below; nothing reads
+   PLAN, RECIPES, WEEK_EX or EXERCISES directly any more. */
+var DAYKEYS_MON=["day1","day2","day3","day4","day5","day6","day7"];
+var DAY_NAMES_MON=["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
+function monIndex(dayKey){return (new Date(String(dayKey)+"T00:00:00").getDay()+6)%7;}
+function planVersions(kind){
+  return liveItems("plans").filter(function(r){return r.kind===kind&&typeof r.from==="string";})
+    .sort(function(a,b){return a.from<b.from?-1:a.from>b.from?1:(a.created||0)-(b.created||0);});
+}
+/** The AI version in force on a day - null means the built-in plan. */
+function planVersionFor(kind,dayKey){
+  var key=String(dayKey||todayKey()),found=null;
+  planVersions(kind).forEach(function(r){if(r.from<=key)found=r;});
+  return found&&!found.builtin&&found.plan?found:null;
+}
+/** A day's three meals, as ids recipeById() resolves. An AI recipe's id is
+ * "<version id>:<key>", so the same key in two versions never collides. */
+function mealsForDay(dayKey){
+  var key=String(dayKey||todayKey()),v=planVersionFor("meals",key),i=monIndex(key),out={};
+  var day=v?(v.plan.days[i]||{}):PLAN[DAYKEYS_MON[i]];
+  MEALSLOTS.forEach(function(s){out[s[0]]=v?v.id+":"+day[s[0]]:day[s[0]];});
+  return out;
+}
+function recipeById(id){
+  id=String(id||"");
+  var c=id.indexOf(":");
+  if(c<0)return RECIPES[id]||null;
+  var row=itemStore("plans")[id.slice(0,c)];
+  return (row&&row.plan&&row.plan.recipes&&row.plan.recipes[id.slice(c+1)])||null;
+}
+/** The recipes of the plan in force today, [{id, r}], in the plan's order. */
+function currentRecipes(){
+  var v=planVersionFor("meals",todayKey());
+  if(!v)return Object.keys(RECIPES).map(function(id){return {id:id,r:RECIPES[id]};});
+  return Object.keys(v.plan.recipes).map(function(k){return {id:v.id+":"+k,r:v.plan.recipes[k]};});
+}
+function exerciseForDay(dayKey){
+  var key=String(dayKey||todayKey()),v=planVersionFor("movement",key);
+  if(v)return v.id+":"+v.plan.week[monIndex(key)];
+  return WEEK_EX[new Date(key+"T00:00:00").getDay()];
+}
+function exerciseById(id){
+  id=String(id||"");
+  var c=id.indexOf(":");
+  if(c<0)return EXERCISES[id]||null;
+  var row=itemStore("plans")[id.slice(0,c)];
+  return (row&&row.plan&&row.plan.exercises&&row.plan.exercises[id.slice(c+1)])||null;
+}
+function currentExercises(){
+  var v=planVersionFor("movement",todayKey());
+  if(!v)return Object.keys(EXERCISES).map(function(id){return {id:id,e:EXERCISES[id]};});
+  return Object.keys(v.plan.exercises).map(function(k){return {id:v.id+":"+k,e:v.plan.exercises[k]};});
+}
+/** This week's plan, Monday first: [{name, meals:{slot:id}}] / [{name, ex:id}]. */
+function mealWeek(){
+  var v=planVersionFor("meals",todayKey());
+  return DAY_NAMES_MON.map(function(name,i){
+    var day=v?(v.plan.days[i]||{}):PLAN[DAYKEYS_MON[i]],meals={};
+    MEALSLOTS.forEach(function(s){meals[s[0]]=v?v.id+":"+day[s[0]]:day[s[0]];});
+    return {name:name,meals:meals};
+  });
+}
+function movementWeek(){
+  var v=planVersionFor("movement",todayKey());
+  return DAY_NAMES_MON.map(function(name,i){
+    return {name:name,ex:v?v.id+":"+v.plan.week[i]:WEEK_EX[(i+1)%7]};
+  });
+}
 
 var DEFAULT_MEDS = [["pre","Pre-breakfast medicine","Before you eat breakfast"],["after","After-breakfast medicine","Once breakfast is done"],["dinner","After-dinner medicine","Once dinner is done"]];
 /* The medicine list is the user's own - editable in Settings and carried on
@@ -2581,10 +2687,10 @@ function dayKcal(d,key){
   /* Which day of the week it was decides which planned meals those ticks
      refer to, so the date has to be passed in - a day record does not carry
      its own key. */
-  var plan=PLAN[DAYKEY[new Date(String(key||todayKey())+"T00:00:00").getDay()]];
+  var plan=mealsForDay(key||todayKey());
   MEALSLOTS.forEach(function(s){
-    if(d.meals&&d.meals[s[0]]&&plan){
-      var r=RECIPES[plan[s[0]]];
+    if(d.meals&&d.meals[s[0]]){
+      var r=recipeById(plan[s[0]]);
       if(r)total+=Number(r.kcal)||0;
     }
   });
@@ -2799,7 +2905,11 @@ function glossPaint(node,color){
   node.style.background=color;node.style.setProperty("--c",color);node.classList.add("gloss");
   return node;
 }
-function recipeLink(id){var b=el("button","linklike",RECIPES[id].title);b.setAttribute("data-recipe",id);return b;}
+function recipeLink(id){
+  var r=recipeById(id);
+  if(!r)return el("span",null,"—");
+  var b=el("button","linklike",r.title);b.setAttribute("data-recipe",id);return b;
+}
 
 /* ---------- COLLAPSIBLE CARDS ----------
    Which cards are folded away is a per-device display preference, not part
@@ -3129,11 +3239,10 @@ function renderToday(){
   }
 
   // meals
-  var plan=PLAN[DAYKEY[cur.getDay()]];
+  var plan=mealsForDay(keyOf(cur));
   var box=document.getElementById("mealsBox"); box.innerHTML="";
-  var total=0;
   MEALSLOTS.forEach(function(s){
-    var rid=plan[s[0]], r=RECIPES[rid]; total+=r.kcal;
+    var rid=plan[s[0]], r=recipeById(rid)||{kcal:0,protein:0,time:""};
     var row=el("div","meal-row");
     var cb=el("input");cb.type="checkbox";cb.checked=!!d.meals[s[0]];
     /* Re-renders, not just the ring: the card's kcal line is now the day's
@@ -3162,7 +3271,7 @@ function renderToday(){
   renderDhikr(d);
 
   // movement
-  var exId=WEEK_EX[cur.getDay()], ex=EXERCISES[exId];
+  var exId=exerciseForDay(keyOf(cur)), ex=exerciseById(exId)||{title:"Movement",time:"",focus:""};
   var mv=document.getElementById("moveBox"); mv.innerHTML="";
   var row=el("label","chk"+(d.exercise?" done":""));
   var cb=el("input");cb.type="checkbox";cb.checked=!!d.exercise;
@@ -3520,6 +3629,7 @@ function renderAll(){
   renderNotes(true);
   renderBoard();
   renderPlanner();
+  renderMisc();                 /* an AI plan can arrive from another device */
   if(currentSub==="duas")renderDuasList();   /* the links live on the profile */
   renderPrayerModal();          /* no-ops unless the modal is actually open */
   if(currentView==="calendar"){_calWin=null;renderCalendarTab();}
@@ -3532,7 +3642,7 @@ function renderAll(){
    and a `deleted` tombstone. A delete has to leave a tombstone behind: drop
    the row instead and the next sync from another device, which still holds
    it, simply pushes it back. */
-var ITEM_STORES=["projects","tasks","notes"];
+var ITEM_STORES=["projects","tasks","notes","plans"];
 function itemStore(name){
   if(!state[name]||typeof state[name]!=="object")state[name]={};
   return state[name];
@@ -6572,18 +6682,19 @@ function openDuaModal(id,name){
 /* ---------- RENDER: MEAL PLAN ---------- */
 function renderPlan(){
   var box=document.getElementById("planBox");box.innerHTML="";
-  ["day1","day2","day3","day4","day5","day6","day7"].forEach(function(dk){
-    var p=PLAN[dk], card=el("div","card plan-day");
-    card.appendChild(el("h4",null,p.name));
+  mealWeek().forEach(function(day){
+    var card=el("div","card plan-day");
+    card.appendChild(el("h4",null,day.name));
     var total=0;
     MEALSLOTS.forEach(function(s){
-      var r=RECIPES[p[s[0]]];total+=r.kcal;
+      var id=day.meals[s[0]],r=recipeById(id);
+      if(r)total+=Number(r.kcal)||0;
       var line=el("div","meal-row");
       var mid=el("div");mid.style.flex="1";
       var top=el("div");top.appendChild(el("span","tag",s[1]));top.appendChild(document.createTextNode(" "));
-      top.appendChild(recipeLink(p[s[0]]));
+      top.appendChild(recipeLink(id));
       mid.appendChild(top);
-      mid.appendChild(el("div","meal-meta","≈ "+r.kcal+" kcal · "+r.protein+" g protein"));
+      if(r)mid.appendChild(el("div","meal-meta","≈ "+r.kcal+" kcal · "+r.protein+" g protein"));
       line.appendChild(mid);card.appendChild(line);
     });
     card.appendChild(el("div","meal-meta","Meals ≈ "+total+" kcal · with daily supplements ≈ "+(total+extrasKcal())+" kcal"));
@@ -6594,36 +6705,257 @@ function renderPlan(){
 /* ---------- RENDER: RECIPES ---------- */
 function renderRecipes(){
   var box=document.getElementById("recipesBox");box.innerHTML="";
-  var groups=[["Breakfast","b_"],["Lunch","l_"],["Dinner","d_"],["Optional light snacks (only if genuinely hungry)","s_"]];
+  var list=currentRecipes();
+  var groups=[["Breakfast","Breakfast"],["Lunch","Lunch"],["Dinner","Dinner"],["Snack","Optional light snacks (only if genuinely hungry)"]];
   groups.forEach(function(g){
-    box.appendChild(el("div","section-title",g[0]));
-    Object.keys(RECIPES).forEach(function(id){
-      if(id.indexOf(g[1])!==0)return;
-      var r=RECIPES[id],c=el("div","recipe-card");
-      var h=el("h4");h.appendChild(recipeLink(id));c.appendChild(h);
+    var mine=list.filter(function(x){return x.r.meal===g[0];});
+    if(!mine.length)return;
+    box.appendChild(el("div","section-title",g[1]));
+    mine.forEach(function(x){
+      var r=x.r,c=el("div","recipe-card");
+      var h=el("h4");h.appendChild(recipeLink(x.id));c.appendChild(h);
       c.appendChild(el("div","meal-meta","≈ "+r.kcal+" kcal · "+r.protein+" g protein · "+r.time));
-      c.appendChild(el("div","note",r.note));
+      if(r.note)c.appendChild(el("div","note",r.note));
       box.appendChild(c);
     });
   });
 }
 
 /* ---------- RENDER: EXERCISES ---------- */
+function exerciseLink(id,label){
+  var e=exerciseById(id);
+  if(!e)return el("span",null,"—");
+  var b=el("button","linklike",label||e.title);b.setAttribute("data-exercise",id);return b;
+}
 function renderExercises(){
   var box=document.getElementById("exercisesBox");box.innerHTML="";
-  Object.keys(EXERCISES).forEach(function(id){
-    var e=EXERCISES[id],c=el("div","ex-card");
-    var h=el("h4");var b=el("button","linklike",e.title);b.setAttribute("data-exercise",id);h.appendChild(b);c.appendChild(h);
+  currentExercises().forEach(function(x){
+    var e=x.e,c=el("div","ex-card");
+    var h=el("h4");h.appendChild(exerciseLink(x.id));c.appendChild(h);
     c.appendChild(el("div","meal-meta",e.time+" · "+e.focus));
     box.appendChild(c);
   });
   var wk=document.getElementById("exWeekBox");wk.innerHTML="";
-  EX_WEEK_LABELS.forEach(function(row){
-    var tr=el("tr");tr.appendChild(el("td",null,row[0]));
-    var td=el("td");var b=el("button","linklike",EXERCISES[row[1]].title+" ("+EXERCISES[row[1]].time+")");b.setAttribute("data-exercise",row[1]);td.appendChild(b);
+  movementWeek().forEach(function(row){
+    var tr=el("tr");tr.appendChild(el("td",null,row.name));
+    var e=exerciseById(row.ex),td=el("td");
+    td.appendChild(exerciseLink(row.ex,e?e.title+" ("+e.time+")":null));
     tr.appendChild(td);wk.appendChild(tr);
   });
 }
+
+/* ---------- AI PLANS ----------
+   A card at the top of Meals, Recipes and Movement. With the built-in plan
+   in force it offers to make a new one; with an AI plan in force it says so,
+   shows what was asked for, and offers to change it again or to go back to
+   the original. Meals and Recipes are one plan (the meals are made of the
+   recipes), so both cards drive the same "meals" kind. */
+var PLAN_AI_SPOTS=[["meals","planAi","planNote"],["meals","recipesAi","recipesNote"],["movement","exAi",null]];
+var PLAN_AI_EXAMPLES={
+  meals:["Vegetarian on weekdays","More protein, about 1,500 kcal a day","Quick meals under 15 minutes","No fish, more chicken"],
+  movement:["Three days of gentle strength","Shorter sessions, 10 minutes","Add swimming twice a week","Easier on my knees"]
+};
+var PLAN_AI_MAX_BYTES=55000;
+var _planAiDraft={meals:"",movement:""};
+var _planAiResult=null;
+var _planAiReq=0;
+function planKindName(kind){return kind==="meals"?"meal plan":"movement plan";}
+function renderPlanAi(){
+  PLAN_AI_SPOTS.forEach(function(spot){
+    var kind=spot[0],box=document.getElementById(spot[1]);
+    if(!box)return;
+    box.innerHTML="";
+    var v=planVersionFor(kind,todayKey());
+    var note=spot[2]&&document.getElementById(spot[2]);
+    /* The built-in notes describe the built-in plan - its calories, its
+       style - so they would be wrong about an AI one. */
+    if(note)note.hidden=!!v;
+    var card=el("div","card ai-plan"+(v?" is-on":""));
+    card.setAttribute("data-kind",kind);
+    if(v){
+      card.appendChild(el("h3",null,"✨ Your AI "+planKindName(kind)));
+      card.appendChild(el("div","meal-meta","In use since "+humanShort(new Date(v.from+"T00:00:00"))+". Earlier days keep the plan they had."));
+      if(v.plan.summary)card.appendChild(el("p","ai-sum",v.plan.summary));
+      if(v.prompt)card.appendChild(el("div","ai-asked","You asked: “"+v.prompt+"”"));
+    }else{
+      card.appendChild(el("h3",null,"✨ Make a new "+planKindName(kind)+" with AI"));
+      card.appendChild(el("p","ai-sum","Say what you need and the AI reworks this plan. You see it before anything changes."));
+    }
+    var acts=el("div","ai-actions");
+    var ask=el("button","btn primary",v?"✨ Change it":"✨ Ask AI");
+    ask.type="button";ask.setAttribute("data-plan-ai",kind);
+    ask.addEventListener("click",function(){openPlanAi(kind);});
+    acts.appendChild(ask);
+    if(v){
+      var back=el("button","btn","↩ Back to the original");
+      back.type="button";
+      back.addEventListener("click",function(){
+        if(!window.confirm("Go back to the original "+planKindName(kind)+" from today? Earlier days keep the plan they had."))return;
+        usePlanVersion(kind,null,"");
+      });
+      acts.appendChild(back);
+    }
+    card.appendChild(acts);
+    box.appendChild(card);
+  });
+}
+/** What the AI is told the current plan is: titles, not whole recipes - it is
+ * updating a plan, and a short description keeps the request small. */
+function planContext(kind){
+  var v=planVersionFor(kind,todayKey()),p=state.profile||{};
+  var ctx={targets:{startWeight:p.startWeight,targetWeight:p.targetWeight}};
+  if(kind==="meals"){
+    ctx.days=mealWeek().map(function(d){
+      var o={};MEALSLOTS.forEach(function(s){var r=recipeById(d.meals[s[0]]);o[s[0]]=r?r.title+" ("+r.kcal+" kcal)":"";});return o;
+    });
+    ctx.extrasKcal=extrasKcal();
+    ctx.context=v?(v.plan.summary||""):"A halal rotation of desi, Mediterranean and simple Western meals: about 950-1,000 kcal a day from three meals, kept high in protein, for fat loss and healthy joints.";
+  }else{
+    ctx.week=movementWeek().map(function(d){var e=exerciseById(d.ex);return e?e.title+" ("+e.time+")":"";});
+    ctx.context=v?(v.plan.summary||""):"Gentle, joint-friendly sessions of 15 minutes or less for someone with sore, arthritic joints: mobility, walking, chair strength, isometrics and stretching.";
+  }
+  return ctx;
+}
+function openPlanAi(kind){
+  _planAiResult=null;_planAiReq++;
+  var b=document.getElementById("modalBody");b.innerHTML="";
+  var wrap=el("div","plan-ai");wrap.setAttribute("data-kind",kind);
+  wrap.appendChild(el("h2",null,"✨ New "+planKindName(kind)));
+  wrap.appendChild(el("p","muted","Say what you need. The AI starts from the plan you have now and changes what you ask for. Nothing on your dashboard changes until you choose “Use this plan”."));
+  var ta=el("textarea","plan-ai-in");ta.id="planAiPrompt";ta.rows=4;ta.maxLength=1500;
+  ta.placeholder=kind==="meals"?"e.g. Vegetarian on weekdays, about 1,500 kcal, nothing that takes longer than 20 minutes":"e.g. Three short strength sessions a week, and something gentle for my knees";
+  ta.value=_planAiDraft[kind]||"";
+  ta.addEventListener("input",function(){_planAiDraft[kind]=ta.value;});
+  wrap.appendChild(ta);
+  var chips=el("div","ai-chips");
+  PLAN_AI_EXAMPLES[kind].forEach(function(t){
+    var c=el("button","ai-chip",t);c.type="button";
+    c.addEventListener("click",function(){
+      ta.value=ta.value.trim()?ta.value.replace(/\s*$/,"")+(/[.,;]$/.test(ta.value.trim())?" ":". ")+t:t;
+      _planAiDraft[kind]=ta.value;ta.focus();
+    });
+    chips.appendChild(c);
+  });
+  wrap.appendChild(chips);
+  var acts=el("div","ai-actions");
+  var go=el("button","btn primary","✨ Make the plan");go.type="button";go.id="planAiGo";
+  go.addEventListener("click",function(){generatePlan(kind);});
+  acts.appendChild(go);
+  wrap.appendChild(acts);
+  var st=el("div","plan-ai-status");st.id="planAiStatus";st.setAttribute("role","status");
+  wrap.appendChild(st);
+  var out=el("div","plan-ai-out");out.id="planAiOut";
+  wrap.appendChild(out);
+  b.appendChild(wrap);
+  showModal();
+  ta.focus();
+}
+var PLAN_AI_ERRORS={
+  not_configured:"The AI isn't set up on the server yet (it needs the Gemini key).",
+  gemini_error:"The AI couldn't be reached just now. Try again in a minute.",
+  unreadable:"The AI's answer wasn't a complete plan. Try again - rewording the request can help."
+};
+function generatePlan(kind){
+  var ta=document.getElementById("planAiPrompt"),st=document.getElementById("planAiStatus");
+  var out=document.getElementById("planAiOut"),go=document.getElementById("planAiGo");
+  if(!ta||!st||!out)return;
+  var ask=ta.value.trim();
+  if(!ask){st.className="plan-ai-status bad";st.textContent="Say what you'd like the plan to be first.";ta.focus();return;}
+  var req=++_planAiReq;
+  _planAiResult=null;out.innerHTML="";
+  st.className="plan-ai-status busy";st.textContent="Working on it - this can take up to a minute…";
+  if(go)go.disabled=true;
+  fetch("/api/plan/generate",{method:"POST",credentials:"same-origin",
+    headers:{"content-type":"application/json"},
+    body:JSON.stringify({kind:kind,prompt:ask,current:planContext(kind)})
+  }).then(function(res){
+    return res.json().catch(function(){return {};}).then(function(body){return {ok:res.ok,body:body||{}};});
+  }).then(function(r){
+    /* The modal may have been closed or reopened meanwhile; a late answer
+       must not land in a different dialog. */
+    if(req!==_planAiReq||!document.getElementById("planAiOut"))return;
+    if(go)go.disabled=false;
+    if(!r.ok||!r.body.plan){
+      st.className="plan-ai-status bad";
+      st.textContent=PLAN_AI_ERRORS[r.body.error]||(r.body.error?String(r.body.error):"Something went wrong. Try again.");
+      return;
+    }
+    _planAiResult={kind:kind,plan:r.body.plan,prompt:ask};
+    st.className="plan-ai-status";st.textContent="";
+    renderPlanPreview(kind,r.body.plan);
+  }).catch(function(){
+    if(req!==_planAiReq||!document.getElementById("planAiOut"))return;
+    if(go)go.disabled=false;
+    st.className="plan-ai-status bad";st.textContent="Couldn't reach the server - check you're online and try again.";
+  });
+}
+function renderPlanPreview(kind,plan){
+  var out=document.getElementById("planAiOut");if(!out)return;
+  out.innerHTML="";
+  out.appendChild(el("div","section-title","Here's the new "+planKindName(kind)));
+  if(plan.summary)out.appendChild(el("p","ai-sum",plan.summary));
+  var list=el("div","plan-ai-days");
+  DAY_NAMES_MON.forEach(function(name,i){
+    var row=el("div","plan-ai-day");
+    row.appendChild(el("div","pad-name",name.slice(0,3)));
+    var body=el("div","pad-body");
+    if(kind==="meals"){
+      var d=plan.days[i],total=0;
+      MEALSLOTS.forEach(function(s){
+        var r=plan.recipes[d[s[0]]];if(!r)return;
+        total+=Number(r.kcal)||0;
+        var line=el("div","pad-line");
+        line.appendChild(el("span","tag",s[1]));line.appendChild(document.createTextNode(" "+r.title));
+        body.appendChild(line);
+      });
+      body.appendChild(el("div","meal-meta","Meals ≈ "+total+" kcal"));
+    }else{
+      var e=plan.exercises[plan.week[i]];
+      body.appendChild(el("div","pad-line",e?e.title+" · "+e.time:"—"));
+      if(e&&e.focus)body.appendChild(el("div","meal-meta",e.focus));
+    }
+    row.appendChild(body);list.appendChild(row);
+  });
+  out.appendChild(list);
+  var n=Object.keys(kind==="meals"?plan.recipes:plan.exercises).length;
+  out.appendChild(el("div","meal-meta",kind==="meals"?n+" recipes, each with its ingredients and method.":n+" sessions, each with its steps and a safety note."));
+  var acts=el("div","ai-actions");
+  var use=el("button","btn primary","Use this plan");use.type="button";use.id="planAiUse";
+  use.addEventListener("click",function(){
+    if(!_planAiResult)return;
+    usePlanVersion(_planAiResult.kind,_planAiResult.plan,_planAiResult.prompt);
+  });
+  var again=el("button","btn","↻ Try again");again.type="button";
+  again.addEventListener("click",function(){generatePlan(kind);});
+  acts.appendChild(use);acts.appendChild(again);
+  out.appendChild(acts);
+}
+/** Put a plan in force from today - an AI plan, or `plan` null for the
+ * original. Another version already chosen today is superseded, so it is
+ * tombstoned (and its contents dropped - no day can ever use it) rather than
+ * kept riding every sync. */
+function usePlanVersion(kind,plan,prompt){
+  var today=todayKey(),now=Date.now();
+  var row={id:newItemId("pl"),kind:kind,from:today,created:now,prompt:String(prompt||"").slice(0,1500),deleted:0};
+  if(plan)row.plan=plan;else row.builtin=true;
+  if(JSON.stringify(row).length>PLAN_AI_MAX_BYTES){
+    var st=document.getElementById("planAiStatus");
+    if(st){st.className="plan-ai-status bad";st.textContent="That plan is too large to keep in sync. Try asking for fewer recipes.";}
+    return false;
+  }
+  liveItems("plans").forEach(function(r){
+    if(r.kind===kind&&r.from===today){r.deleted=1;delete r.plan;touchItem(r,true);}
+  });
+  itemStore("plans")[row.id]=row;
+  touchItem(row);
+  _planAiResult=null;_planAiDraft[kind]="";
+  hideModal();
+  renderAll();
+  flash(plan?"Your new "+planKindName(kind)+" is in use from today. Earlier days keep the plan they had."
+            :"Back to the original "+planKindName(kind)+" from today.","ok");
+  return true;
+}
+function renderMisc(){renderPlan();renderRecipes();renderExercises();renderPlanAi();}
 
 /* ---------- RENDER: PRAYER SUMMARY ---------- */
 /* Made-up (qada) prayers live on the profile, not on any single day - they
@@ -9564,7 +9896,7 @@ function mergeItemsFromOtherTab(e){
       if(!cur||(Number(r.updated_at)||0)>(Number(cur.updated_at)||0)){mine[id]=r;changed=true;}
     });
   });
-  if(changed){renderTaskViews();renderNotes(true);}
+  if(changed){renderTaskViews();renderNotes(true);renderMisc();renderToday();}
   return changed;
 }
 
@@ -10386,26 +10718,30 @@ function drawChart(weights,start,target){
 
 /* ---------- MODAL ---------- */
 function openRecipe(id){
-  var r=RECIPES[id],b=document.getElementById("modalBody");b.innerHTML="";
+  var r=recipeById(id),b=document.getElementById("modalBody");
+  if(!r)return;
+  b.innerHTML="";
   b.appendChild(el("h2",null,r.title));
   var meta=el("div","meta");
   [["🍽️ "+r.meal],["⏱️ "+r.time],["🔥 ≈ "+r.kcal+" kcal"],["💪 "+r.protein+" g protein"]].forEach(function(t){meta.appendChild(el("span","tag",t[0]));});
   b.appendChild(meta);
   b.appendChild(el("div","muted","Ingredients"));
-  var ul=el("ul");r.ing.forEach(function(i){ul.appendChild(el("li",null,i));});b.appendChild(ul);
+  var ul=el("ul");(r.ing||[]).forEach(function(i){ul.appendChild(el("li",null,i));});b.appendChild(ul);
   b.appendChild(el("div","muted","Method"));
-  var ol=el("ol");r.steps.forEach(function(s){ol.appendChild(el("li",null,s));});b.appendChild(ol);
-  b.appendChild(el("div","note","💚 "+r.note));
+  var ol=el("ol");(r.steps||[]).forEach(function(s){ol.appendChild(el("li",null,s));});b.appendChild(ol);
+  if(r.note)b.appendChild(el("div","note","💚 "+r.note));
   showModal();
 }
 function openExercise(id){
-  var e=EXERCISES[id],b=document.getElementById("modalBody");b.innerHTML="";
+  var e=exerciseById(id),b=document.getElementById("modalBody");
+  if(!e)return;
+  b.innerHTML="";
   b.appendChild(el("h2",null,e.title));
   var meta=el("div","meta");[["⏱️ "+e.time],["🎯 "+e.focus]].forEach(function(t){meta.appendChild(el("span","tag",t[0]));});
   b.appendChild(meta);
   b.appendChild(el("div","muted","How to do it"));
-  var ol=el("ol");e.steps.forEach(function(s){ol.appendChild(el("li",null,s));});b.appendChild(ol);
-  b.appendChild(el("div","warnbox","⚠️ "+e.safety));
+  var ol=el("ol");(e.steps||[]).forEach(function(s){ol.appendChild(el("li",null,s));});b.appendChild(ol);
+  if(e.safety)b.appendChild(el("div","warnbox","⚠️ "+e.safety));
   if(e.vid){
     var a=el("a");a.className="btn primary";a.textContent="▶ Watch a demo on YouTube";
     a.href="https://www.youtube.com/results?search_query="+encodeURIComponent(e.vid);
@@ -11370,7 +11706,7 @@ applyLayout();
 initCollapsibles();
 renderHiddenCards();
 renderScaleSeg();
-renderPlan();renderRecipes();renderExercises();renderToday();
+renderMisc();renderToday();
 updateInstallUI();
 loadBrief();
 loadAyah();

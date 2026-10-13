@@ -15,7 +15,7 @@ function createMockServer({ account = DEFAULT_ACCOUNT } = {}) {
   let profile = null; // {data, updated_at}
   /* Projects and tasks are their own rows, merged per item, with tombstones -
      mirrors the real handler. */
-  const items = { projects: {}, tasks: {}, notes: {} };
+  const items = { projects: {}, tasks: {}, notes: {}, plans: {} };
 
   return {
     _days: days,
@@ -92,6 +92,7 @@ function createMockServer({ account = DEFAULT_ACCOUNT } = {}) {
         projects: outItems.projects,
         tasks: outItems.tasks,
         notes: outItems.notes,
+        plans: outItems.plans,
         days: outDays,
         profile: outProfile,
         applied,
